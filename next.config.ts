@@ -78,11 +78,8 @@ const nextConfig: NextConfig = {
       : []
   },
 
-  // Prevent exposing the server-side Supabase key to the client bundle
-  experimental: {
-    // Server components fetch cache
-    serverComponentsExternalPackages: ['@supabase/ssr'],
-  },
+  // Moved out of experimental in Next.js 15+
+  serverExternalPackages: ['@supabase/ssr'],
 }
 
 export default nextConfig
