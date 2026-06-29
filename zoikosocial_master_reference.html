@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZoikoSocial — Master Product Reference</title>
+  <meta name="description" content="Complete source of truth for the ZoikoSocial platform — all modules, features, animals, doctrine and system design.">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal-deep:   #0C2A28;
+      --teal-mid:    #1D4440;
+      --teal-muted:  #4A726E;
+      --teal-light:  #2A5E58;
+      --teal-wash:   #E8F2F0;
+      --teal-pale:   #F0F7F6;
+      --amber:       #D9920A;
+      --amber-light: #F4A820;
+      --amber-pale:  #FEF3DA;
+      --sage:        #5C9E78;
+      --sage-pale:   #EAF4EE;
+      --rose:        #C0504A;
+      --rose-pale:   #FBEEED;
+      --surface:     #F5F2ED;
+      --paper:       #FDFCFA;
+      --text-dark:   #151C1B;
+      --text-mid:    #374543;
+      --text-faint:  #7A918F;
+      --rule:        #D4E3E0;
+      --rule-light:  #EAF0EF;
+      --sidebar-w:   220px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: var(--surface);
+      color: var(--text-dark);
+      font-size: 14px;
+      line-height: 1.65;
+      display: flex;
+    }
+
+    /* ── SIDEBAR ──────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: var(--teal-deep);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+
+    .sidebar-brand {
+      padding: 22px 18px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .sidebar-brand-name {
+      font-family: Georgia, serif;
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--amber-light);
+      letter-spacing: -0.02em;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-brand-sub {
+      font-size: 10px;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .sidebar-section {
+      padding: 14px 18px 4px;
+    }
+
+    .sidebar-section-label {
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.22);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-link {
+      display: block;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12.5px;
+      color: rgba(255,255,255,0.52);
+      text-decoration: none;
+      line-height: 1.4;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .sidebar-link:hover {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.85);
+    }
+
+    .sidebar-link.active {
+      background: rgba(244,168,32,0.15);
+      color: var(--amber-light);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 14px 18px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      font-size: 10px;
+      color: rgba(255,255,255,0.2);
+      line-height: 1.6;
+    }
+
+    /* ── MAIN CONTENT ─────────────────────────────────── */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 0 0 80px;
+    }
+
+    /* ── PAGE HEADER ──────────────────────────────────── */
+    .page-header {
+      background: var(--teal-deep);
+      padding: 40px 52px 36px;
+      border-bottom: 3px solid var(--amber);
+    }
+
+    .page-header-eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.32);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .page-header-title {
+      font-family: Georgia, serif;
+      font-size: 34px;
+      color: var(--amber-light);
+      font-weight: bold;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .page-header-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+    }
+
+    /* ── SECTIONS ─────────────────────────────────────── */
+    .section {
+      padding: 44px 52px 0;
+    }
+
+    .section + .section {
+      margin-top: 0;
+    }
+
+    .section-anchor {
+      display: block;
+      position: relative;
+      top: -20px;
+      visibility: hidden;
+    }
+
+    .section-title {
+      font-family: Georgia, serif;
+      font-size: 22px;
+      font-weight: bold;
+      color: var(--teal-mid);
+      letter-spacing: -0.015em;
+      margin-bottom: 6px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--rule);
+    }
+
+    .section-intro {
+      font-size: 13.5px;
+      color: var(--text-mid);
+      margin-bottom: 24px;
+      max-width: 640px;
+      line-height: 1.7;
+    }
+
+    .section-intro strong {
+      color: var(--text-dark);
+      font-weight: 600;
+    }
+
+    /* ── DIVIDER ──────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: var(--rule);
+      margin: 44px 52px 0;
+    }
+
+    /* ── DOCTRINE CARDS ───────────────────────────────── */
+    .doctrine-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .doctrine-card {
+      background: var(--paper);
+      padding: 20px 22px;
+      border-left: 3px solid var(--amber);
+    }
+
+    .doctrine-num {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+
+    .doctrine-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 5px;
+      line-height: 1.3;
+    }
+
+    .doctrine-body {
+      font-size: 12.5px;
+      color: var(--text-mid);
+      line-height: 1.55;
+    }
+
+    /* ── MODULE CARDS ─────────────────────────────────── */
+    .modules-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .module-card {
+      background: var(--paper);
+      padding: 16px 18px;
+      border-top: 2.5px solid transparent;
+    }
+
+    .module-card.core   { border-top-color: var(--teal-mid); }
+    .module-card.new    { border-top-color: var(--sage); }
+    .module-card.suggest { border-top-color: var(--amber); }
+
+    .module-tag {
+      display: inline-block;
+      font-size: 9.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      margin-bottom: 8px;
+    }
+
+    .tag-core    { background: var(--teal-wash); color: var(--teal-mid); }
+    .tag-new     { background: var(--sage-pale); color: #2D7A4F; }
+    .tag-suggest { background: var(--amber-pale); color: var(--amber); }
+
+    .module-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-dark);
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+
+    .module-desc {
+      font-size: 12px;
+      color: var(--text-faint);
+      line-height: 1.5;
+    }
+
+    /* ── TABLES ───────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      margin-bottom: 28px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead th {
+      background: var(--teal-mid);
+      color: rgba(255,255,255,0.82);
+      font-size: 10.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 600;
+      padding: 10px 14px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(odd)  { background: var(--paper); }
+    tbody tr:nth-child(even) { background: var(--teal-pale); }
+
+    td {
+      padding: 9px 14px;
+      color: var(--text-mid);
+      border-bottom: 1px solid var(--rule-light);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    td strong { color: var(--text-dark); font-weight: 600; }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* ── FEATURE DETAIL BLOCK ─────────────────────────── */
+    .feature-block {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+
+    .feature-block-head {
+      background: var(--teal-mid);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .feature-block-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-block-body {
+      padding: 18px 20px;
+    }
+
+    .feature-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .feature-col-label {
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--teal-muted);
+      margin-bottom: 8px;
+    }
+
+    .feature-list {
+      list-style: none;
+    }
+
+    .feature-list li {
+      font-size: 12.5px;
+      color: var(--text-mid);
+      padding: 4px 0;
+      border-bottom: 1px solid var(--rule-light);
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      line-height: 1.4;
+    }
+
+    .feature-list li:last-child { border-bottom: none; }
+
+    .feature-list li::before {
+      content: '';
+      width: 4px;
+      height: 4px;
+      background: var(--sage);
+      border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      top: 1px;
+    }
+
+    .feature-list.amber li::before { background: var(--amber); }
+    .feature-list.rose li::before  { background: var(--rose); }
+
+    /* ── FLOW DIAGRAM ─────────────────────────────────── */
+    .flow {
+      background: var(--teal-wash);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      font-size: 12px;
+      color: var(--teal-mid);
+      font-family: 'Courier New', monospace;
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    /* ── ANIMAL TIERS ─────────────────────────────────── */
+    .tier-group {
+      margin-bottom: 20px;
+    }
+
+    .tier-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .tier-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 12px;
+    }
+
+    .tier-1 { background: var(--teal-wash); color: var(--teal-mid); }
+    .tier-2 { background: var(--amber-pale); color: var(--amber); }
+    .tier-3 { background: var(--sage-pale); color: #2D7A4F; }
+    .tier-x { background: var(--rose-pale); color: var(--rose); }
+
+    .tier-desc {
+      font-size: 12px;
+      color: var(--text-faint);
+    }
+
+    .animal-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      font-size: 12px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      border: 1px solid;
+      color: var(--text-mid);
+    }
+
+    .chip-teal   { background: var(--teal-pale); border-color: var(--rule); }
+    .chip-amber  { background: var(--amber-pale); border-color: #F0D090; color: #7A5200; }
+    .chip-sage   { background: var(--sage-pale); border-color: #B5D9C4; color: #1E6641; }
+    .chip-rose   { background: var(--rose-pale); border-color: #E8B8B5; color: #8B2020; }
+
+    /* ── ACTORS ───────────────────────────────────────── */
+    .actors-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .actor-card {
+      background: var(--paper);
+      padding: 16px 18px;
+    }
+
+    .actor-role {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--teal-mid);
+      margin-bottom: 4px;
+    }
+
+    .actor-desc {
+      font-size: 12px;
+      color: var(--text-faint);
+      line-height: 1.5;
+    }
+
+    /* ── BIZ MODEL ────────────────────────────────────── */
+    .biz-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .biz-cell {
+      background: var(--paper);
+      padding: 16px 14px;
+    }
+
+    .biz-stream {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--teal-mid);
+      margin-bottom: 3px;
+    }
+
+    .biz-detail {
+      font-size: 11.5px;
+      color: var(--text-faint);
+      line-height: 1.45;
+    }
+
+    /* ── CALLOUT ──────────────────────────────────────── */
+    .callout {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-radius: 5px;
+      padding: 13px 16px;
+      margin: 16px 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .callout-amber {
+      background: var(--amber-pale);
+      border: 1px solid #F0D090;
+      color: #5A3A00;
+    }
+
+    .callout-teal {
+      background: var(--teal-wash);
+      border: 1px solid var(--rule);
+      color: var(--teal-mid);
+    }
+
+    .callout-rose {
+      background: var(--rose-pale);
+      border: 1px solid #E8B8B5;
+      color: #6B1A1A;
+    }
+
+    .callout-sage {
+      background: var(--sage-pale);
+      border: 1px solid #B5D9C4;
+      color: #1A5E35;
+    }
+
+    .callout::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 5px;
+    }
+
+    .callout-amber::before { background: var(--amber); }
+    .callout-teal::before  { background: var(--teal-muted); }
+    .callout-rose::before  { background: var(--rose); }
+    .callout-sage::before  { background: var(--sage); }
+
+    /* ── TECH STACK ───────────────────────────────────── */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 2px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .stack-cell {
+      background: var(--paper);
+      padding: 13px 14px;
+    }
+
+    .stack-layer {
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+
+    .stack-items {
+      font-size: 12px;
+      color: var(--text-mid);
+      line-height: 1.7;
+    }
+
+    /* ── RESPONSIVE ───────────────────────────────────── */
+    @media (max-width: 820px) {
+      .sidebar { display: none; }
+      .section { padding: 32px 24px 0; }
+      .page-header { padding: 28px 24px; }
+      .divider { margin: 32px 24px 0; }
+      .doctrine-grid { grid-template-columns: 1fr; }
+      .modules-grid { grid-template-columns: repeat(2, 1fr); }
+      .feature-two-col { grid-template-columns: 1fr; }
+      .actors-grid { grid-template-columns: repeat(2, 1fr); }
+      .biz-row { grid-template-columns: repeat(2, 1fr); }
+      .stack-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 520px) {
+      .modules-grid { grid-template-columns: 1fr; }
+      .actors-grid { grid-template-columns: 1fr; }
+      .biz-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ──────────────────────────────────────── -->
+<nav class="sidebar">
+  <div class="sidebar-brand">
+    <span class="sidebar-brand-name">ZoikoSocial</span>
+    <span class="sidebar-brand-sub">Master Reference</span>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Foundation</div>
+    <a class="sidebar-link" href="#what-is">What Is ZoikoSocial</a>
+    <a class="sidebar-link" href="#doctrine">Core Doctrine</a>
+    <a class="sidebar-link" href="#actors">Who Uses It</a>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Platform Modules</div>
+    <a class="sidebar-link" href="#modules-overview">All Modules</a>
+    <a class="sidebar-link" href="#social">Social & Content</a>
+    <a class="sidebar-link" href="#communities">Communities</a>
+    <a class="sidebar-link" href="#messaging">Messaging & Calls</a>
+    <a class="sidebar-link" href="#news">Verified News</a>
+    <a class="sidebar-link" href="#events">Events</a>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">New Modules</div>
+    <a class="sidebar-link" href="#adoption">Adoption & Rescue</a>
+    <a class="sidebar-link" href="#products">Products</a>
+    <a class="sidebar-link" href="#petcare">Pet Care</a>
+    <a class="sidebar-link" href="#breeding">Breeding Match</a>
+    <a class="sidebar-link" href="#lostandfound">Lost & Found</a>
+    <a class="sidebar-link" href="#petdiary">Pet Diary</a>
+    <a class="sidebar-link" href="#vetfinder">Vet Finder</a>
+    <a class="sidebar-link" href="#healthpassport">Health Passport</a>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Reference</div>
+    <a class="sidebar-link" href="#animals">Animal Taxonomy</a>
+    <a class="sidebar-link" href="#business">Business Model</a>
+    <a class="sidebar-link" href="#tech">Technology</a>
+    <a class="sidebar-link" href="#differences">What Makes It Different</a>
+  </div>
+
+  <div class="sidebar-footer">
+    Zoiko Media Corp · v1.0<br>Sacramento CA · June 2026
+  </div>
+</nav>
+
+<!-- ── MAIN ──────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div class="page-header-eyebrow">Zoiko Media Corp &nbsp;·&nbsp; Confidential Product Brief &nbsp;·&nbsp; June 2026</div>
+    <div class="page-header-title">ZoikoSocial — Master Product Reference</div>
+    <div class="page-header-sub">Complete source of truth: platform vision, all modules, animal taxonomy, system design and business model</div>
+  </div>
+
+  <!-- ── WHAT IS ────────────────────────────────────── -->
+  <span class="section-anchor" id="what-is"></span>
+  <div class="section">
+    <h2 class="section-title">What Is ZoikoSocial</h2>
+    <p class="section-intro">
+      ZoikoSocial is a <strong>governed hybrid social media platform</strong> built by Zoiko Media Corp, headquartered in Sacramento, CA. It combines the feature surfaces of Facebook, Instagram, WhatsApp, TikTok and X — but operates under a strict safety-first doctrine built specifically for <strong>animal lovers, climate & environment communities, and science & technology audiences</strong>.
+    </p>
+    <p class="section-intro">
+      Unlike general-purpose social platforms that prioritize engagement above all, ZoikoSocial treats animal welfare, verified news, and profanity prevention as hard technical requirements — not optional policies. Every piece of content, every advertisement, every message, and every transaction passes through a governed safety pipeline before it reaches any user.
+    </p>
+    <div class="callout callout-teal">
+      ZoikoSocial is not connected to Meta (Facebook/Instagram/WhatsApp), ByteDance (TikTok), or X Corp. The "Built from" reference means feature inspiration only — ZoikoSocial is a fully independent platform with its own identity, infrastructure, data, and governance.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── DOCTRINE ───────────────────────────────────── -->
+  <span class="section-anchor" id="doctrine"></span>
+  <div class="section">
+    <h2 class="section-title">Core Doctrine</h2>
+    <p class="section-intro">Five non-negotiable principles that govern every engineering and product decision. These cannot be overridden by revenue, growth, engagement, or advertiser pressure.</p>
+    <div class="doctrine-grid">
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 01</div>
+        <div class="doctrine-title">Profanity-Free Everywhere</div>
+        <div class="doctrine-body">Enforced before any content is stored — not reported after. Applies to posts, comments, DMs, usernames, bios, event titles, ads, news submissions and community names. No exceptions, no paid exemptions.</div>
+      </div>
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 02</div>
+        <div class="doctrine-title">Animal Welfare Above All</div>
+        <div class="doctrine-body">Abuse, trafficking, neglect and exploitation signals receive the highest priority escalation — overriding engagement, monetization, growth and creator reach. High-risk cases go to specialist human reviewers, not just automated filters.</div>
+      </div>
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 03</div>
+        <div class="doctrine-title">News Must Be Verified</div>
+        <div class="doctrine-body">News is tiered by source credibility: institutional publisher → verified professional → community contributor → general submission. Each tier has its own review path before any amplification. Ad spend can never buy a news badge.</div>
+      </div>
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 04</div>
+        <div class="doctrine-title">Advertising Is Verified</div>
+        <div class="doctrine-body">Every advertiser must pass identity verification and creative review. All ads carry mandatory disclosure labels. No ad bypasses the review pipeline regardless of budget or account status.</div>
+      </div>
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 05</div>
+        <div class="doctrine-title">Every Action Is Auditable</div>
+        <div class="doctrine-body">Moderation decisions, ad approvals, news publishing, breeding approvals, fundraiser payouts, call recording consent — all leave an immutable, queryable audit trail. Enforcement is institutional, not arbitrary.</div>
+      </div>
+      <div class="doctrine-card">
+        <div class="doctrine-num">Principle 06</div>
+        <div class="doctrine-title">Safety Is Never Paywalled</div>
+        <div class="doctrine-body">Premium plans improve the experience. They cannot buy safety exemptions, bypass moderation, skip content review, override age controls, or grant access to suspended accounts. Commercial and trust systems operate independently.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ACTORS ─────────────────────────────────────── -->
+  <span class="section-anchor" id="actors"></span>
+  <div class="section">
+    <h2 class="section-title">Who Uses It</h2>
+    <p class="section-intro">ZoikoSocial serves distinct user types, each with different needs and trust levels on the platform.</p>
+    <div class="actors-grid">
+      <div class="actor-card">
+        <div class="actor-role">Individual / Pet Owner</div>
+        <div class="actor-desc">Posts content, follows others, chats, joins communities, books pet care, logs pet diary, reports lost animals, attends events.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Pet Care Professional</div>
+        <div class="actor-desc">Verified vet, trainer, groomer, sitter or boarder. Offers services on the Pet Care marketplace, builds a verified directory profile.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Rescue & Shelter</div>
+        <div class="actor-desc">Verified organization posting adoption listings, running fundraisers, hosting events, coordinating volunteers, reporting welfare cases.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Breeder (Ethical)</div>
+        <div class="actor-desc">Verified, health-certified owner who uses the Breeding Match module. Subject to strict litter tracking and follow-up welfare checks.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Climate / Science Org</div>
+        <div class="actor-desc">Submits verified news, hosts educational events, runs community-aligned advertising campaigns. Source credibility is reviewed before any amplification.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Advertiser</div>
+        <div class="actor-desc">Verified business running campaigns. Must pass identity check, creative review, and welfare/claims scan before any ad reaches users.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Moderator / Reviewer</div>
+        <div class="actor-desc">Internal trust & safety, editorial, welfare specialist or commercial reviewer. Uses AI-assisted workbenches with full audit trails on every action.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">Product Seller</div>
+        <div class="actor-desc">Verified seller of pet goods, accessories, food or services. All listings pass safety and claims review before going live.</div>
+      </div>
+      <div class="actor-card">
+        <div class="actor-role">General Viewer</div>
+        <div class="actor-desc">Reads news, browses communities, views adoption listings and events without a full account. Limited access; no posting or messaging.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ALL MODULES ────────────────────────────────── -->
+  <span class="section-anchor" id="modules-overview"></span>
+  <div class="section">
+    <h2 class="section-title">All Platform Modules</h2>
+    <p class="section-intro">ZoikoSocial is built as 14 distinct modules. Each is independently deployable but operates under the shared safety and audit infrastructure.</p>
+    <div class="modules-grid">
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Social Feed & Posts</div>
+        <div class="module-desc">Photos, videos, stories, reels, following/followers, For You feed.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Communities & Groups</div>
+        <div class="module-desc">Species groups, rescue communities, climate clubs, science discussions.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Messaging & Calls</div>
+        <div class="module-desc">DMs, group chat, voice calls, video calls, live audio rooms.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Verified News</div>
+        <div class="module-desc">Tiered news: animal, environment, climate, science & technology.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Events</div>
+        <div class="module-desc">Pet birthdays, fundraisers, memorials, workshops, meetups, livestreams.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Adoption & Rescue</div>
+        <div class="module-desc">Verified adoption listings, rescue updates, organization profiles.</div>
+      </div>
+      <div class="module-card new">
+        <span class="module-tag tag-new">New</span>
+        <div class="module-name">Products Marketplace</div>
+        <div class="module-desc">Verified sellers of pet goods, food, accessories and supplies.</div>
+      </div>
+      <div class="module-card new">
+        <span class="module-tag tag-new">New</span>
+        <div class="module-name">Pet Care Marketplace</div>
+        <div class="module-desc">Two-sided: seekers find nearby verified sitters, walkers, groomers. Hourly/session booking.</div>
+      </div>
+      <div class="module-card new">
+        <span class="module-tag tag-new">New</span>
+        <div class="module-name">Breeding Match</div>
+        <div class="module-desc">Ethical pairing of health-certified pets. Strict verification, litter tracking, welfare follow-up.</div>
+      </div>
+      <div class="module-card new">
+        <span class="module-tag tag-new">New</span>
+        <div class="module-name">Lost & Found</div>
+        <div class="module-desc">Geo-tagged reports for lost or found animals. Photo, description, contact, community alerts.</div>
+      </div>
+      <div class="module-card new">
+        <span class="module-tag tag-new">New</span>
+        <div class="module-name">Pet Diary</div>
+        <div class="module-desc">Personal milestone journal: first walk, birthday, new tricks, weight log, memory timeline.</div>
+      </div>
+      <div class="module-card suggest">
+        <span class="module-tag tag-suggest">Suggested</span>
+        <div class="module-name">Vet Finder</div>
+        <div class="module-desc">Nearby verified vets filtered by species, emergency/routine, open now.</div>
+      </div>
+      <div class="module-card suggest">
+        <span class="module-tag tag-suggest">Suggested</span>
+        <div class="module-name">Health Passport</div>
+        <div class="module-desc">Digital pet record: vaccinations, dewormings, vet visits, medications, weight history.</div>
+      </div>
+      <div class="module-card core">
+        <span class="module-tag tag-core">Core</span>
+        <div class="module-name">Verified Advertising</div>
+        <div class="module-desc">Reviewed, disclosed, ecosystem-aligned campaigns for vets, shelters, pet brands, NGOs.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── SOCIAL LAYER ───────────────────────────────── -->
+  <span class="section-anchor" id="social"></span>
+  <div class="section">
+    <h2 class="section-title">Social Feed & Content</h2>
+    <p class="section-intro">The core publishing and discovery surface. Users post, follow, explore and engage with content across animal, climate, science and technology topics.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">What users can post and do</span>
+        <span class="module-tag tag-core">Core Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="feature-two-col">
+          <div>
+            <div class="feature-col-label">Content types</div>
+            <ul class="feature-list">
+              <li>Photos — single or carousel</li>
+              <li>Short videos and reels (TikTok-style)</li>
+              <li>Stories — 24-hour disappearing</li>
+              <li>Long-form text posts</li>
+              <li>Polls and questions</li>
+              <li>Live video broadcasts</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Discovery & engagement</div>
+            <ul class="feature-list">
+              <li>For You feed (personalized, safe-ranked)</li>
+              <li>Following feed (chronological option)</li>
+              <li>Species / topic explore pages</li>
+              <li>Trending in your community</li>
+              <li>Likes, comments, shares, saves</li>
+              <li>Tag a pet, place, or person</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout callout-amber" style="margin-top:14px;">
+          All content passes a profanity and safety scan before storage. Animal welfare flags go to specialist reviewers before the post reaches any feed.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── COMMUNITIES ────────────────────────────────── -->
+  <span class="section-anchor" id="communities"></span>
+  <div class="section">
+    <h2 class="section-title">Communities & Groups</h2>
+    <p class="section-intro">Structured spaces around shared interests — organized by species, breed, rescue type, climate issue, or science field.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Community Type</th><th>Examples</th><th>Special features</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Species / Breed</strong></td><td>Beagles of Sacramento, Parrot Keepers Club, Koi Pond Enthusiasts</td><td>Adoption listings, expert Q&amp;A, breed health guides</td></tr>
+          <tr><td><strong>Rescue &amp; Welfare</strong></td><td>LA Street Cat Rescue, Wildlife Rehab Network, No-Kill Shelter Alliance</td><td>Donation tools, volunteer coordination, welfare alerts</td></tr>
+          <tr><td><strong>Climate &amp; Environment</strong></td><td>Ocean Plastic Watch, Urban Tree Canopy, Regenerative Farming</td><td>Verified news integration, campaign tools, event hosting</td></tr>
+          <tr><td><strong>Science &amp; Technology</strong></td><td>Animal Cognition Research, Veterinary Innovations, Conservation Tech</td><td>Verified contributors, peer review links, educational campaigns</td></tr>
+          <tr><td><strong>Local</strong></td><td>Sacramento Dog Owners, Portland Ferret Friends, Austin Cat Colony</td><td>Lost &amp; Found alerts, local vet recommendations, local events</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── MESSAGING ──────────────────────────────────── -->
+  <span class="section-anchor" id="messaging"></span>
+  <div class="section">
+    <h2 class="section-title">Messaging & Calls</h2>
+    <p class="section-intro">Private and group communication — text, voice, video. All communication passes profanity and safety checks in real time.</p>
+    <div class="feature-two-col" style="gap:12px; margin-bottom:20px;">
+      <div class="feature-block" style="margin-bottom:0;">
+        <div class="feature-block-head"><span class="feature-block-title">Messaging</span></div>
+        <div class="feature-block-body">
+          <ul class="feature-list">
+            <li>1-to-1 direct messages</li>
+            <li>Group chats (up to configurable limit)</li>
+            <li>Photos, videos, file attachments</li>
+            <li>Voice messages</li>
+            <li>Message read receipts and delivery status</li>
+            <li>End-to-end encryption for DMs</li>
+            <li>Message deletion and reporting</li>
+          </ul>
+        </div>
+      </div>
+      <div class="feature-block" style="margin-bottom:0;">
+        <div class="feature-block-head"><span class="feature-block-title">Calls & Live</span></div>
+        <div class="feature-block-body">
+          <ul class="feature-list">
+            <li>1-to-1 voice and video calls</li>
+            <li>Group video calls</li>
+            <li>Live audio rooms (podcast-style)</li>
+            <li>Live video with audience chat</li>
+            <li>Optional recording with consent prompt</li>
+            <li>Screen sharing</li>
+            <li>Noise cancellation</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── NEWS ──────────────────────────────────────── -->
+  <span class="section-anchor" id="news"></span>
+  <div class="section">
+    <h2 class="section-title">Verified News</h2>
+    <p class="section-intro">News on ZoikoSocial is tiered by source credibility and reviewed before amplification. Topics: animal welfare, conservation, climate, environment, science and technology.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Tier</th><th>Source type</th><th>Review process</th><th>Badge</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Tier 1</strong></td><td>Established media organisations, scientific journals, government agencies</td><td>Pre-approved source; auto-fast-tracked, spot-checked</td><td>Institutional badge</td></tr>
+          <tr><td><strong>Tier 2</strong></td><td>Verified journalists, researchers, credentialed professionals</td><td>Identity verified; editorial review per article</td><td>Verified contributor badge</td></tr>
+          <tr><td><strong>Tier 3</strong></td><td>Community members, NGOs, rescue organisations</td><td>Evidence links required; editorial queue review</td><td>Community contributor badge</td></tr>
+          <tr><td><strong>Tier 4</strong></td><td>General public submissions</td><td>Full editorial review; claims check; evidence required before publication</td><td>No badge; attribution only</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout callout-rose">
+      Paid advertising can never create, modify or boost a news verification badge. Ad spend and editorial credibility are fully separated systems.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── EVENTS ─────────────────────────────────────── -->
+  <span class="section-anchor" id="events"></span>
+  <div class="section">
+    <h2 class="section-title">Events</h2>
+    <p class="section-intro">Community and commercial events with optional ticketing, donations and sponsorships. All paid events require verified hosts.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Event type</th><th>Who can host</th><th>Commerce options</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Pet Birthdays / Celebrations</strong></td><td>Any user</td><td>No commerce; optional donation to a rescue</td></tr>
+          <tr><td><strong>Memorial Events</strong></td><td>Any user</td><td>Optional verified donation in pet's memory</td></tr>
+          <tr><td><strong>Rescue Fundraisers</strong></td><td>Verified rescue / NGO only</td><td>Verified donation with receipts and payout audit</td></tr>
+          <tr><td><strong>Training / Grooming Workshops</strong></td><td>Verified professional</td><td>Paid ticketing with refund policy</td></tr>
+          <tr><td><strong>Community Meetups</strong></td><td>Community admin</td><td>Free or ticketed; sponsorship with disclosure</td></tr>
+          <tr><td><strong>Climate / Science Events</strong></td><td>Verified organisation or professional</td><td>Ticketing, sponsorship, educational campaigns</td></tr>
+          <tr><td><strong>Adoption Drives</strong></td><td>Verified shelter / rescue</td><td>Free; linked to adoption listings</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ADOPTION ───────────────────────────────────── -->
+  <span class="section-anchor" id="adoption"></span>
+  <div class="section">
+    <h2 class="section-title">Adoption & Rescue</h2>
+    <p class="section-intro">A dedicated surface for posting and finding animals available for adoption. Only verified rescues and shelters can publish listings.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">How it works</span>
+        <span class="module-tag tag-core">Core Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="flow">
+Rescue/Shelter verified → Listing created (animal photo, health status, vaccinations, temperament) →
+Safety & welfare scan → Published → User browses (species, age, location, size filters) →
+Adoption enquiry sent → Rescue manages application → Outcome recorded → Follow-up welfare check
+        </div>
+        <div class="feature-two-col" style="margin-top:14px;">
+          <div>
+            <div class="feature-col-label">Listing includes</div>
+            <ul class="feature-list">
+              <li>Animal name, species, breed, age</li>
+              <li>Photos and short video</li>
+              <li>Health and vaccination status</li>
+              <li>Temperament and known behaviours</li>
+              <li>Rescue location and distance from viewer</li>
+              <li>Adoption fee (if any) and conditions</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Safety controls</div>
+            <ul class="feature-list amber">
+              <li>Only verified rescues can post</li>
+              <li>No anonymous or unverified listings</li>
+              <li>Price flagging for trafficking signals</li>
+              <li>Repeat listing detection</li>
+              <li>Post-adoption welfare follow-up prompt</li>
+              <li>Welfare escalation if signals detected</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── PRODUCTS ───────────────────────────────────── -->
+  <span class="section-anchor" id="products"></span>
+  <div class="section">
+    <h2 class="section-title">Products Marketplace</h2>
+    <p class="section-intro">A verified shop for ethical pet-related goods. Not an animal trading marketplace — products only. Sellers must pass identity and category verification before any listing goes live.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">Product categories allowed</span>
+        <span class="module-tag tag-new">New Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="feature-two-col">
+          <div>
+            <div class="feature-col-label">Allowed categories</div>
+            <ul class="feature-list">
+              <li>Pet food and treats (verified nutritional claims)</li>
+              <li>Accessories — collars, harnesses, leashes, toys</li>
+              <li>Bedding, crates, carriers, tanks, cages</li>
+              <li>Grooming products — shampoos, brushes, clippers</li>
+              <li>Training aids — clickers, treat pouches</li>
+              <li>Health supplements (reviewed claims only)</li>
+              <li>Climate / eco-friendly pet products</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Blocked / restricted</div>
+            <ul class="feature-list rose">
+              <li>No live animals (use Adoption module)</li>
+              <li>No unverified medications or treatments</li>
+              <li>No deceptive health or nutrition claims</li>
+              <li>No products promoting unethical breeding</li>
+              <li>No wildlife or endangered species products</li>
+              <li>No shock/aversive training tools (restricted)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="flow" style="margin-top:14px;">
+Seller verified → Listing submitted (title, photos, description, price, species tag) →
+Category policy applied → Safety/claims scan → Product review if needed →
+Published → Order placed → Payment → Fulfilment → Buyer review → Dispute if needed
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── PET CARE ───────────────────────────────────── -->
+  <span class="section-anchor" id="petcare"></span>
+  <div class="section">
+    <h2 class="section-title">Pet Care Marketplace</h2>
+    <p class="section-intro">A location-based, two-sided marketplace connecting pet owners who need care with verified service providers. Booking is hourly or by session with escrow payment.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Role</th><th>What they do</th><th>What they need to provide</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Seeker (Pet Owner)</strong></td><td>Searches by location, species, service type, availability, hourly rate. Sends booking request. Confirms completion and leaves a review.</td><td>Pet profile, location, preferred dates/times, special instructions</td></tr>
+          <tr><td><strong>Service Giver (Care Provider)</strong></td><td>Creates a verified profile with service types, species expertise, hourly rate and availability calendar. Accepts/declines booking requests.</td><td>Identity verification, background check, species expertise declaration, service area, rates, availability</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">Service types and pricing models</span>
+        <span class="module-tag tag-new">New Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="table-wrap" style="margin-bottom:0; border:none; border-radius:0;">
+          <table>
+            <thead><tr><th>Service</th><th>Pricing model</th><th>Species</th><th>Special controls</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Dog Walking</strong></td><td>Per hour or per walk</td><td>Dogs</td><td>Optional live GPS tracking, group walk size limit</td></tr>
+              <tr><td><strong>Home Sitting</strong></td><td>Per day or per night</td><td>All pets</td><td>Owner photo updates, emergency contact required</td></tr>
+              <tr><td><strong>Boarding</strong></td><td>Per night at provider's home</td><td>Dogs, cats, small mammals</td><td>Home suitability check, capacity limit per booking</td></tr>
+              <tr><td><strong>Grooming</strong></td><td>Per session</td><td>Dogs, cats, birds</td><td>Species and coat type listed; equipment safety review</td></tr>
+              <tr><td><strong>Vet Transport</strong></td><td>Per trip</td><td>All pets</td><td>Vehicle suitability declaration</td></tr>
+              <tr><td><strong>Training Sessions</strong></td><td>Per hour or per session pack</td><td>Dogs, cats, birds</td><td>Verified trainer qualification; method declaration (positive only)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="flow" style="margin-top:14px;">
+Service Giver registers & verified → Sets services, rates, calendar, species →
+Seeker searches (location + species + service + date) → Sends booking request →
+Giver accepts → Payment held in escrow → Service delivered →
+Seeker confirms → Payment released to giver → Both parties review each other
+        </div>
+        <div class="callout callout-teal" style="margin-top:14px;">
+          Abuse or welfare incident reported during a booking automatically suspends the giver's listing and opens a trust & safety case. Evidence from the booking record is attached automatically.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── BREEDING MATCH ─────────────────────────────── -->
+  <span class="section-anchor" id="breeding"></span>
+  <div class="section">
+    <h2 class="section-title">Breeding Match</h2>
+    <p class="section-intro">A carefully governed module for connecting owners who want to ethically pair their pets. Health certification is required before any listing goes live. Commercial breeding operations are blocked.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">How breeding match works</span>
+        <span class="module-tag tag-new">New Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="flow">
+Pet owner creates pet profile (species, breed, DOB, health certs, vaccination status) →
+Opts into breeding pool → Listing reviewed (animal welfare + trafficking check) →
+Published → Algorithm matches by: breed compatibility, geography, health status, owner preference →
+Interest sent to both owners → Both accept → Agreement record created →
+Breeding takes place → Litter registered → 6-week follow-up welfare check → Outcome recorded
+        </div>
+        <div class="feature-two-col" style="margin-top:16px;">
+          <div>
+            <div class="feature-col-label">What the pet profile must include</div>
+            <ul class="feature-list">
+              <li>Species and verified breed</li>
+              <li>Date of birth and weight</li>
+              <li>Health certificates (uploaded, reviewed)</li>
+              <li>Current vaccination status</li>
+              <li>Known genetic conditions</li>
+              <li>Owner identity (verified account required)</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Safety gates</div>
+            <ul class="feature-list rose">
+              <li>No anonymous listings — owner must be verified</li>
+              <li>Health cert required; no cert = no listing</li>
+              <li>Repeat listing detection (mill flagging)</li>
+              <li>Commercial breeding operations blocked</li>
+              <li>Litter outcome tracking — welfare follow-up</li>
+              <li>Escalation if suspicious patterns detected</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── LOST & FOUND ───────────────────────────────── -->
+  <span class="section-anchor" id="lostandfound"></span>
+  <div class="section">
+    <h2 class="section-title">Lost & Found</h2>
+    <p class="section-intro">A dedicated, location-aware surface for reporting missing or found animals. Reports trigger community alerts to nearby users and relevant local groups automatically.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">Lost & Found — how it works</span>
+        <span class="module-tag tag-new">New Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="feature-two-col">
+          <div>
+            <div class="feature-col-label">Reporting a lost animal</div>
+            <ul class="feature-list">
+              <li>Select report type: Lost</li>
+              <li>Upload photo(s) of the animal</li>
+              <li>Species, breed, name, colour, microchip number</li>
+              <li>Last seen location (map pin or address)</li>
+              <li>Date and time last seen</li>
+              <li>Distinguishing marks or features</li>
+              <li>Owner contact method (phone / in-app)</li>
+              <li>Reward offered (optional, cannot be money-gated)</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Reporting a found animal</div>
+            <ul class="feature-list">
+              <li>Select report type: Found</li>
+              <li>Upload photo(s) of the animal</li>
+              <li>Species, breed estimate, colour, any tags/collar</li>
+              <li>Location found (map pin)</li>
+              <li>Current status: with me / taken to shelter / at location</li>
+              <li>Finder contact method</li>
+              <li>Shelter or vet drop-off details if applicable</li>
+            </ul>
+          </div>
+        </div>
+        <div class="flow" style="margin-top:14px;">
+Report submitted → Safety scan (no personal data exposure, no scam patterns) →
+Published → Push alert sent to users within configurable radius (e.g. 10km) →
+Alert posted in relevant local community groups →
+Possible match detection: Found reports compared against active Lost reports →
+Match suggested → Reporter notified → Case resolved or expires after 90 days →
+Outcome logged (reunited / adopted by finder / taken to shelter / unresolved)
+        </div>
+        <div class="callout callout-sage" style="margin-top:14px;">
+          If a Found animal shows signs of abuse, neglect or injury, the report can be escalated directly to the animal welfare review queue from the report form. Rescues and shelters in the area are also notified.
+        </div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data stored</th><th>Purpose</th><th>Privacy rule</th></tr></thead>
+        <tbody>
+          <tr><td>Geo-coordinates of last seen / found location</td><td>Map display, proximity alerts, match detection</td><td>Precise location shown only to verified users; general area shown publicly</td></tr>
+          <tr><td>Owner contact details</td><td>Finder can reach owner</td><td>Phone number hidden by default; contact through in-app messaging only unless owner opts to show it</td></tr>
+          <tr><td>Animal photos</td><td>Identification and matching</td><td>Public; reverse-image search fraud protection applied</td></tr>
+          <tr><td>Microchip number</td><td>Official identification cross-reference</td><td>Stored but not shown publicly; used for system matching only</td></tr>
+          <tr><td>Report outcome</td><td>Platform quality and welfare metrics</td><td>Aggregated for analytics; individual outcome private</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── PET DIARY ──────────────────────────────────── -->
+  <span class="section-anchor" id="petdiary"></span>
+  <div class="section">
+    <h2 class="section-title">Pet Diary</h2>
+    <p class="section-intro">A personal milestone journal for each pet profile. Private by default, shareable by choice. The diary builds a living memory of a pet's life from arrival to their final days.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">What you can log in the Pet Diary</span>
+        <span class="module-tag tag-new">New Module</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="table-wrap" style="margin-bottom:0; border:none; border-radius:0;">
+          <table>
+            <thead><tr><th>Entry type</th><th>What it captures</th><th>Shareable?</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Milestone</strong></td><td>First walk, first swim, first trick, first day home, first birthday</td><td>Yes — to feed, story or community</td></tr>
+              <tr><td><strong>Birthday</strong></td><td>Annual celebration log with photos and well-wishes from followers</td><td>Yes — triggers birthday card from community</td></tr>
+              <tr><td><strong>New Trick</strong></td><td>Short video or photo log: sit, shake, roll over, agility step, new behaviour</td><td>Yes — to reels or community</td></tr>
+              <tr><td><strong>Weight Log</strong></td><td>Periodic weight entry, creates a chart over time, links to vet visits</td><td>Private by default</td></tr>
+              <tr><td><strong>Vet Visit</strong></td><td>Date, clinic, vet name, reason, outcome, next appointment — links to Health Passport</td><td>Private by default</td></tr>
+              <tr><td><strong>Memory / Note</strong></td><td>Free-text entry with optional photo: funny moment, behaviour note, travel memory</td><td>Owner's choice</td></tr>
+              <tr><td><strong>Adoption Day</strong></td><td>The day the pet came home — annual "gotcha day" reminder generated</td><td>Yes — shareable as a post</td></tr>
+              <tr><td><strong>Rainbow Bridge</strong></td><td>Memorial entry when a pet passes; optional public tribute and community condolences</td><td>Optional public tribute</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-teal" style="margin-top:14px;">
+          Pet Diary entries that are shared to the feed or stories pass through the standard safety pipeline. Rainbow Bridge tributes receive a compassionate moderation queue — no automated rejection for emotional content.
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Feature</th><th>How it works</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Timeline view</strong></td><td>All entries shown chronologically as a scrollable life timeline per pet</td></tr>
+          <tr><td><strong>Weight chart</strong></td><td>Auto-generated graph from weight log entries; shareable with vet</td></tr>
+          <tr><td><strong>Annual summary</strong></td><td>End-of-year auto-generated "Year in review" for each pet with highlights from diary entries</td></tr>
+          <tr><td><strong>Reminder system</strong></td><td>Birthday reminder, vaccination due (from Health Passport), vet appointment, annual gotcha day</td></tr>
+          <tr><td><strong>Privacy control</strong></td><td>Per-entry: Private / Friends only / Public. Diary itself defaults to private unless owner changes</td></tr>
+          <tr><td><strong>Export</strong></td><td>Download full diary as PDF (for vet records, insurance, keepsake printing)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── VET FINDER ─────────────────────────────────── -->
+  <span class="section-anchor" id="vetfinder"></span>
+  <div class="section">
+    <h2 class="section-title">Vet Finder</h2>
+    <p class="section-intro">Find verified veterinary clinics and professionals nearby. Filterable by species, service type, emergency availability and opening hours.</p>
+    <div class="feature-block">
+      <div class="feature-block-head">
+        <span class="feature-block-title">Search filters and listing details</span>
+        <span class="module-tag tag-suggest">Suggested</span>
+      </div>
+      <div class="feature-block-body">
+        <div class="feature-two-col">
+          <div>
+            <div class="feature-col-label">Search filters</div>
+            <ul class="feature-list">
+              <li>Species (dog, cat, bird, reptile, exotic, farm)</li>
+              <li>Service type (routine, emergency, specialist, dental, surgery)</li>
+              <li>Open now / 24-hour</li>
+              <li>Distance from current location</li>
+              <li>Accepts new patients</li>
+              <li>Accepts walk-ins</li>
+            </ul>
+          </div>
+          <div>
+            <div class="feature-col-label">Listing shows</div>
+            <ul class="feature-list">
+              <li>Clinic name, address, map pin</li>
+              <li>Opening hours and emergency line</li>
+              <li>Species handled</li>
+              <li>Vets on staff (verified profiles)</li>
+              <li>User reviews (moderated)</li>
+              <li>Book appointment button (links to clinic's system)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout callout-amber" style="margin-top:14px;">
+          All vet and clinic listings require professional verification before going live. User reviews are moderated before publication.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── HEALTH PASSPORT ────────────────────────────── -->
+  <span class="section-anchor" id="healthpassport"></span>
+  <div class="section">
+    <h2 class="section-title">Health Passport</h2>
+    <p class="section-intro">A digital, shareable health record for each pet. Stores vaccinations, medications, vet visits, deworming and weight history in one place. Linked to the Pet Diary and Breeding Match modules.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Record type</th><th>Fields captured</th><th>Reminder generated?</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Vaccination</strong></td><td>Vaccine name, date given, batch number, vet, next due date, clinic</td><td>Yes — 4 weeks before next due</td></tr>
+          <tr><td><strong>Deworming / Flea treatment</strong></td><td>Product name, date given, next due interval</td><td>Yes — on schedule</td></tr>
+          <tr><td><strong>Vet visit</strong></td><td>Date, clinic, vet name, reason, diagnosis, treatment, follow-up notes</td><td>Yes if follow-up scheduled</td></tr>
+          <tr><td><strong>Medication</strong></td><td>Drug name, dosage, frequency, start/end date, prescribing vet</td><td>Yes — daily dose reminder (optional)</td></tr>
+          <tr><td><strong>Weight history</strong></td><td>Date and weight; chart view; shared with vet on request</td><td>No (manual entry)</td></tr>
+          <tr><td><strong>Allergies</strong></td><td>Known allergens, severity, date confirmed</td><td>Surfaces as warning in Product search</td></tr>
+          <tr><td><strong>Microchip</strong></td><td>Chip number, registry, implant date, vet who implanted</td><td>No; used for Lost &amp; Found matching</td></tr>
+          <tr><td><strong>Insurance</strong></td><td>Provider, policy number, expiry, coverage notes</td><td>Yes — 60 days before renewal</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout callout-teal">
+      Health Passport data is private by default. It can be shared with a vet via a time-limited, read-only link. It is never used for advertising targeting. It links to the Breeding Match module to verify health certification requirements.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── ANIMAL TAXONOMY ────────────────────────────── -->
+  <span class="section-anchor" id="animals"></span>
+  <div class="section">
+    <h2 class="section-title">Animal Taxonomy</h2>
+    <p class="section-intro">Which animals are supported, at what level, and with what restrictions. The tier determines which modules are available for each animal type.</p>
+
+    <div class="tier-group">
+      <div class="tier-head">
+        <span class="tier-badge tier-1">Tier 1 — Full Access</span>
+        <span class="tier-desc">All modules: social, communities, care, diary, health passport, products, adoption, events, breeding match (where legal)</span>
+      </div>
+      <div class="animal-chips">
+        <span class="chip chip-teal">Dogs (all breeds)</span>
+        <span class="chip chip-teal">Cats (all breeds)</span>
+        <span class="chip chip-teal">Rabbits</span>
+        <span class="chip chip-teal">Guinea Pigs</span>
+        <span class="chip chip-teal">Hamsters & Gerbils</span>
+        <span class="chip chip-teal">Chinchillas</span>
+        <span class="chip chip-teal">Parrots</span>
+        <span class="chip chip-teal">Budgies / Parakeets</span>
+        <span class="chip chip-teal">Cockatiels</span>
+        <span class="chip chip-teal">Lovebirds</span>
+        <span class="chip chip-teal">Canaries & Finches</span>
+        <span class="chip chip-teal">Freshwater Fish</span>
+        <span class="chip chip-teal">Marine / Reef Fish</span>
+        <span class="chip chip-teal">Turtles & Tortoises</span>
+        <span class="chip chip-teal">Bearded Dragons</span>
+        <span class="chip chip-teal">Leopard Geckos</span>
+        <span class="chip chip-teal">Horses & Ponies</span>
+        <span class="chip chip-teal">Donkeys & Mules</span>
+      </div>
+    </div>
+
+    <div class="tier-group">
+      <div class="tier-head">
+        <span class="tier-badge tier-2">Tier 2 — Limited (No Breeding Match; Care Only)</span>
+        <span class="tier-desc">Social, communities, diary, health passport, adoption, vet finder — but no breeding match module. Subject to jurisdiction compliance.</span>
+      </div>
+      <div class="animal-chips">
+        <span class="chip chip-amber">Ferrets</span>
+        <span class="chip chip-amber">Hedgehogs</span>
+        <span class="chip chip-amber">Sugar Gliders</span>
+        <span class="chip chip-amber">Degus</span>
+        <span class="chip chip-amber">Ball Pythons</span>
+        <span class="chip chip-amber">Corn Snakes</span>
+        <span class="chip chip-amber">Iguanas</span>
+        <span class="chip chip-amber">Blue-Tongue Skinks</span>
+        <span class="chip chip-amber">Axolotls</span>
+        <span class="chip chip-amber">Tarantulas</span>
+        <span class="chip chip-amber">Ducks (domestic)</span>
+        <span class="chip chip-amber">Chickens (backyard)</span>
+        <span class="chip chip-amber">Goats (companion)</span>
+        <span class="chip chip-amber">Miniature Pigs</span>
+        <span class="chip chip-amber">Alpacas & Llamas</span>
+      </div>
+    </div>
+
+    <div class="tier-group">
+      <div class="tier-head">
+        <span class="tier-badge tier-3">Tier 3 — Rescue & Welfare Only</span>
+        <span class="tier-desc">No commerce, no breeding, no products. Rescue organizations and licensed rehabilitators only. Reports and welfare alerts permitted.</span>
+      </div>
+      <div class="animal-chips">
+        <span class="chip chip-sage">Owls & Raptors</span>
+        <span class="chip chip-sage">Foxes (rescued)</span>
+        <span class="chip chip-sage">Deer & Fawns</span>
+        <span class="chip chip-sage">Hedgehogs (wild)</span>
+        <span class="chip chip-sage">Badgers</span>
+        <span class="chip chip-sage">Bats</span>
+        <span class="chip chip-sage">Seabirds</span>
+        <span class="chip chip-sage">Marine Mammals (monitoring only)</span>
+        <span class="chip chip-sage">Primates (rescue only, no trade)</span>
+      </div>
+    </div>
+
+    <div class="tier-group">
+      <div class="tier-head">
+        <span class="tier-badge tier-x">Blocked — Not Permitted on Platform</span>
+        <span class="tier-desc">No listings, no communities, no breeding, no commerce. Any content involving these is escalated to welfare review and potentially law enforcement.</span>
+      </div>
+      <div class="animal-chips">
+        <span class="chip chip-rose">CITES Appendix I species</span>
+        <span class="chip chip-rose">Big cats (lions, tigers, leopards)</span>
+        <span class="chip chip-rose">Great apes</span>
+        <span class="chip chip-rose">Venomous/dangerous without permit</span>
+        <span class="chip chip-rose">Shark fins / wildlife parts</span>
+        <span class="chip chip-rose">Any trafficked or illegally sourced animal</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── BUSINESS MODEL ─────────────────────────────── -->
+  <span class="section-anchor" id="business"></span>
+  <div class="section">
+    <h2 class="section-title">Business Model</h2>
+    <p class="section-intro">Four revenue streams, all operating under the same trust and verification standards as the platform itself.</p>
+    <div class="biz-row">
+      <div class="biz-cell">
+        <div class="biz-stream">Subscriptions</div>
+        <div class="biz-detail">Individual Premium, Professional, Organization, Enterprise — billed monthly or annually</div>
+      </div>
+      <div class="biz-cell">
+        <div class="biz-stream">Verified Advertising</div>
+        <div class="biz-detail">Reviewed, disclosed campaigns for aligned businesses — vets, pet brands, shelters, NGOs, science orgs</div>
+      </div>
+      <div class="biz-cell">
+        <div class="biz-stream">Marketplace & Commerce</div>
+        <div class="biz-cell">
+        <div class="biz-stream">Marketplace & Commerce</div>
+        <div class="biz-detail">Transaction fees on pet care bookings, product orders, event tickets, fundraiser processing</div>
+      </div>
+      </div>
+      <div class="biz-cell">
+        <div class="biz-stream">Professional Services</div>
+        <div class="biz-detail">Verified directory listings, booking tools, analytics, sponsored placement in professional search</div>
+      </div>
+    </div>
+    <div class="callout callout-amber">
+      Premium subscriptions improve experience — larger calls, ad-free option, advanced privacy controls, enhanced uploads. They cannot buy safety exemptions, bypass moderation, skip content review, or restore suspended accounts.
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── TECH STACK ─────────────────────────────────── -->
+  <span class="section-anchor" id="tech"></span>
+  <div class="section">
+    <h2 class="section-title">Technology</h2>
+    <p class="section-intro">The platform is built on a modern, cloud-native stack with safety infrastructure embedded at every layer — not bolted on after the fact.</p>
+    <div class="stack-grid">
+      <div class="stack-cell">
+        <div class="stack-layer">Backend</div>
+        <div class="stack-items">NestJS / TypeScript<br>or Django / FastAPI<br>REST + GraphQL</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">Database</div>
+        <div class="stack-items">PostgreSQL (primary)<br>Redis (cache/presence)<br>OpenSearch (search)</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">Media & Storage</div>
+        <div class="stack-items">S3-compatible storage<br>FFmpeg (transcoding)<br>CDN distribution</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">Messaging</div>
+        <div class="stack-items">WebSocket gateway<br>RabbitMQ → Kafka<br>WebRTC SFU (calls)</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">AI / Safety</div>
+        <div class="stack-items">Model gateway<br>Text + vision classifiers<br>Policy Decision Engine</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">Observability</div>
+        <div class="stack-items">OpenTelemetry<br>Sentry<br>Prometheus / Grafana</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">DevOps</div>
+        <div class="stack-items">GitOps / CI/CD<br>Blue-green deploys<br>Feature flags</div>
+      </div>
+      <div class="stack-cell">
+        <div class="stack-layer">Edge</div>
+        <div class="stack-items">CDN + WAF<br>Bot protection<br>Rate limiting</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── WHAT MAKES IT DIFFERENT ────────────────────── -->
+  <span class="section-anchor" id="differences"></span>
+  <div class="section" style="padding-bottom: 52px;">
+    <h2 class="section-title">What Makes ZoikoSocial Different</h2>
+    <p class="section-intro">Every social platform says it cares about safety. ZoikoSocial encodes it as an engineering requirement, not a policy statement.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>General social platforms</th><th>ZoikoSocial</th></tr></thead>
+        <tbody>
+          <tr><td>Content moderated after reports</td><td>Safety check runs before storage and before any distribution</td></tr>
+          <tr><td>Profanity filtered or reported post-hoc</td><td>Profanity blocked at the gate — cannot be stored or sent</td></tr>
+          <tr><td>Animal welfare is one report category among many</td><td>Animal welfare is the highest-priority escalation, overriding all commercial signals</td></tr>
+          <tr><td>Anyone can buy an ad and run it immediately</td><td>Every advertiser verified; every creative reviewed; every ad carries mandatory disclosure</td></tr>
+          <tr><td>News is whatever gets shared most</td><td>News is tiered by verified source credibility; amplification follows evidence</td></tr>
+          <tr><td>Engagement and watch-time are the primary ranking signals</td><td>Safety, trust, diversity and user control are hard ranking constraints</td></tr>
+          <tr><td>Premium removes ads or adds features</td><td>Premium improves experience; it cannot touch safety, moderation or account restrictions</td></tr>
+          <tr><td>Enforcement decisions are opaque</td><td>Every enforcement action leaves an immutable audit trail, queryable for appeals</td></tr>
+          <tr><td>Pet marketplace means anything animal-related</td><td>Pet marketplace is ethically scoped: no live animal trading, no exploitation, no deceptive claims</td></tr>
+          <tr><td>Lost & Found is a community Facebook post</td><td>Lost & Found is a structured, geo-matched system with welfare escalation if needed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Highlight active sidebar link on scroll
+  const links = document.querySelectorAll('.sidebar-link');
+  const sections = document.querySelectorAll('.section-anchor');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        links.forEach(l => {
+          l.classList.toggle('active', l.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-10% 0px -80% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
