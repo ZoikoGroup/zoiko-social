@@ -86,8 +86,6 @@ jobs:
         run: pnpm add -g vercel@latest
 
       # ── 7. Pull Vercel project config & env vars ──────────────────
-      # --cwd apps/web: reads apps/web/.vercel/project.json directly so
-      # the CLI uses the committed project IDs instead of env var fallback.
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
@@ -97,6 +95,21 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # vercel pull may download a rootDirectory from the Vercel project
+      # settings that points to src/app instead of the repo root. Patch it
+      # to null so vercel build honours --cwd apps/web as the project root.
+      - name: Fix Vercel rootDirectory (monorepo safety patch)
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'apps/web/.vercel/project.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            console.log('rootDirectory before patch:', j.settings?.rootDirectory);
+            if (j.settings) j.settings.rootDirectory = null;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+            console.log('rootDirectory after patch: null');
+          "
 
       # ── 8. Build via Vercel (outputs apps/web/.vercel/output) ─────
       - name: Build
