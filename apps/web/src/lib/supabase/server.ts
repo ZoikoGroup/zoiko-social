@@ -1,7 +1,23 @@
 import 'server-only'
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/database'
+
+// Common subset compatible with both @supabase/ssr CookieOptions and Next.js ResponseCookie.
+// Avoids importing internal Next.js types or CookieSerializeOptions.
+type CookieSetItem = {
+  name: string
+  value: string
+  options?: {
+    domain?: string
+    expires?: Date
+    httpOnly?: boolean
+    maxAge?: number
+    path?: string
+    sameSite?: 'strict' | 'lax' | 'none'
+    secure?: boolean
+  }
+}
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -14,10 +30,14 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+        setAll(cookiesToSet: CookieSetItem[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, {
+              // Object-form overload avoids tuple type mismatch between
+              // CookieSerializeOptions (supabase) and ResponseCookie (next.js)
+              cookieStore.set({
+                name,
+                value,
                 ...options,
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
@@ -45,10 +65,10 @@ export async function createAdminClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+        setAll(cookiesToSet: CookieSetItem[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options)
+              cookieStore.set({ name, value, ...options })
             })
           } catch {
             // Read-only context
