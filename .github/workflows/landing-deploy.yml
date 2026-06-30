@@ -60,7 +60,17 @@ jobs:
       - name: Setup Vercel project at monorepo root
         run: |
           mkdir -p .vercel
-          cp apps/landing/.vercel/project.json .vercel/project.json
+          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" \
+            > .vercel/project.json
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Pull Vercel environment
+        run: |
+          vercel pull --yes \
+            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
           node -e "
             const fs = require('fs');
             const j = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
@@ -69,12 +79,6 @@ jobs:
             fs.writeFileSync('.vercel/project.json', JSON.stringify(j, null, 2));
             console.log('rootDirectory after patch: null');
           "
-
-      - name: Pull Vercel environment
-        run: |
-          vercel pull --yes \
-            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
-            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}

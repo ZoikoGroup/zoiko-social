@@ -90,13 +90,26 @@ jobs:
         run: pnpm add -g vercel@latest
 
       # ── 7. Setup .vercel/ at monorepo root for root-level build ─────
-      # Copy the committed project.json so vercel pull/build/deploy all
-      # run from the monorepo root (no --cwd) and find the project config.
+      # .vercel/ is gitignored, so project.json does not exist in CI.
+      # Create it from secrets so vercel pull/build/deploy run from the
+      # monorepo root (no --cwd) and resolve the file-tracing paths correctly.
       - name: Setup Vercel project at monorepo root
         run: |
           mkdir -p .vercel
-          cp apps/web/.vercel/project.json .vercel/project.json
-          # Null out rootDirectory in case Vercel dashboard has a stale value
+          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" \
+            > .vercel/project.json
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # vercel pull downloads env vars + project settings (including rootDirectory).
+      # Patch rootDirectory to null after pulling so the build runs from the
+      # monorepo root rather than any stale src/app value from the dashboard.
+      - name: Pull Vercel environment
+        run: |
+          vercel pull --yes \
+            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
+            --token=${{ secrets.VERCEL_TOKEN }}
           node -e "
             const fs = require('fs');
             const j = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
@@ -105,14 +118,6 @@ jobs:
             fs.writeFileSync('.vercel/project.json', JSON.stringify(j, null, 2));
             console.log('rootDirectory after patch: null');
           "
-
-      # Pull env vars into .vercel/ at the monorepo root so vercel build
-      # can inject them into the Next.js build subprocess.
-      - name: Pull Vercel environment
-        run: |
-          vercel pull --yes \
-            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
-            --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
