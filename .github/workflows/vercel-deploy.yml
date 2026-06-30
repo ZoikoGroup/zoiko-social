@@ -16,11 +16,12 @@ name: Deploy Web → Vercel
 #    NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 #    NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_API_URL
 #
-# Build strategy: vercel build runs from the MONOREPO ROOT (no --cwd).
-# This ensures CWD == outputFileTracingRoot, avoiding the double-path ENOENT
-# that Next.js 16 file tracing produces when CWD != outputFileTracingRoot.
-# apps/web/.vercel/project.json is copied to .vercel/ before building so
-# the CLI knows which Vercel project to target.
+# Build strategy: vercel pull/build/deploy use --cwd apps/web.
+# A symlink is pre-created at apps/web/apps/web/.next → apps/web/.next to
+# work around a Next.js 16.2 bug where file-tracing computes the wrong path:
+#   path.join(CWD=apps/web, relative(outputFileTracingRoot=root, .next))
+#   = path.join(apps/web, 'apps/web/.next') = apps/web/apps/web/.next (ENOENT)
+# The symlink makes that doubled path resolve to the real .next directory.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -89,50 +90,49 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add -g vercel@latest
 
-      # ── 7. Setup .vercel/ at monorepo root for root-level build ─────
-      # .vercel/ is gitignored, so project.json does not exist in CI.
-      # Create it from secrets so vercel pull/build/deploy run from the
-      # monorepo root (no --cwd) and resolve the file-tracing paths correctly.
-      - name: Setup Vercel project at monorepo root
-        run: |
-          mkdir -p .vercel
-          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" \
-            > .vercel/project.json
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      # vercel pull downloads env vars + project settings (including rootDirectory).
-      # Patch rootDirectory to null after pulling so the build runs from the
-      # monorepo root rather than any stale src/app value from the dashboard.
+      # ── 7. Pull Vercel project config & env vars ──────────────────
+      # .vercel/ is gitignored; vercel pull creates apps/web/.vercel/project.json
+      # using the VERCEL_PROJECT_ID / VERCEL_ORG_ID env vars.
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
+            --cwd apps/web \
             --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
-          node -e "
-            const fs = require('fs');
-            const j = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
-            console.log('rootDirectory before patch:', j.settings?.rootDirectory);
-            if (j.settings) j.settings.rootDirectory = null;
-            fs.writeFileSync('.vercel/project.json', JSON.stringify(j, null, 2));
-            console.log('rootDirectory after patch: null');
-          "
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 8. Build from monorepo root ───────────────────────────────
-      # Running vercel build from the monorepo root makes CWD equal to
-      # outputFileTracingRoot (both = monorepo root).  Next.js 16 file
-      # tracing then resolves paths as: resolve(CWD, relative(root, .next))
-      # = resolve(root, 'apps/web/.next') = correct absolute path.
-      # Without this, CWD=apps/web and the relative path 'apps/web/.next'
-      # produces the doubled path apps/web/apps/web/.next (ENOENT).
+      # Null out rootDirectory so vercel build uses apps/web as project root,
+      # not any stale src/app value from the Vercel dashboard.
+      - name: Fix Vercel rootDirectory (monorepo safety patch)
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'apps/web/.vercel/project.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            console.log('rootDirectory before patch:', j.settings?.rootDirectory);
+            if (j.settings) j.settings.rootDirectory = null;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+            console.log('rootDirectory after patch: null');
+          "
+
+      # ── 8. Build via Vercel ───────────────────────────────────────
+      # Next.js 16.2 has a path-tracing bug: after next build it computes
+      #   path.join(CWD=apps/web, relative(outputFileTracingRoot=root, .next))
+      #   = path.join(apps/web, 'apps/web/.next')
+      #   = apps/web/apps/web/.next  ← ENOENT
+      # Workaround: pre-create a symlink at that doubled path pointing to the
+      # real .next so the lstat that triggers the ENOENT succeeds transparently.
+      - name: Pre-create tracing-path symlink (Next.js 16.2 bug workaround)
+        run: |
+          mkdir -p apps/web/apps/web
+          ln -sf ../.next apps/web/apps/web/.next
+
       - name: Build
         run: |
           vercel build \
-            --local-config apps/web/vercel.json \
+            --cwd apps/web \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -147,6 +147,7 @@ jobs:
         id: deploy-prod
         run: |
           URL=$(vercel deploy --prebuilt --prod \
+            --cwd apps/web \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Deployed: $URL"
@@ -160,6 +161,7 @@ jobs:
         id: deploy-preview
         run: |
           URL=$(vercel deploy --prebuilt \
+            --cwd apps/web \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview: $URL"

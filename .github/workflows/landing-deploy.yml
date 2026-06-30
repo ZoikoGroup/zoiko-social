@@ -7,8 +7,8 @@ name: Deploy Landing → Vercel
 #   VERCEL_LANDING_ORG_ID     ← team_IBqKBoYLepJjJ7vkBSMYeO9e
 #   VERCEL_LANDING_PROJECT_ID ← prj_biGwjXqGPVIykZ8kYl5xqt2MODUy
 #
-# Build strategy: vercel build runs from the MONOREPO ROOT (no --cwd) so that
-# CWD == outputFileTracingRoot, preventing the double-path ENOENT in Next.js 16.
+# Build strategy: same symlink workaround as vercel-deploy.yml — see that file
+# for the full explanation of the Next.js 16.2 file-tracing path-doubling bug.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -57,36 +57,37 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add -g vercel@latest
 
-      - name: Setup Vercel project at monorepo root
+      - name: Pull Vercel environment
         run: |
-          mkdir -p .vercel
-          echo "{\"projectId\":\"$VERCEL_PROJECT_ID\",\"orgId\":\"$VERCEL_ORG_ID\"}" \
-            > .vercel/project.json
+          vercel pull --yes \
+            --cwd apps/landing \
+            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
 
-      - name: Pull Vercel environment
+      - name: Fix Vercel rootDirectory (monorepo safety patch)
         run: |
-          vercel pull --yes \
-            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
-            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
           node -e "
             const fs = require('fs');
-            const j = JSON.parse(fs.readFileSync('.vercel/project.json', 'utf8'));
+            const p = 'apps/landing/.vercel/project.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
             console.log('rootDirectory before patch:', j.settings?.rootDirectory);
             if (j.settings) j.settings.rootDirectory = null;
-            fs.writeFileSync('.vercel/project.json', JSON.stringify(j, null, 2));
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
             console.log('rootDirectory after patch: null');
           "
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Pre-create tracing-path symlink (Next.js 16.2 bug workaround)
+        run: |
+          mkdir -p apps/landing/apps/landing
+          ln -sf ../.next apps/landing/apps/landing/.next
 
       - name: Build
         run: |
           vercel build \
-            --local-config apps/landing/vercel.json \
+            --cwd apps/landing \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
@@ -97,6 +98,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           vercel deploy --prebuilt --prod \
+            --cwd apps/landing \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
@@ -107,6 +109,7 @@ jobs:
         id: preview
         run: |
           URL=$(vercel deploy --prebuilt \
+            --cwd apps/landing \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
         env:
