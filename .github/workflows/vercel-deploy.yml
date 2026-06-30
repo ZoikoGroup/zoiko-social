@@ -16,8 +16,11 @@ name: Deploy Web → Vercel
 #    NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 #    NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_API_URL
 #
-# Note: --cwd apps/web is required so the CLI reads apps/web/.vercel/project.json
-# directly from the committed file, rather than relying on env vars alone.
+# Build strategy: vercel pull/build/deploy run from the MONOREPO ROOT (no --cwd).
+# This ensures CWD = outputFileTracingRoot, so Next.js 16.2 file-tracing
+# resolves dependency paths (e.g. node_modules/.pnpm/*) correctly and bundles
+# the pnpm virtual store into .vercel/output/. A root-level vercel.json is
+# generated dynamically to tell Vercel the output lives at apps/web/.next.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -48,6 +51,9 @@ jobs:
     name: ${{ github.ref == 'refs/heads/main' && 'Production Deploy' || 'Preview Deploy' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────
@@ -87,24 +93,25 @@ jobs:
         run: pnpm add -g vercel@latest
 
       # ── 7. Pull Vercel project config & env vars ──────────────────
+      # Running from monorepo root (no --cwd) — vercel pull creates
+      # .vercel/project.json at root level using the VERCEL_PROJECT_ID /
+      # VERCEL_ORG_ID env vars.
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
-            --cwd apps/web \
             --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # vercel pull may download a rootDirectory from the Vercel project
-      # settings that points to src/app instead of the repo root. Patch it
-      # to null so vercel build honours --cwd apps/web as the project root.
+      # Null out rootDirectory so vercel build uses apps/web as project root,
+      # not any stale src/app value from the Vercel dashboard.
       - name: Fix Vercel rootDirectory (monorepo safety patch)
         run: |
           node -e "
             const fs = require('fs');
-            const p = 'apps/web/.vercel/project.json';
+            const p = '.vercel/project.json';
             const j = JSON.parse(fs.readFileSync(p, 'utf8'));
             console.log('rootDirectory before patch:', j.settings?.rootDirectory);
             if (j.settings) j.settings.rootDirectory = null;
@@ -112,11 +119,17 @@ jobs:
             console.log('rootDirectory after patch: null');
           "
 
-      # ── 8. Build via Vercel (outputs apps/web/.vercel/output) ─────
+      # ── 8. Generate root vercel.json for Vercel framework detection ──
+      # Running from monorepo root — Vercel needs to know output is in
+      # apps/web/.next and what framework to use.
+      - name: Create root vercel.json
+        run: |
+          echo '{"framework":"nextjs","buildCommand":"pnpm turbo build --filter=@zoiko/web","installCommand":"pnpm install --frozen-lockfile","outputDirectory":"apps/web/.next"}' > vercel.json
+
+      # ── 9. Build via Vercel (CWD = monorepo root = outputFileTracingRoot) ──
       - name: Build
         run: |
           vercel build \
-            --cwd apps/web \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -125,13 +138,12 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 9a. Production deploy (main branch) ───────────────────────
+      # ── 10a. Production deploy (main branch) ──────────────────────
       - name: Deploy to Vercel (Production)
         if: github.ref == 'refs/heads/main'
         id: deploy-prod
         run: |
           URL=$(vercel deploy --prebuilt --prod \
-            --cwd apps/web \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Deployed: $URL"
@@ -139,13 +151,12 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 9b. Preview deploy (PR branches) ─────────────────────────
+      # ── 10b. Preview deploy (PR branches) ─────────────────────────
       - name: Deploy to Vercel (Preview)
         if: github.event_name == 'pull_request'
         id: deploy-preview
         run: |
           URL=$(vercel deploy --prebuilt \
-            --cwd apps/web \
             --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview: $URL"
@@ -153,7 +164,7 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 10. Post preview URL on PR ────────────────────────────────
+      # ── 11. Post preview URL on PR ────────────────────────────────
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7

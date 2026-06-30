@@ -7,7 +7,9 @@ name: Deploy Landing → Vercel
 #   VERCEL_LANDING_ORG_ID     ← team_IBqKBoYLepJjJ7vkBSMYeO9e
 #   VERCEL_LANDING_PROJECT_ID ← prj_biGwjXqGPVIykZ8kYl5xqt2MODUy
 #
-# Note: --cwd apps/landing reads apps/landing/.vercel/project.json directly.
+# Build strategy: vercel pull/build/deploy run from the MONOREPO ROOT (no --cwd).
+# CWD = outputFileTracingRoot, so Next.js 16.2 file-tracing resolves dependency
+# paths correctly. Root-level vercel.json is generated dynamically.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -34,6 +36,9 @@ jobs:
     name: ${{ github.ref == 'refs/heads/main' && 'Production Deploy' || 'Preview Deploy' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +64,6 @@ jobs:
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
-            --cwd apps/landing \
             --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
@@ -70,7 +74,7 @@ jobs:
         run: |
           node -e "
             const fs = require('fs');
-            const p = 'apps/landing/.vercel/project.json';
+            const p = '.vercel/project.json';
             const j = JSON.parse(fs.readFileSync(p, 'utf8'));
             console.log('rootDirectory before patch:', j.settings?.rootDirectory);
             if (j.settings) j.settings.rootDirectory = null;
@@ -78,10 +82,13 @@ jobs:
             console.log('rootDirectory after patch: null');
           "
 
+      - name: Create root vercel.json
+        run: |
+          echo '{"framework":"nextjs","buildCommand":"pnpm turbo build --filter=@zoiko/landing","installCommand":"pnpm install --frozen-lockfile","outputDirectory":"apps/landing/.next"}' > vercel.json
+
       - name: Build
         run: |
           vercel build \
-            --cwd apps/landing \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
@@ -92,7 +99,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           vercel deploy --prebuilt --prod \
-            --cwd apps/landing \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
@@ -103,7 +109,6 @@ jobs:
         id: preview
         run: |
           URL=$(vercel deploy --prebuilt \
-            --cwd apps/landing \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
         env:

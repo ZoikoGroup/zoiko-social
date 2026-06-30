@@ -18,6 +18,9 @@ importers:
       '@types/node':
         specifier: ^26.0.1
         version: 26.0.1
+      next:
+        specifier: ^16.2.9
+        version: 16.2.9(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       prettier:
         specifier: ^3.3.3
         version: 3.9.4
