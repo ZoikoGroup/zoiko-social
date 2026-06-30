@@ -2,9 +2,12 @@ name: Deploy Landing → Vercel
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ONE-TIME SETUP:
-# 1. Create a second Vercel project linked to apps/landing/
-# 2. Add GitHub Secrets:
-#    VERCEL_LANDING_TOKEN, VERCEL_LANDING_ORG_ID, VERCEL_LANDING_PROJECT_ID
+# Add GitHub Secrets:
+#   VERCEL_LANDING_TOKEN      ← vercel.com/account/tokens (must have team access)
+#   VERCEL_LANDING_ORG_ID     ← team_IBqKBoYLepJjJ7vkBSMYeO9e
+#   VERCEL_LANDING_PROJECT_ID ← prj_biGwjXqGPVIykZ8kYl5xqt2MODUy
+#
+# Note: --cwd apps/landing reads apps/landing/.vercel/project.json directly.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -55,6 +58,7 @@ jobs:
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
+            --cwd apps/landing \
             --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
@@ -64,6 +68,7 @@ jobs:
       - name: Build
         run: |
           vercel build \
+            --cwd apps/landing \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
@@ -73,7 +78,9 @@ jobs:
       - name: Deploy (Production)
         if: github.ref == 'refs/heads/main'
         run: |
-          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_LANDING_TOKEN }}
+          vercel deploy --prebuilt --prod \
+            --cwd apps/landing \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
@@ -82,7 +89,9 @@ jobs:
         if: github.event_name == 'pull_request'
         id: preview
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_LANDING_TOKEN }})
+          URL=$(vercel deploy --prebuilt \
+            --cwd apps/landing \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
