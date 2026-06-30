@@ -24,8 +24,8 @@ export function Waitlist(): React.JSX.Element {
 
         {submitted ? (
           <div className="mt-10 rounded-lg border border-amber-light/30 bg-amber-light/10 px-8 py-6">
-            <p className="text-lg font-semibold text-amber-light">You're on the list!</p>
-            <p className="mt-1 text-sm text-teal-wash/70">We'll email you as soon as early access opens.</p>
+            <p className="text-lg font-semibold text-amber-light">You&apos;re on the list!</p>
+            <p className="mt-1 text-sm text-teal-wash/70">We&apos;ll email you as soon as early access opens.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-3 sm:flex-row">
