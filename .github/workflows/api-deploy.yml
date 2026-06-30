@@ -25,6 +25,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'Dockerfile.api'
       - 'apps/api/**'
       - 'packages/**'
       - 'pnpm-workspace.yaml'
