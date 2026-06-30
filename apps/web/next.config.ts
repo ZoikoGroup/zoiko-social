@@ -2,11 +2,11 @@ import path from 'path'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    // In a monorepo, Turbopack infers the wrong workspace root from src/app.
-    // Explicitly point it to the monorepo root so it resolves packages correctly.
-    root: path.resolve(__dirname, '../..'),
-  },
+  // Both must match (monorepo root) — Vercel auto-sets outputFileTracingRoot
+  // to apps/web which overrides turbopack.root and breaks Turbopack's package
+  // resolution from src/app. Explicit values here win over Vercel's defaults.
+  turbopack: { root: path.resolve(__dirname, '../..') },
+  outputFileTracingRoot: path.resolve(__dirname, '../..'),
   reactStrictMode: true,
 
   async headers() {

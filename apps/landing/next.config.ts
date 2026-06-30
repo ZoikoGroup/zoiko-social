@@ -2,9 +2,8 @@ import path from 'path'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.resolve(__dirname, '../..'),
-  },
+  turbopack: { root: path.resolve(__dirname, '../..') },
+  outputFileTracingRoot: path.resolve(__dirname, '../..'),
   reactStrictMode: true,
   async headers() {
     return [
