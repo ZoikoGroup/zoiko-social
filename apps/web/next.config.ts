@@ -2,11 +2,14 @@ import path from 'path'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // Both must point to the monorepo root so Turbopack can follow pnpm symlinks
+  // (the virtual store lives at <root>/node_modules/.pnpm/) and so that the
+  // Vercel CLI file-tracing step runs from the same root it resolves paths
+  // against — preventing the double-path ENOENT when vercel build runs from root.
   turbopack: {
-    // In a monorepo, Turbopack infers the wrong workspace root from src/app.
-    // Explicitly point it to the monorepo root so it resolves packages correctly.
     root: path.resolve(__dirname, '../..'),
   },
+  outputFileTracingRoot: path.resolve(__dirname, '../..'),
   reactStrictMode: true,
 
   async headers() {
