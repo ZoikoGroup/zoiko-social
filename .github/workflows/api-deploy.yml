@@ -83,6 +83,10 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # ── 5. Build & push Docker image to GitHub Container Registry ─
+      - name: Lowercase registry path
+        id: reg
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/zoiko-api" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -101,11 +105,11 @@ jobs:
           file: Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/zoiko-api:latest
-            ghcr.io/${{ github.repository }}/zoiko-api:${{ github.sha }}
+            ${{ steps.reg.outputs.image }}:latest
+            ${{ steps.reg.outputs.image }}:${{ github.sha }}
 
       # ── 6. Trigger Render deploy via webhook ──────────────────────
-      # Render pulls from ghcr.io/ZoikoGroup/zoiko-social/zoiko-api:latest
+      # Render pulls from ghcr.io/zoikogroup/zoiko-social/zoiko-api:latest
       # (public repo → public ghcr.io package — no auth needed)
       - name: Trigger Render deploy
         run: |
