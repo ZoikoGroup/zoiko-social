@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "mkdir -p apps/web && ln -sfn ../../.next apps/web/.next; cd ../.. && pnpm turbo build --filter=@zoiko/web && echo '{\"type\":\"commonjs\"}' > apps/web/.next/package.json",
+  "buildCommand": "cd ../.. && pnpm turbo build --filter=@zoiko/web",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "outputDirectory": ".next"
 }
