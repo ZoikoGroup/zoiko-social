@@ -7,22 +7,17 @@ name: Deploy Web → Vercel
 #    Vercel Dashboard → Project (zoiko-web) → Settings → Git → Disconnect
 #    This ensures ONLY this workflow deploys — no concurrent builds on free plan.
 #
-# 2. Link Vercel project locally:
-#    pnpm add -g vercel
-#    cd apps/web && vercel link
-#    Note the orgId + projectId from .vercel/project.json
+# 2. Add GitHub Secrets (Settings → Secrets → Actions):
+#    VERCEL_TOKEN          ← vercel.com/account/tokens (must have team access)
+#    VERCEL_ORG_ID         ← team_IBqKBoYLepJjJ7vkBSMYeO9e
+#    VERCEL_PROJECT_ID     ← prj_Qqy5OeK0qUYnbkNcShmDx9CCSpLl
 #
-# 3. Add GitHub Secrets (Settings → Secrets → Actions):
-#    VERCEL_TOKEN          ← vercel.com/account/tokens
-#    VERCEL_ORG_ID         ← from .vercel/project.json → "orgId"
-#    VERCEL_PROJECT_ID     ← from .vercel/project.json → "projectId"
-#
-# 4. Add Vercel Environment Variables in Vercel Dashboard:
+# 3. Add Vercel Environment Variables in Vercel Dashboard:
 #    NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 #    NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_API_URL
 #
-# 5. Optional — Turbo remote cache (speeds up CI):
-#    TURBO_TOKEN, TURBO_TEAM
+# Note: --cwd apps/web is required so the CLI reads apps/web/.vercel/project.json
+# directly from the committed file, rather than relying on env vars alone.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -91,19 +86,23 @@ jobs:
         run: pnpm add -g vercel@latest
 
       # ── 7. Pull Vercel project config & env vars ──────────────────
+      # --cwd apps/web: reads apps/web/.vercel/project.json directly so
+      # the CLI uses the committed project IDs instead of env var fallback.
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
+            --cwd apps/web \
             --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 8. Build via Vercel (outputs .vercel/output) ──────────────
+      # ── 8. Build via Vercel (outputs apps/web/.vercel/output) ─────
       - name: Build
         run: |
           vercel build \
+            --cwd apps/web \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
             --token=${{ secrets.VERCEL_TOKEN }}
         env:
@@ -117,7 +116,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         id: deploy-prod
         run: |
-          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(vercel deploy --prebuilt --prod \
+            --cwd apps/web \
+            --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Deployed: $URL"
         env:
@@ -129,7 +130,9 @@ jobs:
         if: github.event_name == 'pull_request'
         id: deploy-preview
         run: |
-          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(vercel deploy --prebuilt \
+            --cwd apps/web \
+            --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
           echo "Preview: $URL"
         env:
