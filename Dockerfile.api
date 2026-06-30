@@ -17,6 +17,10 @@ COPY apps/api/ ./apps/api/
 RUN pnpm install --frozen-lockfile
 RUN pnpm turbo build --filter=@zoiko/api
 
+# Deploy creates a self-contained directory with all production deps
+# properly resolved (no pnpm symlinks needed at runtime)
+RUN pnpm deploy --filter=@zoiko/api --prod /app/deploy
+
 # ── Runner stage ──────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -24,9 +28,8 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./package.json
+# Copy the entire deploy directory — includes dist, node_modules, package.json
+COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
 
 USER nestjs
 
