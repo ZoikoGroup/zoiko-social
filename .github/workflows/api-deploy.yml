@@ -5,7 +5,7 @@ name: Deploy API → Render
 #
 # 1. Create a Render Web Service:
 #    - Environment: Docker
-#    - Dockerfile path: apps/api/Dockerfile
+#    - Dockerfile path: Dockerfile.api (root level — build context is naturally the repo root)
 #    - Docker build context: . (repo root)
 #    - Branch: main
 #    - Auto-deploy: OFF (this workflow triggers it)
