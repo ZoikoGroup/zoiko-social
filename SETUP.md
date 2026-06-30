@@ -232,7 +232,7 @@ pnpm turbo type-check
 # Lint all apps
 pnpm turbo lint
 
-# Fix auto-fixable lint issues
+# Fix auto-fixable lint issues (runs eslint --fix in each app)
 pnpm turbo lint:fix
 
 # Run tests
