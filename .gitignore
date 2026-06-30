@@ -52,3 +52,6 @@ yarn-error.log*
 # ── TYPESCRIPT ────────────────────────────────────────────────────
 *.tsbuildinfo
 next-env.d.ts
+
+# ── SUPABASE ──────────────────────────────────────────────────────
+supabase/.temp/
