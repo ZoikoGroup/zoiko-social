@@ -65,6 +65,18 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
 
+      - name: Fix Vercel rootDirectory (monorepo safety patch)
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'apps/landing/.vercel/project.json';
+            const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+            console.log('rootDirectory before patch:', j.settings?.rootDirectory);
+            if (j.settings) j.settings.rootDirectory = null;
+            fs.writeFileSync(p, JSON.stringify(j, null, 2));
+            console.log('rootDirectory after patch: null');
+          "
+
       - name: Build
         run: |
           vercel build \
