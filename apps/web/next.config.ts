@@ -1,6 +1,12 @@
+import path from 'path'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    // In a monorepo, Turbopack infers the wrong workspace root from src/app.
+    // Explicitly point it to the monorepo root so it resolves packages correctly.
+    root: path.resolve(__dirname, '../..'),
+  },
   reactStrictMode: true,
 
   async headers() {
