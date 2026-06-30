@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "mkdir -p apps/landing && ln -sfn ../.next apps/landing/.next; cd ../.. && pnpm turbo build --filter=@zoiko/landing",
+  "buildCommand": "mkdir -p apps/landing && ln -sfn ../.next apps/landing/.next; cd ../.. && pnpm turbo build --filter=@zoiko/landing && echo '{\"type\":\"commonjs\"}' > apps/landing/.next/package.json",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "outputDirectory": ".next"
 }
