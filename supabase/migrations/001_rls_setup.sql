@@ -6,18 +6,13 @@
 
 -- ── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
 
--- Returns the authenticated user's UUID from the JWT
-CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
-  LANGUAGE sql STABLE
-  AS $$ SELECT COALESCE(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid $$;
-
 -- Returns true if the current user has a given role
 CREATE OR REPLACE FUNCTION public.has_role(role_name text) RETURNS boolean
   LANGUAGE sql STABLE SECURITY DEFINER
   AS $$
     SELECT EXISTS (
       SELECT 1 FROM public.user_roles
-      WHERE user_id = auth.uid() AND role = role_name AND is_active = true
+      WHERE user_id = auth.uid() AND role::text = role_name AND is_active = true
     )
   $$;
 
