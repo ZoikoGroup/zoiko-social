@@ -2,75 +2,86 @@ name: CI — Quality & Security
 
 on:
   push:
-    branches: ['**']       # Run on every branch push
+    branches: ['**']
   pull_request:
-    branches: ['**']       # Run on every PR
+    branches: ['**']
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true  # Cancel redundant runs on the same branch
+  cancel-in-progress: true
 
 jobs:
   quality:
     name: Lint · Type Check · Build · Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── 2. Node.js setup with dependency caching ─────────────────
+      # ── 2. Setup pnpm ────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # ── 3. Setup Node.js with pnpm cache ─────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
-      # ── 3. Install exact versions from lock file ──────────────────
+      # ── 4. Install dependencies (exact lock file) ─────────────────
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      # ── 4. TypeScript type check (catches type errors before build) ─
+      # ── 5. TypeScript type check across all apps & packages ───────
       - name: TypeScript type check
-        run: npm run type-check
-
-      # ── 5. ESLint (security rules + style rules) ──────────────────
-      - name: ESLint
-        run: npm run lint
-
-      # ── 6. Build (catches runtime errors, missing env stubs) ──────
-      - name: Build
-        run: npm run build
+        run: pnpm turbo type-check
         env:
-          # Use placeholder values — we only need the build to succeed
-          # Real secrets are NOT needed here; they're injected at deploy time
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      # ── 6. ESLint across all apps & packages ─────────────────────
+      - name: ESLint
+        run: pnpm turbo lint
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      # ── 7. Build all apps (catches missing env stubs etc.) ────────
+      - name: Build
+        run: pnpm turbo build
+        env:
+          # Placeholder values — real secrets injected at deploy time
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           NEXT_PUBLIC_APP_URL: https://zoikosocial.com
+          NEXT_PUBLIC_API_URL: https://api.zoikosocial.com
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 7. Dependency security audit ──────────────────────────────
-      - name: NPM security audit
-        run: npm audit --audit-level=moderate
-        # Allow the job to continue if only devDependency vulnerabilities
-        continue-on-error: false
+      # ── 8. Security audit ─────────────────────────────────────────
+      - name: Security audit
+        run: pnpm audit --audit-level=moderate
 
-      # ── 8. Secret scanning — prevent accidental commits of API keys ─
-      - name: Scan for secrets in code
+      # ── 9. Secret scanning (blocks accidental API key commits) ────
+      - name: Scan for secrets
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          # Only scan commits introduced by this branch
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --only-verified
 
-      # ── 9. Dependency license check ───────────────────────────────
+      # ── 10. License check ─────────────────────────────────────────
       - name: Check dependency licenses
         run: |
-          npx license-checker --onlyAllow \
-            'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense' \
+          pnpm dlx license-checker --onlyAllow \
+            'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0' \
             --excludePrivatePackages
 
   test:
@@ -81,13 +92,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-      - run: npm ci
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
       - name: Run tests
-        run: npm run test:ci
+        run: pnpm turbo test:ci
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

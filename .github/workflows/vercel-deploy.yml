@@ -1,84 +1,98 @@
-name: Deploy to Vercel
+name: Deploy Web → Vercel
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SETUP INSTRUCTIONS (one-time, done by project owner):
+# ONE-TIME SETUP (project owner):
 #
-# 1. DISABLE Vercel Git Integration:
-#    Vercel Dashboard → Project → Settings → Git → Disconnect repository
-#    This ensures ONLY this GitHub Action deploys to Vercel (no concurrent builds).
+# 1. Disable Vercel Git Integration:
+#    Vercel Dashboard → Project (zoiko-web) → Settings → Git → Disconnect
+#    This ensures ONLY this workflow deploys — no concurrent builds on free plan.
 #
-# 2. Install Vercel CLI locally and link the project:
-#    npm i -g vercel
-#    vercel link   ← run in project root, login with project owner account
-#    This creates .vercel/project.json with VERCEL_ORG_ID and VERCEL_PROJECT_ID
-#    NOTE: .vercel/ is in .gitignore — do NOT commit it.
+# 2. Link Vercel project locally:
+#    pnpm add -g vercel
+#    cd apps/web && vercel link
+#    Note the orgId + projectId from .vercel/project.json
 #
-# 3. Add these GitHub Repository Secrets (Settings → Secrets → Actions):
-#    VERCEL_TOKEN          ← from vercel.com/account/tokens
+# 3. Add GitHub Secrets (Settings → Secrets → Actions):
+#    VERCEL_TOKEN          ← vercel.com/account/tokens
 #    VERCEL_ORG_ID         ← from .vercel/project.json → "orgId"
 #    VERCEL_PROJECT_ID     ← from .vercel/project.json → "projectId"
-#    NEXT_PUBLIC_SUPABASE_URL         ← your Supabase project URL
-#    NEXT_PUBLIC_SUPABASE_ANON_KEY    ← your Supabase anon key
-#    SUPABASE_SERVICE_ROLE_KEY        ← your Supabase service role key (never expose publicly)
 #
-# 4. Push to main → production deploy
-#    Open a PR → preview deploy (unique URL posted as PR comment)
+# 4. Add Vercel Environment Variables in Vercel Dashboard:
+#    NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#    NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_API_URL
+#
+# 5. Optional — Turbo remote cache (speeds up CI):
+#    TURBO_TOKEN, TURBO_TEAM
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   push:
-    branches:
-      - main        # Production deploy on push to main
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'package.json'
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened    # Preview deploy on every PR update
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'package.json'
 
 concurrency:
-  # One deploy per branch at a time — cancels redundant preview deploys
-  group: deploy-${{ github.ref }}
+  group: vercel-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   deploy:
     name: ${{ github.ref == 'refs/heads/main' && 'Production Deploy' || 'Preview Deploy' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    # Only run after CI checks pass
-    # Reference the ci.yml workflow using a workflow call if you want strict gating,
-    # or duplicate key checks below for self-contained safety.
+    timeout-minutes: 25
 
     steps:
       # ── 1. Checkout ──────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── 2. Node.js setup ─────────────────────────────────────────
+      # ── 2. Setup pnpm ────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # ── 3. Setup Node.js ─────────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
 
-      # ── 3. Install dependencies ───────────────────────────────────
+      # ── 4. Install dependencies ───────────────────────────────────
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      # ── 4. Quick lint + type check before deploying ───────────────
-      #    Catches issues before wasting a Vercel build slot
-      - name: TypeScript check
-        run: npm run type-check
+      # ── 5. Quick gate: type check + lint before wasting a Vercel slot
+      - name: Type check (web only)
+        run: pnpm turbo type-check --filter=@zoiko/web...
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      - name: Lint check
-        run: npm run lint
+      - name: Lint (web only)
+        run: pnpm turbo lint --filter=@zoiko/web...
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 5. Install Vercel CLI ─────────────────────────────────────
+      # ── 6. Install Vercel CLI ─────────────────────────────────────
       - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+        run: pnpm add -g vercel@latest
 
-      # ── 6. Pull Vercel project config and environment variables ───
+      # ── 7. Pull Vercel project config & env vars ──────────────────
       - name: Pull Vercel environment
         run: |
           vercel pull --yes \
@@ -88,8 +102,8 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 7. Build with Vercel (uses Vercel's build system) ─────────
-      - name: Build project
+      # ── 8. Build via Vercel (outputs .vercel/output) ──────────────
+      - name: Build
         run: |
           vercel build \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
@@ -97,32 +111,34 @@ jobs:
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 8a. Deploy to PRODUCTION (main branch only) ───────────────
+      # ── 9a. Production deploy (main branch) ───────────────────────
       - name: Deploy to Vercel (Production)
         if: github.ref == 'refs/heads/main'
         id: deploy-prod
         run: |
           URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "Deployed to production: $URL"
+          echo "Deployed: $URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 8b. Deploy PREVIEW (PR branches) ─────────────────────────
+      # ── 9b. Preview deploy (PR branches) ─────────────────────────
       - name: Deploy to Vercel (Preview)
         if: github.event_name == 'pull_request'
         id: deploy-preview
         run: |
           URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> $GITHUB_OUTPUT
-          echo "Preview URL: $URL"
+          echo "Preview: $URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
-      # ── 9. Post preview URL as a PR comment ───────────────────────
+      # ── 10. Post preview URL on PR ────────────────────────────────
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -143,6 +159,6 @@ jobs:
                 `**Commit:** \`${sha}\``,
                 `**URL:** ${url}`,
                 '',
-                '> This preview was deployed via GitHub Actions. CI checks passed.',
+                '> Deployed via GitHub Actions · CI checks passed.',
               ].join('\n'),
             });

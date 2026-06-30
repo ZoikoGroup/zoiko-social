@@ -1,0 +1,103 @@
+name: Deploy Landing → Vercel
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONE-TIME SETUP:
+# 1. Create a second Vercel project linked to apps/landing/
+# 2. Add GitHub Secrets:
+#    VERCEL_LANDING_TOKEN, VERCEL_LANDING_ORG_ID, VERCEL_LANDING_PROJECT_ID
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/landing/**'
+      - 'packages/ui/**'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'apps/landing/**'
+      - 'packages/ui/**'
+
+concurrency:
+  group: landing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: ${{ github.ref == 'refs/heads/main' && 'Production Deploy' || 'Preview Deploy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm turbo type-check --filter=@zoiko/landing...
+
+      - name: Lint
+        run: pnpm turbo lint --filter=@zoiko/landing...
+
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Pull Vercel environment
+        run: |
+          vercel pull --yes \
+            --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Build
+        run: |
+          vercel build \
+            ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} \
+            --token=${{ secrets.VERCEL_LANDING_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Deploy (Production)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_LANDING_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Deploy (Preview)
+        if: github.event_name == 'pull_request'
+        id: preview
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_LANDING_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_LANDING_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_LANDING_PROJECT_ID }}
+
+      - name: Comment preview URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `### Landing Preview\n\n**URL:** ${{ steps.preview.outputs.url }}\n> Deployed via GitHub Actions`,
+            });

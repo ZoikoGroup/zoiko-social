@@ -1,0 +1,82 @@
+name: Deploy API → Render
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONE-TIME SETUP (project owner):
+#
+# 1. Create a Render Web Service:
+#    - Environment: Docker
+#    - Dockerfile path: apps/api/Dockerfile
+#    - Docker build context: . (repo root)
+#    - Branch: main
+#    - Auto-deploy: OFF (this workflow triggers it)
+#
+# 2. Copy the Deploy Hook URL from:
+#    Render Dashboard → Service → Settings → Deploy Hook
+#
+# 3. Add GitHub Secret:
+#    RENDER_DEPLOY_HOOK_URL  ← the deploy hook URL from Render
+#
+# 4. Add environment variables in Render Dashboard:
+#    PORT, NODE_ENV, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+#    REDIS_URL, LIVEKIT_*, R2_*, STRIPE_*, RESEND_*, SENTRY_DSN, etc.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'package.json'
+
+concurrency:
+  group: render-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy API to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Setup pnpm ────────────────────────────────────────────
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # ── 3. Setup Node.js ─────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      # ── 4. Install & type check (gate before triggering Render) ───
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check (api only)
+        run: pnpm turbo type-check --filter=@zoiko/api...
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      - name: Lint (api only)
+        run: pnpm turbo lint --filter=@zoiko/api...
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      # ── 5. Trigger Render deploy via webhook ──────────────────────
+      - name: Trigger Render deploy
+        run: |
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Render deploy triggered"

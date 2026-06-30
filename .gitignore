@@ -20,12 +20,15 @@ node_modules/
 .next/
 out/
 build/
+
+# ── NESTJS BUILD ──────────────────────────────────────────────────
 dist/
 
+# ── TURBO ─────────────────────────────────────────────────────────
+.turbo/
+
 # ── VERCEL ────────────────────────────────────────────────────────
-# DO NOT commit — contains project ID and org ID
-# These go into GitHub Secrets instead
-.vercel
+.vercel/
 
 # ── TESTING ───────────────────────────────────────────────────────
 coverage/
