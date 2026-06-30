@@ -21,6 +21,7 @@ name: Deploy Web → Vercel
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
