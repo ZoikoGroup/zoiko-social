@@ -118,17 +118,9 @@ jobs:
           "
 
       # ── 8. Build via Vercel ───────────────────────────────────────
-      # Next.js 16.2 has a path-tracing bug: after next build it computes
-      #   path.join(CWD=apps/web, relative(outputFileTracingRoot=root, .next))
-      #   = path.join(apps/web, 'apps/web/.next')
-      #   = apps/web/apps/web/.next  ← ENOENT
-      # Workaround: pre-create a symlink at that doubled path pointing to the
-      # real .next so the lstat that triggers the ENOENT succeeds transparently.
-      - name: Pre-create tracing-path symlink (Next.js 16.2 bug workaround)
-        run: |
-          mkdir -p apps/web/apps/web
-          ln -sf ../.next apps/web/apps/web/.next
-
+      # The symlink workaround for the Next.js 16.2 path-tracing bug is inside
+      # vercel.json buildCommand (runs before pnpm turbo build so it exists
+      # when next build does its internal lstat).
       - name: Build
         run: |
           vercel build \

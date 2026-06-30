@@ -79,11 +79,6 @@ jobs:
             console.log('rootDirectory after patch: null');
           "
 
-      - name: Pre-create tracing-path symlink (Next.js 16.2 bug workaround)
-        run: |
-          mkdir -p apps/landing/apps/landing
-          ln -sf ../.next apps/landing/apps/landing/.next
-
       - name: Build
         run: |
           vercel build \
