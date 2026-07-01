@@ -9,15 +9,15 @@ import type { LucideIcon } from 'lucide-react'
 
 interface MobileTabsProps {
   currentPage: string
-  onNavigate: (page: string) => void
+  onNavigate?: (page: string) => void
 }
 
-const TABS: { page: string; label: string; Icon: LucideIcon; center?: boolean }[] = [
-  { page: 'home',     label: 'Home',     Icon: Home           },
-  { page: 'network',  label: 'Network',  Icon: Users          },
-  { page: 'more',     label: '',         Icon: Plus, center: true },
-  { page: 'messages', label: 'Messages', Icon: MessageSquare  },
-  { page: 'profile',  label: 'Profile',  Icon: User           },
+const TABS: { page: string; label: string; Icon: LucideIcon; href: string; center?: boolean }[] = [
+  { page: 'home',     label: 'Home',     Icon: Home,          href: '/'         },
+  { page: 'network',  label: 'Network',  Icon: Users,         href: '/network'  },
+  { page: 'more',     label: '',         Icon: Plus,          href: '#', center: true },
+  { page: 'messages', label: 'Messages', Icon: MessageSquare, href: '/messages' },
+  { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
 ]
 
 const TRAY_MODULES: { name: string; Icon: LucideIcon }[] = [
@@ -84,8 +84,9 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
             )
           }
           return (
-            <button
+            <a
               key={tab.page}
+              href={tab.href}
               className={`flex flex-col items-center gap-1 cursor-pointer relative min-w-[44px] ${isActive ? 'text-primary' : 'text-on-surface-variant'}`}
             >
               <tab.Icon className="w-5 h-5" />
@@ -93,7 +94,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
               {tab.page === 'messages' && (
                 <span className="absolute -top-0.5 right-0 w-2 h-2 bg-primary rounded-full"></span>
               )}
-            </button>
+            </a>
           )
         })}
       </nav>

@@ -6,18 +6,19 @@ import Link from 'next/link'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
-  ShoppingBag, HandHeart, Dna, X,
+  ShoppingBag, HandHeart, Stethoscope, Dna, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href?: string }[] = [
-  { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary' },
+  { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary'   },
   { name: 'Events',            Icon: Calendar,    color: 'text-secondary' },
-  { name: 'Adoption & Rescue', Icon: PawPrint,     color: 'text-primary', href: '/adoption' },
+  { name: 'Adoption & Rescue', Icon: PawPrint,    color: 'text-primary'   },
   { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary' },
-  { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary' },
-  { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary' },
-  { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary' },
+  { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary'  },
+  { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary'   },
+  { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary' },
+  { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary'  },
 ]
 
 function NineDotIcon(): React.JSX.Element {
@@ -76,14 +77,14 @@ export function Header(): React.JSX.Element {
             <Home className="w-5 h-5" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
           </Link>
-          <a className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="#">
+          <Link className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="/network">
             <Users className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Network</span>
-          </a>
-          <a className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="#">
+          </Link>
+          <Link className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="/messages">
             <MessageSquare className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Messaging</span>
-          </a>
+          </Link>
           <a className="flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors relative cursor-pointer" href="#">
             <div className="relative">
               <Bell className="w-5 h-5" />
@@ -130,12 +131,12 @@ export function Header(): React.JSX.Element {
           </div>
 
           <div className="h-8 w-[1px] bg-outline-variant mx-1 hidden sm:block"></div>
-          <button className="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
+          <Link href="/profile" className="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-outline-variant">
               AR
             </div>
             <span className="hidden xl:block text-label-md font-semibold">Me</span>
-          </button>
+          </Link>
         </nav>
       </div>
     </header>
