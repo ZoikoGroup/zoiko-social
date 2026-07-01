@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import {
   Home, Users, Plus, MessageSquare, User, X,
-  Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Stethoscope, Dna,
+  Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -27,7 +27,6 @@ const TRAY_MODULES: { name: string; Icon: LucideIcon }[] = [
   { name: 'Lost & Found',      Icon: MapPin      },
   { name: 'Shop',              Icon: ShoppingBag },
   { name: 'Pet Care Services', Icon: HandHeart   },
-  { name: 'Vet Finder',        Icon: Stethoscope },
   { name: 'Breeding Match',    Icon: Dna         },
 ]
 
