@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
@@ -56,7 +57,7 @@ export function Header(): React.JSX.Element {
         {/* Left: Logo + Search */}
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <PawPrint className="text-primary w-7 h-7" />
+            <Image src="/logo.svg" alt="ZoikoSocial" width={32} height={32} priority />
             <span className="hidden md:block font-headline text-primary font-bold tracking-tight text-headline-md">ZoikoSocial</span>
           </div>
           <div className="hidden lg:flex relative w-80">
