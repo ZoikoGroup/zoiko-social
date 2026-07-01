@@ -3,10 +3,10 @@
 import { Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-const LINKS: { name: string; Icon: LucideIcon; badge?: string }[] = [
+const LINKS: { name: string; Icon: LucideIcon; badge?: string; href?: string }[] = [
   { name: 'Verified News',     Icon: Newspaper   },
   { name: 'Events',            Icon: Calendar    },
-  { name: 'Adoption & Rescue', Icon: PawPrint    },
+  { name: 'Adoption & Rescue', Icon: PawPrint,    href: '/adoption' },
   { name: 'Lost & Found',      Icon: MapPin,     badge: 'New' },
   { name: 'Shop',              Icon: ShoppingBag },
   { name: 'Pet Care Services', Icon: HandHeart   },
@@ -21,7 +21,7 @@ export function QuickLinksWidget(): React.JSX.Element {
         {LINKS.map((link) => (
           <a
             key={link.name}
-            href="#"
+            href={link.href ?? '#'}
             className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer group"
           >
             <link.Icon className="w-4 h-4 text-outline group-hover:text-primary transition-colors flex-shrink-0" />
