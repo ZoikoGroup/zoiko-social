@@ -70,12 +70,9 @@ jobs:
         run: pnpm audit --audit-level=moderate
 
       # ── 9. Secret scanning (blocks accidental API key commits) ────
-      # Split into two steps because the base SHA differs per event type:
-      #   PR   → compare PR base commit vs PR head commit
-      #   Push → compare before-SHA vs after-SHA
-      # Using default_branch as base causes "same commit" error on main pushes.
-      - name: Scan for secrets (PR)
-        if: github.event_name == 'pull_request'
+      # Pinned to v3 (stable); fetch-depth:0 above ensures main is locally
+      # available so git log main...HEAD works in both push and PR events.
+      - name: Scan for secrets
         uses: trufflesecurity/trufflehog@v3.95.7
         with:
           path: ./

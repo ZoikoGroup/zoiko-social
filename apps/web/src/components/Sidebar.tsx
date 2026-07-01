@@ -23,7 +23,6 @@ const NAV_SECTIONS = [
     items: [
       { page: 'petdiary', icon: 'heart', label: 'Pet Diary' },
       { page: 'health', icon: 'activity', label: 'Health Passport' },
-      { page: 'vetfinder', icon: 'map-pin', label: 'Vet Finder' },
     ],
   },
   {
@@ -53,7 +52,6 @@ const ICONS: Record<string, React.JSX.Element> = {
   calendar: <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="14" height="12" rx="1" /><path d="M7 3v4M13 3v4M3 9h14" /></svg>,
   heart: <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 3C7 3 4 6 4 9c0 4 6 9 6 9s6-5 6-9c0-3-2.7-6-6-6z" /><circle cx="10" cy="9" r="2.5" fill="currentColor" opacity="0.3" /></svg>,
   activity: <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M10 16s-7-5-7-9a5 5 0 0110 0c0 4-3 9-3 9z" /><path d="M8 7h4M10 5v4" /></svg>,
-  'map-pin': <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 2a5 5 0 015 5c0 2.7-2 5.5-5 8.5C6 12.5 4 9.7 4 7a5 5 0 015-5z" /><path d="M7 7h4M9 5v4" /></svg>,
   'user-check': <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="10" cy="8" r="3.5" /><path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" /><circle cx="5" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" /></svg>,
   'shopping-cart': <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M3 3h2l2 8h8l2-6H7" /><circle cx="9" cy="17" r="1" /><circle cx="15" cy="17" r="1" /></svg>,
   'chevrons-down': <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 10c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6" /><path d="M7 13l3 3 3-3" /></svg>,

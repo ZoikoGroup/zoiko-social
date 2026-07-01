@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
-  ShoppingBag, HandHeart, Stethoscope, Dna, X,
+  ShoppingBag, HandHeart, Dna, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -16,7 +16,6 @@ const MODULES: { name: string; Icon: LucideIcon; color: string }[] = [
   { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary' },
   { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary' },
   { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary' },
-  { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary' },
   { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary' },
 ]
 

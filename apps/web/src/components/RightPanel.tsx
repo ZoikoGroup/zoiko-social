@@ -1,6 +1,6 @@
 'use client'
 
-import { Info, Stethoscope } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 export function RightPanel(): React.JSX.Element {
   return (
@@ -45,34 +45,6 @@ export function RightPanel(): React.JSX.Element {
               <span className="text-label-sm text-outline">{trend.tag}</span>
               <span className="text-label-md font-semibold text-on-surface group-hover:text-primary transition-colors">{trend.title}</span>
               <span className="text-[10px] text-outline">{trend.count} professionals discussing</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Vet Finder Widget */}
-      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
-        <h3 className="text-label-md font-bold mb-4 flex items-center justify-between">
-          Vets Near You
-          <a href="#" className="text-[11px] text-primary font-semibold hover:underline cursor-pointer">See all</a>
-        </h3>
-        <div className="space-y-4">
-          {[
-            { name: 'Paws Animal Clinic', specialty: 'Dogs · Cats · Small mammals', distance: '2.3 km', open: true },
-            { name: 'City Pet Hospital', specialty: 'All species · Emergency', distance: '4.1 km', open: true },
-          ].map((vet) => (
-            <div key={vet.name} className="flex items-start gap-3 cursor-pointer group">
-              <div className="w-8 h-8 rounded-lg bg-secondary/10 flex items-center justify-center flex-shrink-0 border border-outline-variant/30">
-                <Stethoscope className="w-4 h-4 text-secondary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-label-md font-semibold truncate block group-hover:text-primary transition-colors">{vet.name}</span>
-                <span className="text-[11px] text-outline truncate block">{vet.specialty}</span>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] text-secondary font-semibold">{vet.open ? 'Open now' : 'Closed'}</span>
-                  <span className="text-[10px] text-outline">· {vet.distance}</span>
-                </div>
-              </div>
             </div>
           ))}
         </div>

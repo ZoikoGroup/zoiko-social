@@ -13,7 +13,6 @@ const PROTECTED_ROUTES = [
   '/pet-care',
   '/products',
   '/breeding-match',
-  '/vet-finder',
   '/events',
   '/adoption',
 ]

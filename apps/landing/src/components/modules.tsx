@@ -10,7 +10,6 @@ const modules = [
   { name: 'Breeding Match',    desc: 'Ethical matchmaking with health record verification', tag: 'Specialist' },
   { name: 'Lost & Found',      desc: 'Geo-tagged reports with photo and last-seen location', tag: 'Safety' },
   { name: 'Pet Diary',         desc: 'Milestone journal: first walk, birthdays, weight',   tag: 'Personal' },
-  { name: 'Vet Finder',        desc: 'Find nearby vets, clinics, and emergency services',  tag: 'Health' },
   { name: 'Health Passport',   desc: 'Vaccination records, vet visits, medications',       tag: 'Health' },
   { name: 'Advertising',       desc: 'Animal-welfare-reviewed ads only — no exploitation', tag: 'Commerce' },
 ]
@@ -29,7 +28,7 @@ export function Modules(): React.JSX.Element {
     <section id="modules" className="bg-paper py-24">
       <div className="mx-auto max-w-6xl px-6">
         <div className="mb-16 text-center">
-          <h2 className="font-serif text-4xl font-bold text-teal-deep">14 platform modules</h2>
+          <h2 className="font-serif text-4xl font-bold text-teal-deep">13 platform modules</h2>
           <p className="mt-4 text-lg text-teal-muted">
             Everything animal lovers need, in one governed platform.
           </p>

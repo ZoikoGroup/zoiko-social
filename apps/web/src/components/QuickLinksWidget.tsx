@@ -1,6 +1,6 @@
 'use client'
 
-import { Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Stethoscope, Dna } from 'lucide-react'
+import { Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 const LINKS: { name: string; Icon: LucideIcon; badge?: string }[] = [
@@ -10,7 +10,6 @@ const LINKS: { name: string; Icon: LucideIcon; badge?: string }[] = [
   { name: 'Lost & Found',      Icon: MapPin,     badge: 'New' },
   { name: 'Shop',              Icon: ShoppingBag },
   { name: 'Pet Care Services', Icon: HandHeart   },
-  { name: 'Vet Finder',        Icon: Stethoscope },
   { name: 'Breeding Match',    Icon: Dna         },
 ]
 
