@@ -10,23 +10,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ZoikoSocial brand palette — derived from logo (#E88924 orange, #066879 teal)
-        primary: '#E88924',
-        'primary-container': '#FEF0DC',
+        // ZoikoSocial brand palette — derived from logo (#066879 teal primary, #E88924 orange accent)
+        primary: '#066879',
+        'primary-container': '#D6EEF2',
         'on-primary': '#ffffff',
-        'primary-fixed': '#FEF0DC',
-        'primary-fixed-dim': '#F9C97A',
-        'on-primary-fixed': '#5C2A00',
-        'on-primary-fixed-variant': '#A85A00',
+        'primary-fixed': '#D6EEF2',
+        'primary-fixed-dim': '#A8D4DC',
+        'on-primary-fixed': '#012630',
+        'on-primary-fixed-variant': '#034A57',
 
-        secondary: '#066879',
-        'secondary-container': '#D6EEF2',
+        secondary: '#E88924',
+        'secondary-container': '#FEF0DC',
         'on-secondary': '#ffffff',
-        'on-secondary-container': '#034A57',
-        'secondary-fixed': '#D6EEF2',
-        'secondary-fixed-dim': '#A8D4DC',
-        'on-secondary-fixed': '#012630',
-        'on-secondary-fixed-variant': '#034A57',
+        'on-secondary-container': '#5C2A00',
+        'secondary-fixed': '#FEF0DC',
+        'secondary-fixed-dim': '#F9C97A',
+        'on-secondary-fixed': '#5C2A00',
+        'on-secondary-fixed-variant': '#A85A00',
 
         tertiary: '#6B7280',
         'tertiary-container': '#E5E7EB',
@@ -57,11 +57,11 @@ const config: Config = {
         'surface-variant': '#E5E7EB',
         outline: '#6B7280',
         'outline-variant': '#D1D5DB',
-        'surface-tint': '#E88924',
+        'surface-tint': '#066879',
 
         'inverse-surface': '#1F2937',
         'inverse-on-surface': '#F9FAFB',
-        'inverse-primary': '#F9C97A',
+        'inverse-primary': '#A8D4DC',
       },
       fontFamily: {
         headline: ['"Source Serif 4"', 'Georgia', 'serif'],
