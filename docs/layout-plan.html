@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ZoikoSocial — Navigation Layout Plan</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary:   #99452c;
+  --secondary: #436646;
+  --tertiary:  #645e49;
+  --bg:        #f4fbfa;
+  --surface:   #ffffff;
+  --border:    #dbc1ba;
+  --text:      #161d1d;
+  --muted:     #88726c;
+
+  --core-bg:   #fff4f0;
+  --new-bg:    #eef6ee;
+  --sug-bg:    #f5f3ef;
+
+  --z-header:  rgba(153, 69,  44, 0.10);
+  --z-left:    rgba( 67,102,  70, 0.09);
+  --z-center:  rgba(153, 69,  44, 0.05);
+  --z-right:   rgba(100, 94,  73, 0.08);
+  --z-mobile:  rgba( 67,102,  70, 0.10);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 28px 80px;
+}
+
+/* ── Document header ── */
+.doc-header {
+  margin-bottom: 48px;
+  padding-bottom: 28px;
+  border-bottom: 1.5px solid var(--border);
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+h1 {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 10px;
+  text-wrap: balance;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 68ch;
+  line-height: 1.7;
+}
+
+/* ── Sections ── */
+.section { margin-bottom: 52px; }
+
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Wireframe container ── */
+.wireframe {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* ── Zone labels ── */
+.zone-pill {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  color: #fff;
+  margin-bottom: 10px;
+}
+.zp-header  { background: var(--primary); }
+.zp-left    { background: var(--secondary); }
+.zp-center  { background: var(--primary); opacity: 0.85; }
+.zp-right   { background: var(--tertiary); }
+
+/* ── Nav chips ── */
+.chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: rgba(153,69,44,0.10);
+  color: var(--primary);
+  white-space: nowrap;
+  cursor: default;
+}
+.chip.on  { background: var(--primary); color: #fff; }
+
+/* ── Desktop wireframe ── */
+.wf-desktop-header {
+  background: var(--z-header);
+  border-bottom: 1.5px solid rgba(153,69,44,0.25);
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.wf-desktop-body {
+  display: grid;
+  grid-template-columns: 210px 1fr 196px;
+}
+
+.wf-left {
+  background: var(--z-left);
+  border-right: 1px solid var(--border);
+  padding: 14px 14px 20px;
+}
+
+.wf-center {
+  background: var(--z-center);
+  padding: 14px;
+  min-height: 260px;
+}
+
+.wf-right {
+  background: var(--z-right);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+}
+
+/* ── Skeleton bars ── */
+.bar-group { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  opacity: 0.55;
+}
+.bar.accent { background: var(--primary); opacity: 0.18; }
+.bar.w100 { width: 100%; }
+.bar.w75  { width: 75%; }
+.bar.w55  { width: 55%; }
+
+/* ── Sidebar nav rows ── */
+.sb-group { margin-bottom: 14px; }
+.sb-head {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sb-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.sb-row.active { background: var(--core-bg); color: var(--primary); font-weight: 600; }
+.sb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.sb-dot.p { background: var(--primary); }
+.sb-dot.s { background: var(--secondary); }
+.sb-dot.t { background: var(--tertiary); }
+
+/* ── Module table ── */
+.table-wrap { overflow-x: auto; margin-top: 4px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+thead th {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 14px;
+  border-bottom: 1.5px solid var(--border);
+}
+
+tbody td {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(219,193,186,0.35);
+  vertical-align: middle;
+  white-space: normal;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: rgba(244,251,250,0.8); }
+
+.module-name { font-weight: 600; color: var(--text); }
+.module-sub  { font-size: 11px; color: var(--muted); font-weight: 400; }
+
+/* ── Status badges ── */
+.badge {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.badge.core { background: var(--core-bg); color: var(--primary); border: 1px solid rgba(153,69,44,0.18); }
+.badge.new  { background: var(--new-bg);  color: var(--secondary); border: 1px solid rgba(67,102,70,0.18); }
+.badge.sug  { background: var(--sug-bg);  color: var(--tertiary);  border: 1px solid rgba(100,94,73,0.18); }
+
+/* ── Surface cards ── */
+.surface-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.surface-card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.sc-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sc-title { font-weight: 700; font-size: 13px; color: var(--text); }
+.sc-desc  { font-size: 10.5px; color: var(--muted); margin-top: 1px; }
+
+.sc-body { padding: 12px 16px; }
+
+.sc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(219,193,186,0.3);
+  font-size: 12px;
+}
+.sc-item:last-child { border-bottom: none; }
+
+.sc-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.sc-item-text strong { font-weight: 600; color: var(--text); }
+.sc-item-text span   { color: var(--muted); font-size: 11px; }
+
+/* ── Mobile wireframe ── */
+.mobile-wrap {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.wf-phone {
+  width: 240px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgba(22,29,29,0.08);
+}
+
+.phone-header {
+  background: var(--z-header);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.phone-body {
+  background: var(--z-center);
+  padding: 12px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.phone-tray {
+  background: var(--sug-bg);
+  border-top: 1px dashed var(--border);
+  padding: 9px 12px;
+}
+
+.phone-nav {
+  background: var(--z-mobile);
+  border-top: 1.5px solid rgba(67,102,70,0.3);
+  padding: 9px 12px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tab-dot {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+}
+.tab-dot.active { border-color: var(--primary); background: var(--primary); }
+.tab-dot.round  { border-radius: 50%; }
+.tab-dot.plus {
+  border-color: var(--primary);
+  background: var(--primary);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1;
+}
+.tab-label { font-size: 7.5px; color: var(--muted); }
+.tab-label.active { color: var(--primary); font-weight: 600; }
+
+.tray-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.tray-chip {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(67,102,70,0.10);
+  color: var(--secondary);
+}
+
+/* ── Mobile legend card ── */
+.mobile-legend {
+  flex: 1;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.ml-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.ml-section:last-child { border-bottom: none; }
+
+.ml-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.ml-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ml-tag {
+  font-size: 9px;
+  font-weight: 700;
+  width: 22px;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+.ml-tag.p  { background: var(--primary); }
+.ml-tag.s  { background: var(--secondary); }
+.ml-tag.t  { background: var(--tertiary); }
+
+/* ── Notes box ── */
+.notes {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  padding: 20px 24px;
+}
+
+.notes ul {
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.notes li { font-size: 12.5px; line-height: 1.6; color: var(--text); }
+.notes li strong { color: var(--primary); }
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 12px;
+  align-items: center;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 44px 0;
+}
+
+@media (max-width: 640px) {
+  .wf-desktop-body { grid-template-columns: 1fr; }
+  .wf-left, .wf-right { display: none; }
+  .surface-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="doc-header">
+    <p class="eyebrow">ZoikoSocial · Product Architecture · June 2026</p>
+    <h1>Navigation Layout Plan</h1>
+    <p class="subtitle">Where all 14 modules sit across every UI surface — desktop 3-column, mobile bottom nav, left sidebar, right panel. Based on the master reference.</p>
+  </header>
+
+  <!-- 01 Desktop -->
+  <section class="section">
+    <p class="section-label">01 — Desktop Layout · 1280px+</p>
+
+    <div class="wireframe">
+      <div class="wf-desktop-header">
+        <div>
+          <div class="zone-pill zp-header">Header · Fixed top · Always visible</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--primary);opacity:.8;"></div>
+            <div style="font-size:12px;font-weight:700;color:var(--primary);">ZoikoSocial</div>
+            <div style="flex:1;max-width:200px;height:26px;background:rgba(153,69,44,0.08);border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;padding:0 10px;">
+              <span style="font-size:10px;color:var(--muted);">Search professional network…</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="zone-pill zp-header" style="opacity:0;">pad</div>
+          <div class="chips" style="margin-top:4px;">
+            <div class="chip on">Home</div>
+            <div class="chip">Network</div>
+            <div class="chip">Messaging</div>
+            <div class="chip">Notifications</div>
+            <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
+            <div class="chip" style="display:flex;align-items:center;gap:5px;">
+              <div style="width:22px;height:22px;border-radius:50%;background:rgba(153,69,44,0.15);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--primary);">ME</div>
+              Me ▾
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wf-desktop-body">
+        <div class="wf-left">
+          <div class="zone-pill zp-left">Left Sidebar · 3 col</div>
+          <div class="sb-group">
+            <div class="sb-head">Identity</div>
+            <div class="sb-row active"><div class="sb-dot p"></div>Profile Card</div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-head">My Pets</div>
+            <div class="sb-row"><div class="sb-dot s"></div>Pet Diary</div>
+            <div class="sb-row"><div class="sb-dot s"></div>Health Passport</div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-head">My Groups</div>
+            <div class="sb-row"><div class="sb-dot s"></div>Communities widget</div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-head">Quick Links</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Verified News</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Events</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Adoption &amp; Rescue</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Lost &amp; Found</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Shop (Products)</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Pet Care Services</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Vet Finder</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Breeding Match</div>
+          </div>
+        </div>
+
+        <div class="wf-center">
+          <div class="zone-pill zp-center">Center · 6 col · Page content changes per section</div>
+          <div class="bar-group">
+            <div class="bar accent w100" style="height:40px;opacity:.12;border-radius:6px;"></div>
+            <div class="bar w100"></div>
+            <div class="bar accent w100" style="height:90px;opacity:.10;margin-top:4px;border-radius:6px;"></div>
+            <div class="bar w75"></div>
+            <div class="bar w55"></div>
+          </div>
+          <p style="margin-top:12px;font-size:10.5px;color:var(--muted);font-style:italic;line-height:1.7;">
+            → Stories Bar · Create Post Box · Feed<br/>
+            → Swaps to: News page / Events / Adoption listings /<br/>
+            &nbsp;&nbsp;&nbsp;Marketplace / Lost &amp; Found map / etc.
+          </p>
+        </div>
+
+        <div class="wf-right">
+          <div class="zone-pill zp-right">Right Sidebar · 3 col</div>
+          <div class="sb-group" style="margin-top:6px;">
+            <div class="sb-head">On Home</div>
+            <div class="sb-row"><div class="sb-dot t"></div>People to Follow</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Trending Topics</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Vet Finder widget</div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-head">Contextual</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Upcoming Events</div>
+            <div class="sb-row"><div class="sb-dot t"></div>Nearby rescues</div>
+          </div>
+          <div class="sb-group">
+            <div class="sb-head">Footer</div>
+            <div class="sb-row"><div class="sb-dot"></div>About · Privacy · Help</div>
+            <div class="sb-row"><div class="sb-dot"></div>© 2026 ZoikoSocial</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="badge core">Core</span> Header nav (5 primary destinations)</div>
+      <div class="legend-item"><span class="badge new">New</span> Left sidebar quick links (8 secondary modules)</div>
+      <div class="legend-item"><span class="badge sug">Suggested</span> Right sidebar contextual widgets</div>
+    </div>
+  </section>
+
+  <!-- 02 Mobile -->
+  <section class="section">
+    <p class="section-label">02 — Mobile Layout</p>
+
+    <div class="mobile-wrap">
+      <div class="wf-phone">
+        <div class="phone-header">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div style="width:18px;height:18px;border-radius:50%;background:var(--primary);opacity:.85;"></div>
+            <span style="font-size:11px;font-weight:700;color:var(--primary);">ZoikoSocial</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <div style="width:13px;height:13px;border:1.5px solid var(--muted);border-radius:50%;"></div>
+            <div style="width:13px;height:13px;border:1.5px solid var(--muted);border-radius:3px;"></div>
+          </div>
+        </div>
+        <div class="phone-body">
+          <div class="bar accent w100" style="height:28px;border-radius:5px;opacity:.15;"></div>
+          <div class="bar w100"></div>
+          <div class="bar accent w100" style="height:85px;border-radius:5px;opacity:.12;"></div>
+          <div class="bar w75"></div>
+          <div class="bar w55"></div>
+        </div>
+        <div class="phone-tray">
+          <div style="font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);">Slide-up Tray</div>
+          <div class="tray-chips">
+            <span class="tray-chip">News</span>
+            <span class="tray-chip">Events</span>
+            <span class="tray-chip">Adoption</span>
+            <span class="tray-chip">Lost &amp; Found</span>
+            <span class="tray-chip">Shop</span>
+            <span class="tray-chip">Services</span>
+            <span class="tray-chip">Vet Finder</span>
+            <span class="tray-chip">Breeding</span>
+          </div>
+        </div>
+        <div class="phone-nav">
+          <div class="tab-item">
+            <div class="tab-dot active"></div>
+            <div class="tab-label active">Home</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-dot" style="border-radius:4px;"></div>
+            <div class="tab-label">Network</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-dot plus">+</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-dot round"></div>
+            <div class="tab-label">Messages</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-dot round"></div>
+            <div class="tab-label">Profile</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mobile-legend">
+        <div class="ml-section">
+          <div class="ml-title">Bottom Nav — 5 Fixed Tabs</div>
+          <div class="ml-row"><div class="ml-tag p">T1</div><div><strong>Home</strong> — Social feed</div></div>
+          <div class="ml-row"><div class="ml-tag s">T2</div><div><strong>Network</strong> — Communities &amp; Groups</div></div>
+          <div class="ml-row"><div class="ml-tag p">+</div><div><strong>Create</strong> (FAB) — Post, story, reel</div></div>
+          <div class="ml-row"><div class="ml-tag s">T4</div><div><strong>Messages</strong> — DMs, calls</div></div>
+          <div class="ml-row"><div class="ml-tag t">T5</div><div><strong>Profile</strong> — Me, My Pets, settings</div></div>
+        </div>
+        <div class="ml-section">
+          <div class="ml-title">Slide-up Tray — 8 Secondary Modules</div>
+          <div class="ml-row"><div class="ml-tag s">1</div><div>Verified News</div></div>
+          <div class="ml-row"><div class="ml-tag s">2</div><div>Events</div></div>
+          <div class="ml-row"><div class="ml-tag s">3</div><div>Adoption &amp; Rescue</div></div>
+          <div class="ml-row"><div class="ml-tag s">4</div><div>Lost &amp; Found</div></div>
+          <div class="ml-row"><div class="ml-tag s">5</div><div>Shop (Products)</div></div>
+          <div class="ml-row"><div class="ml-tag s">6</div><div>Pet Care Services</div></div>
+          <div class="ml-row"><div class="ml-tag s">7</div><div>Vet Finder</div></div>
+          <div class="ml-row"><div class="ml-tag s">8</div><div>Breeding Match</div></div>
+        </div>
+        <div class="ml-section">
+          <div class="ml-title">Profile Tab → My Pets</div>
+          <div class="ml-row"><div class="ml-tag t">→</div><div>Pet Diary</div></div>
+          <div class="ml-row"><div class="ml-tag t">→</div><div>Health Passport</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider"/>
+
+  <!-- 03 Module matrix -->
+  <section class="section">
+    <p class="section-label">03 — All 14 Modules · Placement Map</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Status</th>
+            <th>Header Nav</th>
+            <th>Left Sidebar</th>
+            <th>Right Sidebar</th>
+            <th>Mobile Bottom</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="module-name">Social Feed &amp; Posts</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td><span class="chip on" style="font-size:10px;">Home</span></td>
+            <td>Profile card · Stories tray</td>
+            <td>Suggestions · Trending</td>
+            <td>Tab 1 — Home</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Communities &amp; Groups</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td><span class="chip" style="font-size:10px;">Network</span></td>
+            <td>My Communities widget</td>
+            <td>Suggested groups</td>
+            <td>Tab 2 — Network</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Messaging &amp; Calls</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td><span class="chip" style="font-size:10px;">Messaging</span></td>
+            <td>—</td>
+            <td>—</td>
+            <td>Tab 4 — Messages</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Verified News</div><div class="module-sub">Tiered credibility: Institutional → Community</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>—</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Events</div><div class="module-sub">Birthdays, fundraisers, workshops, meetups</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>Upcoming events widget</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Adoption &amp; Rescue</div><div class="module-sub">Verified rescues and shelters only</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>Nearby rescues widget</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Verified Advertising</div><div class="module-sub">Inline in feed · Mandatory disclosure label</div></td>
+            <td><span class="badge core">Core</span></td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Inline in feed</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Products Marketplace</div><div class="module-sub">Pet goods · No live animals</div></td>
+            <td><span class="badge new">New</span></td>
+            <td>—</td>
+            <td>Quick link (Shop)</td>
+            <td>—</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Pet Care Marketplace</div><div class="module-sub">Walking · Boarding · Grooming · Training</div></td>
+            <td><span class="badge new">New</span></td>
+            <td>—</td>
+            <td>Quick link (Services)</td>
+            <td>—</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Breeding Match</div><div class="module-sub">Verified + health cert required to list</div></td>
+            <td><span class="badge new">New</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>—</td>
+            <td>Tray (gated)</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Lost &amp; Found</div><div class="module-sub">Geo-matched · Push alerts to nearby users</div></td>
+            <td><span class="badge new">New</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>—</td>
+            <td>Tray + alert badge</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Pet Diary</div><div class="module-sub">Per-pet timeline · Milestones · Memories</div></td>
+            <td><span class="badge new">New</span></td>
+            <td>—</td>
+            <td>My Pets section</td>
+            <td>—</td>
+            <td>Profile → My Pets</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Vet Finder</div><div class="module-sub">Species · Emergency · Open now filters</div></td>
+            <td><span class="badge sug">Suggested</span></td>
+            <td>—</td>
+            <td>Quick link</td>
+            <td>2-result preview widget</td>
+            <td>Tray</td>
+          </tr>
+          <tr>
+            <td><div class="module-name">Health Passport</div><div class="module-sub">Vaccinations · Meds · Weight history</div></td>
+            <td><span class="badge sug">Suggested</span></td>
+            <td>—</td>
+            <td>My Pets section</td>
+            <td>—</td>
+            <td>Profile → My Pets</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="divider"/>
+
+  <!-- 04 Surface detail cards -->
+  <section class="section">
+    <p class="section-label">04 — Each Surface in Detail</p>
+    <div class="surface-grid">
+
+      <div class="surface-card">
+        <div class="sc-head">
+          <div class="sc-icon" style="background:var(--core-bg);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#99452c" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="5" rx="1"/></svg>
+          </div>
+          <div>
+            <div class="sc-title">Header Nav</div>
+            <div class="sc-desc">Fixed top bar · 5 primary destinations · Always visible</div>
+          </div>
+        </div>
+        <div class="sc-body">
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--core-bg);color:var(--primary);">H</div>
+            <div class="sc-item-text"><strong>Home</strong> <span>— Social feed, stories</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--core-bg);color:var(--primary);">N</div>
+            <div class="sc-item-text"><strong>Network</strong> <span>— Communities, groups, connections</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--core-bg);color:var(--primary);">M</div>
+            <div class="sc-item-text"><strong>Messaging</strong> <span>— DMs, group chat, calls</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--core-bg);color:var(--primary);">🔔</div>
+            <div class="sc-item-text"><strong>Notifications</strong> <span>— Bell + badge count</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--core-bg);color:var(--primary);">Me</div>
+            <div class="sc-item-text"><strong>Me ▾</strong> <span>— Profile, My Pets, Settings, Sign out</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface-card">
+        <div class="sc-head">
+          <div class="sc-icon" style="background:var(--new-bg);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#436646" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="18" rx="1"/></svg>
+          </div>
+          <div>
+            <div class="sc-title">Left Sidebar</div>
+            <div class="sc-desc">Desktop only · 3/12 col · Sticky scroll · 4 groups</div>
+          </div>
+        </div>
+        <div class="sc-body">
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--new-bg);color:var(--secondary);">①</div>
+            <div class="sc-item-text"><strong>Identity</strong> <span>— Profile card, view stats, banner</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--new-bg);color:var(--secondary);">②</div>
+            <div class="sc-item-text"><strong>My Pets</strong> <span>— Per-pet: Diary + Health Passport</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--new-bg);color:var(--secondary);">③</div>
+            <div class="sc-item-text"><strong>My Communities</strong> <span>— Top 3–5 groups with join button</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--new-bg);color:var(--secondary);">④</div>
+            <div class="sc-item-text"><strong>Quick Links</strong> <span>— News, Events, Adoption, L&amp;F, Shop, Services, Vet Finder, Breeding</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface-card">
+        <div class="sc-head">
+          <div class="sc-icon" style="background:var(--sug-bg);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#645e49" stroke-width="2" stroke-linecap="round"><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+          </div>
+          <div>
+            <div class="sc-title">Right Sidebar</div>
+            <div class="sc-desc">Desktop xl+ only · 3/12 col · Contextual per page</div>
+          </div>
+        </div>
+        <div class="sc-body">
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--sug-bg);color:var(--tertiary);">①</div>
+            <div class="sc-item-text"><strong>People to Follow</strong> <span>— On Home and Network pages</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--sug-bg);color:var(--tertiary);">②</div>
+            <div class="sc-item-text"><strong>Trending Topics</strong> <span>— Animal welfare, climate, science</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--sug-bg);color:var(--tertiary);">③</div>
+            <div class="sc-item-text"><strong>Vet Finder widget</strong> <span>— 2 nearby results, "See all" link</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--sug-bg);color:var(--tertiary);">④</div>
+            <div class="sc-item-text"><strong>Upcoming Events</strong> <span>— On Events section</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--sug-bg);color:var(--tertiary);">⑤</div>
+            <div class="sc-item-text"><strong>Footer links</strong> <span>— About · Privacy · Help · © 2026</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="surface-card">
+        <div class="sc-head">
+          <div class="sc-icon" style="background:#f2ecf7;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7B4F9E" stroke-width="2" stroke-linecap="round"><rect x="5" y="17" width="14" height="4" rx="1"/></svg>
+          </div>
+          <div>
+            <div class="sc-title">Mobile Nav</div>
+            <div class="sc-desc">Bottom tab bar · 5 tabs + slide-up tray for 8 modules</div>
+          </div>
+        </div>
+        <div class="sc-body">
+          <div class="sc-item">
+            <div class="sc-num" style="background:#f2ecf7;color:#7B4F9E;">T1</div>
+            <div class="sc-item-text"><strong>Home</strong></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:#f2ecf7;color:#7B4F9E;">T2</div>
+            <div class="sc-item-text"><strong>Network</strong> <span>— Communities</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:var(--primary);color:#fff;">+</div>
+            <div class="sc-item-text"><strong>Create</strong> <span>— FAB, center position</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:#f2ecf7;color:#7B4F9E;">T4</div>
+            <div class="sc-item-text"><strong>Messages</strong> <span>— DMs &amp; calls</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:#f2ecf7;color:#7B4F9E;">T5</div>
+            <div class="sc-item-text"><strong>Profile</strong> <span>— Me, My Pets, Diary, Passport</span></div>
+          </div>
+          <div class="sc-item">
+            <div class="sc-num" style="background:#f2ecf7;color:#7B4F9E;">≡</div>
+            <div class="sc-item-text"><strong>Tray</strong> <span>— 8 secondary modules (slide-up)</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <hr class="divider"/>
+
+  <!-- 05 Planning notes -->
+  <section class="section">
+    <p class="section-label">05 — Planning Notes</p>
+    <div class="notes">
+      <ul>
+        <li><strong>Verified Advertising</strong> has no user-navigated destination — ads appear inline in the Feed, News, and Events pages with mandatory disclosure labels. Advertisers manage campaigns via a separate Admin portal, not the main nav.</li>
+        <li><strong>Pet Diary and Health Passport</strong> are per-pet features, not top-level destinations. Access path: Left sidebar "My Pets" section on desktop, or Profile tab → My Pets on mobile. If a user has multiple pets, each gets its own diary and passport page.</li>
+        <li><strong>Lost &amp; Found</strong> lives in the tray on mobile but should push a badge notification on the tab bar icon when a nearby report matches the user's registered pets or species preferences.</li>
+        <li><strong>Breeding Match</strong> is access-gated — the nav link is always visible, but listing creation is locked behind verified account + uploaded health certificates. Browsing approved listings requires only a login.</li>
+        <li><strong>Vet Finder widget</strong> in the right sidebar is a 2-result preview. Tapping "See all" opens the full Vet Finder page in the center column, replacing the feed — the sidebar stays in place.</li>
+        <li><strong>Left sidebar Quick Links</strong> use a collapsible "Show more / Show less" toggle on screens under 900px tall — prevents the sidebar from overflowing on laptops. First four links (News, Events, Adoption, Lost &amp; Found) are always visible.</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

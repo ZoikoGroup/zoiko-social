@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${process.env.NEXT_PUBLIC_API_URL ?? ''} wss://*.livekit.cloud`,
-              `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev`,
+              `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev images.unsplash.com`,
               "media-src 'self' blob: *.mux.com *.r2.dev",
               "style-src 'self' 'unsafe-inline'",
               process.env.NODE_ENV === 'development'
@@ -50,6 +50,10 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.r2.dev',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       },
     ],
   },
