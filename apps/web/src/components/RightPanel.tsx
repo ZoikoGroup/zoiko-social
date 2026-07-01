@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Info } from 'lucide-react'
 
 export function RightPanel(): React.JSX.Element {
@@ -52,11 +53,11 @@ export function RightPanel(): React.JSX.Element {
 
       {/* Footer */}
       <footer className="flex flex-wrap gap-x-4 gap-y-2 px-2 text-[11px] text-outline">
-        <a className="hover:text-primary hover:underline cursor-pointer" href="#">About</a>
-        <a className="hover:text-primary hover:underline cursor-pointer" href="#">Accessibility</a>
-        <a className="hover:text-primary hover:underline cursor-pointer" href="#">Help Center</a>
-        <a className="hover:text-primary hover:underline cursor-pointer" href="#">Privacy &amp; Terms</a>
-        <a className="hover:text-primary hover:underline cursor-pointer" href="#">Ad Choices</a>
+        <Link href="/settings" className="hover:text-primary hover:underline">About</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">Accessibility</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">Help Center</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">Privacy &amp; Terms</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">Ad Choices</Link>
         <p className="mt-2 w-full">ZoikoSocial &copy; 2026</p>
       </footer>
     </div>

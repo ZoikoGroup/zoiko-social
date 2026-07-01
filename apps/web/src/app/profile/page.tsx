@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { ChevronLeft } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { ProfileHeader } from '@/components/ProfileHeader'
 import { ProfileTabs } from '@/components/ProfileTabs'
@@ -12,6 +14,17 @@ export default function ProfilePage(): React.JSX.Element {
       <Header />
       <main className="pt-20 min-h-screen bg-background">
         <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-gutter">
+          {/* Back button */}
+          <div className="flex items-center gap-3 mb-4">
+            <Link
+              href="/"
+              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
+              aria-label="Back to home"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Link>
+          </div>
+
           {/* Full-width profile header */}
           <div className="mb-gutter">
             <ProfileHeader isOwnProfile={true} />

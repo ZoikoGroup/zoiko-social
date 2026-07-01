@@ -3,15 +3,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 
 const PROTECTED_ROUTES = [
   '/feed',
-  '/communities',
-  '/notifications',
-  '/settings',
-  '/pet-diary',
-  '/health-passport',
-  '/pet-care',
   '/products',
-  '/breeding-match',
-  '/events',
 ]
 
 const AUTH_ROUTES = ['/login', '/register', '/forgot-password']

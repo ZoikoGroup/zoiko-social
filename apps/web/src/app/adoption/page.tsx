@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Search, SlidersHorizontal, MapPin, Plus, PawPrint, Dog, Cat, Bird, Rabbit, Fish, ChevronDown, Heart, Send, X, CheckCircle2, ShieldCheck, Syringe, Users, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import {
+  Search, SlidersHorizontal, MapPin, Plus, PawPrint, Dog, Cat, Bird, Rabbit, Fish, ChevronDown, Heart, Send, X, CheckCircle2, ShieldCheck, Syringe, Users, ChevronLeft, ChevronRight, Image as ImageIcon
+} from 'lucide-react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
@@ -151,11 +153,20 @@ export default function AdoptionListingPage(): React.JSX.Element {
 
           {/* Center Column: Listing Content */}
           <div className="lg:col-span-6 space-y-4 pb-20">
-            {/* Page Header */}
+            {/* Page Header with back button */}
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-headline-md font-bold text-on-surface">Adoption &amp; Rescue</h1>
-                <p className="text-label-sm text-outline">Find your new best friend</p>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/"
+                  className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
+                  aria-label="Back to home"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Link>
+                <div>
+                  <h1 className="text-headline-md font-bold text-on-surface">Adoption &amp; Rescue</h1>
+                  <p className="text-label-sm text-outline">Find your new best friend</p>
+                </div>
               </div>
               <Link
                 href="/adoption/new"

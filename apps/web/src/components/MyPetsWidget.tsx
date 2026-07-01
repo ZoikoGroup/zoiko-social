@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { BookOpen, ShieldCheck, Plus } from 'lucide-react'
 
 const PETS = [
@@ -29,22 +30,25 @@ export function MyPetsWidget(): React.JSX.Element {
               </div>
             </div>
             <div className="flex gap-3 pl-9">
-              <a href="#" className="flex items-center gap-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
+              <Link href="/pet-diary" className="flex items-center gap-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors">
                 <BookOpen className="w-3 h-3" />
                 <span>Diary</span>
-              </a>
+              </Link>
               <span className="text-outline-variant text-[11px]">·</span>
-              <a href="#" className="flex items-center gap-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
+              <Link href="/health-passport" className="flex items-center gap-1 text-[11px] text-on-surface-variant hover:text-primary transition-colors">
                 <ShieldCheck className="w-3 h-3" />
                 <span>Health Passport</span>
-              </a>
+              </Link>
             </div>
           </div>
         ))}
       </div>
-      <button className="w-full mt-4 py-1.5 text-label-sm font-semibold text-outline hover:bg-surface-container transition-colors rounded-lg cursor-pointer">
+      <Link
+        href="/adoption/new"
+        className="block w-full mt-4 py-1.5 text-center text-label-sm font-semibold text-outline hover:bg-surface-container hover:text-primary transition-colors rounded-lg"
+      >
         + Add a pet
-      </button>
+      </Link>
     </section>
   )
 }

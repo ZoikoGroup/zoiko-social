@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, SlidersHorizontal, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import Link from 'next/link'
+import { Search, SlidersHorizontal, AlertTriangle, CheckCircle2, ChevronLeft } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { LostPetCard, type LostPet, type PetStatus } from '@/components/LostPetCard'
@@ -125,11 +126,20 @@ export default function LostFoundPage(): React.JSX.Element {
       <main className="pt-20 min-h-screen bg-background">
         <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-gutter">
 
-          {/* Page header */}
+          {/* Page header with back button */}
           <div className="flex items-start justify-between gap-4 mb-gutter">
-            <div>
-              <h1 className="font-headline text-headline-lg text-on-surface">Lost & Found</h1>
-              <p className="text-label-md text-outline mt-1">Help reunite pets with their families</p>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/"
+                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
+                aria-label="Back to home"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="font-headline text-headline-lg text-on-surface">Lost & Found</h1>
+                <p className="text-label-md text-outline mt-1">Help reunite pets with their families</p>
+              </div>
             </div>
             <button
               onClick={() => setShowReport(true)}

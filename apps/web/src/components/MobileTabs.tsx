@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   Home, Users, Plus, MessageSquare, User, X,
   Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna,
+  Stethoscope, Activity, Heart,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -20,14 +22,18 @@ const TABS: { page: string; label: string; Icon: LucideIcon; href: string; cente
   { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
 ]
 
-const TRAY_MODULES: { name: string; Icon: LucideIcon; href?: string }[] = [
-  { name: 'Verified News',     Icon: Newspaper   },
-  { name: 'Events',            Icon: Calendar    },
-  { name: 'Adoption & Rescue', Icon: PawPrint    },
-  { name: 'Lost & Found',      Icon: MapPin,      href: '/lost-found' },
-  { name: 'Shop',              Icon: ShoppingBag },
-  { name: 'Pet Care Services', Icon: HandHeart   },
-  { name: 'Breeding Match',    Icon: Dna         },
+const TRAY_MODULES: { name: string; Icon: LucideIcon; href: string }[] = [
+  { name: 'Communities',       Icon: Users,        href: '/communities'    },
+  { name: 'Verified News',     Icon: Newspaper,    href: '/news'           },
+  { name: 'Events',            Icon: Calendar,     href: '/events'         },
+  { name: 'Adoption & Rescue', Icon: PawPrint,     href: '/adoption'       },
+  { name: 'Lost & Found',      Icon: MapPin,       href: '/lost-found'     },
+  { name: 'Pet Diary',         Icon: Heart,        href: '/pet-diary'      },
+  { name: 'Shop',              Icon: ShoppingBag,  href: '/shop'           },
+  { name: 'Pet Care Services', Icon: HandHeart,    href: '/pet-care'       },
+  { name: 'Vet Finder',        Icon: Stethoscope,  href: '/vet-finder'     },
+  { name: 'Breeding Match',    Icon: Dna,          href: '/breeding-match' },
+  { name: 'Health Passport',   Icon: Activity,     href: '/health-passport'},
 ]
 
 export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element {
@@ -50,26 +56,19 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
               </button>
             </div>
             <div className="grid grid-cols-4 gap-3">
-              {TRAY_MODULES.map((mod) => {
-                const cls = 'flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer'
-                const inner = (
-                  <>
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <mod.Icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <span className="text-[10px] text-on-surface-variant text-center leading-tight">{mod.name}</span>
-                  </>
-                )
-                return mod.href ? (
-                  <a key={mod.name} href={mod.href} className={cls} onClick={() => setTrayOpen(false)}>
-                    {inner}
-                  </a>
-                ) : (
-                  <button key={mod.name} className={cls} onClick={() => setTrayOpen(false)}>
-                    {inner}
-                  </button>
-                )
-              })}
+              {TRAY_MODULES.map((mod) => (
+                <Link
+                  key={mod.name}
+                  href={mod.href}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer"
+                  onClick={() => setTrayOpen(false)}
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <mod.Icon className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-[10px] text-on-surface-variant text-center leading-tight">{mod.name}</span>
+                </Link>
+              ))}
             </div>
           </div>
         </div>
@@ -92,7 +91,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
             )
           }
           return (
-            <a
+            <Link
               key={tab.page}
               href={tab.href}
               className={`flex flex-col items-center gap-1 cursor-pointer relative min-w-[44px] ${isActive ? 'text-primary' : 'text-on-surface-variant'}`}
@@ -102,7 +101,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
               {tab.page === 'messages' && (
                 <span className="absolute -top-0.5 right-0 w-2 h-2 bg-primary rounded-full"></span>
               )}
-            </a>
+            </Link>
           )
         })}
       </nav>

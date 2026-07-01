@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
@@ -10,16 +11,22 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-const MODULES: { name: string; Icon: LucideIcon; color: string; href?: string }[] = [
-  { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary'   },
-  { name: 'Events',            Icon: Calendar,    color: 'text-secondary' },
-  { name: 'Adoption & Rescue', Icon: PawPrint,    color: 'text-primary'   },
-  { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary', href: '/lost-found' },
-  { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary'  },
-  { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary'   },
-  { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary' },
-  { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary'  },
+const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
+  { name: 'Communities',       Icon: Users,       color: 'text-primary',   href: '/communities'    },
+  { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary',   href: '/news'           },
+  { name: 'Events',            Icon: Calendar,    color: 'text-secondary', href: '/events'         },
+  { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary', href: '/lost-found'     },
+  { name: 'Adoption & Rescue', Icon: PawPrint,    color: 'text-primary',   href: '/adoption'       },
+  { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary',  href: '/shop'           },
+  { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary',   href: '/pet-care'       },
+  { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary', href: '/vet-finder'     },
+  { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary',  href: '/breeding-match' },
+  { name: 'Pet Diary',         Icon: PawPrint,    color: 'text-primary',   href: '/pet-diary'      },
+  { name: 'Health Passport',   Icon: HandHeart,   color: 'text-secondary', href: '/health-passport'},
+  { name: 'Settings',          Icon: PawPrint,    color: 'text-tertiary',  href: '/settings'       },
 ]
+
+const MODULE_HREFS = MODULES.map((m) => m.href)
 
 function NineDotIcon(): React.JSX.Element {
   return (
@@ -40,6 +47,14 @@ function NineDotIcon(): React.JSX.Element {
 export function Header(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const pathname = usePathname()
+
+  const isActive = (href: string): boolean => {
+    if (href === '/') return pathname === '/'
+    return pathname.startsWith(href)
+  }
+
+  const isOnModulePage = MODULE_HREFS.some((href) => pathname.startsWith(href))
 
   useEffect(() => {
     function handleClick(e: MouseEvent): void {
@@ -73,31 +88,63 @@ export function Header(): React.JSX.Element {
 
         {/* Right: Navigation */}
         <nav className="flex items-center gap-1 md:gap-2 h-full">
-          <Link className="flex flex-col items-center justify-center min-w-[56px] h-full text-primary border-b-2 border-primary cursor-pointer" href="/">
+          <Link
+            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/"
+          >
             <Home className="w-5 h-5" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
           </Link>
-          <Link className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="/network">
+          <Link
+            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/network')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/network"
+          >
             <Users className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Network</span>
           </Link>
-          <Link className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="/messages">
+          <Link
+            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/messages')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/messages"
+          >
             <MessageSquare className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Messaging</span>
           </Link>
-          <a className="flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors relative cursor-pointer" href="#">
+          <Link
+            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer relative transition-colors duration-200 ${
+              isActive('/notifications')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/notifications"
+          >
             <div className="relative">
               <Bell className="w-5 h-5" />
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
             </div>
             <span className="text-[10px] mt-0.5">Notifications</span>
-          </a>
+          </Link>
 
           {/* 9-dot Apps Menu */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`flex flex-col items-center justify-center min-w-[44px] h-16 transition-colors cursor-pointer ${menuOpen ? 'text-primary' : 'text-on-surface-variant hover:text-primary'}`}
+              className={`flex flex-col items-center justify-center min-w-[44px] h-16 transition-colors duration-200 cursor-pointer border-b-2 ${
+                menuOpen || isOnModulePage
+                  ? 'text-primary border-primary'
+                  : 'text-on-surface-variant hover:text-primary border-transparent hover:border-primary/30'
+              }`}
               aria-label="All modules"
               aria-expanded={menuOpen}
             >
@@ -112,30 +159,40 @@ export function Header(): React.JSX.Element {
                   <p className="text-[11px] text-outline mt-0.5">All platform modules</p>
                 </div>
                 <div className="grid grid-cols-3 gap-1 p-3">
-                  {MODULES.map((mod) => (
-                    <a
-                      key={mod.name}
-                      href={mod.href ?? '#'}
-                      className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-surface-container transition-colors cursor-pointer group"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      <div className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                        <mod.Icon className={`w-5 h-5 ${mod.color} group-hover:text-primary transition-colors`} />
-                      </div>
-                      <span className="text-[10px] text-on-surface-variant text-center leading-tight group-hover:text-on-surface transition-colors">{mod.name}</span>
-                    </a>
-                  ))}
+                  {MODULES.map((mod) => {
+                    const modActive = isActive(mod.href)
+                    return (
+                      <Link
+                        key={mod.name}
+                        href={mod.href}
+                        className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-200 cursor-pointer group ${
+                          modActive ? 'bg-primary/10 ring-1 ring-primary/20' : 'hover:bg-surface-container'
+                        }`}
+                        onClick={() => setMenuOpen(false)}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          modActive
+                            ? 'bg-primary text-white shadow-sm shadow-primary/20'
+                            : 'bg-surface-container-low group-hover:bg-primary/10'
+                        }`}>
+                          <mod.Icon className={`w-5 h-5 ${modActive ? 'text-white' : mod.color} group-hover:text-primary transition-colors`} />
+                        </div>
+                        <span className={`text-[10px] text-center leading-tight transition-colors ${
+                          modActive ? 'text-primary font-semibold' : 'text-on-surface-variant group-hover:text-on-surface'
+                        }`}>{mod.name}</span>
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
             )}
           </div>
 
           <div className="h-8 w-[1px] bg-outline-variant mx-1 hidden sm:block"></div>
-          <Link href="/profile" className="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
+          <Link href="/profile" className="flex items-center p-1.5 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-outline-variant">
               AR
             </div>
-            <span className="hidden xl:block text-label-md font-semibold">Me</span>
           </Link>
         </nav>
       </div>

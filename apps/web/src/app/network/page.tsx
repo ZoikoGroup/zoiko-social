@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, SlidersHorizontal, MapPin, BadgeCheck } from 'lucide-react'
+import Link from 'next/link'
+import { Search, SlidersHorizontal, MapPin, BadgeCheck, ChevronLeft } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { PeopleCard } from '@/components/PeopleCard'
@@ -121,8 +122,15 @@ export default function NetworkPage(): React.JSX.Element {
 
             {/* Center */}
             <div className="lg:col-span-6 space-y-gutter pb-20">
-              {/* Search + mobile filter toggle */}
-              <div className="flex gap-3">
+              {/* Back button */}
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/"
+                  className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer flex-shrink-0"
+                  aria-label="Back to home"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Link>
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
                   <input

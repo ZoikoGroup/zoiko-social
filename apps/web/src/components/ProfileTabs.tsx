@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { MapPin, Link2, PawPrint, BookOpen, ShieldCheck, Stethoscope, Users } from 'lucide-react'
 import { PostCard } from './PostCard'
 
@@ -78,12 +79,12 @@ function PetsTab(): React.JSX.Element {
             <p className="font-semibold text-label-md text-on-surface">{pet.name}</p>
             <p className="text-label-sm text-outline">{pet.species}</p>
             <div className="flex gap-4 mt-2">
-              <a href="#" className="flex items-center gap-1 text-label-sm text-primary hover:underline cursor-pointer">
+              <Link href="/pet-diary" className="flex items-center gap-1 text-label-sm text-primary hover:underline">
                 <BookOpen className="w-3.5 h-3.5" />Diary
-              </a>
-              <a href="#" className="flex items-center gap-1 text-label-sm text-primary hover:underline cursor-pointer">
+              </Link>
+              <Link href="/health-passport" className="flex items-center gap-1 text-label-sm text-primary hover:underline">
                 <ShieldCheck className="w-3.5 h-3.5" />Health Passport
-              </a>
+              </Link>
             </div>
           </div>
           <PawPrint className="w-5 h-5 text-outline/40 flex-shrink-0" />
