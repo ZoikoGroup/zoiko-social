@@ -56,9 +56,8 @@ export function Header(): React.JSX.Element {
 
         {/* Left: Logo + Search */}
         <div className="flex items-center gap-8">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.svg" alt="ZoikoSocial" width={32} height={32} priority />
-            <span className="hidden md:block font-headline text-primary font-bold tracking-tight text-headline-md">ZoikoSocial</span>
+          <div className="flex items-center">
+            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={36} width={160} priority className="h-9 w-auto object-contain" />
           </div>
           <div className="hidden lg:flex relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
