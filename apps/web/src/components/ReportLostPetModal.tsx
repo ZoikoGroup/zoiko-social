@@ -187,7 +187,7 @@ export function ReportLostPetModal({ open, onClose, onSubmit }: ReportLostPetMod
                   <div className="bg-secondary/10 rounded-xl p-4 mt-2">
                     <p className="text-label-sm text-secondary font-semibold mb-1">How it works</p>
                     <ul className="text-[11px] text-on-surface-variant space-y-1 list-disc list-inside">
-                      <li>Anyone who finds your pet can click <strong>"I Found This Pet"</strong></li>
+                      <li>Anyone who finds your pet can click <strong>&ldquo;I Found This Pet&rdquo;</strong></li>
                       <li>You receive an instant notification with their location and message</li>
                       <li>Once reunited, mark the listing as <strong>Reunited</strong> to close it</li>
                     </ul>

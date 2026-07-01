@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Send, Paperclip, Smile, Phone, Video, MoreHorizontal, ArrowLeft, Info, UserPlus, Bell, LogOut, Shield } from 'lucide-react'
+import { Send, Paperclip, Smile, Phone, Video, ArrowLeft, Info, UserPlus, Bell, LogOut, Shield } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 
 interface Message {
