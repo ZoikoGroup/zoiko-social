@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
@@ -9,10 +10,10 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
-const MODULES: { name: string; Icon: LucideIcon; color: string }[] = [
+const MODULES: { name: string; Icon: LucideIcon; color: string; href?: string }[] = [
   { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary' },
   { name: 'Events',            Icon: Calendar,    color: 'text-secondary' },
-  { name: 'Adoption & Rescue', Icon: PawPrint,     color: 'text-primary' },
+  { name: 'Adoption & Rescue', Icon: PawPrint,     color: 'text-primary', href: '/adoption' },
   { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary' },
   { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary' },
   { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary' },
@@ -55,9 +56,9 @@ export function Header(): React.JSX.Element {
 
         {/* Left: Logo + Search */}
         <div className="flex items-center gap-8">
-          <div className="flex items-center">
+          <Link href="/" className="flex items-center">
             <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={36} width={160} priority className="h-9 w-auto object-contain" />
-          </div>
+          </Link>
           <div className="hidden lg:flex relative w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
@@ -71,10 +72,10 @@ export function Header(): React.JSX.Element {
 
         {/* Right: Navigation */}
         <nav className="flex items-center gap-1 md:gap-2 h-full">
-          <a className="flex flex-col items-center justify-center min-w-[56px] h-full text-primary border-b-2 border-primary cursor-pointer" href="#">
+          <Link className="flex flex-col items-center justify-center min-w-[56px] h-full text-primary border-b-2 border-primary cursor-pointer" href="/">
             <Home className="w-5 h-5" />
             <span className="text-[10px] font-semibold mt-0.5">Home</span>
-          </a>
+          </Link>
           <a className="hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full text-on-surface-variant hover:text-primary transition-colors cursor-pointer" href="#">
             <Users className="w-5 h-5" />
             <span className="text-[10px] mt-0.5">Network</span>
@@ -111,8 +112,9 @@ export function Header(): React.JSX.Element {
                 </div>
                 <div className="grid grid-cols-3 gap-1 p-3">
                   {MODULES.map((mod) => (
-                    <button
+                    <a
                       key={mod.name}
+                      href={mod.href ?? '#'}
                       className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-surface-container transition-colors cursor-pointer group"
                       onClick={() => setMenuOpen(false)}
                     >
@@ -120,7 +122,7 @@ export function Header(): React.JSX.Element {
                         <mod.Icon className={`w-5 h-5 ${mod.color} group-hover:text-primary transition-colors`} />
                       </div>
                       <span className="text-[10px] text-on-surface-variant text-center leading-tight group-hover:text-on-surface transition-colors">{mod.name}</span>
-                    </button>
+                    </a>
                   ))}
                 </div>
               </div>

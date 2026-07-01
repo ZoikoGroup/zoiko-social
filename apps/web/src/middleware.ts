@@ -14,7 +14,6 @@ const PROTECTED_ROUTES = [
   '/products',
   '/breeding-match',
   '/events',
-  '/adoption',
 ]
 
 const AUTH_ROUTES = ['/login', '/register', '/forgot-password']
@@ -22,7 +21,13 @@ const AUTH_ROUTES = ['/login', '/register', '/forgot-password']
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
 
-  const response = await updateSession(request)
+  let response: NextResponse
+  try {
+    response = await updateSession(request)
+  } catch (error) {
+    console.error('[middleware] updateSession failed:', error)
+    response = NextResponse.next({ request })
+  }
 
   const sessionCookie = request.cookies.get('sb-access-token')
   const isAuthenticated = !!sessionCookie
