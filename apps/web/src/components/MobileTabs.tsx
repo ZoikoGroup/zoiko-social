@@ -20,11 +20,11 @@ const TABS: { page: string; label: string; Icon: LucideIcon; href: string; cente
   { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
 ]
 
-const TRAY_MODULES: { name: string; Icon: LucideIcon }[] = [
+const TRAY_MODULES: { name: string; Icon: LucideIcon; href?: string }[] = [
   { name: 'Verified News',     Icon: Newspaper   },
   { name: 'Events',            Icon: Calendar    },
   { name: 'Adoption & Rescue', Icon: PawPrint    },
-  { name: 'Lost & Found',      Icon: MapPin      },
+  { name: 'Lost & Found',      Icon: MapPin,      href: '/lost-found' },
   { name: 'Shop',              Icon: ShoppingBag },
   { name: 'Pet Care Services', Icon: HandHeart   },
   { name: 'Breeding Match',    Icon: Dna         },
@@ -50,18 +50,26 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
               </button>
             </div>
             <div className="grid grid-cols-4 gap-3">
-              {TRAY_MODULES.map((mod) => (
-                <button
-                  key={mod.name}
-                  className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer"
-                  onClick={() => setTrayOpen(false)}
-                >
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <mod.Icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <span className="text-[10px] text-on-surface-variant text-center leading-tight">{mod.name}</span>
-                </button>
-              ))}
+              {TRAY_MODULES.map((mod) => {
+                const cls = 'flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer'
+                const inner = (
+                  <>
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <mod.Icon className="w-5 h-5 text-primary" />
+                    </div>
+                    <span className="text-[10px] text-on-surface-variant text-center leading-tight">{mod.name}</span>
+                  </>
+                )
+                return mod.href ? (
+                  <a key={mod.name} href={mod.href} className={cls} onClick={() => setTrayOpen(false)}>
+                    {inner}
+                  </a>
+                ) : (
+                  <button key={mod.name} className={cls} onClick={() => setTrayOpen(false)}>
+                    {inner}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>

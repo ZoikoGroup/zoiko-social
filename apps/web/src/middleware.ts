@@ -4,9 +4,7 @@ import { updateSession } from '@/lib/supabase/middleware'
 const PROTECTED_ROUTES = [
   '/feed',
   '/communities',
-  '/messages',
   '/notifications',
-  '/profile',
   '/settings',
   '/pet-diary',
   '/health-passport',

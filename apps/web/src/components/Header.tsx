@@ -14,7 +14,7 @@ const MODULES: { name: string; Icon: LucideIcon; color: string; href?: string }[
   { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary'   },
   { name: 'Events',            Icon: Calendar,    color: 'text-secondary' },
   { name: 'Adoption & Rescue', Icon: PawPrint,    color: 'text-primary'   },
-  { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary' },
+  { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary', href: '/lost-found' },
   { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary'  },
   { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary'   },
   { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary' },
