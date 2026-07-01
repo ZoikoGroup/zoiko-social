@@ -5,9 +5,9 @@
 /* ── ZoikoSocial Design System ───────────────────────────── */
 
 :root {
-  --color-primary: #99452c;
-  --color-secondary: #436646;
-  --color-outline-variant: #dbc1ba;
+  --color-primary: #E88924;
+  --color-secondary: #066879;
+  --color-outline-variant: #D1D5DB;
 }
 
 /* Smooth font rendering */
@@ -43,7 +43,7 @@ body {
 
 /* Story ring gradient */
 .story-gradient {
-  background: linear-gradient(45deg, #99452c, #436646);
+  background: linear-gradient(45deg, #E88924, #066879);
   padding: 2px;
 }
 
