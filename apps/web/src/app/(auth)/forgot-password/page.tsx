@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@zoiko/ui'
-import { Mail, ArrowLeft, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle } from 'lucide-react'
 
 export default function ForgotPasswordPage(): React.JSX.Element {
   const { resetPassword } = useAuth()
