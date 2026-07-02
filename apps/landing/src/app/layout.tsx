@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: 'ZoikoSocial — The Social Platform for Animal Lovers',
   description:
     'A governed, safety-first social platform for pet owners, animal rescue organisations, vets, and wildlife advocates.',
+  icons: {
+    icon: '/zoikosocialicon_modified.svg',
+  },
   openGraph: {
     title: 'ZoikoSocial',
     description: 'The governed social platform for animal lovers',

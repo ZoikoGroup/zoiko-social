@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Source_Serif_4 } from 'next/font/google'
 import './globals.css'
+import { Providers } from './providers'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -17,6 +18,9 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: 'ZoikoSocial',
   description: 'The professional community for animal lovers, rescuers, and pet care experts',
+  icons: {
+    icon: '/zoikosocialicon_modified.svg',
+  },
 }
 
 export default function RootLayout({
@@ -27,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
       <body className="font-body antialiased bg-background text-on-surface">
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )
