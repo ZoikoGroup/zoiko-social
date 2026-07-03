@@ -18,9 +18,7 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: 'ZoikoSocial',
   description: 'The professional community for animal lovers, rescuers, and pet care experts',
-  icons: {
-    icon: '/zoikosocialicon_modified.svg',
-  },
+  icons: { icon: '/favicon.svg' },
 }
 
 export default function RootLayout({

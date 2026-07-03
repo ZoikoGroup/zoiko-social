@@ -17,6 +17,8 @@ interface PupilProps {
   pupilColor?: string
   forceLookX?: number | undefined
   forceLookY?: number | undefined
+  mouseX?: number | undefined
+  mouseY?: number | undefined
 }
 
 function Pupil({
@@ -25,32 +27,35 @@ function Pupil({
   pupilColor = 'black',
   forceLookX,
   forceLookY,
+  mouseX,
+  mouseY,
 }: PupilProps) {
   const [pupilPos, setPupilPos] = useState({ x: 0, y: 0 })
   const pupilRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!pupilRef.current) return
+    const id = setTimeout(() => {
       if (forceLookX !== undefined && forceLookY !== undefined) {
         setPupilPos({ x: forceLookX, y: forceLookY })
         return
       }
-      const rect = pupilRef.current.getBoundingClientRect()
+      if (mouseX === undefined || mouseY === undefined) return
+      const el = pupilRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
       const centerX = rect.left + rect.width / 2
       const centerY = rect.top + rect.height / 2
-      const deltaX = e.clientX - centerX
-      const deltaY = e.clientY - centerY
+      const deltaX = mouseX - centerX
+      const deltaY = mouseY - centerY
       const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
       const angle = Math.atan2(deltaY, deltaX)
       setPupilPos({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
       })
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [forceLookX, forceLookY, maxDistance])
+    }, 0)
+    return () => clearTimeout(id)
+  }, [forceLookX, forceLookY, maxDistance, mouseX, mouseY])
 
   return (
     <div
@@ -76,6 +81,8 @@ interface EyeBallProps {
   isBlinking?: boolean
   forceLookX?: number | undefined
   forceLookY?: number | undefined
+  mouseX?: number | undefined
+  mouseY?: number | undefined
 }
 
 function EyeBall({
@@ -87,32 +94,35 @@ function EyeBall({
   isBlinking = false,
   forceLookX,
   forceLookY,
+  mouseX,
+  mouseY,
 }: EyeBallProps) {
   const [pupilPos, setPupilPos] = useState({ x: 0, y: 0 })
   const eyeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!eyeRef.current) return
+    const id = setTimeout(() => {
       if (forceLookX !== undefined && forceLookY !== undefined) {
         setPupilPos({ x: forceLookX, y: forceLookY })
         return
       }
-      const rect = eyeRef.current.getBoundingClientRect()
+      if (mouseX === undefined || mouseY === undefined) return
+      const el = eyeRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
       const centerX = rect.left + rect.width / 2
       const centerY = rect.top + rect.height / 2
-      const deltaX = e.clientX - centerX
-      const deltaY = e.clientY - centerY
+      const deltaX = mouseX - centerX
+      const deltaY = mouseY - centerY
       const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
       const angle = Math.atan2(deltaY, deltaX)
       setPupilPos({
         x: Math.cos(angle) * distance,
         y: Math.sin(angle) * distance,
       })
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [forceLookX, forceLookY, maxDistance])
+    }, 0)
+    return () => clearTimeout(id)
+  }, [forceLookX, forceLookY, maxDistance, mouseX, mouseY])
 
   return (
     <div
@@ -170,12 +180,14 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [isPurpleBlinking, setIsPurpleBlinking] = useState(false)
   const [isBlackBlinking, setIsBlackBlinking] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false)
   const [isPurplePeeking, setIsPurplePeeking] = useState(false)
   const [charPositions, setCharPositions] = useState<CharacterPositions>(defaultPos)
+  const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 })
   const purpleRef = useRef<HTMLDivElement>(null)
   const blackRef = useRef<HTMLDivElement>(null)
   const yellowRef = useRef<HTMLDivElement>(null)
@@ -183,6 +195,7 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({ x: e.clientX, y: e.clientY })
       const calcPosition = (ref: React.RefObject<HTMLDivElement | null>) => {
         if (!ref.current) return { faceX: 0, faceY: 0, bodySkew: 0 }
         const rect = ref.current.getBoundingClientRect()
@@ -366,6 +379,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   eyeColor="white"
                   pupilColor="#2D2D2D"
                   isBlinking={isPurpleBlinking}
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={
                     password.length > 0 && showPassword
                       ? isPurplePeeking ? 4 : -4
@@ -384,6 +399,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   eyeColor="white"
                   pupilColor="#2D2D2D"
                   isBlinking={isPurpleBlinking}
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={
                     password.length > 0 && showPassword
                       ? isPurplePeeking ? 4 : -4
@@ -444,6 +461,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   eyeColor="white"
                   pupilColor="#2D2D2D"
                   isBlinking={isBlackBlinking}
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={
                     password.length > 0 && showPassword
                       ? -4
@@ -462,6 +481,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   eyeColor="white"
                   pupilColor="#2D2D2D"
                   isBlinking={isBlackBlinking}
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={
                     password.length > 0 && showPassword
                       ? -4
@@ -511,6 +532,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   size={12}
                   maxDistance={5}
                   pupilColor="#2D2D2D"
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={password.length > 0 && showPassword ? -5 : undefined}
                   forceLookY={password.length > 0 && showPassword ? -4 : undefined}
                 />
@@ -518,6 +541,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   size={12}
                   maxDistance={5}
                   pupilColor="#2D2D2D"
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={password.length > 0 && showPassword ? -5 : undefined}
                   forceLookY={password.length > 0 && showPassword ? -4 : undefined}
                 />
@@ -559,6 +584,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   size={12}
                   maxDistance={5}
                   pupilColor="#2D2D2D"
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={password.length > 0 && showPassword ? -5 : undefined}
                   forceLookY={password.length > 0 && showPassword ? -4 : undefined}
                 />
@@ -566,6 +593,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                   size={12}
                   maxDistance={5}
                   pupilColor="#2D2D2D"
+                  mouseX={mousePos.x}
+                  mouseY={mousePos.y}
                   forceLookX={password.length > 0 && showPassword ? -5 : undefined}
                   forceLookY={password.length > 0 && showPassword ? -4 : undefined}
                 />
@@ -695,7 +724,7 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
             {mode === 'login' && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
+                  <Checkbox id="remember" checked={rememberMe} onCheckedChange={(c) => setRememberMe(c === true)} />
                   <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
                     Remember for 30 days
                   </Label>
