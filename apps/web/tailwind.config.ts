@@ -62,6 +62,49 @@ const config: Config = {
         'inverse-surface': '#1F2937',
         'inverse-on-surface': '#F9FAFB',
         'inverse-primary': '#A8D4DC',
+
+        // Convenience aliases used by auth pages and various components
+        teal: {
+          deep:  '#0C2A28',
+          mid:   '#1D4440',
+          light: '#2A5E58',
+          muted: '#4A726E',
+          wash:  '#E8F2F0',
+          pale:  '#F0F7F6',
+        },
+        amber: {
+          DEFAULT: '#D9920A',
+          light:   '#F4A820',
+          pale:    '#FEF3DA',
+        },
+
+        // ── shadcn/ui compatibility ──────────────────────────
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        foreground: 'hsl(var(--foreground))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
+        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+        'muted': {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        'accent': {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        'destructive': {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        'card': {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+        'popover': {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
       },
       fontFamily: {
         headline: ['"Source Serif 4"', 'Georgia', 'serif'],

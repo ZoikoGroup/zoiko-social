@@ -81,7 +81,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
 
   if (error) {
     return (
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 space-y-6 text-center">
+      <div className="p-8 md:p-10 space-y-6 text-center">
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
           <AlertTriangle className="w-8 h-8 text-red-600" />
         </div>
@@ -99,7 +99,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
   }
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 space-y-6 text-center">
+    <div className="p-8 md:p-10 space-y-6 text-center">
       <div className="w-16 h-16 bg-teal-pale rounded-full flex items-center justify-center mx-auto animate-pulse">
         <Loader2 className="w-8 h-8 text-teal-deep animate-spin" />
       </div>

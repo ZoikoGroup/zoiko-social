@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
-import { Button } from '@zoiko/ui'
 import { Lock, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react'
 
 const INITIAL_TOKEN_STATE = typeof window !== 'undefined'
@@ -59,106 +58,113 @@ export default function ResetPasswordPage(): React.JSX.Element {
 
   if (success) {
     return (
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 space-y-6 text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-          <CheckCircle className="w-8 h-8 text-green-600" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface rounded-xl shadow-sm border border-outline-variant/40 p-8 md:p-10 space-y-6 text-center">
+          <div className="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-headline-md text-on-surface">Password updated!</h2>
+          <p className="text-body-md text-on-surface-variant">
+            Your password has been reset successfully. You can now sign in with your new password.
+          </p>
+          <button
+            onClick={() => router.push('/login')}
+            className="w-full bg-primary text-on-primary rounded-lg px-4 py-2.5 text-label-md hover:bg-primary-fixed-dim transition-colors"
+          >
+            Go to Sign In
+          </button>
         </div>
-        <h2 className="text-2xl font-bold text-teal-deep">Password updated!</h2>
-        <p className="text-sm text-gray-500">
-          Your password has been reset successfully. You can now sign in with your new password.
-        </p>
-        <Button onClick={() => router.push('/login')} className="w-full justify-center">
-          Go to Sign In
-        </Button>
       </div>
     )
   }
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl p-8 space-y-6">
-      {/* Heading */}
-      <div className="text-center space-y-2">
-        <div className="w-12 h-12 bg-teal-pale rounded-xl flex items-center justify-center mx-auto">
-          <Lock className="w-6 h-6 text-teal-deep" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-surface rounded-xl shadow-sm border border-outline-variant/40 p-8 md:p-10 space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-12 h-12 bg-primary-container rounded-xl flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6 text-primary" />
+          </div>
+          <h2 className="text-headline-md text-on-surface">Set new password</h2>
+          <p className="text-body-md text-on-surface-variant">
+            Enter your new password below.
+          </p>
         </div>
-        <h2 className="text-2xl font-bold text-teal-deep">Set new password</h2>
-        <p className="text-sm text-teal-muted">
-          Enter your new password below.
-        </p>
+
+        {!hasToken && !error && (
+          <div className="bg-tertiary-container border border-tertiary/20 rounded-lg px-4 py-3 text-sm text-on-tertiary-container flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-tertiary shrink-0 mt-0.5" />
+            <span>Checking your reset link...</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-error-container border border-error/20 rounded-lg px-4 py-3 text-sm text-on-error-container">
+            {error}
+          </div>
+        )}
+
+        {hasToken && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="block text-label-md text-on-surface">
+                New Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  required
+                  minLength={8}
+                  className="w-full pl-10 pr-10 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="confirmPassword" className="block text-label-md text-on-surface">
+                Confirm New Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  required
+                  minLength={8}
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-2 bg-primary text-on-primary rounded-lg px-4 py-2.5 text-label-md hover:bg-primary-fixed-dim transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'Reset Password'
+              )}
+            </button>
+          </form>
+        )}
       </div>
-
-      {/* Missing Token Alert */}
-      {!hasToken && !error && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-          <span>Checking your reset link...</span>
-        </div>
-      )}
-
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Reset Password Form */}
-      {hasToken && (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
-              New Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                required
-                minLength={8}
-                className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-light focus:border-amber-light outline-none transition-shadow"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
-              Confirm New Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat your password"
-                required
-                minLength={8}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-light focus:border-amber-light outline-none transition-shadow"
-              />
-            </div>
-          </div>
-
-          <Button type="submit" disabled={loading} className="w-full justify-center py-2.5">
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-teal-deep border-t-transparent rounded-full animate-spin" />
-            ) : (
-              'Reset Password'
-            )}
-          </Button>
-        </form>
-      )}
     </div>
   )
 }
