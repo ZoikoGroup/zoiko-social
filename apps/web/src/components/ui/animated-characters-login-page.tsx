@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff, Mail, Sparkles } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Eye, EyeOff, Mail } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 
 interface PupilProps {
@@ -27,35 +26,31 @@ function Pupil({
   forceLookX,
   forceLookY,
 }: PupilProps) {
-  const [mouseX, setMouseX] = useState<number>(0)
-  const [mouseY, setMouseY] = useState<number>(0)
+  const [pupilPos, setPupilPos] = useState({ x: 0, y: 0 })
   const pupilRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX)
-      setMouseY(e.clientY)
+      if (!pupilRef.current) return
+      if (forceLookX !== undefined && forceLookY !== undefined) {
+        setPupilPos({ x: forceLookX, y: forceLookY })
+        return
+      }
+      const rect = pupilRef.current.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const deltaX = e.clientX - centerX
+      const deltaY = e.clientY - centerY
+      const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
+      const angle = Math.atan2(deltaY, deltaX)
+      setPupilPos({
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance,
+      })
     }
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [])
-
-  const calculatePupilPosition = () => {
-    if (!pupilRef.current) return { x: 0, y: 0 }
-    if (forceLookX !== undefined && forceLookY !== undefined) {
-      return { x: forceLookX, y: forceLookY }
-    }
-    const pupil = pupilRef.current.getBoundingClientRect()
-    const pupilCenterX = pupil.left + pupil.width / 2
-    const pupilCenterY = pupil.top + pupil.height / 2
-    const deltaX = mouseX - pupilCenterX
-    const deltaY = mouseY - pupilCenterY
-    const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
-    const angle = Math.atan2(deltaY, deltaX)
-    return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance }
-  }
-
-  const pos = calculatePupilPosition()
+  }, [forceLookX, forceLookY, maxDistance])
 
   return (
     <div
@@ -65,7 +60,7 @@ function Pupil({
         width: `${size}px`,
         height: `${size}px`,
         backgroundColor: pupilColor,
-        transform: `translate(${pos.x}px, ${pos.y}px)`,
+        transform: `translate(${pupilPos.x}px, ${pupilPos.y}px)`,
         transition: 'transform 0.1s ease-out',
       }}
     />
@@ -93,35 +88,31 @@ function EyeBall({
   forceLookX,
   forceLookY,
 }: EyeBallProps) {
-  const [mouseX, setMouseX] = useState<number>(0)
-  const [mouseY, setMouseY] = useState<number>(0)
+  const [pupilPos, setPupilPos] = useState({ x: 0, y: 0 })
   const eyeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX)
-      setMouseY(e.clientY)
+      if (!eyeRef.current) return
+      if (forceLookX !== undefined && forceLookY !== undefined) {
+        setPupilPos({ x: forceLookX, y: forceLookY })
+        return
+      }
+      const rect = eyeRef.current.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const deltaX = e.clientX - centerX
+      const deltaY = e.clientY - centerY
+      const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
+      const angle = Math.atan2(deltaY, deltaX)
+      setPupilPos({
+        x: Math.cos(angle) * distance,
+        y: Math.sin(angle) * distance,
+      })
     }
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [])
-
-  const calculatePupilPosition = () => {
-    if (!eyeRef.current) return { x: 0, y: 0 }
-    if (forceLookX !== undefined && forceLookY !== undefined) {
-      return { x: forceLookX, y: forceLookY }
-    }
-    const eye = eyeRef.current.getBoundingClientRect()
-    const eyeCenterX = eye.left + eye.width / 2
-    const eyeCenterY = eye.top + eye.height / 2
-    const deltaX = mouseX - eyeCenterX
-    const deltaY = mouseY - eyeCenterY
-    const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance)
-    const angle = Math.atan2(deltaY, deltaX)
-    return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance }
-  }
-
-  const pos = calculatePupilPosition()
+  }, [forceLookX, forceLookY, maxDistance])
 
   return (
     <div
@@ -141,13 +132,27 @@ function EyeBall({
             width: `${pupilSize}px`,
             height: `${pupilSize}px`,
             backgroundColor: pupilColor,
-            transform: `translate(${pos.x}px, ${pos.y}px)`,
+            transform: `translate(${pupilPos.x}px, ${pupilPos.y}px)`,
             transition: 'transform 0.1s ease-out',
           }}
         />
       )}
     </div>
   )
+}
+
+interface CharacterPositions {
+  purplePos: { faceX: number; faceY: number; bodySkew: number }
+  blackPos: { faceX: number; faceY: number; bodySkew: number }
+  yellowPos: { faceX: number; faceY: number; bodySkew: number }
+  orangePos: { faceX: number; faceY: number; bodySkew: number }
+}
+
+const defaultPos: CharacterPositions = {
+  purplePos: { faceX: 0, faceY: 0, bodySkew: 0 },
+  blackPos: { faceX: 0, faceY: 0, bodySkew: 0 },
+  yellowPos: { faceX: 0, faceY: 0, bodySkew: 0 },
+  orangePos: { faceX: 0, faceY: 0, bodySkew: 0 },
 }
 
 interface AnimatedAuthPageProps {
@@ -165,13 +170,12 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [mouseX, setMouseX] = useState<number>(0)
-  const [mouseY, setMouseY] = useState<number>(0)
   const [isPurpleBlinking, setIsPurpleBlinking] = useState(false)
   const [isBlackBlinking, setIsBlackBlinking] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false)
   const [isPurplePeeking, setIsPurplePeeking] = useState(false)
+  const [charPositions, setCharPositions] = useState<CharacterPositions>(defaultPos)
   const purpleRef = useRef<HTMLDivElement>(null)
   const blackRef = useRef<HTMLDivElement>(null)
   const yellowRef = useRef<HTMLDivElement>(null)
@@ -179,8 +183,24 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX)
-      setMouseY(e.clientY)
+      const calcPosition = (ref: React.RefObject<HTMLDivElement | null>) => {
+        if (!ref.current) return { faceX: 0, faceY: 0, bodySkew: 0 }
+        const rect = ref.current.getBoundingClientRect()
+        const centerX = rect.left + rect.width / 2
+        const centerY = rect.top + rect.height / 3
+        const deltaX = e.clientX - centerX
+        const deltaY = e.clientY - centerY
+        const faceX = Math.max(-15, Math.min(15, deltaX / 20))
+        const faceY = Math.max(-10, Math.min(10, deltaY / 30))
+        const bodySkew = Math.max(-6, Math.min(6, -deltaX / 120))
+        return { faceX, faceY, bodySkew }
+      }
+      setCharPositions({
+        purplePos: calcPosition(purpleRef),
+        blackPos: calcPosition(blackRef),
+        yellowPos: calcPosition(yellowRef),
+        orangePos: calcPosition(orangeRef),
+      })
     }
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
@@ -219,46 +239,32 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
   }, [])
 
   useEffect(() => {
-    if (isTyping) {
-      setIsLookingAtEachOther(true)
-      const timer = setTimeout(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    timers.push(setTimeout(() => {
+      if (isTyping) {
+        setIsLookingAtEachOther(true)
+        timers.push(setTimeout(() => setIsLookingAtEachOther(false), 800))
+      } else {
         setIsLookingAtEachOther(false)
-      }, 800)
-      return () => { clearTimeout(timer) }
-    }
-    setIsLookingAtEachOther(false)
-    return
+      }
+    }, 0))
+    return () => timers.forEach(t => clearTimeout(t))
   }, [isTyping])
 
   useEffect(() => {
-    if (password.length > 0 && showPassword) {
-      const firstPeek = setTimeout(() => {
-        setIsPurplePeeking(true)
-        setTimeout(() => setIsPurplePeeking(false), 800)
-      }, Math.random() * 3000 + 2000)
-      return () => { clearTimeout(firstPeek) }
-    }
-    setIsPurplePeeking(false)
-    return
+    const timers: ReturnType<typeof setTimeout>[] = []
+    timers.push(setTimeout(() => {
+      if (password.length > 0 && showPassword) {
+        timers.push(setTimeout(() => {
+          setIsPurplePeeking(true)
+          timers.push(setTimeout(() => setIsPurplePeeking(false), 800))
+        }, Math.random() * 3000 + 2000))
+      } else {
+        setIsPurplePeeking(false)
+      }
+    }, 0))
+    return () => timers.forEach(t => clearTimeout(t))
   }, [password, showPassword])
-
-  const calculatePosition = (ref: React.RefObject<HTMLDivElement | null>) => {
-    if (!ref.current) return { faceX: 0, faceY: 0, bodySkew: 0 }
-    const rect = ref.current.getBoundingClientRect()
-    const centerX = rect.left + rect.width / 2
-    const centerY = rect.top + rect.height / 3
-    const deltaX = mouseX - centerX
-    const deltaY = mouseY - centerY
-    const faceX = Math.max(-15, Math.min(15, deltaX / 20))
-    const faceY = Math.max(-10, Math.min(10, deltaY / 30))
-    const bodySkew = Math.max(-6, Math.min(6, -deltaX / 120))
-    return { faceX, faceY, bodySkew }
-  }
-
-  const purplePos = calculatePosition(purpleRef)
-  const blackPos = calculatePosition(blackRef)
-  const yellowPos = calculatePosition(yellowRef)
-  const orangePos = calculatePosition(orangeRef)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -294,6 +300,8 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
       setGoogleLoading(false)
     }
   }
+
+  const { purplePos, blackPos, yellowPos, orangePos } = charPositions
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
