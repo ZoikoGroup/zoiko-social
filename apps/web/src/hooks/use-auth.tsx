@@ -103,22 +103,32 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const signInWithGoogle = useCallback(async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+    // Try the backend API first
     try {
       const res = await fetch(apiUrl + '/api/v1/auth/google')
-      if (!res.ok) throw new Error('Failed to get OAuth URL')
-
-      const { data } = await res.json()
-      if (data?.url) {
-        window.location.href = data.url
+      if (res.ok) {
+        const { data } = await res.json()
+        if (data?.url) {
+          window.location.href = data.url
+          return
+        }
       }
     } catch {
-      const supabase = createClient()
-      await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin + '/auth/callback',
-        },
-      })
+      // API unavailable — fall through to Supabase
+    }
+
+    // Fallback: use Supabase directly
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/auth/callback',
+      },
+    })
+
+    if (error) {
+      throw new Error(error.message)
     }
   }, [])
 

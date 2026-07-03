@@ -2,7 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── ZoikoSocial Design System ───────────────────────────── */
+@layer base {
+  :root {
+    --background: 0 0% 97%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 189 91% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 33 81% 53%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 9% 46%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 189 91% 25%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
 
 :root {
   --color-primary: #066879;
@@ -10,7 +41,6 @@
   --color-outline-variant: #D1D5DB;
 }
 
-/* Smooth font rendering */
 html {
   scroll-behavior: smooth;
 }
@@ -20,7 +50,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -32,7 +61,6 @@ body {
   border-radius: 10px;
 }
 
-/* Hide scrollbar for story bar */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -41,20 +69,49 @@ body {
   scrollbar-width: none;
 }
 
-/* Story ring gradient */
 .story-gradient {
   background: linear-gradient(45deg, #066879, #E88924);
   padding: 2px;
 }
 
-/* Focus styles */
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-/* Reduced motion */
+@keyframes scroll-up {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+.animate-scroll-up {
+  animation: scroll-up 40s linear infinite;
+}
+
+.animate-scroll-up:hover {
+  animation-play-state: paused;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
