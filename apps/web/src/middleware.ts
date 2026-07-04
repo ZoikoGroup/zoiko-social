@@ -65,6 +65,20 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // ── Dev-mode cache busting ──────────────────────────────────────────────
+  // In development, prevent the browser from caching pages so that stale
+  // content doesn't persist across dev server restarts. This fixes the
+  // "works in incognito, blank in regular Chrome" issue caused by stale
+  // cached HTML/JS bundles from previous server instances.
+  if (process.env.NODE_ENV === 'development') {
+    response.headers.set(
+      'Cache-Control',
+      'no-cache, no-store, must-revalidate, max-age=0',
+    )
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+  }
+
   return response
 }
 
