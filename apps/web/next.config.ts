@@ -38,9 +38,7 @@ const nextConfig: NextConfig = {
               `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev images.unsplash.com`,
               "media-src 'self' blob: *.mux.com *.r2.dev",
               "style-src 'self' 'unsafe-inline'",
-              process.env.NODE_ENV === 'development'
-                ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
-                : "script-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "font-src 'self'",
               "frame-src 'none'",
               "object-src 'none'",
