@@ -33,7 +33,7 @@ export default function HomePage(): React.JSX.Element {
   const { loading, isAuthenticated } = useAuth()
 
   // Content-shaped skeleton while auth resolves — no spinners
-  // v2: trigger fresh Vercel build with new env vars
+  // v3: fresh build with env vars added to Vercel
   if (loading) {
     return <FeedSkeleton />
   }
