@@ -70,6 +70,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm --filter @zoiko/api exec prisma generate
+
       - name: Type check (api only)
         run: pnpm turbo type-check --filter=@zoiko/api...
         env:

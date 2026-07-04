@@ -39,6 +39,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ── 4b. Generate Prisma client (typed models for type check) ──
+      - name: Generate Prisma client
+        run: pnpm --filter @zoiko/api exec prisma generate
+
       # ── 5. TypeScript type check across all apps & packages ───────
       - name: TypeScript type check
         run: pnpm turbo type-check

@@ -21,6 +21,10 @@ RUN pnpm turbo build --filter=@zoiko/api
 # properly resolved (no pnpm symlinks needed at runtime)
 RUN pnpm deploy --filter=@zoiko/api --prod /app/deploy
 
+# Generate the Prisma client inside the deploy dir (prisma CLI is a devDep,
+# so the deploy stage can't run it via postinstall — use the builder's CLI)
+RUN cd /app/deploy && /app/apps/api/node_modules/.bin/prisma generate
+
 # ── Runner stage ──────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
