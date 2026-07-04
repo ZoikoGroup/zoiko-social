@@ -3,13 +3,16 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell,
   Newspaper, Calendar, MapPin,
   ShoppingBag, HandHeart, Stethoscope, Dna, X,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
+import { useNotifications } from '@/hooks/use-notifications'
+import { UserAvatar } from './UserAvatar'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
   { name: 'Communities',       Icon: Users,       color: 'text-primary',   href: '/communities'    },
@@ -48,6 +51,10 @@ export function Header(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
+  const router = useRouter()
+  const { profile } = useAuth()
+  const { unreadCount } = useNotifications()
+  const [searchTerm, setSearchTerm] = useState('')
 
   const isActive = (href: string): boolean => {
     if (href === '/') return pathname === '/'
@@ -79,9 +86,16 @@ export function Header(): React.JSX.Element {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
               className="pl-10 pr-4 py-1.5 w-full bg-surface-container-low border border-transparent focus:border-primary focus:outline-none rounded-lg text-label-md transition-all placeholder:text-outline/60"
-              placeholder="Search professional network"
+              placeholder="Search people by name or username"
               type="text"
               aria-label="Search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchTerm.trim().length >= 2) {
+                  router.push(`/network?q=${encodeURIComponent(searchTerm.trim())}`)
+                }
+              }}
             />
           </div>
         </div>
@@ -131,7 +145,11 @@ export function Header(): React.JSX.Element {
           >
             <div className="relative">
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </div>
             <span className="text-[10px] mt-0.5">Notifications</span>
           </Link>
@@ -190,9 +208,11 @@ export function Header(): React.JSX.Element {
 
           <div className="h-8 w-[1px] bg-outline-variant mx-1 hidden sm:block"></div>
           <Link href="/profile" className="flex items-center p-1.5 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm border border-outline-variant">
-              AR
-            </div>
+            {profile ? (
+              <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="sm" />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-surface-container animate-pulse border border-outline-variant" />
+            )}
           </Link>
         </nav>
       </div>

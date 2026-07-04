@@ -8,8 +8,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff, Mail } from 'lucide-react'
+import { Eye, EyeOff, Mail, CheckCircle2, XCircle, Loader2, AtSign } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+
+// Instagram-style username rules — mirrored by the API and the DB trigger
+const USERNAME_REGEX = /^[a-z0-9._]{3,30}$/
+
+type UsernameStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken' | 'reserved'
+
+function validateUsernameFormat(username: string): boolean {
+  return (
+    USERNAME_REGEX.test(username) &&
+    !username.startsWith('.') &&
+    !username.endsWith('.') &&
+    !username.includes('..')
+  )
+}
+
+const USERNAME_MESSAGES: Record<UsernameStatus, string> = {
+  idle: '',
+  invalid: '3–30 characters — lowercase letters, numbers, underscores and periods only',
+  checking: 'Checking availability…',
+  available: 'Username is available',
+  taken: 'This username is already taken',
+  reserved: 'This username is not available',
+}
 
 interface PupilProps {
   size?: number
@@ -177,10 +200,16 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [registered] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || mode !== 'login') return false
+    return new URLSearchParams(window.location.search).get('registered') === 'true'
+  })
   const [isPurpleBlinking, setIsPurpleBlinking] = useState(false)
   const [isBlackBlinking, setIsBlackBlinking] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
@@ -279,6 +308,60 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
     return () => timers.forEach(t => clearTimeout(t))
   }, [password, showPassword])
 
+  // Debounced Instagram-style username availability check (signup only)
+  useEffect(() => {
+    if (mode !== 'signup') return
+    let cancelled = false
+    const value = username
+
+    const timer = setTimeout(async () => {
+      if (cancelled) return
+      if (value.length === 0) {
+        setUsernameStatus('idle')
+        return
+      }
+      if (!validateUsernameFormat(value)) {
+        setUsernameStatus('invalid')
+        return
+      }
+      setUsernameStatus('checking')
+      try {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/profiles/username-available?username=${encodeURIComponent(value)}`,
+        )
+        const json = await res.json()
+        const result = json?.data?.data ?? json?.data
+        if (cancelled) return
+        if (result?.available) {
+          setUsernameStatus('available')
+        } else if (result?.reason === 'reserved') {
+          setUsernameStatus('reserved')
+        } else if (result?.reason === 'taken') {
+          setUsernameStatus('taken')
+        } else {
+          setUsernameStatus('invalid')
+        }
+      } catch {
+        // API unreachable — don't block signup; the DB trigger enforces uniqueness
+        if (!cancelled) setUsernameStatus('idle')
+      }
+    }, 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [username, mode])
+
+  // Clean ?registered=true from the URL after reading it (no setState — state is set via initializer)
+  useEffect(() => {
+    if (registered) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('registered')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [registered])
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -293,11 +376,25 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
         router.push('/')
       }
     } else {
-      const result = await signUp(email, password, displayName || undefined)
+      if (!validateUsernameFormat(username)) {
+        setError('Please choose a valid username (3–30 characters: lowercase letters, numbers, underscores and periods).')
+        setIsLoading(false)
+        return
+      }
+      if (usernameStatus === 'taken' || usernameStatus === 'reserved') {
+        setError('That username is not available. Please pick another one.')
+        setIsLoading(false)
+        return
+      }
+      const result = await signUp(email, password, displayName || undefined, username)
       if (result.error) {
         setError(result.error)
         setIsLoading(false)
+      } else if (result.data?.session) {
+        // Email confirmation disabled — session granted immediately, go straight to app
+        router.push('/')
       } else {
+        // Email confirmation required — ask them to check their inbox
         router.push('/login?registered=true')
       }
     }
@@ -662,30 +759,78 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {mode === 'signup' && (
-              <div className="space-y-2">
-                <Label htmlFor="displayName" className="text-sm font-medium">
-                  Display Name
-                </Label>
-                <Input
-                  id="displayName"
-                  type="text"
-                  placeholder="Your name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  autoComplete="off"
-                  className="h-12 bg-background border-border/60 focus:border-primary"
-                />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="displayName" className="text-sm font-medium">
+                    Display Name
+                  </Label>
+                  <Input
+                    id="displayName"
+                    type="text"
+                    placeholder="Your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    autoComplete="off"
+                    className="h-12 bg-background border-border/60 focus:border-primary"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="text-sm font-medium">
+                    Username
+                  </Label>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      type="text"
+                      placeholder="yourname"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))}
+                      autoComplete="off"
+                      required
+                      maxLength={30}
+                      className={`h-12 pl-9 pr-10 bg-background border-border/60 focus:border-primary ${
+                        usernameStatus === 'available'
+                          ? 'border-green-500 focus:border-green-500'
+                          : usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid'
+                            ? 'border-red-400 focus:border-red-400'
+                            : ''
+                      }`}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {usernameStatus === 'checking' && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+                      {usernameStatus === 'available' && <CheckCircle2 className="size-4 text-green-600" />}
+                      {(usernameStatus === 'taken' || usernameStatus === 'reserved' || usernameStatus === 'invalid') && (
+                        <XCircle className="size-4 text-red-500" />
+                      )}
+                    </span>
+                  </div>
+                  {usernameStatus !== 'idle' && (
+                    <p
+                      className={`text-xs ${
+                        usernameStatus === 'available'
+                          ? 'text-green-600'
+                          : usernameStatus === 'checking'
+                            ? 'text-muted-foreground'
+                            : 'text-red-500'
+                      }`}
+                    >
+                      {USERNAME_MESSAGES[usernameStatus]}
+                    </p>
+                  )}
+                </div>
+              </>
             )}
 
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">
-                Email
+                {mode === 'login' ? 'Email, username or phone' : 'Email'}
               </Label>
               <Input
                 id="email"
-                type="email"
-                placeholder="anna@gmail.com"
+                type={mode === 'login' ? 'text' : 'email'}
+                placeholder={mode === 'login' ? 'Enter your email, username or phone' : 'Enter your email'}
                 value={email}
                 autoComplete="off"
                 onChange={(e) => setEmail(e.target.value)}
@@ -704,7 +849,7 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+                  placeholder={mode === 'login' ? 'Enter your password' : 'Create a password (min 8 characters)'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -738,6 +883,16 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
               </div>
             )}
 
+            {registered && (
+              <div className="p-4 text-sm text-on-surface bg-surface-container-low border border-primary/30 rounded-lg flex items-start gap-3">
+                <CheckCircle2 className="size-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-foreground">Account created successfully!</p>
+                  <p className="text-muted-foreground mt-0.5">Check your email to confirm your account, then sign in.</p>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="p-3 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
                 {error}
@@ -748,7 +903,7 @@ export function AnimatedAuthPage({ mode }: AnimatedAuthPageProps) {
               type="submit"
               className="w-full h-12 text-base font-medium"
               size="lg"
-              disabled={isLoading}
+              disabled={isLoading || (mode === 'signup' && usernameStatus !== 'available' && usernameStatus !== 'idle')}
             >
               {isLoading
                 ? mode === 'login'

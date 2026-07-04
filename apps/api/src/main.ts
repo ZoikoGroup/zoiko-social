@@ -14,10 +14,29 @@ async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap')
   const config = app.get(ConfigService)
 
+  // ── Worker-only mode ─────────────────────────────────────────────────────
+  // When ENABLE_WORKERS=true, only background workers run. The HTTP server
+  // is NOT started, so multiple worker containers can coexist without port
+  // conflicts. This is the same Docker image — the env var determines the role.
+  //
+  // When ENABLE_WORKERS=false (or unset), the HTTP API starts normally and
+  // workers are skipped (controlled per-worker in their onModuleInit).
+  if (config.env.ENABLE_WORKERS === true) {
+    logger.log('ENABLE_WORKERS=true — worker-only mode (no HTTP server)')
+    // Keep the process alive — BullMQ workers use Redis connections that keep
+    // the event loop active. NestJS will keep running until SIGTERM.
+    await new Promise(() => {})
+    return
+  }
+
   // ── CORS ─────────────────────────────────────────────────────────────────
+  // @fastify/cors only allows GET,HEAD,POST by default — PUT/DELETE/PATCH
+  // must be declared explicitly or browser preflights fail.
   app.enableCors({
     origin: config.allowedOrigin,
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 
   // ── Global API prefix ────────────────────────────────────────────────────

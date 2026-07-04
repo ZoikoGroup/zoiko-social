@@ -3,12 +3,10 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
-  Inject,
   Logger,
 } from '@nestjs/common'
 import { FastifyRequest } from 'fastify'
-import { SUPABASE_ADMIN_CLIENT } from '../../database/database.providers'
-import type { SupabaseAdminClient } from '../../database/database.providers'
+import { JwtVerificationService } from '../jwt-verification.service'
 
 export const AUTH_USER_KEY = 'auth_user'
 
@@ -18,14 +16,18 @@ export interface AuthenticatedUser {
   role: string
 }
 
+/**
+ * JwtAuthGuard — verifies the Bearer token from the Authorization header.
+ *
+ * Uses local JWT verification via JOSE + Supabase JWKS (no network request
+ * during normal authentication). Falls back to Supabase auth.getUser() if
+ * the JWKS endpoint is unreachable or verification fails unexpectedly.
+ */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name)
 
-  constructor(
-    @Inject(SUPABASE_ADMIN_CLIENT)
-    private readonly supabaseAdmin: SupabaseAdminClient,
-  ) {}
+  constructor(private readonly jwtVerification: JwtVerificationService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<FastifyRequest>()
@@ -41,20 +43,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1]
 
     try {
-      const { data, error } = await this.supabaseAdmin.auth.getUser(token)
-
-      if (error || !data.user) {
-        throw new UnauthorizedException({
-          code: 'INVALID_TOKEN',
-          message: 'Invalid or expired authorization token',
-        })
-      }
-
-      const user: AuthenticatedUser = {
-        id: data.user.id,
-        email: data.user.email || '',
-        role: data.user.role || 'authenticated',
-      }
+      const user = await this.jwtVerification.verify(token)
 
       // Attach user to request for downstream use
       ;(request as unknown as Record<string, unknown>)[AUTH_USER_KEY] = user

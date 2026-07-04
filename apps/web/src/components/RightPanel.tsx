@@ -1,54 +1,76 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Info } from 'lucide-react'
+import { Info, AtSign } from 'lucide-react'
+import { UserAvatar } from './UserAvatar'
+import { FollowButton, initialFollowState } from './FollowButton'
+import { SkeletonWidget } from './Skeletons'
+import { networkApi, PROFESSIONAL_CATEGORY_LABELS, type FollowSuggestion } from '@/lib/api'
 
 export function RightPanel(): React.JSX.Element {
+  const [suggestions, setSuggestions] = useState<FollowSuggestion[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    networkApi.getSuggestions(3)
+      .then((data) => { if (!cancelled) setSuggestions(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <div className="space-y-gutter">
-      {/* Professional Suggestions */}
+      {/* Suggestions */}
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
         <h3 className="text-label-md font-bold mb-4 flex items-center justify-between">
-          Professional Suggestions
+          Suggested for you
           <Info className="w-4 h-4 text-outline" />
         </h3>
-        <div className="space-y-4">
-          {[
-            { name: 'Dr. Sarah Vance', title: 'Chief Vet at Paws Clinic', initials: 'SV', color: 'bg-secondary/10 text-secondary' },
-            { name: 'Mark Thompson', title: 'K9 Behavioral Analyst', initials: 'MT', color: 'bg-primary/10 text-primary' },
-          ].map((person) => (
-            <div key={person.name} className="flex items-start gap-3">
-              <div className={`w-10 h-10 rounded-full ${person.color} flex items-center justify-center font-bold text-sm flex-shrink-0 border border-outline-variant`}>
-                {person.initials}
-              </div>
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-label-md font-semibold truncate">{person.name}</span>
-                <span className="text-[11px] text-outline leading-tight truncate">{person.title}</span>
-                <button className="mt-2 w-fit px-3 py-1 border border-primary text-primary rounded-full text-label-sm font-semibold hover:bg-primary/5 transition-colors cursor-pointer">
-                  + Follow
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Trending Topics */}
-      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
-        <h3 className="text-label-md font-bold mb-4">Trending in Animal Welfare</h3>
-        <div className="space-y-4">
-          {[
-            { tag: '#RescueTech', title: 'AI in Shelter Management', count: '2.5k' },
-            { tag: '#VetCare2024', title: 'Telemedicine for Rural Areas', count: '1.2k' },
-            { tag: '#PetPolicy', title: 'Global Standards for Ethics', count: '845' },
-          ].map((trend) => (
-            <div key={trend.tag} className="flex flex-col gap-0.5 cursor-pointer group">
-              <span className="text-label-sm text-outline">{trend.tag}</span>
-              <span className="text-label-md font-semibold text-on-surface group-hover:text-primary transition-colors">{trend.title}</span>
-              <span className="text-[10px] text-outline">{trend.count} professionals discussing</span>
-            </div>
-          ))}
-        </div>
+        {loading ? (
+          <SkeletonWidget />
+        ) : suggestions.length === 0 ? (
+          <p className="text-label-sm text-outline py-2">
+            No suggestions yet — explore the <Link href="/network" className="text-primary hover:underline">network</Link> to find people.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {suggestions.map((person) => {
+              const categoryLabel = person.professionalCategory
+                ? (PROFESSIONAL_CATEGORY_LABELS[person.professionalCategory] ?? person.professionalCategory)
+                : null
+              return (
+                <div key={person.id} className="flex items-start gap-3">
+                  <Link href={`/profile/${person.username}`}>
+                    <UserAvatar name={person.displayName} image={person.avatarUrl ?? undefined} size="md" verified={person.isVerified} />
+                  </Link>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <Link href={`/profile/${person.username}`} className="text-label-md font-semibold truncate hover:underline">
+                      {person.displayName}
+                    </Link>
+                    <span className="flex items-center gap-0.5 text-[11px] text-outline leading-tight truncate">
+                      <AtSign className="w-2.5 h-2.5" />{person.username}
+                    </span>
+                    {categoryLabel && (
+                      <span className="text-[10px] text-secondary font-semibold truncate">{categoryLabel}</span>
+                    )}
+                    <FollowButton
+                      userId={person.id}
+                      initialState={initialFollowState(person)}
+                      followsViewer={!!person.followsViewer}
+                      className="mt-2 w-fit px-3 py-1"
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        <Link href="/network" className="block mt-4 text-label-sm text-primary hover:underline">
+          See all suggestions
+        </Link>
       </section>
 
       {/* Footer */}

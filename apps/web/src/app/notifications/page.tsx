@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
@@ -8,114 +8,141 @@ import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
+import { UserAvatar } from '@/components/UserAvatar'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
-  Heart, MessageSquare, UserPlus, AtSign,
-  BadgeCheck, ChevronLeft, Bell,
-  Calendar, Megaphone, Star, CheckCheck,
+  UserPlus, Users, BadgeCheck, ChevronLeft, Bell, CheckCheck, Megaphone,
 } from 'lucide-react'
+import { SkeletonNotification } from '@/components/Skeletons'
+import { notificationsApi, networkApi, type NotificationItem } from '@/lib/api'
+import { useNotifications } from '@/hooks/use-notifications'
 
-type NotificationTab = 'all' | 'likes' | 'comments' | 'follows' | 'mentions'
+type NotificationTab = 'all' | 'followers' | 'requests' | 'system'
 
-const TABS: { id: NotificationTab; label: string; Icon: typeof Bell }[] = [
-  { id: 'all',      label: 'All',      Icon: Bell },
-  { id: 'likes',    label: 'Likes',    Icon: Heart },
-  { id: 'comments', label: 'Comments', Icon: MessageSquare },
-  { id: 'follows',  label: 'Follows',  Icon: UserPlus },
-  { id: 'mentions', label: 'Mentions', Icon: AtSign },
+const TABS: { id: NotificationTab; label: string; Icon: typeof Bell; types: string[] }[] = [
+  { id: 'all',       label: 'All',       Icon: Bell,      types: [] },
+  { id: 'followers', label: 'Followers', Icon: Users,     types: ['new_follower', 'follow_request_accepted'] },
+  { id: 'requests',  label: 'Requests',  Icon: UserPlus,  types: ['follow_request'] },
+  { id: 'system',    label: 'System',    Icon: Megaphone, types: ['verification_approved', 'verification_rejected', 'system'] },
 ]
 
-interface Notification {
-  id: string
-  type: 'like' | 'comment' | 'follow' | 'mention' | 'badge' | 'event' | 'system' | 'milestone'
-  initials: string
-  gradient: string
-  user: string
-  action: string
-  target: string
-  time: string
-  dateGroup: 'Today' | 'Yesterday' | 'This Week' | 'Earlier'
-  read: boolean
-  verified?: boolean
+const TYPE_ICONS: Record<string, typeof Bell> = {
+  new_follower: Users,
+  follow_request: UserPlus,
+  follow_request_accepted: CheckCheck,
+  verification_approved: BadgeCheck,
+  verification_rejected: BadgeCheck,
 }
 
-const NOTIFICATIONS: Notification[] = [
-  // Today
-  { id: 'n1',  type: 'like',     initials: 'SR', gradient: 'linear-gradient(135deg,#5C9E78,#2a6b4a)', user: 'Sara Renfeld',     action: 'liked your post',      target: '"Meet Cleo — a 2-year-old rescue"',         time: '12m ago', dateGroup: 'Today',    read: false, verified: true },
-  { id: 'n2',  type: 'comment',  initials: 'DV', gradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)', user: 'Dr. Vetara Okonkwo DVM', action: 'commented on your post', target: '"Great advice on heat safety!"',            time: '24m ago', dateGroup: 'Today',    read: false, verified: true },
-  { id: 'n3',  type: 'follow',   initials: 'MK', gradient: 'linear-gradient(135deg,#8C3D2A,#c4622a)', user: 'Marco Kutini',       action: 'started following you', target: '',                                                    time: '1h ago',  dateGroup: 'Today',    read: false },
-  { id: 'n4',  type: 'like',     initials: 'AO', gradient: 'linear-gradient(135deg,#6a3a8a,#9a6aaa)', user: 'Amara Owusu',       action: 'liked your post',      target: '"Heat season reminder: pavement temperatures"', time: '2h ago', dateGroup: 'Today',  read: true },
-  // Yesterday
-  { id: 'n5',  type: 'badge',    initials: 'ZS', gradient: 'linear-gradient(135deg,#066879,#0A8A9A)', user: 'ZoikoSocial',      action: 'awarded you a badge',  target: 'Community Contributor badge for 50 helpful posts!', time: '18h ago', dateGroup: 'Yesterday', read: false },
-  { id: 'n6',  type: 'mention',  initials: 'TL', gradient: 'linear-gradient(135deg,#7a5c2a,#b88a3a)', user: 'Tanya Lorence',     action: 'mentioned you in a comment', target: '"Thanks for the tip @username! 🐾"',      time: '20h ago', dateGroup: 'Yesterday', read: true },
-  { id: 'n7',  type: 'comment',  initials: 'PW', gradient: 'linear-gradient(135deg,#a05c2a,#7a3e18)', user: 'PawsWild Rescue',   action: 'replied to your comment', target: '"We\'re updating the adoption process next week"', time: '1d ago', dateGroup: 'Yesterday', read: true },
-  // This Week
-  { id: 'n8',  type: 'event',    initials: 'RM', gradient: 'linear-gradient(135deg,#3a5c2a,#6a9c3a)', user: 'RescueMata Foundation', action: 'created an event',     target: 'Adoption Drive — 12 Jul 2026 at Riverside Park', time: '3d ago', dateGroup: 'This Week', read: true },
-  { id: 'n9',  type: 'follow',   initials: 'CE', gradient: 'linear-gradient(135deg,#8C5C9E,#5a3a72)', user: 'ClimateEdu',        action: 'started following you', target: '',                                                    time: '4d ago', dateGroup: 'This Week', read: true },
-  { id: 'n10', type: 'like',     initials: 'BH', gradient: 'linear-gradient(135deg,#9e7a5c,#6e5238)', user: 'BirdsHQ Community', action: 'liked your post',      target: '"The Sarus Crane pair at Keoladeo"',          time: '5d ago', dateGroup: 'This Week', read: true },
-  // Earlier
-  { id: 'n11', type: 'milestone', initials: 'ZS', gradient: 'linear-gradient(135deg,#066879,#0A8A9A)', user: 'ZoikoSocial',    action: 'milestone reached!', target: 'You reached 100 followers — congratulations! 🎉', time: '2w ago', dateGroup: 'Earlier', read: true },
-  { id: 'n12', type: 'system',   initials: 'ZS', gradient: 'linear-gradient(135deg,#066879,#0A8A9A)', user: 'ZoikoSocial',      action: 'new feature available', target: 'Health Passport is now live — add your pet\'s records!', time: '3w ago', dateGroup: 'Earlier', read: true },
-  { id: 'n13', type: 'mention',  initials: 'AN', gradient: 'linear-gradient(135deg,#4a5c6a,#2a3a4a)', user: 'AnimalNeuroscience', action: 'mentioned you in a post', target: '"New study on canine cognition — great input from @username"', time: '1mo ago', dateGroup: 'Earlier', read: true },
-]
-
-const TYPE_ICONS: Record<string, typeof Heart> = {
-  like: Heart,
-  comment: MessageSquare,
-  follow: UserPlus,
-  mention: AtSign,
-  badge: Star,
-  event: Calendar,
-  system: Megaphone,
-  milestone: Star,
-}
-
-function getTypeGradient(type: string): string {
+function typeGradient(type: string): string {
   const map: Record<string, string> = {
-    like: 'from-pink-500 to-rose-400',
-    comment: 'from-blue-500 to-cyan-400',
-    follow: 'from-emerald-500 to-teal-400',
-    mention: 'from-purple-500 to-violet-400',
-    badge: 'from-amber-500 to-orange-400',
-    event: 'from-indigo-500 to-blue-400',
-    system: 'from-slate-500 to-gray-400',
-    milestone: 'from-amber-500 to-yellow-400',
+    new_follower: 'from-emerald-500 to-teal-400',
+    follow_request: 'from-blue-500 to-cyan-400',
+    follow_request_accepted: 'from-primary to-teal-400',
+    verification_approved: 'from-amber-500 to-orange-400',
+    verification_rejected: 'from-slate-500 to-gray-400',
   }
   return map[type] ?? 'from-primary to-secondary'
 }
 
+function timeAgo(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks}w ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export default function NotificationsPage(): React.JSX.Element {
+  const router = useRouter()
+  const { latest, markAllRead: markAllReadGlobal, markRead: markReadGlobal } = useNotifications()
   const [activeTab, setActiveTab] = useState<NotificationTab>('all')
-  const [notifications, setNotifications] = useState(NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [loading, setLoading] = useState(true)
 
+  useEffect(() => {
+    let cancelled = false
+    notificationsApi.list(1, 50)
+      .then((result) => { if (!cancelled) setNotifications(result.data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Local read-state overlay (applied at render — no effects needed)
+  const [readIds, setReadIds] = useState<Set<string>>(new Set())
+  const [allRead, setAllRead] = useState(false)
+  // Follow-request action overlays: accepted stays visible, declined disappears
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set())
+  const [declinedIds, setDeclinedIds] = useState<Set<string>>(new Set())
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
+
+  // Realtime arrivals merge in at render time (derived, not synced via effect)
+  const merged = latest && !notifications.some((n) => n.id === latest.id)
+    ? [latest, ...notifications]
+    : notifications
+  const withReadState = merged
+    .filter((n) => !declinedIds.has(n.id))
+    .map((n) => ({
+      ...n,
+      isRead: n.isRead || allRead || readIds.has(n.id),
+    }))
+
+  const activeTypes = TABS.find((t) => t.id === activeTab)?.types ?? []
   const filtered = activeTab === 'all'
-    ? notifications
-    : notifications.filter((n) => {
-        if (activeTab === 'likes') return n.type === 'like'
-        if (activeTab === 'comments') return n.type === 'comment'
-        if (activeTab === 'follows') return n.type === 'follow'
-        if (activeTab === 'mentions') return n.type === 'mention'
-        return true
+    ? withReadState
+    : withReadState.filter((n) => activeTypes.includes(n.type))
+
+  const unreadCount = withReadState.filter((n) => !n.isRead).length
+
+  async function handleMarkAllRead(): Promise<void> {
+    setAllRead(true)
+    await markAllReadGlobal().catch(() => {})
+  }
+
+  function handleClick(n: NotificationItem): void {
+    if (!n.isRead) {
+      setReadIds((prev) => new Set(prev).add(n.id))
+      void markReadGlobal(n.id).catch(() => {})
+    }
+    // Navigate to the actor's profile when we know who it is
+    const username = n.data?.username as string | undefined
+    if (username) {
+      router.push(`/profile/${username}`)
+    }
+  }
+
+  /** Inline Accept/Decline on follow-request notifications (Instagram parity). */
+  async function respondToRequest(n: NotificationItem, action: 'accept' | 'reject'): Promise<void> {
+    const requestId = n.data?.requestId as string | undefined
+    if (!requestId || busyIds.has(n.id)) return
+    setBusyIds((prev) => new Set(prev).add(n.id))
+    try {
+      if (action === 'accept') {
+        await networkApi.acceptRequest(requestId)
+        setAcceptedIds((prev) => new Set(prev).add(n.id))
+      } else {
+        await networkApi.rejectRequest(requestId)
+        setDeclinedIds((prev) => new Set(prev).add(n.id))
+      }
+      setReadIds((prev) => new Set(prev).add(n.id))
+    } catch {
+      // Request may already be processed elsewhere — refresh state silently
+    } finally {
+      setBusyIds((prev) => {
+        const next = new Set(prev)
+        next.delete(n.id)
+        return next
       })
-
-  const unreadCount = notifications.filter((n) => !n.read).length
-
-  function markAllRead(): void {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    }
   }
-
-  function markOneRead(id: string): void {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n))
-  }
-
-  // Group by date
-  const grouped = filtered.reduce<Record<string, Notification[]>>((acc, n) => {
-    if (!acc[n.dateGroup]) acc[n.dateGroup] = []
-    acc[n.dateGroup]!.push(n)
-    return acc
-  }, {})
-
-  const DATE_ORDER = ['Today', 'Yesterday', 'This Week', 'Earlier']
 
   return (
     <>
@@ -149,7 +176,7 @@ export default function NotificationsPage(): React.JSX.Element {
               </div>
               {unreadCount > 0 && (
                 <button
-                  onClick={markAllRead}
+                  onClick={handleMarkAllRead}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold text-primary hover:bg-primary/5 transition-colors cursor-pointer"
                 >
                   <CheckCheck className="w-4 h-4" />
@@ -163,16 +190,9 @@ export default function NotificationsPage(): React.JSX.Element {
               <div className="flex gap-1">
                 {TABS.map((tab) => {
                   const isActive = activeTab === tab.id
-                  const count = tab.id === 'all'
-                    ? unreadCount
-                    : notifications.filter((n) => {
-                        if (tab.id === 'likes') return n.type === 'like'
-                        if (tab.id === 'comments') return n.type === 'comment'
-                        if (tab.id === 'follows') return n.type === 'follow'
-                        if (tab.id === 'mentions') return n.type === 'mention'
-                        return false
-                      }).filter((n) => !n.read).length
-
+                  const count = withReadState.filter((n) =>
+                    !n.isRead && (tab.id === 'all' || tab.types.includes(n.type)),
+                  ).length
                   return (
                     <button
                       key={tab.id}
@@ -199,96 +219,97 @@ export default function NotificationsPage(): React.JSX.Element {
             </div>
 
             {/* Notification list */}
-            <div className="space-y-6">
-              {Object.keys(grouped).length === 0 ? (
-                <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
-                    <Bell className="w-7 h-7 text-outline" />
-                  </div>
-                  <h3 className="text-label-md font-bold text-on-surface mb-1">All caught up!</h3>
-                  <p className="text-label-sm text-outline max-w-xs mx-auto">
-                    No {activeTab === 'all' ? '' : activeTab} notifications yet. We&apos;ll let you know when something arrives.
-                  </p>
+            {loading ? (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-2 space-y-1">
+                {Array.from({ length: 5 }, (_, i) => <SkeletonNotification key={i} />)}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
+                  <Bell className="w-7 h-7 text-outline" />
                 </div>
-              ) : (
-                (DATE_ORDER as readonly string[]).map((dateGroup) => {
-                  const items = grouped[dateGroup]
-                  if (!items) return null
+                <h3 className="text-label-md font-bold text-on-surface mb-1">All caught up!</h3>
+                <p className="text-label-sm text-outline max-w-xs mx-auto">
+                  No {activeTab === 'all' ? '' : `${activeTab} `}notifications yet. When someone follows you or
+                  interacts with your profile, it shows up here instantly.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-2 space-y-1">
+                {filtered.map((n) => {
+                  const Icon = TYPE_ICONS[n.type] ?? Bell
+                  const actorUsername = n.data?.username as string | undefined
+                  const requestStatus = n.data?.status as string | undefined
+                  const isPendingRequest =
+                    n.type === 'follow_request' &&
+                    !!n.data?.requestId &&
+                    requestStatus !== 'accepted' &&
+                    !acceptedIds.has(n.id)
+                  const isAcceptedRequest =
+                    n.type === 'follow_request' &&
+                    (requestStatus === 'accepted' || acceptedIds.has(n.id))
                   return (
-                    <div key={dateGroup}>
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="text-label-sm font-bold text-outline uppercase tracking-wider">{dateGroup}</span>
-                        <div className="flex-1 h-px bg-outline-variant/40" />
+                    <div
+                      key={n.id}
+                      onClick={() => handleClick(n)}
+                      className={`w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-all duration-200 cursor-pointer group ${
+                        n.isRead ? 'hover:bg-surface-container' : 'bg-primary-container/30 hover:bg-primary-container/50'
+                      }`}
+                    >
+                      {/* Actor avatar + type badge */}
+                      <div className={`relative flex-shrink-0 ${n.isRead ? 'opacity-80' : ''}`}>
+                        <UserAvatar name={actorUsername ?? n.title} size="md" />
+                        <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-gradient-to-br ${typeGradient(n.type)} flex items-center justify-center shadow-sm border-2 border-white`}>
+                          <Icon className="w-2.5 h-2.5 text-white" />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        {items.map((n) => {
-                        const Icon = TYPE_ICONS[n.type] || Bell
-                        const isUnread = !n.read
 
-                        return (
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-label-sm leading-relaxed">
+                          <span className="font-semibold text-on-surface">{n.title}</span>
+                          {n.body && (
+                            <>
+                              <br />
+                              <span className={n.isRead ? 'text-outline' : 'text-on-surface-variant'}>{n.body}</span>
+                            </>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-outline">{timeAgo(n.createdAt)}</span>
+                          {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
+                          {isAcceptedRequest && (
+                            <span className="flex items-center gap-1 text-[11px] text-primary font-semibold">
+                              <CheckCheck className="w-3 h-3" />Accepted
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Inline Accept / Decline — persists until acted on */}
+                      {isPendingRequest && (
+                        <div className="flex gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                           <button
-                            key={n.id}
-                            onClick={() => markOneRead(n.id)}
-                            className={`w-full flex items-start gap-3 p-3.5 rounded-xl text-left transition-all duration-200 cursor-pointer group ${
-                              isUnread
-                                ? 'bg-primary-container/30 hover:bg-primary-container/50'
-                                : 'hover:bg-surface-container'
-                            }`}
+                            onClick={() => respondToRequest(n, 'accept')}
+                            disabled={busyIds.has(n.id)}
+                            className="px-3 py-1.5 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-colors cursor-pointer"
                           >
-                            {/* Type icon badge */}
-                            <div className={`relative flex-shrink-0 ${isUnread ? '' : 'opacity-70'}`}>
-                              <div
-                                className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                                style={{ background: n.gradient }}
-                              >
-                                {n.initials}
-                              </div>
-                              <div className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-gradient-to-br ${getTypeGradient(n.type)} flex items-center justify-center shadow-sm border-2 border-white`}>
-                                <Icon className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-label-sm leading-relaxed">
-                                <span className="font-semibold text-on-surface">{n.user}</span>
-                                {n.verified && (
-                                  <BadgeCheck className="w-3.5 h-3.5 text-primary inline-block ml-0.5 -mt-0.5" />
-                                )}
-                                {' '}
-                                <span className="text-on-surface-variant">{n.action}</span>
-                                {n.target && (
-                                  <>
-                                    <br />
-                                    <span className={`text-label-sm ${isUnread ? 'text-on-surface font-medium' : 'text-outline'}`}>
-                                      {n.target}
-                                    </span>
-                                  </>
-                                )}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[11px] text-outline">{n.time}</span>
-                                {isUnread && (
-                                  <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Read indicator on hover */}
-                            {isUnread && (
-                              <span className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
-                                <span className="w-2 h-2 rounded-full bg-primary/50 flex-shrink-0 block" />
-                              </span>
-                            )}
+                            Accept
                           </button>
-                        )
-                      })}
+                          <button
+                            onClick={() => respondToRequest(n, 'reject')}
+                            disabled={busyIds.has(n.id)}
+                            className="px-3 py-1.5 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm hover:bg-surface-container disabled:opacity-50 transition-colors cursor-pointer"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })
-              )}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Right Column */}

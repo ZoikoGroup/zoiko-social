@@ -23,10 +23,18 @@ const RegisterSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
 })
 
-const LoginSchema = z.object({
-  email: z.string().email('Valid email is required'),
-  password: z.string().min(1, 'Password is required'),
-})
+const LoginSchema = z
+  .object({
+    // Accepts email, username, or phone number
+    identifier: z.string().min(1).max(255).optional(),
+    // Back-compat: older clients send `email`
+    email: z.string().min(1).max(255).optional(),
+    password: z.string().min(1, 'Password is required'),
+  })
+  .refine((body) => body.identifier || body.email, {
+    message: 'Email, username, or phone is required',
+    path: ['identifier'],
+  })
 
 const RefreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
@@ -63,12 +71,11 @@ export class AuthController {
   async register(
     @Body(new ZodValidationPipe(RegisterSchema)) body: RegisterBody,
   ) {
-    const result = await this.authService.register(
+    return this.authService.register(
       body.email,
       body.password,
       body.displayName,
     )
-    return { data: result }
   }
 
   @Post('login')
@@ -76,8 +83,7 @@ export class AuthController {
   async login(
     @Body(new ZodValidationPipe(LoginSchema)) body: LoginBody,
   ) {
-    const result = await this.authService.login(body.email, body.password)
-    return { data: result }
+    return this.authService.login((body.identifier ?? body.email)!, body.password)
   }
 
   @Post('refresh')
@@ -85,8 +91,7 @@ export class AuthController {
   async refresh(
     @Body(new ZodValidationPipe(RefreshSchema)) body: RefreshBody,
   ) {
-    const result = await this.authService.refreshToken(body.refreshToken)
-    return { data: result }
+    return this.authService.refreshToken(body.refreshToken)
   }
 
   @Post('logout')
@@ -94,7 +99,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async logout(@CurrentUser() user: AuthenticatedUser) {
     await this.authService.logout(user.id)
-    return { data: { success: true } }
+    return { success: true }
   }
 
   @Post('forgot-password')
@@ -103,7 +108,7 @@ export class AuthController {
     @Body(new ZodValidationPipe(ForgotPasswordSchema)) body: ForgotPasswordBody,
   ) {
     await this.authService.forgotPassword(body.email)
-    return { data: { message: 'Password reset email sent' } }
+    return { message: 'Password reset email sent' }
   }
 
   @Post('reset-password')
@@ -112,15 +117,14 @@ export class AuthController {
     @Body(new ZodValidationPipe(ResetPasswordSchema)) body: ResetPasswordBody,
   ) {
     await this.authService.resetPassword(body.accessToken, body.newPassword)
-    return { data: { message: 'Password reset successful' } }
+    return { message: 'Password reset successful' }
   }
 
   @Get('google')
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalAuthGuard)
   async googleOAuth() {
-    const result = await this.authService.getGoogleOAuthUrl()
-    return { data: result }
+    return this.authService.getGoogleOAuthUrl()
   }
 
   @Post('google/callback')
@@ -128,14 +132,12 @@ export class AuthController {
   async googleCallback(
     @Body(new ZodValidationPipe(OAuthCallbackSchema)) body: OAuthCallbackBody,
   ) {
-    const result = await this.authService.handleOAuthCallback(body.code)
-    return { data: result }
+    return this.authService.handleOAuthCallback(body.code)
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: AuthenticatedUser) {
-    const profile = await this.authService.getProfile(user.id)
-    return { data: profile }
+    return this.authService.getProfile(user.id)
   }
 }

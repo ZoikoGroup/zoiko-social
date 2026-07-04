@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common'
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core'
+import { APP_FILTER, APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core'
 import { HttpExceptionFilter } from './filters/http-exception.filter'
 import { ResponseTransformInterceptor } from './interceptors/response-transform.interceptor'
-import { ZodValidationPipe } from './pipes/zod-validation.pipe'
+import { RateLimiterGuard } from './guards/rate-limiter.guard'
 
 @Module({
   providers: [
@@ -14,8 +14,10 @@ import { ZodValidationPipe } from './pipes/zod-validation.pipe'
       provide: APP_INTERCEPTOR,
       useClass: ResponseTransformInterceptor,
     },
-    ZodValidationPipe,
+    {
+      provide: APP_GUARD,
+      useClass: RateLimiterGuard,
+    },
   ],
-  exports: [ZodValidationPipe],
 })
 export class CommonModule {}

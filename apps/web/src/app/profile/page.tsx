@@ -27,7 +27,7 @@ export default function ProfilePage(): React.JSX.Element {
 
           {/* Full-width profile header */}
           <div className="mb-gutter">
-            <ProfileHeader isOwnProfile={true} />
+            <ProfileHeader />
           </div>
 
           {/* 3-col grid below */}

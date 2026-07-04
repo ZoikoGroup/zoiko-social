@@ -1,6 +1,10 @@
 import path from 'path'
 import type { NextConfig } from 'next'
 
+// The API URL in ws form for Socket.IO — http://x → ws://x, https://x → wss://x
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? ''
+const apiWsUrl = apiUrl.replace(/^http/, 'ws')
+
 const nextConfig: NextConfig = {
   // Both must point to the monorepo root so Turbopack can follow pnpm symlinks
   // (the virtual store lives at <root>/node_modules/.pnpm/) and so that the
@@ -30,7 +34,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${process.env.NEXT_PUBLIC_API_URL ?? ''} wss://*.livekit.cloud`,
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} wss://*.livekit.cloud`,
               `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev images.unsplash.com`,
               "media-src 'self' blob: *.mux.com *.r2.dev",
               "style-src 'self' 'unsafe-inline'",

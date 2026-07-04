@@ -1,51 +1,62 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
+// App routes that require authentication
 const PROTECTED_ROUTES = [
-  '/feed',
+  '/',           // Home feed
   '/adoption',
   '/breeding-match',
   '/communities',
   '/events',
   '/messages',
+  '/network',
   '/notifications',
-  '/pets',
+  '/news',
   '/pet-diary',
   '/health-passport',
   '/pet-care',
-  '/products',
+  '/shop',
   '/profile',
   '/settings',
+  '/lost-found',
+  '/vet-finder',
 ]
 
-const AUTH_ROUTES = ['/login', '/signup', '/register', '/forgot-password']
+// Auth pages — redirect to app if already signed in
+const AUTH_ROUTES = ['/login', '/signup', '/register', '/forgot-password', '/reset-password']
 
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
 
   let response: NextResponse
+  let isAuthenticated = false
   try {
-    response = await updateSession(request)
+    const result = await updateSession(request)
+    response = result.response
+    isAuthenticated = !!result.user
   } catch (error) {
     console.error('[middleware] updateSession failed:', error)
     response = NextResponse.next({ request })
   }
 
-  const sessionCookie = request.cookies.get('sb-access-token')
-  const isAuthenticated = !!sessionCookie
-
-  const isProtected = PROTECTED_ROUTES.some((route) => pathname.startsWith(route))
+  // Protected routes — redirect to /login if not authenticated
+  const isProtected = PROTECTED_ROUTES.some((route) => {
+    if (route === '/') return pathname === '/'
+    return pathname.startsWith(route)
+  })
   if (isProtected && !isAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
     redirectUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
+  // Auth routes — redirect to / if already authenticated
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route))
   if (isAuthRoute && isAuthenticated) {
-    return NextResponse.redirect(new URL('/feed', request.url))
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
+  // Internal API protection
   if (pathname.startsWith('/api/internal/')) {
     const isServerRequest =
       request.headers.get('x-internal-secret') === process.env.INTERNAL_API_SECRET

@@ -1,50 +1,77 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Search, SlidersHorizontal, MapPin, BadgeCheck, ChevronLeft } from 'lucide-react'
+import { Search, SlidersHorizontal, BadgeCheck, ChevronLeft, Users } from 'lucide-react'
+import { SkeletonPeopleGrid } from '@/components/Skeletons'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { PeopleCard } from '@/components/PeopleCard'
 import { PendingInvitations } from '@/components/PendingInvitations'
 import { RightPanel } from '@/components/RightPanel'
+import { networkApi, type FollowSuggestion } from '@/lib/api'
 
-const ROLE_FILTERS = ['All', 'Veterinarian', 'Rescuer', 'Trainer', 'Caretaker', 'Seller', 'Shelter', 'Breeder']
-const SPECIES_FILTERS = ['Dogs', 'Cats', 'Birds', 'Exotic', 'Wildlife', 'Small Mammals']
-
-const SUGGESTIONS = [
-  { name: 'Dr. Amara Osei',        role: 'Veterinary Surgeon · Small Animal Specialist',    location: 'Accra, Ghana',         species: ['Dogs', 'Cats'],         mutualConnections: 8,  verified: true,  professional: true  },
-  { name: 'Ravi Krishnamurthy',     role: 'Animal Rescue Coordinator · Street Dog Welfare',  location: 'Chennai, India',       species: ['Dogs'],                 mutualConnections: 14, verified: false, professional: true  },
-  { name: 'Sofia Andersson',        role: 'Certified Dog Trainer & Behaviourist',             location: 'Stockholm, Sweden',    species: ['Dogs'],                 mutualConnections: 3,  verified: true,  professional: true  },
-  { name: 'Carlos Mendoza',         role: 'Exotic Bird Specialist & Avian Vet',               location: 'Mexico City, Mexico',  species: ['Birds', 'Exotic'],      mutualConnections: 6,  verified: true,  professional: true  },
-  { name: 'Nadia Petrova',          role: 'Feline Behaviour Consultant',                       location: 'Moscow, Russia',       species: ['Cats'],                 mutualConnections: 2,  verified: false, professional: true  },
-  { name: 'James Odhiambo',         role: 'Wildlife Conservation Officer · Big Cats',          location: 'Nairobi, Kenya',       species: ['Wildlife'],             mutualConnections: 9,  verified: true,  professional: true  },
-  { name: 'Mei Lin Zhang',          role: 'Pet Groomer & Caretaker · Premium Boarding',        location: 'Shanghai, China',      species: ['Dogs', 'Cats'],         mutualConnections: 1,  verified: false, professional: false },
-  { name: 'Arjun Patel',            role: 'Responsible Breeder · Golden Retrievers',            location: 'Pune, India',          species: ['Dogs'],                 mutualConnections: 7,  verified: true,  professional: true  },
-]
-
-const NEARBY = [
-  { name: 'Paws Rescue SF',        role: 'Animal Shelter & Rescue',       distance: '1.2 km' },
-  { name: 'Dr. Marcus Webb DVM',   role: 'Veterinary Clinic · All Species', distance: '2.8 km' },
-  { name: 'Bay Area Pet Trainers', role: 'Group Training & Boarding',      distance: '4.1 km' },
+const CATEGORY_FILTERS = [
+  { slug: 'all', label: 'All' },
+  { slug: 'veterinarian', label: 'Veterinarians' },
+  { slug: 'pet_care_service_provider', label: 'Pet Care' },
+  { slug: 'product_seller', label: 'Sellers' },
+  { slug: 'verified_news_publisher', label: 'News Publishers' },
+  { slug: 'personal', label: 'Pet Lovers' },
 ]
 
 export default function NetworkPage(): React.JSX.Element {
-  const [search, setSearch] = useState('')
-  const [activeRole, setActiveRole] = useState('All')
-  const [activeSpecies, setActiveSpecies] = useState<string[]>([])
+  // Support deep links from the header search: /network?q=term
+  const [search, setSearch] = useState<string>(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('q') ?? ''
+  })
+  const [activeCategory, setActiveCategory] = useState('all')
   const [verifiedOnly, setVerifiedOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const [suggestions, setSuggestions] = useState<FollowSuggestion[]>([])
+  const [searchResults, setSearchResults] = useState<FollowSuggestion[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [searching, setSearching] = useState(false)
 
-  function toggleSpecies(s: string): void {
-    setActiveSpecies((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
-  }
+  useEffect(() => {
+    let cancelled = false
+    networkApi.getSuggestions(24)
+      .then((data) => { if (!cancelled) setSuggestions(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
-  const filtered = SUGGESTIONS.filter((p) => {
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.role.toLowerCase().includes(search.toLowerCase())) return false
-    if (activeRole !== 'All' && !p.role.toLowerCase().includes(activeRole.toLowerCase())) return false
-    if (activeSpecies.length > 0 && !activeSpecies.some((s) => p.species.includes(s))) return false
-    if (verifiedOnly && !p.verified) return false
+  // Server-side search across ALL accounts (debounced) — not just suggestions
+  useEffect(() => {
+    let cancelled = false
+    const q = search.trim()
+
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      if (q.length < 2) {
+        setSearchResults(null)
+        setSearching(false)
+        return
+      }
+      setSearching(true)
+      networkApi.search(q, 20)
+        .then((data) => { if (!cancelled) setSearchResults(data) })
+        .catch(() => { if (!cancelled) setSearchResults([]) })
+        .finally(() => { if (!cancelled) setSearching(false) })
+    }, 350)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [search])
+
+  const isSearchMode = search.trim().length >= 2
+  const source = isSearchMode ? (searchResults ?? []) : suggestions
+
+  const filtered = source.filter((p) => {
+    if (activeCategory === 'personal' && p.isProfessional) return false
+    if (activeCategory !== 'all' && activeCategory !== 'personal' && p.professionalCategory !== activeCategory) return false
+    if (verifiedOnly && !p.isVerified) return false
     return true
   })
 
@@ -75,44 +102,19 @@ export default function NetworkPage(): React.JSX.Element {
                   </button>
                 </label>
 
-                {/* Nearby */}
-                <label className="flex items-center gap-2 text-label-md text-on-surface cursor-pointer">
-                  <MapPin className="w-4 h-4 text-outline" />Near me
-                </label>
-
-                {/* Role filter */}
+                {/* Category filter */}
                 <div>
-                  <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Role</p>
+                  <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Category</p>
                   <div className="space-y-1">
-                    {ROLE_FILTERS.map((r) => (
+                    {CATEGORY_FILTERS.map((c) => (
                       <button
-                        key={r}
-                        onClick={() => setActiveRole(r)}
+                        key={c.slug}
+                        onClick={() => setActiveCategory(c.slug)}
                         className={`w-full text-left px-3 py-2 rounded-lg text-label-md transition-colors cursor-pointer ${
-                          activeRole === r ? 'bg-primary/10 text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container'
+                          activeCategory === c.slug ? 'bg-primary/10 text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container'
                         }`}
                       >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Species filter */}
-                <div>
-                  <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Species</p>
-                  <div className="flex flex-wrap gap-2">
-                    {SPECIES_FILTERS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => toggleSpecies(s)}
-                        className={`px-3 py-1 rounded-full text-label-sm transition-colors cursor-pointer ${
-                          activeSpecies.includes(s)
-                            ? 'bg-primary text-white'
-                            : 'border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary'
-                        }`}
-                      >
-                        {s}
+                        {c.label}
                       </button>
                     ))}
                   </div>
@@ -122,7 +124,7 @@ export default function NetworkPage(): React.JSX.Element {
 
             {/* Center */}
             <div className="lg:col-span-6 space-y-gutter pb-20">
-              {/* Back button */}
+              {/* Back button + search */}
               <div className="flex items-center gap-3">
                 <Link
                   href="/"
@@ -136,7 +138,7 @@ export default function NetworkPage(): React.JSX.Element {
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by name, role, or species…"
+                    placeholder="Search by name, username, or category…"
                     className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-label-md focus:border-primary focus:outline-none transition-colors"
                   />
                 </div>
@@ -150,67 +152,51 @@ export default function NetworkPage(): React.JSX.Element {
 
               {/* Mobile filter chips */}
               {showFilters && (
-                <div className="lg:hidden bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 space-y-3">
+                <div className="lg:hidden bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4">
                   <div className="flex flex-wrap gap-2">
-                    {ROLE_FILTERS.map((r) => (
-                      <button key={r} onClick={() => setActiveRole(r)}
-                        className={`px-3 py-1 rounded-full text-label-sm transition-colors cursor-pointer ${activeRole === r ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}
-                      >{r}</button>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {SPECIES_FILTERS.map((s) => (
-                      <button key={s} onClick={() => toggleSpecies(s)}
-                        className={`px-3 py-1 rounded-full text-label-sm transition-colors cursor-pointer ${activeSpecies.includes(s) ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}
-                      >{s}</button>
+                    {CATEGORY_FILTERS.map((c) => (
+                      <button key={c.slug} onClick={() => setActiveCategory(c.slug)}
+                        className={`px-3 py-1 rounded-full text-label-sm transition-colors cursor-pointer ${activeCategory === c.slug ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}
+                      >{c.label}</button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Pending invitations */}
+              {/* Pending follow requests */}
               <PendingInvitations />
 
-              {/* People you may know */}
+              {/* Search results / People you may know */}
               <section>
                 <h2 className="font-headline text-headline-md text-on-surface mb-4">
-                  People you may know
-                  {filtered.length !== SUGGESTIONS.length && (
-                    <span className="ml-2 text-label-sm text-outline font-normal">({filtered.length} results)</span>
+                  {isSearchMode ? `Results for “${search.trim()}”` : 'People you may know'}
+                  {isSearchMode && !searching && (
+                    <span className="ml-2 text-label-sm text-outline font-normal">({filtered.length} found)</span>
                   )}
                 </h2>
-                {filtered.length === 0 ? (
-                  <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center text-outline">
-                    No results found — try adjusting your filters.
+                {(isSearchMode ? searching : loading) ? (
+                  <SkeletonPeopleGrid count={4} />
+                ) : filtered.length === 0 ? (
+                  <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center">
+                    <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
+                      <Users className="w-6 h-6 text-outline" />
+                    </div>
+                    <p className="text-label-md font-semibold text-on-surface">
+                      {isSearchMode ? 'No accounts found' : suggestions.length === 0 ? 'No suggestions yet' : 'No results found'}
+                    </p>
+                    <p className="text-label-sm text-outline mt-1 max-w-sm mx-auto">
+                      {isSearchMode
+                        ? 'Check the spelling or try a different name or username.'
+                        : suggestions.length === 0
+                          ? 'Follow a few people and we’ll suggest accounts based on your connections.'
+                          : 'Try adjusting your filters.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    {filtered.map((p) => <PeopleCard key={p.name} {...p} />)}
+                    {filtered.map((p) => <PeopleCard key={p.id} suggestion={p} />)}
                   </div>
                 )}
-              </section>
-
-              {/* Nearby professionals */}
-              <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-4">
-                <h2 className="font-headline text-headline-md text-on-surface mb-4 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-secondary" />Near you
-                </h2>
-                <div className="space-y-3">
-                  {NEARBY.map((n) => (
-                    <div key={n.name} className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-label-md text-on-surface">{n.name}</p>
-                        <p className="text-[11px] text-outline">{n.role}</p>
-                      </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="text-label-sm text-secondary font-semibold">{n.distance}</span>
-                        <button className="px-3 py-1.5 rounded-lg border border-primary text-primary text-label-sm hover:bg-primary/5 transition-colors cursor-pointer">
-                          Follow
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </section>
             </div>
 

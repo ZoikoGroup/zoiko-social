@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { MapPin, Link2, PawPrint, BookOpen, ShieldCheck, Stethoscope, Users } from 'lucide-react'
-import { PostCard } from './PostCard'
+import { useEffect, useState } from 'react'
+import { Link2, Calendar, AtSign, Briefcase, FileText, PawPrint, ImageIcon } from 'lucide-react'
+import { profileApi, type Profile, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
 
 type Tab = 'posts' | 'about' | 'pets' | 'media'
 
@@ -14,110 +13,89 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'media',  label: 'Media'  },
 ]
 
-const MEDIA_IMAGES = [
-  'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=300&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=300&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?w=300&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1548681528-6a5c45b66b42?w=300&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=300&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=300&h=300&fit=crop',
-]
+function EmptyState({ Icon, title, hint }: { Icon: typeof FileText; title: string; hint: string }): React.JSX.Element {
+  return (
+    <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
+      <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
+        <Icon className="w-6 h-6 text-outline" />
+      </div>
+      <p className="text-label-md font-semibold text-on-surface">{title}</p>
+      <p className="text-label-sm text-outline mt-1 max-w-xs mx-auto">{hint}</p>
+    </div>
+  )
+}
 
-const PETS = [
-  { name: 'Luna',  species: 'Cat · Domestic Shorthair', initials: 'LU', color: 'bg-primary/10 text-primary' },
-  { name: 'Bruno', species: 'Dog · Labrador Mix',       initials: 'BR', color: 'bg-secondary/10 text-secondary' },
-]
+function AboutTab({ profile }: { profile: Profile | null }): React.JSX.Element {
+  if (!profile) {
+    return <EmptyState Icon={FileText} title="No details yet" hint="Profile information will appear here." />
+  }
 
-function AboutTab(): React.JSX.Element {
+  const categoryLabel = profile.professionalProfile
+    ? (PROFESSIONAL_CATEGORY_LABELS[profile.professionalProfile.category] ?? profile.professionalProfile.category)
+    : null
+
   return (
     <div className="space-y-gutter">
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
         <h3 className="text-label-md font-bold text-on-surface mb-4">Overview</h3>
         <div className="space-y-3 text-label-md text-on-surface-variant">
-          <div className="flex items-center gap-3"><MapPin className="w-4 h-4 text-outline flex-shrink-0" />San Francisco, CA</div>
-          <div className="flex items-center gap-3"><Link2 className="w-4 h-4 text-outline flex-shrink-0" />alexrivera.pets</div>
-          <div className="flex items-center gap-3"><Stethoscope className="w-4 h-4 text-outline flex-shrink-0" />Pet Nutrition Specialist · 8 years experience</div>
-          <div className="flex items-center gap-3"><Users className="w-4 h-4 text-outline flex-shrink-0" />Member of Emergency Rescuers, Holistic Pet Nutrition</div>
-        </div>
-      </section>
-
-      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
-        <h3 className="text-label-md font-bold text-on-surface mb-4">Expertise & Species</h3>
-        <div className="flex flex-wrap gap-2">
-          {['Cats', 'Dogs', 'Small Mammals', 'Holistic Nutrition', 'Rescue Rehabilitation', 'Foster Care', 'Animal Welfare Policy'].map((tag) => (
-            <span key={tag} className="px-3 py-1 bg-surface-container text-on-surface-variant text-label-sm rounded-full border border-outline-variant/30">
-              {tag}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
-        <h3 className="text-label-md font-bold text-on-surface mb-4">Communities</h3>
-        <div className="space-y-3">
-          {['Emergency Rescuers', 'Holistic Pet Nutrition', 'Veterinary Insights'].map((c) => (
-            <div key={c} className="flex items-center justify-between">
-              <span className="text-label-md text-on-surface">{c}</span>
-              <span className="text-label-sm text-outline">Member</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function PetsTab(): React.JSX.Element {
-  return (
-    <div className="space-y-3">
-      {PETS.map((pet) => (
-        <div key={pet.name} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm flex items-center gap-4">
-          <div className={`w-12 h-12 rounded-full ${pet.color} flex items-center justify-center font-bold text-sm border border-outline-variant`}>
-            {pet.initials}
+          <div className="flex items-center gap-3">
+            <AtSign className="w-4 h-4 text-outline flex-shrink-0" />@{profile.username}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-label-md text-on-surface">{pet.name}</p>
-            <p className="text-label-sm text-outline">{pet.species}</p>
-            <div className="flex gap-4 mt-2">
-              <Link href="/pet-diary" className="flex items-center gap-1 text-label-sm text-primary hover:underline">
-                <BookOpen className="w-3.5 h-3.5" />Diary
-              </Link>
-              <Link href="/health-passport" className="flex items-center gap-1 text-label-sm text-primary hover:underline">
-                <ShieldCheck className="w-3.5 h-3.5" />Health Passport
-              </Link>
+          {profile.websiteUrl && (
+            <div className="flex items-center gap-3">
+              <Link2 className="w-4 h-4 text-outline flex-shrink-0" />
+              <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:text-primary hover:underline">
+                {profile.websiteUrl.replace(/^https?:\/\//, '')}
+              </a>
             </div>
+          )}
+          {categoryLabel && (
+            <div className="flex items-center gap-3">
+              <Briefcase className="w-4 h-4 text-outline flex-shrink-0" />
+              {categoryLabel}
+              {profile.professionalProfile?.businessName && ` · ${profile.professionalProfile.businessName}`}
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <Calendar className="w-4 h-4 text-outline flex-shrink-0" />
+            Joined {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </div>
-          <PawPrint className="w-5 h-5 text-outline/40 flex-shrink-0" />
         </div>
-      ))}
-      <button className="w-full py-3 rounded-xl border-2 border-dashed border-outline-variant text-outline hover:border-primary hover:text-primary transition-colors text-label-md cursor-pointer">
-        + Add a pet
-      </button>
+      </section>
+
+      {profile.bio && (
+        <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
+          <h3 className="text-label-md font-bold text-on-surface mb-3">Bio</h3>
+          <p className="text-body-md text-on-surface-variant leading-relaxed">{profile.bio}</p>
+        </section>
+      )}
+
+      {profile.professionalProfile?.description && (
+        <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
+          <h3 className="text-label-md font-bold text-on-surface mb-3">About the business</h3>
+          <p className="text-body-md text-on-surface-variant leading-relaxed">{profile.professionalProfile.description}</p>
+        </section>
+      )}
     </div>
   )
 }
 
-function MediaTab(): React.JSX.Element {
-  return (
-    <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-3 gap-0.5">
-        {MEDIA_IMAGES.map((src, i) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={i}
-            src={src}
-            alt={`Media ${i + 1}`}
-            className="w-full aspect-square object-cover hover:opacity-90 transition-opacity cursor-pointer"
-            loading="lazy"
-          />
-        ))}
-      </div>
-    </div>
-  )
+interface ProfileTabsProps {
+  /** Omit to show the signed-in user's own profile. */
+  profileId?: string | undefined
 }
 
-export function ProfileTabs(): React.JSX.Element {
+export function ProfileTabs({ profileId }: ProfileTabsProps): React.JSX.Element {
   const [active, setActive] = useState<Tab>('posts')
+  const [profile, setProfile] = useState<Profile | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = profileId ? profileApi.getById(profileId) : profileApi.getMe()
+    load.then((p) => { if (!cancelled) setProfile(p) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [profileId])
 
   return (
     <div className="space-y-gutter">
@@ -140,11 +118,17 @@ export function ProfileTabs(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Content */}
-      {active === 'posts'  && <PostCard />}
-      {active === 'about'  && <AboutTab />}
-      {active === 'pets'   && <PetsTab />}
-      {active === 'media'  && <MediaTab />}
+      {/* Content — posts/pets/media render real data once their modules ship */}
+      {active === 'posts' && (
+        <EmptyState Icon={FileText} title="No posts yet" hint="Posts will appear here once shared." />
+      )}
+      {active === 'about' && <AboutTab profile={profile} />}
+      {active === 'pets' && (
+        <EmptyState Icon={PawPrint} title="No pets added yet" hint="Pet profiles with diary and health passport will appear here." />
+      )}
+      {active === 'media' && (
+        <EmptyState Icon={ImageIcon} title="No media yet" hint="Photos and videos from posts will appear here." />
+      )}
     </div>
   )
 }

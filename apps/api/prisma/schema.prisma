@@ -1,0 +1,443 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// ZoikoSocial — Prisma Schema
+// Primary ORM for all server-side database access in NestJS.
+// Supabase is used for Auth, Storage, and RLS (defense-in-depth).
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum UserState {
+  active
+  suspended
+  banned
+  deleted
+
+  @@map("user_state")
+}
+
+enum UserRole {
+  user
+  moderator
+  admin
+  super_admin
+
+  @@map("user_role")
+}
+
+enum VerificationTier {
+  none
+  email
+  phone
+  identity
+  professional
+
+  @@map("verification_tier")
+}
+
+enum VerificationState {
+  unverified
+  pending
+  verified
+  rejected
+
+  @@map("verification_state")
+}
+
+enum PostType {
+  text
+  image
+  video
+  reel
+  story
+
+  @@map("post_type")
+}
+
+enum PostVisibility {
+  public
+  followers
+  community
+  private
+
+  @@map("post_visibility")
+}
+
+enum ConversationType {
+  dm
+  group
+  community
+
+  @@map("conversation_type")
+}
+
+enum AnimalCategory {
+  dog
+  cat
+  bird
+  rabbit
+  hamster
+  guinea_pig
+  fish
+  reptile
+  horse
+  farm_animal
+  exotic
+  other
+
+  @@map("animal_category")
+}
+
+enum LostFoundStatus {
+  active
+  resolved
+
+  @@map("lost_found_status")
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  in_progress
+  completed
+  cancelled
+
+  @@map("booking_status")
+}
+
+enum ReviewState {
+  pending
+  approved
+  rejected
+
+  @@map("review_state")
+}
+
+enum HealthCertState {
+  none
+  pending
+  approved
+  expired
+
+  @@map("health_cert_state")
+}
+
+// ── Profile & Network Enums ────────────────────────────────────────────────
+
+enum ProfessionalCategory {
+  verified_news_publisher
+  product_seller
+  pet_care_service_provider
+  veterinarian
+
+  @@map("professional_category")
+}
+
+enum VerificationRequestStatus {
+  pending
+  under_review
+  approved
+  rejected
+  additional_info_required
+
+  @@map("verification_request_status")
+}
+
+enum FollowStatus {
+  active
+  blocked
+
+  @@map("follow_status")
+}
+
+enum FollowRequestStatus {
+  pending
+  accepted
+  rejected
+
+  @@map("follow_request_status")
+}
+
+// ── PROFILES MODULE ─────────────────────────────────────────────────────────
+
+model Profile {
+  id                String           @id @default(uuid())
+  username          String           @unique
+  displayName       String           @map("display_name")
+  bio               String?
+  avatarUrl         String?          @map("avatar_url")
+  websiteUrl        String?          @map("website_url")
+  state             UserState        @default(active)
+  role              UserRole         @default(user)
+  verificationTier  VerificationTier @default(none) @map("verification_tier")
+  isPrivate         Boolean          @default(false) @map("is_private")
+  followersCount    Int              @default(0) @map("followers_count")
+  followingCount    Int              @default(0) @map("following_count")
+  postsCount        Int              @default(0) @map("posts_count")
+  trustScore        Int              @default(100) @map("trust_score")
+  usernameChangedAt DateTime?        @map("username_changed_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // ── Profile Module Relations ──
+  professionalProfile   ProfessionalProfile?
+  verificationRequests  VerificationRequest[]
+
+  // ── Network Module Relations ──
+  followsAsFollower       Follow[] @relation("FollowAsFollower")
+  followsAsFollowing      Follow[] @relation("FollowAsFollowing")
+  followRequestsSent      FollowRequest[] @relation("FollowRequestSender")
+  followRequestsReceived  FollowRequest[] @relation("FollowRequestReceiver")
+  blockedUsers            BlockedUser[] @relation("BlockedUser")
+  blockedByUsers          BlockedUser[] @relation("BlockedByUser")
+  mutedUsers              MutedUser[] @relation("MutedUser")
+  mutedByUsers            MutedUser[] @relation("MutedByUser")
+
+  // ── Core Relations ──
+  posts           Post[]
+  notifications   Notification[]
+  userRoles       UserRoleAssignment[]
+  auditLogs       AuditLog[]
+
+  @@map("profiles")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  role      UserRole
+  isActive  Boolean  @default(true) @map("is_active")
+  grantedBy String?  @map("granted_by")
+  grantedAt DateTime @default(now()) @map("granted_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_roles")
+}
+
+// ── PROFESSIONAL PROFILE ────────────────────────────────────────────────────
+
+model ProfessionalProfile {
+  id             String               @id @default(uuid())
+  userId         String               @unique @map("user_id")
+  category       ProfessionalCategory
+  businessName   String?              @map("business_name")
+  businessEmail  String?              @map("business_email")
+  businessPhone  String?              @map("business_phone")
+  businessAddress String?             @map("business_address")
+  description    String?
+  websiteUrl     String?              @map("website_url")
+  logoUrl        String?              @map("logo_url")
+  taxId          String?              @map("tax_id")
+  licenseNumber  String?              @map("license_number")
+  serviceAreas   String[]             @map("service_areas")
+  businessHours  Json?                @map("business_hours")
+  isVerified     Boolean              @default(false) @map("is_verified")
+  verifiedAt     DateTime?            @map("verified_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  deletedAt      DateTime?            @map("deleted_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("professional_profiles")
+}
+
+model ProfessionalSetting {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  showEmail Boolean  @default(false) @map("show_email")
+  showPhone Boolean  @default(false) @map("show_phone")
+  showAddress Boolean @default(false) @map("show_address")
+  availableForBooking Boolean @default(true) @map("available_for_booking")
+  notificationPreferences Json? @map("notification_preferences")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("professional_settings")
+}
+
+model ProfessionalPermission {
+  id           String   @id @default(uuid())
+  categorySlug String   @map("category_slug")
+  permission   String
+  description  String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([categorySlug, permission])
+  @@map("professional_permissions")
+}
+
+// ── VERIFICATION ───────────────────────────────────────────────────────────
+
+model VerificationRequest {
+  id              String                    @id @default(uuid())
+  userId          String                    @map("user_id")
+  type            String                    // 'professional', 'identity', 'organization'
+  status          VerificationRequestStatus @default(pending)
+  categorySlug    String?                   @map("category_slug")
+  notes           String?
+  reviewedBy      String?                   @map("reviewed_by")
+  reviewedAt      DateTime?                 @map("reviewed_at")
+  rejectionReason String?                   @map("rejection_reason")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+
+  user      Profile                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents VerificationDocument[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("verification_requests")
+}
+
+model VerificationDocument {
+  id           String   @id @default(uuid())
+  requestId    String   @map("request_id")
+  documentType String   @map("document_type")
+  documentUrl  String   @map("document_url")
+  fileName     String?  @map("file_name")
+  fileSize     Int?     @map("file_size")
+  mimeType     String?  @map("mime_type")
+  status       String   @default("pending")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  request VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("verification_documents")
+}
+
+// ── NETWORK MODULE ─────────────────────────────────────────────────────────
+
+model Follow {
+  followerId  String       @map("follower_id")
+  followingId String       @map("following_id")
+  status      FollowStatus @default(active)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  follower  Profile @relation("FollowAsFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following Profile @relation("FollowAsFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model FollowRequest {
+  id         String              @id @default(uuid())
+  senderId   String              @map("sender_id")
+  receiverId String              @map("receiver_id")
+  status     FollowRequestStatus @default(pending)
+  message    String?
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  sender   Profile @relation("FollowRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver Profile @relation("FollowRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@map("follow_requests")
+}
+
+model BlockedUser {
+  blockerId String   @map("blocker_id")
+  blockedId String   @map("blocked_id")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blocker Profile @relation("BlockedUser", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked Profile @relation("BlockedByUser", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@map("blocked_users")
+}
+
+model MutedUser {
+  muterId  String   @map("muter_id")
+  mutedId  String   @map("muted_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  muter Profile @relation("MutedUser", fields: [muterId], references: [id], onDelete: Cascade)
+  muted Profile @relation("MutedByUser", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@id([muterId, mutedId])
+  @@map("muted_users")
+}
+
+// ── SOCIAL FEED (minimal for profile display) ──────────────────────────────
+
+model Post {
+  id             String         @id @default(uuid())
+  authorId       String         @map("author_id")
+  type           PostType       @default(text)
+  body           String?
+  mediaUrls      String[]       @map("media_urls")
+  visibility     PostVisibility @default(public)
+  likesCount     Int            @default(0) @map("likes_count")
+  commentsCount  Int            @default(0) @map("comments_count")
+  sharesCount    Int            @default(0) @map("shares_count")
+  safetyCleared  Boolean        @default(false) @map("safety_cleared")
+  isDeleted      Boolean        @default(false) @map("is_deleted")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  author Profile @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([visibility])
+  @@map("posts")
+}
+
+// ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  body      String?
+  data      Json?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ── AUDIT LOG ──────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldData    Json?    @map("old_data")
+  newData    Json?    @map("new_data")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor Profile? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}

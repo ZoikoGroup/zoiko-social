@@ -9,6 +9,7 @@ import {
 import { SUPABASE_ADMIN_CLIENT } from '../database/database.providers'
 import type { SupabaseAdminClient } from '../database/database.providers'
 import { ConfigService } from '../config/config.service'
+import { PrismaService } from '../prisma/prisma.service'
 
 @Injectable()
 export class AuthService {
@@ -18,6 +19,7 @@ export class AuthService {
     @Inject(SUPABASE_ADMIN_CLIENT)
     private readonly supabaseAdmin: SupabaseAdminClient,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async register(email: string, password: string, displayName?: string) {
@@ -55,17 +57,43 @@ export class AuthService {
     }
   }
 
-  async login(email: string, password: string) {
-    const { data, error } = await this.supabaseAdmin.auth.signInWithPassword({
-      email,
-      password,
+  /**
+   * Sign in with email, username, or phone number.
+   * Usernames are resolved server-side so the username→email mapping is
+   * never exposed to clients before a successful password check.
+   */
+  async login(identifier: string, password: string) {
+    const trimmed = identifier.trim()
+    const invalidCredentials = new UnauthorizedException({
+      code: 'INVALID_CREDENTIALS',
+      message: 'Invalid credentials',
     })
 
-    if (error || !data.session) {
-      throw new UnauthorizedException({
-        code: 'INVALID_CREDENTIALS',
-        message: 'Invalid email or password',
+    let credentials: { email: string; password: string } | { phone: string; password: string }
+
+    if (trimmed.includes('@')) {
+      credentials = { email: trimmed.toLowerCase(), password }
+    } else if (/^\+?[0-9()\s-]{7,20}$/.test(trimmed)) {
+      credentials = { phone: trimmed.replace(/[()\s-]/g, ''), password }
+    } else {
+      // Username → resolve to the account's email
+      const profile = await this.prisma.profile.findUnique({
+        where: { username: trimmed.toLowerCase() },
+        select: { id: true },
       })
+
+      if (!profile) throw invalidCredentials
+
+      const { data: userData, error: userError } = await this.supabaseAdmin.auth.admin.getUserById(profile.id)
+      if (userError || !userData.user?.email) throw invalidCredentials
+
+      credentials = { email: userData.user.email, password }
+    }
+
+    const { data, error } = await this.supabaseAdmin.auth.signInWithPassword(credentials)
+
+    if (error || !data.session) {
+      throw invalidCredentials
     }
 
     return {

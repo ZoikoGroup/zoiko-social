@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZoikoSocial | Professional Pet Community</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;family=Source+Serif+4:opsz,wght@8..60,400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "outline-variant": "#dbc1ba",
+                        "outline": "#88726c",
+                        "primary-fixed": "#ffdbd1",
+                        "primary-fixed-dim": "#ffb5a0",
+                        "on-secondary-fixed": "#002108",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#a09981",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed": "#1f1c0b",
+                        "secondary-container": "#c2eac1",
+                        "surface-tint": "#99452c",
+                        "on-background": "#161d1d",
+                        "surface-bright": "#f4fbfa",
+                        "primary-container": "#e27d60",
+                        "tertiary-fixed-dim": "#cec6ad",
+                        "background": "#f4fbfa",
+                        "tertiary": "#645e49",
+                        "on-surface-variant": "#55433d",
+                        "inverse-primary": "#ffb5a0",
+                        "on-secondary-fixed-variant": "#2c4e30",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#161d1d",
+                        "on-primary-fixed-variant": "#7b2e17",
+                        "tertiary-fixed": "#ebe2c8",
+                        "on-secondary-container": "#486b4a",
+                        "on-error-container": "#93000a",
+                        "surface-variant": "#dde4e3",
+                        "secondary": "#436646",
+                        "surface": "#f4fbfa",
+                        "surface-container-low": "#eef5f4",
+                        "surface-container-highest": "#dde4e3",
+                        "on-tertiary-container": "#36311f",
+                        "on-primary-container": "#5d1904",
+                        "secondary-fixed": "#c5edc4",
+                        "surface-container": "#e8efef",
+                        "on-primary-fixed": "#3b0900",
+                        "inverse-surface": "#2b3232",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#4c4733",
+                        "surface-container-high": "#e3e9ea",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "primary": "#99452c",
+                        "inverse-on-surface": "#ebf2f2",
+                        "surface-dim": "#d4dbdb",
+                        "secondary-fixed-dim": "#a9d1a9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "label-sm": ["Manrope"],
+                        "headline-lg": ["\"Source Serif 4\""],
+                        "headline-xl": ["\"Source Serif 4\""],
+                        "label-md": ["Manrope"],
+                        "body-md": ["Manrope"],
+                        "headline-md": ["\"Source Serif 4\""],
+                        "body-lg": ["Manrope"]
+                    },
+                    "fontSize": {
+                        "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-xl": ["48px", {"lineHeight": "56px", "fontWeight": "700"}],
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.02em", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f4fbfa;
+            color: #161d1d;
+        }
+        .story-gradient {
+            background: linear-gradient(45deg, #99452c, #436646);
+            padding: 2px;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #dbc1ba; border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased">
+<header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest border-b border-outline-variant/30 h-16">
+<div class="flex justify-between items-center w-full px-margin-desktop h-full max-w-container-max mx-auto">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[32px]">pets</span>
+<span class="hidden md:block font-headline-md text-primary font-bold tracking-tight">ZoikoSocial</span>
+</div>
+<div class="hidden lg:flex relative w-80">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="pl-10 pr-4 py-1.5 w-full bg-surface-container-low border border-transparent focus:border-primary focus:ring-0 rounded-lg text-label-md transition-all" placeholder="Search professional network" type="text"/>
+</div>
+</div>
+<nav class="flex items-center gap-1 md:gap-4 h-full">
+<a class="flex flex-col items-center justify-center min-w-[64px] h-full text-primary border-b-2 border-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-[10px] font-bold">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center min-w-[64px] h-full text-on-surface-variant hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="text-[10px]">Network</span>
+</a>
+<a class="flex flex-col items-center justify-center min-w-[64px] h-full text-on-surface-variant hover:text-primary transition-colors relative" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="text-[10px]">Messaging</span>
+</a>
+<a class="flex flex-col items-center justify-center min-w-[64px] h-full text-on-surface-variant hover:text-primary transition-colors relative" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-5 w-2 h-2 bg-primary rounded-full"></span>
+<span class="text-[10px]">Notifications</span>
+</a>
+<div class="h-8 w-[1px] bg-outline-variant mx-2 hidden sm:block"></div>
+<button class="flex items-center gap-2 p-1.5 hover:bg-surface-container rounded-lg transition-colors">
+<img class="w-8 h-8 rounded-full border border-outline-variant object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9D_W2JoKsTwtxXuRU6E413tDWrN2E-JKa4UW7p-jgVpiO_ukhfEXEWin_xI2i9cB0Mirufi4rBTk0PrJW9vmw9SusXa0PXxC4H1iudPog6y9qGfHPHIp0IXKb4F5wPE60OPWphx2EGjix_r3Iau7broU4v0QaFQIHMgf43zYvSFnsLcWhPM5yVyZuXVgObwpLV_MH4Jb0OGDQ8UvV7uD8fA-nEXsl7nOVFRcPN94jqboUME8XK8GmTnI8ISA2XOGsLe4_3Wnibnun"/>
+<span class="hidden xl:block text-label-md font-bold">Me</span>
+</button>
+</nav>
+</div>
+</header>
+<main class="pt-20 min-h-screen bg-background">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+<div class="lg:col-span-3 space-y-gutter hidden lg:block">
+<section class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
+<div class="h-16 bg-primary-container/20"></div>
+<div class="px-4 pb-4 -mt-8 flex flex-col items-center">
+<div class="w-16 h-16 rounded-full border-4 border-surface-container-lowest overflow-hidden shadow-md">
+<img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9D_W2JoKsTwtxXuRU6E413tDWrN2E-JKa4UW7p-jgVpiO_ukhfEXEWin_xI2i9cB0Mirufi4rBTk0PrJW9vmw9SusXa0PXxC4H1iudPog6y9qGfHPHIp0IXKb4F5wPE60OPWphx2EGjix_r3Iau7broU4v0QaFQIHMgf43zYvSFnsLcWhPM5yVyZuXVgObwpLV_MH4Jb0OGDQ8UvV7uD8fA-nEXsl7nOVFRcPN94jqboUME8XK8GmTnI8ISA2XOGsLe4_3Wnibnun"/>
+</div>
+<h2 class="mt-3 font-headline-md text-headline-md text-on-surface">Alex Rivera</h2>
+<p class="text-label-sm text-outline text-center">Pet Nutrition Specialist &amp; Animal Rescue Advocate</p>
+<div class="w-full h-[1px] bg-outline-variant/30 my-4"></div>
+<div class="w-full space-y-2">
+<div class="flex justify-between items-center text-label-md">
+<span class="text-on-surface-variant">Profile views</span>
+<span class="text-primary font-bold">142</span>
+</div>
+<div class="flex justify-between items-center text-label-md">
+<span class="text-on-surface-variant">Post impressions</span>
+<span class="text-primary font-bold">2.4k</span>
+</div>
+</div>
+</div>
+</section>
+<section class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
+<h3 class="text-label-md font-bold mb-4 flex items-center justify-between">
+                        Professional Groups
+                        <button class="material-symbols-outlined text-[18px]">add</button>
+</h3>
+<div class="space-y-4">
+<a class="flex items-center gap-3 group" href="#">
+<div class="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+</div>
+<span class="text-label-md group-hover:text-primary transition-colors truncate">Emergency Rescuers</span>
+</a>
+<a class="flex items-center gap-3 group" href="#">
+<div class="w-8 h-8 rounded-lg bg-tertiary-container/30 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[18px]">stethoscope</span>
+</div>
+<span class="text-label-md group-hover:text-primary transition-colors truncate">Veterinary Insights</span>
+</a>
+<a class="flex items-center gap-3 group" href="#">
+<div class="w-8 h-8 rounded-lg bg-outline-variant/20 flex items-center justify-center text-outline">
+<span class="material-symbols-outlined text-[18px]">restaurant</span>
+</div>
+<span class="text-label-md group-hover:text-primary transition-colors truncate">Holistic Pet Nutrition</span>
+</a>
+</div>
+<button class="w-full mt-4 py-2 text-label-sm font-bold text-outline hover:bg-surface-container transition-colors rounded-lg border border-transparent">
+                        Discover more
+                    </button>
+</section>
+</div>
+<div class="lg:col-span-6 space-y-gutter pb-20">
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/10 flex gap-4 overflow-x-auto no-scrollbar shadow-sm">
+<div class="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+<div class="w-14 h-14 rounded-full p-0.5 border-2 border-dashed border-outline-variant relative">
+<img class="w-full h-full rounded-full object-cover" src="avatar_url"/>
+<div class="absolute bottom-0 right-0 bg-primary text-white rounded-full w-4 h-4 flex items-center justify-center border-2 border-surface-container-lowest">
+<span class="material-symbols-outlined text-[10px] font-bold">add</span>
+</div>
+</div>
+<span class="text-[10px] text-on-surface-variant font-medium">Post Story</span>
+</div>
+<div class="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+<div class="w-14 h-14 rounded-full story-gradient"><div class="bg-surface-container-lowest w-full h-full rounded-full p-0.5"><img class="w-full h-full rounded-full object-cover" src="avatar2_url"/></div></div>
+<span class="text-[10px] text-on-surface-variant">RescueMata</span>
+</div>
+<div class="flex flex-col items-center gap-1 flex-shrink-0 cursor-pointer">
+<div class="w-14 h-14 rounded-full story-gradient"><div class="bg-surface-container-lowest w-full h-full rounded-full p-0.5"><img class="w-full h-full rounded-full object-cover" src="avatar3_url"/></div></div>
+<span class="text-[10px] text-on-surface-variant">DrVetara</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-sm flex flex-col gap-3">
+<div class="flex gap-3">
+<img class="w-10 h-10 rounded-full border border-outline-variant object-cover" src="profile_url"/>
+<button class="flex-1 text-left px-4 py-2.5 bg-surface-container-low hover:bg-surface-variant/50 transition-colors rounded-full text-on-surface-variant text-label-md border border-outline-variant/20">
+                            Share an update, rescue case, or expert tip...
+                        </button>
+</div>
+<div class="flex justify-between px-2">
+<button class="flex items-center gap-2 text-label-md text-on-surface-variant font-bold hover:bg-surface-container p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-primary">image</span> Media
+                        </button>
+<button class="flex items-center gap-2 text-label-md text-on-surface-variant font-bold hover:bg-surface-container p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-secondary">event</span> Event
+                        </button>
+<button class="flex items-center gap-2 text-label-md text-on-surface-variant font-bold hover:bg-surface-container p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-tertiary">article</span> Write Article
+                        </button>
+</div>
+</div>
+<article class="bg-surface-container-lowest rounded-xl border border-outline-variant/20 shadow-sm overflow-hidden">
+<div class="p-4 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="relative">
+<div class="w-10 h-10 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" src="post_avatar_url"/>
+</div>
+<span class="absolute -bottom-1 -right-1 material-symbols-outlined text-primary bg-surface-container-lowest rounded-full text-[16px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-bold text-label-md text-on-surface">RescueMata Foundation</span>
+<span class="px-1.5 py-0.5 bg-secondary-container text-on-secondary-container text-[10px] rounded font-bold uppercase tracking-wider">Verified Rescue Org</span>
+</div>
+<span class="text-[11px] text-outline">San Francisco • 2 hours ago</span>
+</div>
+</div>
+<button class="material-symbols-outlined text-outline hover:text-on-surface">more_horiz</button>
+</div>
+<div class="px-4 pb-3">
+<p class="text-body-md text-on-surface">Meet Cleo — a 2-year-old domestic shorthair rescued from the Riverside storm drain. Her recovery is a testament to our team's dedication. #AnimalRescue #CatCare</p>
+</div>
+<div class="aspect-square bg-surface-container">
+<img class="w-full h-full object-cover" src="post_image_url"/>
+</div>
+<div class="p-4 space-y-3">
+<div class="flex items-center justify-between border-b border-outline-variant/10 pb-3">
+<div class="flex items-center gap-6">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors group">
+<span class="material-symbols-outlined text-[24px] group-hover:scale-110 transition-transform">thumb_up</span>
+<span class="text-label-md font-bold">Like</span>
+</button>
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-secondary transition-colors group">
+<span class="material-symbols-outlined text-[24px] group-hover:scale-110 transition-transform">chat_bubble</span>
+<span class="text-label-md font-bold">Comment</span>
+</button>
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors group">
+<span class="material-symbols-outlined text-[24px] group-hover:scale-110 transition-transform">share</span>
+<span class="text-label-md font-bold">Share</span>
+</button>
+</div>
+<button class="material-symbols-outlined text-[24px] text-on-surface-variant hover:text-primary">bookmark</button>
+</div>
+<div class="flex items-center gap-2 text-label-sm text-outline">
+<div class="flex -space-x-2">
+<div class="w-5 h-5 rounded-full border border-surface bg-primary text-white flex items-center justify-center scale-90"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings: 'FILL' 1;">thumb_up</span></div>
+<div class="w-5 h-5 rounded-full border border-surface bg-secondary text-white flex items-center justify-center scale-90"><span class="material-symbols-outlined text-[10px]" style="font-variation-settings: 'FILL' 1;">favorite</span></div>
+</div>
+<span>1,248 professionals liked this</span>
+</div>
+</div>
+</article>
+</div>
+<div class="lg:col-span-3 space-y-gutter hidden xl:block">
+<section class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
+<h3 class="text-label-md font-bold mb-4 flex items-center justify-between">
+                        Professional Suggestions
+                        <span class="material-symbols-outlined text-outline text-[18px]">info</span>
+</h3>
+<div class="space-y-4">
+<div class="flex items-start gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-outline-variant" src="suggest1_url"/>
+<div class="flex flex-col flex-1">
+<span class="text-label-md font-bold truncate">Dr. Sarah Vance</span>
+<span class="text-[11px] text-outline leading-tight">Chief Vet at Paws Clinic</span>
+<button class="mt-2 w-fit px-3 py-1 border border-primary text-primary rounded-full text-label-sm font-bold hover:bg-primary/5 transition-colors">
+                                    + Follow
+                                </button>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<img class="w-10 h-10 rounded-full object-cover border border-outline-variant" src="suggest2_url"/>
+<div class="flex flex-col flex-1">
+<span class="text-label-md font-bold truncate">Mark Thompson</span>
+<span class="text-[11px] text-outline leading-tight">K9 Behavioral Analyst</span>
+<button class="mt-2 w-fit px-3 py-1 border border-primary text-primary rounded-full text-label-sm font-bold hover:bg-primary/5 transition-colors">
+                                    + Follow
+                                </button>
+</div>
+</div>
+</div>
+</section>
+<section class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
+<h3 class="text-label-md font-bold mb-4">Trending in Animal Welfare</h3>
+<div class="space-y-4">
+<div class="flex flex-col gap-0.5">
+<span class="text-label-sm text-outline">#RescueTech</span>
+<span class="text-label-md font-bold text-on-surface hover:underline cursor-pointer">AI in Shelter Management</span>
+<span class="text-[10px] text-outline">2.5k professionals discussing</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="text-label-sm text-outline">#VetCare2024</span>
+<span class="text-label-md font-bold text-on-surface hover:underline cursor-pointer">Telemedicine for Rural Areas</span>
+<span class="text-[10px] text-outline">1.2k professionals discussing</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="text-label-sm text-outline">#PetPolicy</span>
+<span class="text-label-md font-bold text-on-surface hover:underline cursor-pointer">Global Standards for Ethics</span>
+<span class="text-[10px] text-outline">845 professionals discussing</span>
+</div>
+</div>
+</section>
+<footer class="flex flex-wrap gap-x-4 gap-y-2 px-2 text-[11px] text-outline">
+<a class="hover:text-primary hover:underline" href="#">About</a>
+<a class="hover:text-primary hover:underline" href="#">Accessibility</a>
+<a class="hover:text-primary hover:underline" href="#">Help Center</a>
+<a class="hover:text-primary hover:underline" href="#">Privacy &amp; Terms</a>
+<a class="hover:text-primary hover:underline" href="#">Ad Choices</a>
+<p class="mt-2 w-full">ZoikoSocial © 2024</p>
+</footer>
+</div>
+</div>
+</main>
+<button class="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center active:scale-95 transition-transform z-50">
+<span class="material-symbols-outlined text-[32px]">edit</span>
+</button>
+<nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-lowest border-t border-outline-variant flex items-center justify-around px-4 z-50">
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="text-[10px] font-bold">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">groups</span>
+<span class="text-[10px]">Network</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant relative">
+<span class="material-symbols-outlined">add_box</span>
+<span class="text-[10px]">Post</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-0 right-1 w-2 h-2 bg-primary rounded-full"></span>
+<span class="text-[10px]">Alerts</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-on-surface-variant">
+<div class="w-6 h-6 rounded-full overflow-hidden border border-outline">
+<img class="w-full h-full object-cover" src="profile_small_url"/>
+</div>
+<span class="text-[10px]">Profile</span>
+</button>
+</nav>
+<script>
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput?.addEventListener('focus', () => searchInput.parentElement.classList.add('w-[400px]'));
+        searchInput?.addEventListener('blur', () => searchInput.parentElement.classList.remove('w-[400px]'));
+        const scrollContainer = document.querySelector('.no-scrollbar');
+        scrollContainer?.addEventListener('wheel', (evt) => {
+            evt.preventDefault();
+            scrollContainer.scrollLeft += evt.deltaY;
+        });
+    </script>
+</body></html>

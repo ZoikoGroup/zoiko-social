@@ -81,30 +81,34 @@ export default function AuthCallbackPage(): React.JSX.Element {
 
   if (error) {
     return (
-      <div className="p-8 md:p-10 space-y-6 text-center">
-        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-          <AlertTriangle className="w-8 h-8 text-red-600" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface rounded-xl shadow-sm border border-outline-variant/40 p-8 md:p-10 space-y-6 text-center">
+          <div className="w-16 h-16 bg-error-container rounded-full flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-8 h-8 text-error" />
+          </div>
+          <h2 className="text-headline-md text-on-surface">Sign-in failed</h2>
+          <p className="text-body-md text-on-surface-variant">{error}</p>
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="w-full bg-primary text-on-primary rounded-lg px-4 py-2.5 text-label-md font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {retrying ? 'Retrying...' : 'Try Again'}
+          </button>
         </div>
-        <h2 className="text-xl font-bold text-teal-deep">Sign-in failed</h2>
-        <p className="text-sm text-gray-500">{error}</p>
-        <button
-          onClick={handleRetry}
-          disabled={retrying}
-          className="w-full px-4 py-2.5 bg-amber-light text-teal-deep font-semibold rounded-lg hover:bg-amber transition-colors disabled:opacity-50"
-        >
-          {retrying ? 'Retrying...' : 'Try Again'}
-        </button>
       </div>
     )
   }
 
   return (
-    <div className="p-8 md:p-10 space-y-6 text-center">
-      <div className="w-16 h-16 bg-teal-pale rounded-full flex items-center justify-center mx-auto animate-pulse">
-        <Loader2 className="w-8 h-8 text-teal-deep animate-spin" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-surface rounded-xl shadow-sm border border-outline-variant/40 p-8 md:p-10 space-y-6 text-center">
+        <div className="w-16 h-16 bg-primary-container rounded-full flex items-center justify-center mx-auto animate-pulse">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+        <h2 className="text-headline-md text-on-surface">Completing sign-in...</h2>
+        <p className="text-body-md text-on-surface-variant">Please wait while we verify your account.</p>
       </div>
-      <h2 className="text-xl font-bold text-teal-deep">Completing sign-in...</h2>
-      <p className="text-sm text-gray-500">Please wait while we verify your account.</p>
     </div>
   )
 }

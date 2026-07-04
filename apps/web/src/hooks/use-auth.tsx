@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { User } from '@supabase/supabase-js'
+import { profileApi, type Profile } from '@/lib/api'
+import type { User, Session } from '@supabase/supabase-js'
 
 export interface AuthState {
   user: User | null
@@ -11,8 +12,11 @@ export interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  /** The signed-in user's profile — loaded once per session and shared across pages. */
+  profile: Profile | null
+  refreshProfile: () => Promise<void>
   signIn: (email: string, password: string) => Promise<{ error?: string }>
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error?: string; data?: { id: string; email: string | undefined } }>
+  signUp: (email: string, password: string, displayName?: string, username?: string) => Promise<{ error?: string; data?: { id: string; email: string | undefined; session: Session | null } }>
   signInWithGoogle: () => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error?: string }>
@@ -21,12 +25,26 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
+// Survives client-side navigation AND provider remounts within one JS session
+let cachedProfile: Profile | null = null
+
 export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [state, setState] = useState<AuthState>({
     user: null,
     loading: true,
     isAuthenticated: false,
   })
+  const [profile, setProfile] = useState<Profile | null>(cachedProfile)
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      const p = await profileApi.getMe()
+      cachedProfile = p
+      setProfile(p)
+    } catch {
+      // Not signed in or API unreachable — leave as-is
+    }
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -37,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         loading: false,
         isAuthenticated: !!user,
       })
+      if (user && !cachedProfile) void refreshProfile()
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -45,57 +64,89 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         loading: false,
         isAuthenticated: !!session?.user,
       })
+      if (session?.user) {
+        if (!cachedProfile || cachedProfile.id !== session.user.id) void refreshProfile()
+      } else {
+        cachedProfile = null
+        setProfile(null)
+      }
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [refreshProfile])
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const signIn = useCallback(async (identifier: string, password: string) => {
+    const supabase = createClient()
+    const trimmed = identifier.trim()
     try {
-      const res = await fetch(apiUrl + '/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        return { error: err.message || 'Invalid email or password' }
+      // Email or phone → authenticate directly with Supabase
+      if (trimmed.includes('@')) {
+        const { error } = await supabase.auth.signInWithPassword({ email: trimmed.toLowerCase(), password })
+        if (error) {
+          return { error: error.message === 'Invalid login credentials' ? 'Invalid credentials' : error.message }
+        }
+        return {}
+      }
+      if (/^\+?[0-9()\s-]{7,20}$/.test(trimmed)) {
+        const { error } = await supabase.auth.signInWithPassword({ phone: trimmed.replace(/[()\s-]/g, ''), password })
+        if (error) {
+          return { error: error.message === 'Invalid login credentials' ? 'Invalid credentials' : error.message }
+        }
+        return {}
       }
 
-      const { data } = await res.json()
-
-      const supabase = createClient()
-      await supabase.auth.setSession({
-        access_token: data.accessToken,
-        refresh_token: data.refreshToken,
+      // Username → the API resolves it server-side and returns a session
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: trimmed, password }),
       })
-
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        return { error: err?.error?.message ?? err?.message ?? 'Invalid credentials' }
+      }
+      const json = await res.json()
+      const session = json?.data?.data ?? json?.data
+      const { error } = await supabase.auth.setSession({
+        access_token: session.accessToken,
+        refresh_token: session.refreshToken,
+      })
+      if (error) return { error: error.message }
       return {}
     } catch {
       return { error: 'Failed to sign in. Please try again.' }
     }
   }, [])
 
-  const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const signUp = useCallback(async (email: string, password: string, displayName?: string, username?: string) => {
+    const supabase = createClient()
     try {
-      const res = await fetch(apiUrl + '/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, displayName }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        return { error: err.message || 'Registration failed' }
+      const metadata: Record<string, string> = {}
+      if (displayName) {
+        metadata.full_name = displayName
+        metadata.display_name = displayName
+      }
+      if (username) {
+        metadata.username = username.trim().toLowerCase()
       }
 
-      const { data } = await res.json()
-      return { data }
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: metadata },
+      })
+
+      if (error) {
+        return { error: error.message }
+      }
+
+      if (!data.user) {
+        return { error: 'Failed to create account. Please try again.' }
+      }
+
+      return { data: { id: data.user.id, email: data.user.email, session: data.session } }
     } catch {
       return { error: 'Failed to sign up. Please try again.' }
     }
@@ -133,6 +184,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   }, [])
 
   const signOut = useCallback(async () => {
+    const { disconnectSocket } = await import('@/lib/socket')
+    disconnectSocket()
     const supabase = createClient()
     await supabase.auth.signOut()
 
@@ -193,6 +246,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     <AuthContext.Provider
       value={{
         ...state,
+        profile,
+        refreshProfile,
         signIn,
         signUp,
         signInWithGoogle,
