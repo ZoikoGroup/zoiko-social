@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "prisma generate || echo prisma generate skipped (CLI unavailable)",
+    "postinstall": "prisma generate || echo prisma-generate-skipped",
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main",
