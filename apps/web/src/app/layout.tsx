@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.svg' },
 }
 
+const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL
+const SUPABASE_ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL
+
 export default function RootLayout({
   children,
 }: {
@@ -28,6 +31,11 @@ export default function RootLayout({
 }): React.JSX.Element {
   return (
     <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
+      <head>
+        {/* TLS handshakes start before the first fetch — saves ~100ms on first request */}
+        {API_ORIGIN && <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />}
+        {SUPABASE_ORIGIN && <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />}
+      </head>
       <body className="font-body antialiased bg-background text-on-surface">
         <Providers>
           {children}

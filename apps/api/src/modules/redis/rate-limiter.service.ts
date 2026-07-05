@@ -94,4 +94,50 @@ export class RateLimiterService {
     const result = await this.check(prefix, identifier, limit, windowSeconds)
     return result
   }
+
+  /**
+   * Run MULTIPLE sliding-window checks in a SINGLE Redis round-trip.
+   * Cuts the per-request rate-limit cost from N network hops to 1 —
+   * significant when Redis is a remote managed instance.
+   */
+  async checkMany(
+    checks: { prefix: string; identifier: string; limit: number; windowSeconds: number }[],
+  ): Promise<RateLimitResult[]> {
+    const allowAll = (): RateLimitResult[] =>
+      checks.map((c) => ({ allowed: true, remaining: 1, resetTime: 0, total: c.limit }))
+
+    if (checks.length === 0) return []
+    const redis = this.redis.rawClient
+    if (!this.redis.isEnabled || !redis) return allowAll()
+
+    try {
+      const now = Math.floor(Date.now() / 1000)
+      const multi = redis.multi()
+
+      for (const c of checks) {
+        const key = `${this.KEY_PREFIX}:${c.prefix}:${c.identifier}`
+        multi.zremrangebyscore(key, 0, now - c.windowSeconds)
+        multi.zadd(key, now, `${now}:${Math.random()}`)
+        multi.zcard(key)
+        multi.expire(key, c.windowSeconds)
+      }
+
+      const results = await multi.exec()
+      if (!results) return allowAll()
+
+      return checks.map((c, i) => {
+        // 4 commands per check; ZCARD is the 3rd (offset 2)
+        const count = (results[i * 4 + 2]?.[1] as number) ?? 0
+        return {
+          allowed: count <= c.limit,
+          remaining: Math.max(0, c.limit - count),
+          resetTime: now + c.windowSeconds,
+          total: c.limit,
+        }
+      })
+    } catch (err) {
+      this.logger.warn(`Rate limiter checkMany failed (degrading open): ${(err as Error).message}`)
+      return allowAll()
+    }
+  }
 }

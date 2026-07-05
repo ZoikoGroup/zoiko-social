@@ -183,10 +183,18 @@ export class NetworkService {
       return { status: 'already_following' }
     }
 
-    await this.afterFollowChange(followerId, followingId, { followers: 1, following: 1 })
-    await this.notifyNewFollower(followerId, followingId)
+    // Post-commit side effects never block the response
+    this.effects('follow', async () => {
+      await this.afterFollowChange(followerId, followingId, { followers: 1, following: 1 })
+      await this.notifyNewFollower(followerId, followingId)
+    })
 
     return { status: 'following' }
+  }
+
+  /** Run post-commit side effects without blocking the response. */
+  private effects(label: string, fn: () => Promise<unknown>): void {
+    void fn().catch((err) => this.logger.warn(`${label} side effects failed: ${(err as Error).message}`))
   }
 
   async unfollowUser(followerId: string, followingId: string): Promise<void> {
@@ -214,7 +222,9 @@ export class NetworkService {
       throw new NotFoundException({ code: 'NOT_FOLLOWING', message: 'You are not following this user' })
     }
 
-    await this.afterFollowChange(followerId, followingId, { followers: -1, following: -1 })
+    this.effects('unfollow', () =>
+      this.afterFollowChange(followerId, followingId, { followers: -1, following: -1 }),
+    )
   }
 
   async removeFollower(userId: string, followerId: string): Promise<void> {
@@ -544,6 +554,8 @@ export class NetworkService {
     })
 
     await this.redis.invalidateRelationship(blockerId, blockedId)
+    await this.redis.invalidateProfile(blockerId)
+    await this.redis.invalidateProfile(blockedId)
     await this.refreshCounterCache(blockerId)
     await this.refreshCounterCache(blockedId)
 
@@ -1132,6 +1144,9 @@ export class NetworkService {
       this.redis.adjustCounters(followingId, { followers: delta.followers }),
       this.redis.adjustCounters(followerId, { following: delta.following }),
       this.redis.invalidateRelationship(followerId, followingId),
+      // Cached profile snapshots carry counters — bust both sides
+      this.redis.invalidateProfile(followerId),
+      this.redis.invalidateProfile(followingId),
     ])
 
     // Live counter broadcast to anyone viewing either profile

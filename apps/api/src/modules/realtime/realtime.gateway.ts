@@ -79,6 +79,42 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
   }
 
+  /** Join your own feed room while the home feed is open — receives post:new. */
+  @SubscribeMessage('feed.subscribe')
+  async onFeedSubscribe(@ConnectedSocket() client: AuthenticatedSocket): Promise<{ ok: boolean }> {
+    if (!client.data.userId) return { ok: false }
+    await client.join(`feed:${client.data.userId}`)
+    return { ok: true }
+  }
+
+  @SubscribeMessage('feed.unsubscribe')
+  async onFeedUnsubscribe(@ConnectedSocket() client: AuthenticatedSocket): Promise<{ ok: boolean }> {
+    if (!client.data.userId) return { ok: false }
+    await client.leave(`feed:${client.data.userId}`)
+    return { ok: true }
+  }
+
+  /** Join a post room while viewing it — live likes/comments. */
+  @SubscribeMessage('post.subscribe')
+  async onPostSubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() body: { postId?: string },
+  ): Promise<{ ok: boolean }> {
+    if (!client.data.userId || !body?.postId) return { ok: false }
+    await client.join(`post:${body.postId}`)
+    return { ok: true }
+  }
+
+  @SubscribeMessage('post.unsubscribe')
+  async onPostUnsubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() body: { postId?: string },
+  ): Promise<{ ok: boolean }> {
+    if (!body?.postId) return { ok: false }
+    await client.leave(`post:${body.postId}`)
+    return { ok: true }
+  }
+
   @SubscribeMessage('profile.subscribe')
   async onProfileSubscribe(
     @ConnectedSocket() client: AuthenticatedSocket,

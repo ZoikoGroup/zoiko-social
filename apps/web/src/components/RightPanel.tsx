@@ -14,8 +14,9 @@ export function RightPanel(): React.JSX.Element {
 
   useEffect(() => {
     let cancelled = false
-    networkApi.getSuggestions(3)
-      .then((data) => { if (!cancelled) setSuggestions(data) })
+    // Same cached call as the network page — one fetch serves both surfaces
+    networkApi.getSuggestions()
+      .then((data) => { if (!cancelled) setSuggestions(data.slice(0, 3)) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }

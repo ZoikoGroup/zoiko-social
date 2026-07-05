@@ -6,9 +6,7 @@ import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
-import { StoryBar } from '@/components/StoryBar'
-import { CreatePostBox } from '@/components/CreatePostBox'
-import { PostCard } from '@/components/PostCard'
+import { HomeFeed } from '@/components/feed/HomeFeed'
 import { MobileTabs } from '@/components/MobileTabs'
 
 function FeedSkeleton(): React.JSX.Element {
@@ -57,11 +55,9 @@ export default function HomePage(): React.JSX.Element {
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column: Stories, Create Post, Feed */}
-          <div className="lg:col-span-9 space-y-gutter pb-20">
-            <StoryBar />
-            <CreatePostBox />
-            <PostCard />
+          {/* Center Column: Composer + Real Feed */}
+          <div className="lg:col-span-9 space-y-gutter pb-20 max-w-2xl">
+            <HomeFeed />
           </div>
         </div>
       </main>

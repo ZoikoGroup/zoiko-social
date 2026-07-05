@@ -21,9 +21,41 @@ import { RATE_LIMIT_KEY, type RateLimitMetadata } from '../decorators/rate-limit
  *
  * Graceful degradation: if Redis is unavailable, all requests pass through.
  */
+/**
+ * In-process fixed-window counter for read-only requests. Per-instance rather
+ * than global, which is acceptable for GETs: the goal is abuse ceiling, not
+ * precise accounting — and it removes a guaranteed Redis round-trip from
+ * every read. Writes/auth/search keep the shared Redis limiter.
+ */
+class LocalWindowLimiter {
+  private readonly windows = new Map<string, { count: number; resetAt: number }>()
+  private lastSweep = 0
+
+  check(key: string, limit: number, windowSeconds: number): boolean {
+    const now = Date.now()
+
+    // Periodic sweep so the map doesn't grow unbounded
+    if (now - this.lastSweep > 60_000) {
+      for (const [k, w] of this.windows) {
+        if (w.resetAt <= now) this.windows.delete(k)
+      }
+      this.lastSweep = now
+    }
+
+    const entry = this.windows.get(key)
+    if (!entry || entry.resetAt <= now) {
+      this.windows.set(key, { count: 1, resetAt: now + windowSeconds * 1000 })
+      return true
+    }
+    entry.count++
+    return entry.count <= limit
+  }
+}
+
 @Injectable()
 export class RateLimiterGuard implements CanActivate {
   private readonly logger = new Logger(RateLimiterGuard.name)
+  private readonly localLimiter = new LocalWindowLimiter()
 
   // Default global limits
   private readonly defaults = {
@@ -76,28 +108,35 @@ export class RateLimiterGuard implements CanActivate {
       return true
     }
 
-    // ── Global rate limit ───────────────────────────────────────────────────
-    const globalResult = await this.rateLimiter.assert(
-      'global',
-      identifier,
-      this.defaults.global.limit,
-      this.defaults.global.windowSeconds,
-    )
-    if (!globalResult.allowed) {
-      this.throwRateLimited(globalResult)
+    const routeLimit = this.getRouteLimit(request)
+    const method = request.method ?? 'GET'
+
+    // ── Read-only GETs: in-process limiter — ZERO Redis round-trips ────────
+    // (search still goes through Redis below: it's the GET attackers hammer)
+    if ((method === 'GET' || method === 'HEAD') && !routeLimit) {
+      const allowed = this.localLimiter.check(
+        `get:${identifier}`,
+        this.defaults.global.limit * 3, // per-instance window, so a looser ceiling
+        this.defaults.global.windowSeconds,
+      )
+      if (!allowed) {
+        this.throwRateLimited({ remaining: 0, resetTime: 0, total: this.defaults.global.limit * 3 })
+      }
+      return true
     }
 
-    // ── Per-route rate limit (by URL path) ────────────────────────────────
-    const routeLimit = this.getRouteLimit(request)
+    // ── Writes / auth / search: global + per-route in ONE Redis round-trip ─
+    const checks: { prefix: string; identifier: string; limit: number; windowSeconds: number }[] = [
+      { prefix: 'global', identifier, ...this.defaults.global },
+    ]
     if (routeLimit) {
-      const routeResult = await this.rateLimiter.assert(
-        routeLimit.prefix,
-        identifier,
-        routeLimit.limit,
-        routeLimit.windowSeconds,
-      )
-      if (!routeResult.allowed) {
-        this.throwRateLimited(routeResult)
+      checks.push({ prefix: routeLimit.prefix, identifier, limit: routeLimit.limit, windowSeconds: routeLimit.windowSeconds })
+    }
+
+    const results = await this.rateLimiter.checkMany(checks)
+    for (const result of results) {
+      if (!result.allowed) {
+        this.throwRateLimited(result)
       }
     }
 
@@ -125,7 +164,7 @@ export class RateLimiterGuard implements CanActivate {
     if (url.match(/\/auth\/register/))   return { ...this.defaults.register, prefix: 'register' }
     if (url.match(/\/auth\/forgot-password/)) return { ...this.defaults.forgotPassword, prefix: 'forgot-password' }
     if (url.match(/\/auth\/refresh/))    return { ...this.defaults.refresh, prefix: 'refresh' }
-    if (url.match(/\/profiles\/me\/(professional|verification)/)) {
+    if (url.match(/\/profiles\/me\/(professional|verification)/) && method !== 'GET') {
       return { ...this.defaults.verification, prefix: 'profiles.write' }
     }
     if (url.match(/\/profiles\/me/) && method === 'PUT') {

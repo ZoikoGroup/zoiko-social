@@ -208,23 +208,33 @@ export class ProfileService {
   // ── PERSONAL PROFILE ──────────────────────────────────────────────────────
 
   async getProfileByUsername(username: string, currentUserId?: string): Promise<ProfileResponse> {
-    const profile = await this.prisma.profile.findUnique({
-      where: { username },
-      include: { professionalProfile: true },
-    })
+    const normalized = username.toLowerCase()
 
-    if (!profile) {
+    // Cached username → id mapping (usernames change at most every 30 days)
+    const cachedId = await this.redis.getUsernameId(normalized)
+    if (cachedId) {
+      return this.getProfileById(cachedId, currentUserId)
+    }
+
+    const row = await this.prisma.profile.findUnique({
+      where: { username: normalized },
+      select: { id: true },
+    })
+    if (!row) {
       throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
     }
-
-    if (profile.isPrivate && profile.id !== currentUserId) {
-      return { ...this.mapProfile(profile), bio: null, websiteUrl: null }
-    }
-
-    return this.mapProfile(profile)
+    await this.redis.setUsernameId(normalized, row.id)
+    return this.getProfileById(row.id, currentUserId)
   }
 
   async getProfileById(id: string, currentUserId?: string): Promise<ProfileResponse> {
+    // Redis read-through: the FULL profile is cached; per-viewer privacy
+    // redaction is applied after retrieval so one cache entry serves everyone.
+    const cached = await this.redis.getProfile<ProfileResponse>(id)
+    if (cached) {
+      return this.redactForViewer(cached, currentUserId)
+    }
+
     const profile = await this.prisma.profile.findUnique({
       where: { id },
       include: { professionalProfile: true },
@@ -234,11 +244,32 @@ export class ProfileService {
       throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
     }
 
-    if (profile.isPrivate && profile.id !== currentUserId) {
-      return { ...this.mapProfile(profile), bio: null, websiteUrl: null }
-    }
+    const mapped = this.mapProfile(profile)
+    await this.redis.setProfile(id, mapped)
+    return this.redactForViewer(mapped, currentUserId)
+  }
 
-    return this.mapProfile(profile)
+  /** Hide private-account details from non-owners. */
+  private redactForViewer(profile: ProfileResponse, currentUserId?: string): ProfileResponse {
+    if (profile.isPrivate && profile.id !== currentUserId) {
+      return { ...profile, bio: null, websiteUrl: null }
+    }
+    return profile
+  }
+
+  /**
+   * Profile + viewer relationship in ONE call — removes the client-side
+   * profile→relationship waterfall (two round-trips become one).
+   */
+  async getProfileWithViewer(
+    id: string,
+    currentUserId?: string,
+  ): Promise<ProfileResponse & { viewer: RelationshipResponse | null }> {
+    const [profile, viewer] = await Promise.all([
+      this.getProfileById(id, currentUserId),
+      currentUserId && currentUserId !== id ? this.getRelationship(currentUserId, id) : Promise.resolve(null),
+    ])
+    return { ...profile, viewer }
   }
 
   private static readonly USERNAME_COOLDOWN_DAYS = 30
@@ -315,6 +346,10 @@ export class ProfileService {
     }
 
     await this.redis.invalidateProfile(userId)
+    // Username changed → bust the old and new username→id mappings
+    if (data.username) {
+      await this.redis.invalidateUsername(before.username, data.username as string)
+    }
     await this.realtime.publishToProfile(userId, 'profile.updated', {
       userId,
       displayName: profile.displayName,
@@ -392,8 +427,10 @@ export class ProfileService {
       }
     }
 
+    await this.redis.invalidateProfile(userId)
     for (const request of accepted) {
       await this.redis.invalidateRelationship(request.senderId, userId)
+      await this.redis.invalidateProfile(request.senderId)
       await this.notifications.enqueue({
         userId: request.senderId,
         type: 'follow_request_accepted',
@@ -441,6 +478,7 @@ export class ProfileService {
       }),
     ])
 
+    await this.redis.invalidateProfile(userId)
     this.logger.log(`User ${userId} switched to professional (${input.category})`)
     return this.mapProfessionalProfile(professional)
   }
@@ -496,6 +534,7 @@ export class ProfileService {
       this.prisma.professionalSetting.deleteMany({ where: { userId } }),
     ])
 
+    await this.redis.invalidateProfile(userId)
     this.logger.log(`User ${userId} reverted to personal account`)
   }
 

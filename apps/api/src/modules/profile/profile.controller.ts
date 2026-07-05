@@ -68,8 +68,14 @@ export class ProfileController {
   @UseGuards(OptionalAuthGuard)
   async getProfileByUsername(
     @Param('username') username: string,
+    @Query('withViewer') withViewer?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (withViewer === '1' || withViewer === 'true') {
+      const base = await this.profileService.getProfileByUsername(username, user?.id)
+      const profile = await this.profileService.getProfileWithViewer(base.id, user?.id)
+      return { data: profile }
+    }
     const profile = await this.profileService.getProfileByUsername(username, user?.id)
     return { data: profile }
   }
@@ -78,8 +84,13 @@ export class ProfileController {
   @UseGuards(OptionalAuthGuard)
   async getProfileById(
     @Param('id') id: string,
+    @Query('withViewer') withViewer?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (withViewer === '1' || withViewer === 'true') {
+      const profile = await this.profileService.getProfileWithViewer(id, user?.id)
+      return { data: profile }
+    }
     const profile = await this.profileService.getProfileById(id, user?.id)
     return { data: profile }
   }

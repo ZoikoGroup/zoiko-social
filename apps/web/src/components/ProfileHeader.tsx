@@ -5,12 +5,15 @@ import { Link2, BadgeCheck, Briefcase, Lock } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
-import { profileApi, networkApi, type Profile, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import { profileApi, networkApi, type Profile, type Relationship, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 
 interface ProfileHeaderProps {
   /** Omit or pass undefined to show the signed-in user's own profile. */
   profileId?: string | undefined
+  /** Pre-fetched data from the page — skips this component's own fetches. */
+  initialProfile?: Profile | undefined
+  initialRelationship?: Relationship | null | undefined
 }
 
 function formatCount(n: number): string {
@@ -43,20 +46,20 @@ function HeaderSkeleton(): React.JSX.Element {
   )
 }
 
-export function ProfileHeader({ profileId }: ProfileHeaderProps): React.JSX.Element {
+export function ProfileHeader({ profileId, initialProfile, initialRelationship }: ProfileHeaderProps): React.JSX.Element {
   const { profile: myProfile, user, refreshProfile } = useAuth()
-  // Other users' profiles are fetched; own profile derives from the shared
-  // auth context so it renders instantly with no loading flash.
-  const [fetched, setFetched] = useState<Profile | null>(null)
-  const [loading, setLoading] = useState(!!profileId)
+  // Other users' profiles are fetched (unless pre-fetched by the page);
+  // own profile derives from the shared auth context — no loading flash.
+  const [fetched, setFetched] = useState<Profile | null>(initialProfile ?? null)
+  const [loading, setLoading] = useState(!!profileId && !initialProfile)
   const profile: Profile | null = profileId ? fetched : myProfile
 
   const [professionalModalOpen, setProfessionalModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [followListTab, setFollowListTab] = useState<'followers' | 'following' | null>(null)
-  const [following, setFollowing] = useState(false)
-  const [requested, setRequested] = useState(false)
-  const [followedBy, setFollowedBy] = useState(false)
+  const [following, setFollowing] = useState(initialRelationship?.following ?? false)
+  const [requested, setRequested] = useState(initialRelationship?.requested ?? false)
+  const [followedBy, setFollowedBy] = useState(initialRelationship?.followedBy ?? false)
   const [followBusy, setFollowBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -66,18 +69,20 @@ export function ProfileHeader({ profileId }: ProfileHeaderProps): React.JSX.Elem
   const isOwnProfile = !profileId || profileId === user?.id
 
   useEffect(() => {
-    if (!profileId) return
+    // Pre-fetched by the page — nothing to load here
+    if (!profileId || initialProfile) return
     let cancelled = false
     async function load(): Promise<void> {
       try {
-        const data = await profileApi.getById(profileId!)
+        // Profile + relationship in ONE round-trip
+        const data = await profileApi.getByIdWithViewer(profileId!)
         if (cancelled) return
         setFetched(data)
-        const rel = await profileApi.getRelationship(profileId!)
-        if (cancelled) return
-        setFollowing(rel.following)
-        setRequested(rel.requested)
-        setFollowedBy(rel.followedBy)
+        if (data.viewer) {
+          setFollowing(data.viewer.following)
+          setRequested(data.viewer.requested)
+          setFollowedBy(data.viewer.followedBy)
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load profile')
       } finally {
@@ -86,7 +91,7 @@ export function ProfileHeader({ profileId }: ProfileHeaderProps): React.JSX.Elem
     }
     void load()
     return () => { cancelled = true }
-  }, [profileId])
+  }, [profileId, initialProfile])
 
   async function handleFollowToggle(): Promise<void> {
     if (!profile || followBusy) return

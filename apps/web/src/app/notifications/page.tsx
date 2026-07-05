@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   UserPlus, Users, BadgeCheck, ChevronLeft, Bell, CheckCheck, Megaphone,
+  Send, Heart, MessageCircle, AtSign,
 } from 'lucide-react'
 import { SkeletonNotification } from '@/components/Skeletons'
 import { notificationsApi, networkApi, type NotificationItem } from '@/lib/api'
@@ -33,6 +34,12 @@ const TYPE_ICONS: Record<string, typeof Bell> = {
   follow_request_accepted: CheckCheck,
   verification_approved: BadgeCheck,
   verification_rejected: BadgeCheck,
+  shared_with_you: Send,
+  post_shared: Send,
+  new_like: Heart,
+  new_comment: MessageCircle,
+  comment_reply: MessageCircle,
+  mention: AtSign,
 }
 
 function typeGradient(type: string): string {
@@ -112,9 +119,12 @@ export default function NotificationsPage(): React.JSX.Element {
       setReadIds((prev) => new Set(prev).add(n.id))
       void markReadGlobal(n.id).catch(() => {})
     }
-    // Navigate to the actor's profile when we know who it is
+    // Post-related notifications open the post; others open the actor's profile
+    const postId = n.data?.postId as string | undefined
     const username = n.data?.username as string | undefined
-    if (username) {
+    if (postId) {
+      router.push(`/p/${postId}`)
+    } else if (username) {
       router.push(`/profile/${username}`)
     }
   }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { profileApi, type Profile } from '@/lib/api'
+import { profileApi, clearApiCache, type Profile } from '@/lib/api'
 import type { User, Session } from '@supabase/supabase-js'
 
 export interface AuthState {
@@ -49,13 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
   useEffect(() => {
     const supabase = createClient()
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // getSession() reads locally (no network) — pages render immediately.
+    // Token validity is enforced by the middleware and every API call anyway;
+    // onAuthStateChange below picks up refreshes/expiry.
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setState({
-        user,
+        user: session?.user ?? null,
         loading: false,
-        isAuthenticated: !!user,
+        isAuthenticated: !!session?.user,
       })
-      if (user && !cachedProfile) void refreshProfile()
+      if (session?.user && !cachedProfile) void refreshProfile()
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       } else {
         cachedProfile = null
         setProfile(null)
+        clearApiCache()
       }
     })
 

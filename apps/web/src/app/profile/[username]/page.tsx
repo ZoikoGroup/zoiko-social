@@ -20,22 +20,18 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
 
   useEffect(() => {
     let cancelled = false
-    profileApi.getByUsername(username)
-      .then(async (p) => {
+    // ONE round-trip: profile + viewer relationship together (client-cached)
+    profileApi.getByUsernameWithViewer(username)
+      .then((p) => {
         if (cancelled) return
         setProfile(p)
-        if (myProfile && p.id !== myProfile.id) {
-          try {
-            const rel = await profileApi.getRelationship(p.id)
-            if (!cancelled) setRelationship(rel)
-          } catch { /* relationship optional */ }
-        }
+        setRelationship(p.viewer)
       })
       .catch((e) => {
         if (!cancelled && e instanceof ApiError) setNotFound(true)
       })
     return () => { cancelled = true }
-  }, [username, myProfile])
+  }, [username])
 
   const isOwn = !!(myProfile && profile && myProfile.id === profile.id)
   // Instagram gate: private account content is hidden unless owner or accepted follower
@@ -74,7 +70,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
               <div className="mb-gutter">
                 {/* Own profile via username URL renders with own controls */}
                 {profile ? (
-                  <ProfileHeader profileId={isOwn ? undefined : profile.id} />
+                  <ProfileHeader
+                    profileId={isOwn ? undefined : profile.id}
+                    initialProfile={isOwn ? undefined : profile}
+                    initialRelationship={isOwn ? undefined : relationship}
+                  />
                 ) : (
                   <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-6 sm:p-8">
                     <div className="flex gap-6 sm:gap-10 items-start">
@@ -106,7 +106,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
                       </p>
                     </section>
                   ) : (
-                    profile && <ProfileTabs profileId={isOwn ? undefined : profile.id} />
+                    profile && (
+                      <ProfileTabs
+                        profileId={isOwn ? undefined : profile.id}
+                        initialProfile={isOwn ? undefined : profile}
+                      />
+                    )
                   )}
                 </div>
 

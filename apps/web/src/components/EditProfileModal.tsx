@@ -85,13 +85,50 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     setAvatarPreview(URL.createObjectURL(file))
   }
 
+  /**
+   * Resize to max 512px WebP before upload — a phone photo shrinks from
+   * multiple MB to ~30KB, so avatars load instantly everywhere.
+   */
+  async function resizeImage(file: File, maxSize = 512): Promise<Blob> {
+    const bitmap = await createImageBitmap(file)
+    const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height))
+    const width = Math.round(bitmap.width * scale)
+    const height = Math.round(bitmap.height * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.drawImage(bitmap, 0, 0, width, height)
+    bitmap.close()
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => resolve(blob ?? file),
+        'image/webp',
+        0.85,
+      )
+    })
+  }
+
   async function uploadAvatar(): Promise<string | null> {
     if (!avatarFile) return null
     const supabase = createClient()
-    const ext = avatarFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+
+    let blob: Blob = avatarFile
+    let ext = avatarFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    try {
+      blob = await resizeImage(avatarFile)
+      if (blob.type === 'image/webp') ext = 'webp'
+    } catch {
+      // Resize unsupported (old browser) — upload the original
+    }
+
     const path = `${profile.id}/avatar-${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, {
-      cacheControl: '3600',
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
+      cacheControl: '31536000',
+      contentType: blob.type || 'image/jpeg',
       upsert: true,
     })
     if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`)

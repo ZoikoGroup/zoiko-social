@@ -36,7 +36,7 @@ export default function NetworkPage(): React.JSX.Element {
 
   useEffect(() => {
     let cancelled = false
-    networkApi.getSuggestions(24)
+    networkApi.getSuggestions()
       .then((data) => { if (!cancelled) setSuggestions(data) })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })

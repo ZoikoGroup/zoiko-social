@@ -7,12 +7,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor() {
     super({
+      // warn/error only — per-query event logging adds measurable overhead
       log: [
-        { emit: 'event', level: 'query' },
-        { emit: 'stdout', level: 'info' },
         { emit: 'stdout', level: 'warn' },
         { emit: 'stdout', level: 'error' },
       ],
+      // Interactive transactions run several statements; over a remote pooler
+      // each statement pays a network RTT, so the 5s default is too tight.
+      transactionOptions: {
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
     })
   }
 

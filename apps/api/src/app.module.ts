@@ -12,6 +12,11 @@ import { QueueModule } from './modules/queue/queue.module'
 import { ProfileModule } from './modules/profile/profile.module'
 import { NetworkModule } from './modules/network/network.module'
 import { NotificationsModule } from './modules/notifications/notifications.module'
+import { PostsModule } from './modules/posts/posts.module'
+import { FeedModule } from './modules/feed/feed.module'
+import { EngagementModule } from './modules/engagement/engagement.module'
+import { CommentsModule } from './modules/comments/comments.module'
+import { HashtagsModule } from './modules/hashtags/hashtags.module'
 import { HealthModule } from './health/health.module'
 
 @Module({
@@ -27,6 +32,11 @@ import { HealthModule } from './health/health.module'
     ProfileModule,
     NetworkModule,
     NotificationsModule,
+    PostsModule,
+    FeedModule,
+    EngagementModule,
+    CommentsModule,
+    HashtagsModule,
     HealthModule,
   ],
   controllers: [AppController],
