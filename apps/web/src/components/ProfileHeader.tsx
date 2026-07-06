@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Link2, BadgeCheck, Briefcase, Lock } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Send } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
@@ -14,6 +14,8 @@ interface ProfileHeaderProps {
   /** Pre-fetched data from the page — skips this component's own fetches. */
   initialProfile?: Profile | undefined
   initialRelationship?: Relationship | null | undefined
+  /** Callback when user clicks 'Share to Story' for this profile */
+  onShareToStory?: (refType: string, refId: string) => void
 }
 
 function formatCount(n: number): string {
@@ -46,7 +48,7 @@ function HeaderSkeleton(): React.JSX.Element {
   )
 }
 
-export function ProfileHeader({ profileId, initialProfile, initialRelationship }: ProfileHeaderProps): React.JSX.Element {
+export function ProfileHeader({ profileId, initialProfile, initialRelationship, onShareToStory }: ProfileHeaderProps): React.JSX.Element {
   const { profile: myProfile, user, refreshProfile } = useAuth()
   // Other users' profiles are fetched (unless pre-fetched by the page);
   // own profile derives from the shared auth context — no loading flash.
@@ -193,6 +195,16 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
               {profile.isPrivate && <Lock className="w-4 h-4 text-outline flex-shrink-0" />}
 
               <div className="flex items-center gap-2 ml-auto sm:ml-2">
+                {onShareToStory && !isOwnProfile && (
+                  <button
+                    onClick={() => onShareToStory('profile', profile.id)}
+                    className="p-1.5 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer"
+                    title="Share to Story"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                )}
+
                 {isOwnProfile ? (
                   <>
                     <button

@@ -17,6 +17,8 @@ import { FeedModule } from './modules/feed/feed.module'
 import { EngagementModule } from './modules/engagement/engagement.module'
 import { CommentsModule } from './modules/comments/comments.module'
 import { HashtagsModule } from './modules/hashtags/hashtags.module'
+import { CommunitiesModule } from './modules/communities/communities.module'
+import { StoriesModule } from './modules/stories/stories.module'
 import { HealthModule } from './health/health.module'
 
 @Module({
@@ -37,6 +39,8 @@ import { HealthModule } from './health/health.module'
     EngagementModule,
     CommentsModule,
     HashtagsModule,
+    CommunitiesModule,
+    StoriesModule,
     HealthModule,
   ],
   controllers: [AppController],

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -8,6 +9,9 @@ import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { HomeFeed } from '@/components/feed/HomeFeed'
 import { MobileTabs } from '@/components/MobileTabs'
+import { StoryTray } from '@/components/stories/StoryTray'
+import { StoryViewer } from '@/components/stories/StoryViewer'
+import { StoryComposer } from '@/components/stories/StoryComposer'
 
 function FeedSkeleton(): React.JSX.Element {
   return (
@@ -28,6 +32,9 @@ function FeedSkeleton(): React.JSX.Element {
 }
 
 export default function HomePage(): React.JSX.Element {
+  const [viewerAuthorId, setViewerAuthorId] = useState<string | null>(null)
+  const [composerOpen, setComposerOpen] = useState(false)
+  const [shareRef, setShareRef] = useState<{ refType: string; refId: string } | null>(null)
   const { loading, isAuthenticated } = useAuth()
 
   // Content-shaped skeleton while auth resolves — no spinners
@@ -55,14 +62,34 @@ export default function HomePage(): React.JSX.Element {
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column: Composer + Real Feed */}
+          {/* Center Column: Story Tray + Composer + Feed */}
           <div className="lg:col-span-9 space-y-gutter pb-20 max-w-2xl">
-            <HomeFeed />
+            <StoryTray
+              onOpenRing={(authorId) => setViewerAuthorId(authorId)}
+              onOpenComposer={() => setComposerOpen(true)}
+            />
+            <HomeFeed onShareToStory={(refType, refId) => setShareRef({ refType, refId })} />
           </div>
         </div>
       </main>
 
       <MobileTabs currentPage="home" onNavigate={() => {}} />
+
+      {/* Story Viewer overlay */}
+      {viewerAuthorId && (
+        <StoryViewer
+          initialAuthorId={viewerAuthorId}
+          onClose={() => setViewerAuthorId(null)}
+        />
+      )}
+
+      {/* Story Composer overlay */}
+      {(composerOpen || shareRef) && (
+        <StoryComposer
+          onClose={() => { setComposerOpen(false); setShareRef(null) }}
+          {...(shareRef ? { refType: shareRef.refType, refId: shareRef.refId } : {})}
+        />
+      )}
     </>
   )
 }

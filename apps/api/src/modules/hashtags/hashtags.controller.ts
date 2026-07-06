@@ -36,4 +36,21 @@ export class HashtagsController {
     )
     return { data: result }
   }
+
+  @Get(':tag/stories')
+  @UseGuards(OptionalAuthGuard)
+  async stories(
+    @Param('tag') tag: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const result = await this.hashtagsService.storiesByTag(
+      tag,
+      user?.id,
+      cursor ?? null,
+      limit ? parseInt(limit, 10) : 12,
+    )
+    return { data: result }
+  }
 }

@@ -17,6 +17,7 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  R2_PUBLIC_URL: z.string().url().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>

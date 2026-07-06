@@ -134,4 +134,44 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     await client.leave(`profile:${body.profileId}`)
     return { ok: true }
   }
+
+  /** Join a story room while viewing it — live reactions/views. */
+  @SubscribeMessage('story.subscribe')
+  async onStorySubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() body: { storyId?: string },
+  ): Promise<{ ok: boolean }> {
+    if (!client.data.userId || !body?.storyId) return { ok: false }
+    await client.join(`story:${body.storyId}`)
+    return { ok: true }
+  }
+
+  @SubscribeMessage('story.unsubscribe')
+  async onStoryUnsubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() body: { storyId?: string },
+  ): Promise<{ ok: boolean }> {
+    if (!body?.storyId) return { ok: false }
+    await client.leave(`story:${body.storyId}`)
+    return { ok: true }
+  }
+
+  /** Join a tray room while on the home screen — receives story:new / story:expire. */
+  @SubscribeMessage('tray.subscribe')
+  async onTraySubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ): Promise<{ ok: boolean }> {
+    if (!client.data.userId) return { ok: false }
+    await client.join(`tray:${client.data.userId}`)
+    return { ok: true }
+  }
+
+  @SubscribeMessage('tray.unsubscribe')
+  async onTrayUnsubscribe(
+    @ConnectedSocket() client: AuthenticatedSocket,
+  ): Promise<{ ok: boolean }> {
+    if (!client.data.userId) return { ok: false }
+    await client.leave(`tray:${client.data.userId}`)
+    return { ok: true }
+  }
 }

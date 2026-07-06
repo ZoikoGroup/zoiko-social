@@ -323,6 +323,96 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // ── STORY SEEN-SET ─────────────────────────────────────────────────────────
+  // TTL = 25h (> story lifetime) so seen state naturally ages out as stories expire.
+
+  async seenAdd(viewerId: string, storyId: string): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.sadd(`seen:${viewerId}`, storyId)
+      await this.client.expire(`seen:${viewerId}`, 25 * 3600)
+    } catch (err) {
+      this.logger.warn(`seenAdd failed: ${(err as Error).message}`)
+    }
+  }
+
+  async seenCheck(viewerId: string, storyId: string): Promise<boolean> {
+    if (!this.client) return false
+    try {
+      return (await this.client.sismember(`seen:${viewerId}`, storyId)) === 1
+    } catch {
+      return false
+    }
+  }
+
+  async seenGetAll(viewerId: string): Promise<Set<string>> {
+    if (!this.client) return new Set()
+    try {
+      const members = await this.client.smembers(`seen:${viewerId}`)
+      return new Set(members)
+    } catch {
+      return new Set()
+    }
+  }
+
+  // ── AUTHOR ACTIVITY ZSET ───────────────────────────────────────────────────
+  // Tracks the latest story publish timestamp per author for tray ordering.
+
+  async authorActivityAdd(authorId: string, timestampMs: number): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.zadd('author-activity', timestampMs, authorId)
+    } catch (err) {
+      this.logger.warn(`authorActivityAdd failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Returns author IDs with activity, sorted by most-recent-first. */
+  async authorActivityGet(limit = 200): Promise<string[]> {
+    if (!this.client) return []
+    try {
+      return await this.client.zrevrange('author-activity', 0, limit - 1)
+    } catch {
+      return []
+    }
+  }
+
+  async authorActivityRemove(authorId: string): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.zrem('author-activity', authorId)
+    } catch (err) {
+      this.logger.warn(`authorActivityRemove failed: ${(err as Error).message}`)
+    }
+  }
+
+  // ── STORY COUNTER MIRROR (exists-only — source of truth is PostgreSQL) ─────
+
+  async storyCounterIncr(storyId: string, field: 'views' | 'impressions' | 'reactions' | 'replies'): Promise<void> {
+    if (!this.client) return
+    try {
+      const key = `cnt:story:${storyId}`
+      await this.client.hincrby(key, field, 1)
+      // Extend TTL on each write
+      await this.client.expire(key, 25 * 3600)
+    } catch (err) {
+      this.logger.warn(`storyCounterIncr failed: ${(err as Error).message}`)
+    }
+  }
+
+  async storyCounterGet(storyId: string): Promise<Record<string, number> | null> {
+    if (!this.client) return null
+    try {
+      const raw = await this.client.hgetall(`cnt:story:${storyId}`)
+      if (!raw || Object.keys(raw).length === 0) return null
+      const out: Record<string, number> = {}
+      for (const [k, v] of Object.entries(raw)) out[k] = Number(v)
+      return out
+    } catch {
+      return null
+    }
+  }
+
   // ── TRENDING HASHTAGS ──────────────────────────────────────────────────────
 
   async trendIncr(tag: string): Promise<void> {
@@ -366,6 +456,83 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // ── COMMUNITY CACHE ─────────────────────────────────────────────────────────
+
+  async getCommunity<T>(id: string): Promise<T | null> {
+    const key = `community:${id}`
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setCommunity(id: string, payload: unknown): Promise<void> {
+    const key = `community:${id}`
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
+    } catch (err) {
+      this.logger.warn(`setCommunity failed: ${(err as Error).message}`)
+    }
+  }
+
+  async invalidateCommunity(id: string): Promise<void> {
+    this.l1.delete(`community:${id}`)
+    if (!this.client) return
+    try {
+      await this.client.del(`community:${id}`)
+    } catch (err) {
+      this.logger.warn(`invalidateCommunity failed: ${(err as Error).message}`)
+    }
+  }
+
+  // Membership snapshot — powers every community permission check
+  async getMembership<T>(communityId: string, userId: string): Promise<T | null> {
+    const key = `cmember:${communityId}:${userId}`
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setMembership(communityId: string, userId: string, payload: unknown): Promise<void> {
+    const key = `cmember:${communityId}:${userId}`
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
+    } catch (err) {
+      this.logger.warn(`setMembership failed: ${(err as Error).message}`)
+    }
+  }
+
+  async invalidateMembership(communityId: string, userId: string): Promise<void> {
+    this.l1.delete(`cmember:${communityId}:${userId}`, `cmemberships:${userId}`)
+    if (!this.client) return
+    try {
+      await this.client.del(`cmember:${communityId}:${userId}`, `cmemberships:${userId}`)
+    } catch (err) {
+      this.logger.warn(`invalidateMembership failed: ${(err as Error).message}`)
+    }
+  }
+
   // ── USERNAME → ID MAPPING ──────────────────────────────────────────────────
   // Usernames change at most once per 30 days — safe to cache aggressively.
 
@@ -402,6 +569,146 @@ export class RedisService implements OnModuleDestroy {
       await this.client.del(...keys)
     } catch (err) {
       this.logger.warn(`invalidateUsername failed: ${(err as Error).message}`)
+    }
+  }
+
+  // ── STORY CACHE ────────────────────────────────────────────────────────────
+
+  async getStory<T>(storyId: string): Promise<T | null> {
+    const key = `story:${storyId}`
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setStory(storyId: string, payload: unknown): Promise<void> {
+    const key = `story:${storyId}`
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
+    } catch (err) {
+      this.logger.warn(`setStory failed: ${(err as Error).message}`)
+    }
+  }
+
+  async invalidateStory(storyId: string): Promise<void> {
+    this.l1.delete(`story:${storyId}`)
+    if (!this.client) return
+    try {
+      await this.client.del(`story:${storyId}`)
+    } catch (err) {
+      this.logger.warn(`invalidateStory failed: ${(err as Error).message}`)
+    }
+  }
+
+  // Story tray — ordered list of ready story ids + posters for an author
+  async getStoryTray<T>(authorId: string): Promise<T | null> {
+    const key = `story:tray:${authorId}`
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setStoryTray(authorId: string, payload: unknown): Promise<void> {
+    const key = `story:tray:${authorId}`
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
+    } catch (err) {
+      this.logger.warn(`setStoryTray failed: ${(err as Error).message}`)
+    }
+  }
+
+  async invalidateStoryTray(authorId: string): Promise<void> {
+    this.l1.delete(`story:tray:${authorId}`)
+    if (!this.client) return
+    try {
+      await this.client.del(`story:tray:${authorId}`)
+    } catch (err) {
+      this.logger.warn(`invalidateStoryTray failed: ${(err as Error).message}`)
+    }
+  }
+
+  // ── TRENDING MUSIC ─────────────────────────────────────────────────────────
+
+  async musicTrendIncr(trackId: string): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.zincrby('trend:music', 1, trackId)
+    } catch (err) {
+      this.logger.warn(`musicTrendIncr failed: ${(err as Error).message}`)
+    }
+  }
+
+  async getTrendingMusic(limit = 20): Promise<{ id: string; score: number }[]> {
+    if (!this.client) return []
+    try {
+      const raw = await this.client.zrevrange('trend:music', 0, limit - 1, 'WITHSCORES')
+      const out: { id: string; score: number }[] = []
+      for (let i = 0; i < raw.length; i += 2) {
+        out.push({ id: raw[i]!, score: Number(raw[i + 1]) })
+      }
+      return out
+    } catch {
+      return []
+    }
+  }
+
+  // ── GENERIC CACHE (for ad-hoc keys like music search/browse/trending) ─────
+  // These are typed wrappers around get/set with L1 + L2 cascade.
+
+  async getCache<T>(key: string): Promise<T | null> {
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setCache(key: string, payload: unknown, ttlSeconds = 300): Promise<void> {
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', ttlSeconds)
+    } catch (err) {
+      this.logger.warn(`setCache(${key}) failed: ${(err as Error).message}`)
+    }
+  }
+
+  async invalidateCache(...keys: string[]): Promise<void> {
+    this.l1.delete(...keys)
+    if (!this.client || keys.length === 0) return
+    try {
+      await this.client.del(...keys)
+    } catch (err) {
+      this.logger.warn(`invalidateCache failed: ${(err as Error).message}`)
     }
   }
 

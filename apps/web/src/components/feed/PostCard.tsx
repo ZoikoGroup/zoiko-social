@@ -49,9 +49,10 @@ function Caption({ text }: { text: string }): React.JSX.Element {
 interface PostCardProps {
   post: PostItem
   onDeleted?: (postId: string) => void
+  onShareToStory?: (refType: string, refId: string) => void
 }
 
-export function PostCard({ post, onDeleted }: PostCardProps): React.JSX.Element {
+export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): React.JSX.Element {
   const router = useRouter()
   const { user } = useAuth()
   const [liked, setLiked] = useState(post.viewerLiked)
@@ -125,7 +126,12 @@ export function PostCard({ post, onDeleted }: PostCardProps): React.JSX.Element 
 
   return (
     <article className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
-      <ShareModal open={shareOpen} post={post} onClose={() => setShareOpen(false)} />
+      <ShareModal
+        open={shareOpen}
+        post={post}
+        onClose={() => setShareOpen(false)}
+        {...(onShareToStory ? { onShareToStory: () => { setShareOpen(false); onShareToStory('feed_post', post.id) } } : {})}
+      />
       <LikersModal open={likersOpen} postId={post.id} onClose={() => setLikersOpen(false)} />
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -147,6 +153,14 @@ export function PostCard({ post, onDeleted }: PostCardProps): React.JSX.Element 
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-44 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-10">
+              {onShareToStory && (
+                <button
+                  onClick={() => { setMenuOpen(false); onShareToStory('feed_post', post.id) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer"
+                >
+                  <Send className="w-4 h-4 text-primary" />Share to Story
+                </button>
+              )}
               <button onClick={copyLink} className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer">
                 <Link2 className="w-4 h-4" />{copied ? 'Copied!' : 'Copy link'}
               </button>

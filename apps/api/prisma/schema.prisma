@@ -173,6 +173,145 @@ enum MediaType {
   @@map("media_type")
 }
 
+enum CommunityPrivacy {
+  public
+  private
+  invite_only
+
+  @@map("community_privacy")
+}
+
+enum CommunityRole {
+  owner
+  admin
+  moderator
+  member
+
+  @@map("community_role")
+}
+
+enum MemberStatus {
+  active
+  pending
+  banned
+
+  @@map("member_status")
+}
+
+enum InviteType {
+  user
+  link
+
+  @@map("invite_type")
+}
+
+// ── Stories Enums ───────────────────────────────────────────────────────────
+
+enum StoryType {
+  photo
+  video
+  text
+  shared_post
+  shared_professional_profile
+  shared_marketplace_product
+  shared_community_post
+
+  @@map("story_type")
+}
+
+enum StoryStatus {
+  processing
+  ready
+  failed
+
+  @@map("story_status")
+}
+
+enum StoryPrivacy {
+  public
+  followers
+  close_friends
+  professional
+
+  @@map("story_privacy")
+}
+
+enum StoryRefType {
+  feed_post
+  profile
+  product
+  community_post
+
+  @@map("story_ref_type")
+}
+
+enum StoryMediaType {
+  image
+  video
+
+  @@map("story_media_type")
+}
+
+enum StoryReactionKind {
+  emoji
+  quick_reply
+  dm_reply
+  share
+  report
+
+  @@map("story_reaction_kind")
+}
+
+enum StickerType {
+  emoji
+  text
+  gif
+  mention
+  hashtag
+  time
+  date
+  weather
+  poll
+  question
+  countdown
+
+  @@map("sticker_type")
+}
+
+enum MusicMood {
+  happy
+  calm
+  cinematic
+  emotional
+  travel
+  nature
+  pets
+  funny
+  inspirational
+  background
+  corporate
+  ambient
+
+  @@map("music_mood")
+}
+
+enum MusicCategory {
+  happy
+  calm
+  cinematic
+  emotional
+  travel
+  nature
+  pets
+  funny
+  inspirational
+  background
+  corporate
+  ambient
+
+  @@map("music_category")
+}
+
 // ── PROFILES MODULE ─────────────────────────────────────────────────────────
 
 model Profile {
@@ -221,6 +360,21 @@ model Profile {
   savedPosts        SavedPost[]
   mentionsReceived  Mention[] @relation("MentionedUser")
   mentionsMade      Mention[] @relation("MentionActor")
+
+  // ── Communities Module Relations ──
+  communitiesCreated Community[]         @relation("CommunityCreator")
+  communityMemberships CommunityMember[]
+  communityInvitesSent CommunityInvite[] @relation("InviteCreator")
+  communityInvitesRcvd CommunityInvite[] @relation("InviteInvitee")
+
+  // ── Stories Module Relations ──
+  stories          Story[]
+  storyViews       StoryView[]
+  storyReactions   StoryReaction[]
+  storyMentions    StoryMention[] @relation("StoryMentioned")
+  storyMentionsMade StoryMention[] @relation("StoryMentionActor")
+  storyHighlights  StoryHighlight[]
+  storyArchives    StoryArchive[]
 
   @@map("profiles")
 }
@@ -405,21 +559,25 @@ model Post {
   sharesCount      Int            @default(0) @map("shares_count")
   savesCount       Int            @default(0) @map("saves_count")
   commentsDisabled Boolean        @default(false) @map("comments_disabled")
+  communityId      String?        @map("community_id")
   safetyCleared    Boolean        @default(false) @map("safety_cleared")
   isDeleted        Boolean        @default(false) @map("is_deleted")
   deletedAt        DateTime?      @map("deleted_at")
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
-  author   Profile       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  media    PostMedia[]
-  likes    Like[]
-  comments Comment[]
-  saves    SavedPost[]
-  hashtags PostHashtag[]
-  mentions Mention[]
+  author    Profile       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  community Community?     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  media     PostMedia[]
+  likes     Like[]
+  comments  Comment[]
+  saves     SavedPost[]
+  hashtags  PostHashtag[]
+  mentions  Mention[]
+  pin       CommunityPostPin?
 
   @@index([authorId, createdAt(sort: Desc)])
+  @@index([communityId, createdAt(sort: Desc)])
   @@index([createdAt])
   @@index([visibility])
   @@map("posts")
@@ -513,7 +671,8 @@ model Hashtag {
   postsCount Int      @default(0) @map("posts_count")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  posts PostHashtag[]
+  posts   PostHashtag[]
+  stories StoryHashtag[]
 
   @@map("hashtags")
 }
@@ -586,4 +745,395 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+// ── COMMUNITIES MODULE ───────────────────────────────────────────────────────
+
+model CommunityCategory {
+  id       String  @id @default(uuid())
+  slug     String  @unique
+  label    String
+  icon     String?
+  position Int     @default(0)
+  isActive Boolean @default(true) @map("is_active")
+
+  communities Community[]
+
+  @@map("community_categories")
+}
+
+model Community {
+  id             String           @id @default(uuid())
+  slug           String           @unique
+  name           String
+  description    String?
+  avatarUrl      String?          @map("avatar_url")
+  coverUrl       String?          @map("cover_url")
+  categoryId     String?          @map("category_id")
+  tags           String[]
+  privacy        CommunityPrivacy @default(public)
+  isVerified     Boolean          @default(false) @map("is_verified")
+  membersCount   Int              @default(0) @map("members_count")
+  postsCount     Int              @default(0) @map("posts_count")
+  createdBy      String           @map("created_by")
+  rulesUpdatedAt DateTime?        @map("rules_updated_at")
+  isDeleted      Boolean          @default(false) @map("is_deleted")
+  deletedAt      DateTime?        @map("deleted_at")
+  searchDoc      String           @default("") @map("search_doc")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  category CommunityCategory? @relation(fields: [categoryId], references: [id])
+  creator  Profile            @relation("CommunityCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  members  CommunityMember[]
+  settings CommunitySettings?
+  rules    CommunityRule[]
+  invites  CommunityInvite[]
+  pins     CommunityPostPin[]
+  reports  CommunityReport[]
+  posts    Post[]
+
+  @@index([categoryId])
+  @@index([membersCount(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("communities")
+}
+
+model CommunityMember {
+  communityId     String        @map("community_id")
+  userId          String        @map("user_id")
+  role            CommunityRole @default(member)
+  status          MemberStatus  @default(active)
+  mutedUntil      DateTime?     @map("muted_until")
+  acceptedRulesAt DateTime?     @map("accepted_rules_at")
+  invitedBy       String?       @map("invited_by")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      Profile   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([communityId, userId])
+  @@index([userId])
+  @@index([communityId, status, role])
+  @@map("community_members")
+}
+
+model CommunitySettings {
+  communityId       String   @id @map("community_id")
+  postApproval      Boolean  @default(false) @map("post_approval")
+  membersCanInvite  Boolean  @default(false) @map("members_can_invite")
+  notificationPrefs Json?    @map("notification_prefs")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@map("community_settings")
+}
+
+model CommunityRule {
+  id          String   @id @default(uuid())
+  communityId String   @map("community_id")
+  position    Int      @default(0)
+  title       String
+  body        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@index([communityId, position])
+  @@map("community_rules")
+}
+
+model CommunityInvite {
+  id          String     @id @default(uuid())
+  communityId String     @map("community_id")
+  type        InviteType
+  inviteeId   String?    @map("invitee_id")
+  code        String?
+  expiresAt   DateTime?  @map("expires_at")
+  maxUses     Int?       @map("max_uses")
+  uses        Int        @default(0)
+  revokedAt   DateTime?  @map("revoked_at")
+  createdBy   String     @map("created_by")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  invitee   Profile?  @relation("InviteInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  creator   Profile   @relation("InviteCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([communityId])
+  @@index([inviteeId])
+  @@map("community_invites")
+}
+
+model CommunityPostPin {
+  communityId String   @map("community_id")
+  postId      String   @unique @map("post_id")
+  type        String   @default("pin")
+  pinnedBy    String   @map("pinned_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([communityId, postId])
+  @@map("community_post_pins")
+}
+
+model CommunityReport {
+  id          String    @id @default(uuid())
+  communityId String    @map("community_id")
+  reporterId  String    @map("reporter_id")
+  targetType  String    @map("target_type")
+  targetId    String    @map("target_id")
+  reason      String
+  note        String?
+  status      String    @default("open")
+  reviewedBy  String?   @map("reviewed_by")
+  reviewedAt  DateTime? @map("reviewed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, reporterId, targetType, targetId])
+  @@index([communityId, status])
+  @@map("community_reports")
+}
+
+// ── STORIES MODULE ───────────────────────────────────────────────────────────
+
+model Story {
+  id             String        @id @default(uuid())
+  authorId       String        @map("author_id")
+  type           StoryType
+  status         StoryStatus   @default(processing)
+  privacy        StoryPrivacy  @default(followers)
+  segmentIndex   Int           @default(0) @map("segment_index")
+  segmentGroupId String?       @map("segment_group_id")
+  caption        String?
+  background     Json?
+  refType        StoryRefType? @map("ref_type")
+  refId          String?       @map("ref_id")
+  durationMs     Int           @default(5000) @map("duration_ms")
+  viewsCount     Int           @default(0) @map("views_count")
+  reactionsCount Int           @default(0) @map("reactions_count")
+  repliesCount   Int           @default(0) @map("replies_count")
+  impressionsCount Int         @default(0) @map("impressions_count")
+  allowReplies   Boolean       @default(true) @map("allow_replies")
+  allowReactions Boolean       @default(true) @map("allow_reactions")
+  isArchived     Boolean       @default(false) @map("is_archived")
+  isDeleted      Boolean       @default(false) @map("is_deleted")
+  publishedAt    DateTime?     @map("published_at")
+  expiresAt      DateTime?     @map("expires_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  author    Profile          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  media     StoryMedia[]
+  views     StoryView[]
+  reactions StoryReaction[]
+  mentions  StoryMention[]
+  stickers  StorySticker[]
+  music     StoryMusic?
+  hashtags  StoryHashtag[]
+  highlightItems StoryHighlightItem[]
+
+  @@index([authorId, expiresAt(sort: Desc)])
+  @@index([expiresAt])
+  @@index([segmentGroupId, segmentIndex])
+  @@map("stories")
+}
+
+model StoryMedia {
+  id             String         @id @default(uuid())
+  storyId        String         @map("story_id")
+  type           StoryMediaType
+  hlsUrl         String?        @map("hls_url")
+  mp4FallbackUrl String?        @map("mp4_fallback_url")
+  imageUrl       String?        @map("image_url")
+  renditions     Json?
+  thumbnailUrl   String?        @map("thumbnail_url")
+  previewUrl     String?        @map("preview_url")
+  blurhash       String?
+  width          Int?
+  height         Int?
+  durationMs     Int?           @map("duration_ms")
+  fileSize       Int?           @map("file_size")
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@map("story_media")
+}
+
+model StoryView {
+  storyId        String   @map("story_id")
+  viewerId       String   @map("viewer_id")
+  completionPct  Int      @default(0) @map("completion_pct")
+  reacted        Boolean  @default(false)
+  replied        Boolean  @default(false)
+  profileVisited Boolean  @default(false) @map("profile_visited")
+  viewedAt       DateTime @default(now()) @map("viewed_at")
+
+  story  Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer Profile @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, viewerId])
+  @@index([storyId, viewedAt(sort: Desc)])
+  @@index([viewerId])
+  @@map("story_views")
+}
+
+model StoryReaction {
+  id             String            @id @default(uuid())
+  storyId        String            @map("story_id")
+  userId         String            @map("user_id")
+  kind           StoryReactionKind
+  emoji          String?
+  message        String?
+  conversationId String?           @map("conversation_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  story Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("story_reactions")
+}
+
+model StoryMention {
+  id              String   @id @default(uuid())
+  storyId         String   @map("story_id")
+  mentionedUserId String   @map("mentioned_user_id")
+  actorId         String   @map("actor_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  story         Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  mentionedUser Profile @relation("StoryMentioned", fields: [mentionedUserId], references: [id], onDelete: Cascade)
+  actor         Profile @relation("StoryMentionActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, mentionedUserId])
+  @@index([mentionedUserId, createdAt(sort: Desc)])
+  @@map("story_mentions")
+}
+
+model StorySticker {
+  id        String      @id @default(uuid())
+  storyId   String      @map("story_id")
+  kind      StickerType
+  payload   Json
+  transform Json
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@map("story_stickers")
+}
+
+model MusicTrack {
+  id              String        @id @default(uuid())
+  title           String
+  artist          String
+  album           String?
+  genre           String
+  mood            MusicMood
+  category        MusicCategory
+  durationMs      Int           @map("duration_ms")
+  coverUrl        String        @map("cover_url")
+  previewUrl      String        @map("preview_url")
+  audioUrl        String        @map("audio_url")
+  license         String
+  attribution     String?
+  provider        String        @default("internal")
+  providerTrackId String?       @map("provider_track_id")
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  stories StoryMusic[]
+
+  @@index([mood])
+  @@index([category])
+  @@index([genre])
+  @@map("music_tracks")
+}
+
+model StoryMusic {
+  storyId      String   @id @map("story_id")
+  trackId      String   @map("track_id")
+  startMs      Int      @default(0) @map("start_ms")
+  durationMs   Int?     @map("duration_ms")
+  volume       Int      @default(100)
+  fadeIn       Boolean  @default(false) @map("fade_in")
+  fadeOut      Boolean  @default(false) @map("fade_out")
+  muteOriginal Boolean  @default(false) @map("mute_original")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  story Story      @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  track MusicTrack @relation(fields: [trackId], references: [id], onDelete: Restrict)
+
+  @@index([trackId])
+  @@map("story_music")
+}
+
+model StoryHashtag {
+  storyId   String @map("story_id")
+  hashtagId String @map("hashtag_id")
+
+  story   Story   @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, hashtagId])
+  @@index([hashtagId])
+  @@map("story_hashtags")
+}
+
+model StoryHighlight {
+  id         String   @id @default(uuid())
+  ownerId    String   @map("owner_id")
+  title      String
+  coverUrl   String?  @map("cover_url")
+  position   Int      @default(0)
+  itemsCount Int      @default(0) @map("items_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  owner Profile              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items StoryHighlightItem[]
+
+  @@index([ownerId, position])
+  @@map("story_highlights")
+}
+
+model StoryHighlightItem {
+  id              String   @id @default(uuid())
+  highlightId     String   @map("highlight_id")
+  archivedStoryId String   @map("archived_story_id")
+  position        Int      @default(0)
+  addedAt         DateTime @default(now()) @map("added_at")
+
+  highlight StoryHighlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story     Story          @relation(fields: [archivedStoryId], references: [id], onDelete: Cascade)
+
+  @@unique([highlightId, archivedStoryId])
+  @@index([highlightId, position])
+  @@map("story_highlight_items")
+}
+
+model StoryArchive {
+  storyId    String   @id @map("story_id")
+  ownerId    String   @map("owner_id")
+  snapshot   Json
+  archivedAt DateTime @default(now()) @map("archived_at")
+  purgeAfter DateTime @map("purge_after")
+
+  owner Profile @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, archivedAt(sort: Desc)])
+  @@index([purgeAfter])
+  @@map("story_archive")
 }
