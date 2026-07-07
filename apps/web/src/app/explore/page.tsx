@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Compass } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -13,8 +14,11 @@ import { useAuth } from '@/hooks/use-auth'
 export default function ExplorePage(): React.JSX.Element {
   const { loading, isAuthenticated } = useAuth()
 
-  if (loading) return <div className="min-h-screen bg-background" />
-  if (!isAuthenticated) return <></>
+  useEffect(() => {
+    if (!loading && !isAuthenticated) window.location.replace('/login')
+  }, [loading, isAuthenticated])
+
+  if (loading || !isAuthenticated) return <div className="min-h-screen bg-background" />
 
   return (
     <>

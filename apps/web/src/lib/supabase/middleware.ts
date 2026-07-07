@@ -31,13 +31,12 @@ export async function updateSession(request: NextRequest): Promise<{ response: N
         setAll(cookiesToSet: CookieSetItem[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
+          // Pass Supabase's cookie options through UNCHANGED. The auth token
+          // cookie must remain readable by the browser SDK (document.cookie) —
+          // forcing httpOnly:true here makes the client lose the session after a
+          // token refresh, which renders a blank page until cookies are cleared.
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, {
-              ...options,
-              httpOnly: true,
-              secure: process.env.NODE_ENV === 'production',
-              sameSite: 'lax',
-            })
+            supabaseResponse.cookies.set(name, value, options ?? {})
           )
         },
       },

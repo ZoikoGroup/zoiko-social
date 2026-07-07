@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -39,15 +39,17 @@ export default function HomePage(): React.JSX.Element {
   const [shareRef, setShareRef] = useState<{ refType: string; refId: string } | null>(null)
   const { loading, isAuthenticated } = useAuth()
 
-  // Content-shaped skeleton while auth resolves — no spinners
-  // v3: fresh build with env vars added to Vercel
-  if (loading) {
-    return <FeedSkeleton />
-  }
+  // Fallback client redirect: if the server let us through but the client has no
+  // session (e.g. cookie/session desync), go to login instead of a blank screen.
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      window.location.replace('/login')
+    }
+  }, [loading, isAuthenticated])
 
-  // Shouldn't reach here since middleware redirects, but guard anyway
-  if (!isAuthenticated) {
-    return <></>
+  // Content-shaped skeleton while auth resolves (or during the redirect above) — never a blank page
+  if (loading || !isAuthenticated) {
+    return <FeedSkeleton />
   }
 
   return (

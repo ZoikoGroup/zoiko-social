@@ -52,14 +52,19 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     // getSession() reads locally (no network) — pages render immediately.
     // Token validity is enforced by the middleware and every API call anyway;
     // onAuthStateChange below picks up refreshes/expiry.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setState({
-        user: session?.user ?? null,
-        loading: false,
-        isAuthenticated: !!session?.user,
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setState({
+          user: session?.user ?? null,
+          loading: false,
+          isAuthenticated: !!session?.user,
+        })
+        if (session?.user && !cachedProfile) void refreshProfile()
       })
-      if (session?.user && !cachedProfile) void refreshProfile()
-    })
+      .catch(() => {
+        // Corrupt/unreadable session — treat as signed out instead of hanging on a blank screen
+        setState({ user: null, loading: false, isAuthenticated: false })
+      })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setState({

@@ -33,16 +33,10 @@ export async function createClient() {
         setAll(cookiesToSet: CookieSetItem[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              // Object-form overload avoids tuple type mismatch between
-              // CookieSerializeOptions (supabase) and ResponseCookie (next.js)
-              cookieStore.set({
-                name,
-                value,
-                ...options,
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-              })
+              // Pass Supabase's options through unchanged — the auth cookie must
+              // stay readable by the browser SDK. Object-form overload avoids the
+              // tuple type mismatch between supabase and next.js cookie options.
+              cookieStore.set({ name, value, ...options })
             })
           } catch {
             // Called from a Server Component — read-only context, middleware handles refresh
