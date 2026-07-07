@@ -41,7 +41,7 @@ export function PrivacyPicker({ value, onChange }: PrivacyPickerProps): React.JS
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-2 left-0 w-44 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+        <div className="absolute top-full mt-2 left-0 w-44 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
           {options.map((opt) => (
             <button
               key={opt}

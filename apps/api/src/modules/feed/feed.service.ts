@@ -51,8 +51,12 @@ export class FeedService {
       where: {
         isDeleted: false,
         OR: [
+          // Own posts — every visibility
           { authorId: viewerId },
+          // Followed authors — only public + followers-only posts
+          // (private stays author-only; community lives in its own surface)
           {
+            visibility: { in: ['public', 'followers'] },
             author: {
               followsAsFollowing: {
                 some: { followerId: viewerId, status: 'active' },
@@ -89,5 +93,45 @@ export class FeedService {
     }
 
     return page
+  }
+
+  /**
+   * Explore/discovery feed — recent PUBLIC posts from PUBLIC accounts the viewer
+   * does NOT already follow (and not their own), excluding blocked either way.
+   * This is how a public account "reaches anyone on the platform". Keyset
+   * paginated on (created_at, id); no cache (per-viewer, always fresh).
+   */
+  async getExploreFeed(viewerId: string, cursor: string | null, limit = FEED_PAGE): Promise<PostPage> {
+    const take = Math.min(limit, 30)
+    const decoded = cursor ? decodeCursor(cursor) : null
+
+    const posts = await this.prisma.post.findMany({
+      where: {
+        isDeleted: false,
+        visibility: 'public',
+        authorId: { not: viewerId },
+        author: {
+          isPrivate: false,
+          state: 'active',
+          blockedUsers: { none: { blockedId: viewerId } },
+          blockedByUsers: { none: { blockerId: viewerId } },
+          // Discovery = accounts you don't already follow
+          followsAsFollowing: { none: { followerId: viewerId, status: 'active' } },
+        },
+        ...(decoded
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(decoded.createdAt) } },
+                { createdAt: new Date(decoded.createdAt), id: { lt: decoded.tiebreaker } },
+              ],
+            }
+          : {}),
+      },
+      take: take + 1,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: this.postsService.postInclude(),
+    })
+
+    return this.postsService.buildPage(posts, take, viewerId)
   }
 }

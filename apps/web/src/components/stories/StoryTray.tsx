@@ -80,7 +80,10 @@ export function StoryTray({ onOpenRing, onOpenComposer }: StoryTrayProps): React
 
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
-      <div ref={scrollRef} className="flex items-center gap-3 px-4 py-[14px] overflow-x-auto no-scrollbar">
+      <div className="px-4 pt-3 pb-0.5">
+        <h3 className="text-label-md font-bold text-on-surface">Field Updates</h3>
+      </div>
+      <div ref={scrollRef} className="flex items-center gap-3 px-4 pb-3 pt-1.5 overflow-x-auto no-scrollbar">
         {/* Your Story — always first. Tap avatar to VIEW (if you have one); ＋ always adds. */}
         <div className="flex flex-col items-center gap-1.5 flex-shrink-0 w-[72px]">
           <div className="relative">

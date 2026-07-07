@@ -24,6 +24,22 @@ export class FeedController {
     )
     return { data: result }
   }
+
+  /** Explore/discovery — recent public posts from public accounts you don't follow. */
+  @Get('explore')
+  @UseGuards(JwtAuthGuard)
+  async explore(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.feedService.getExploreFeed(
+      user.id,
+      cursor ?? null,
+      limit ? parseInt(limit, 10) : 15,
+    )
+    return { data: result }
+  }
 }
 
 /** Profile post grids — lives here to keep the profile module untouched. */

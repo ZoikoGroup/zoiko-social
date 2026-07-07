@@ -1,7 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ImageIcon, X, Loader2, Globe, Users } from 'lucide-react'
+import Link from 'next/link'
+import {
+  ImageIcon, X, Loader2, Globe, Users, LifeBuoy, MapPin, Calendar,
+  Stethoscope, FileText, BarChart3,
+} from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { useAuth } from '@/hooks/use-auth'
 import { postsApi, type PostItem, type NewPostMedia } from '@/lib/api'
@@ -156,39 +160,56 @@ export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element
 
       {error && <p className="text-label-sm text-red-500">{error}</p>}
 
-      <div className="flex items-center justify-between px-1 pt-1 border-t border-outline-variant/10">
-        <div className="flex items-center gap-1">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        multiple
+        className="hidden"
+        onChange={handleFiles}
+      />
+
+      {/* Quick-action row */}
+      <div className="flex items-center gap-0.5 flex-wrap pt-2 border-t border-outline-variant/10">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={images.length >= 10}
+          className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+        >
+          <ImageIcon className="w-4 h-4 text-primary" />
+          <span className="hidden xl:inline">Photo/Video</span>
+          {images.length > 0 && <span className="text-[10px] text-outline">({images.length}/10)</span>}
+        </button>
+        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+          <LifeBuoy className="w-4 h-4 text-secondary" /><span className="hidden xl:inline">Rescue Case</span>
+        </button>
+        <Link href="/lost-found" className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors">
+          <MapPin className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Lost &amp; Found</span>
+        </Link>
+        <Link href="/events" className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors">
+          <Calendar className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Event</span>
+        </Link>
+        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+          <Stethoscope className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Vet Tip</span>
+        </button>
+        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+          <FileText className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Article</span>
+        </button>
+        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+          <BarChart3 className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Poll</span>
+        </button>
+      </div>
+
+      {(expanded || caption.trim() || images.length > 0) && (
+        <div className="flex items-center justify-between pt-1">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={images.length >= 10}
-            className="flex items-center gap-2 text-label-md text-on-surface-variant font-semibold hover:bg-surface-container px-3 py-2 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+            onClick={() => setVisibility((v) => (v === 'public' ? 'followers' : 'public'))}
+            className="flex items-center gap-1.5 text-label-sm text-on-surface-variant hover:bg-surface-container px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            title={visibility === 'public' ? 'Visible to everyone' : 'Followers only'}
           >
-            <ImageIcon className="w-5 h-5 text-primary" />
-            <span className="hidden sm:inline">Photos</span>
-            {images.length > 0 && <span className="text-[11px] text-outline">({images.length}/10)</span>}
+            {visibility === 'public' ? <Globe className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+            <span className="capitalize">{visibility}</span>
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            multiple
-            className="hidden"
-            onChange={handleFiles}
-          />
-
-          {expanded && (
-            <button
-              onClick={() => setVisibility((v) => (v === 'public' ? 'followers' : 'public'))}
-              className="flex items-center gap-1.5 text-label-sm text-on-surface-variant hover:bg-surface-container px-3 py-2 rounded-lg transition-colors cursor-pointer"
-              title={visibility === 'public' ? 'Visible to everyone' : 'Followers only'}
-            >
-              {visibility === 'public' ? <Globe className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-              <span className="hidden sm:inline capitalize">{visibility}</span>
-            </button>
-          )}
-        </div>
-
-        {(expanded || caption.trim() || images.length > 0) && (
           <button
             onClick={submit}
             disabled={posting || (!caption.trim() && images.length === 0)}
@@ -197,8 +218,8 @@ export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element
             {posting && <Loader2 className="w-4 h-4 animate-spin" />}
             {posting ? 'Publishing…' : 'Post'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

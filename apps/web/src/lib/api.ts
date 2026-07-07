@@ -377,6 +377,8 @@ export const postsApi = {
 export const feedApi = {
   home: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  explore: (cursor?: string | null, limit = 15) =>
+    request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   profilePosts: (profileId: string, cursor?: string | null, mediaOnly = false, limit = 12) =>
     cachedGet<PostPage>(
       `/profiles/${profileId}/posts?limit=${limit}${mediaOnly ? '&mediaOnly=1' : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,

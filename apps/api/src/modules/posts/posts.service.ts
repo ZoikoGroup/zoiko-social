@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, $Enums } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -213,10 +213,28 @@ export class PostsService {
     const take = Math.min(limit, MAX_PAGE)
     const decoded = cursor ? decodeCursor(cursor) : null
 
+    // Per-post visibility on the profile grid:
+    //   self → every post; accepted follower → public + followers; else → public only.
+    //   (private account + non-follower already rejected by assertCanViewAuthor above)
+    let visibilityFilter: Prisma.PostWhereInput = {}
+    if (profileId !== viewerId) {
+      let isFollower = false
+      if (viewerId) {
+        const f = await this.prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: viewerId, followingId: profileId } },
+          select: { status: true },
+        })
+        isFollower = f?.status === 'active'
+      }
+      const allowed = (isFollower ? ['public', 'followers'] : ['public']) as $Enums.PostVisibility[]
+      visibilityFilter = { visibility: { in: allowed } }
+    }
+
     const posts = await this.prisma.post.findMany({
       where: {
         authorId: profileId,
         isDeleted: false,
+        ...visibilityFilter,
         ...(mediaOnly ? { media: { some: {} } } : {}),
         ...(decoded
           ? {
@@ -341,14 +359,44 @@ export class PostsService {
    * don't confirm existence.
    */
   async assertCanViewPost(
-    post: { authorId: string; isDeleted: boolean; author?: { isPrivate: boolean } },
+    post: {
+      authorId: string
+      isDeleted: boolean
+      visibility?: string
+      communityId?: string | null
+      author?: { isPrivate: boolean }
+    },
     viewerId?: string,
   ): Promise<void> {
-    if (post.isDeleted) {
-      throw new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' })
-    }
-    if (post.authorId === viewerId) return
+    const notFound = new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' })
+    if (post.isDeleted) throw notFound
+    if (post.authorId === viewerId) return // own post — any visibility
+
+    // Account-level gate (block + private account → accepted followers only)
     await this.assertCanViewAuthor(post.authorId, viewerId, post.author?.isPrivate)
+
+    // Per-post visibility gate (applies even when the author's account is public)
+    const visibility = post.visibility ?? 'public'
+    if (visibility === 'public') return
+    if (visibility === 'private') throw notFound // author-only (author already returned)
+
+    if (visibility === 'community') {
+      if (!viewerId || !post.communityId) throw notFound
+      const member = await this.prisma.communityMember.findUnique({
+        where: { communityId_userId: { communityId: post.communityId, userId: viewerId } },
+        select: { status: true },
+      })
+      if (member?.status !== 'active') throw notFound
+      return
+    }
+
+    // 'followers' → must be an accepted follower
+    if (!viewerId) throw notFound
+    const follow = await this.prisma.follow.findUnique({
+      where: { followerId_followingId: { followerId: viewerId, followingId: post.authorId } },
+      select: { status: true },
+    })
+    if (follow?.status !== 'active') throw notFound
   }
 
   async assertCanViewAuthor(authorId: string, viewerId?: string, knownIsPrivate?: boolean): Promise<void> {
@@ -415,6 +463,8 @@ export class PostsService {
     isDeleted: boolean
     commentsDisabled: boolean
     likesCount: number
+    visibility: string
+    communityId: string | null
     author: { isPrivate: boolean; state: string }
   }> {
     const post = await this.prisma.post.findUnique({
@@ -425,6 +475,8 @@ export class PostsService {
         isDeleted: true,
         commentsDisabled: true,
         likesCount: true,
+        visibility: true,
+        communityId: true,
         author: { select: { isPrivate: true, state: true } },
       },
     })

@@ -107,7 +107,7 @@ export function MusicPicker({ onSelect, onRemove, selectedTrack }: MusicPickerPr
       )}
 
       {open && !selectedTrack && (
-        <div className="absolute bottom-full mb-2 left-0 w-72 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
+        <div className="absolute top-full mt-2 right-0 w-72 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
           <div className="p-3 border-b border-white/10">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/40 w-3.5 h-3.5" />

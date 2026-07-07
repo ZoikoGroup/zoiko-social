@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { $Enums } from '@prisma/client'
+import { $Enums, Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
@@ -89,20 +89,24 @@ export class HashtagsService {
       where: {
         isDeleted: false,
         hashtags: { some: { hashtagId: hashtag.id } },
-        ...(viewerId
-          ? {
-              author: {
-                state: 'active',
-                blockedUsers: { none: { blockedId: viewerId } },
-                blockedByUsers: { none: { blockerId: viewerId } },
-              },
-              OR: [
-                { author: { isPrivate: false } },
-                { authorId: viewerId },
-                { author: { followsAsFollowing: { some: { followerId: viewerId, status: 'active' } } } },
-              ],
-            }
-          : { author: { isPrivate: false, state: 'active' } }),
+        // Hashtag pages are a public discovery surface: only truly public posts
+        // from public accounts (plus the viewer's own posts, any visibility).
+        OR: [
+          ...(viewerId ? [{ authorId: viewerId }] : []),
+          {
+            visibility: 'public',
+            author: {
+              isPrivate: false,
+              state: 'active',
+              ...(viewerId
+                ? {
+                    blockedUsers: { none: { blockedId: viewerId } },
+                    blockedByUsers: { none: { blockerId: viewerId } },
+                  }
+                : {}),
+            },
+          },
+        ] as Prisma.PostWhereInput[],
         ...(decoded
           ? {
               AND: [

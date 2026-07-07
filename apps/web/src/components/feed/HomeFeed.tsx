@@ -1,11 +1,48 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { ArrowUp, PawPrint } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
 import { feedApi, type PostItem } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
+
+// Topic tabs link to real hashtag discovery pages; For You/Following show the home feed.
+const FEED_TABS: { label: string; tag?: string }[] = [
+  { label: 'For You' },
+  { label: 'Following' },
+  { label: 'Local', tag: 'local' },
+  { label: 'Rescue', tag: 'rescue' },
+  { label: 'Vet Advice', tag: 'vetadvice' },
+  { label: 'Lost & Found', tag: 'lostandfound' },
+  { label: 'Adoption', tag: 'adoption' },
+  { label: 'Wildlife', tag: 'wildlife' },
+  { label: 'Environment', tag: 'environment' },
+  { label: 'Science', tag: 'science' },
+  { label: 'Events', tag: 'events' },
+  { label: 'Articles', tag: 'articles' },
+]
+
+function FeedTabs(): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+      {FEED_TABS.map((t, i) => {
+        const active = i === 0
+        const cls = `flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-colors ${
+          active
+            ? 'bg-primary text-white'
+            : 'bg-surface-container-lowest border border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'
+        }`
+        return t.tag ? (
+          <Link key={t.label} href={`/explore/tags/${t.tag}`} className={cls}>{t.label}</Link>
+        ) : (
+          <span key={t.label} className={`${cls} ${active ? '' : 'cursor-pointer'}`}>{t.label}</span>
+        )
+      })}
+    </div>
+  )
+}
 
 function FeedSkeleton(): React.JSX.Element {
   return (
@@ -114,6 +151,8 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
   return (
     <div className="space-y-4 relative">
       <PostComposer onPosted={(post) => setPosts((prev) => [post, ...prev])} />
+
+      <FeedTabs />
 
       {/* New posts pill */}
       {newPostsAvailable && (

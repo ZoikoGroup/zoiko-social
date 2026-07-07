@@ -169,7 +169,7 @@ export function StickerLayer({
   }
 
   return (
-    <div className="relative">
+    <div className="absolute inset-0 z-[6]">
       {/* Sticker layer */}
       <div ref={layerRef} className="absolute inset-0 overflow-hidden pointer-events-none">
         {stickers.map((s) => (
@@ -226,19 +226,19 @@ export function StickerLayer({
         </div>
       )}
 
-      {/* Add sticker button */}
-      <div className="absolute bottom-2 left-2 z-10">
+      {/* Add sticker button — top-left, below the top bar (clear of bottom controls + right-side menus) */}
+      <div className="absolute top-16 left-3 z-10">
         <div className="relative">
           <button
             onClick={() => setPickerOpen((o) => !o)}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white transition-colors cursor-pointer backdrop-blur-sm"
             title="Add sticker"
           >
             <Smile className="w-4 h-4" />
           </button>
 
           {pickerOpen && (
-            <div className="absolute bottom-full mb-2 left-0 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-30">
+            <div className="absolute top-full mt-2 left-0 bg-neutral-900 border border-white/10 rounded-xl shadow-xl overflow-hidden z-30">
               {STICKER_TYPES.map((st) => (
                 <button
                   key={st.kind}

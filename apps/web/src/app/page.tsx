@@ -9,6 +9,8 @@ import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { HomeFeed } from '@/components/feed/HomeFeed'
 import { MobileTabs } from '@/components/MobileTabs'
+import { RightPanel } from '@/components/RightPanel'
+import { SafetyBanner } from '@/components/SafetyBanner'
 import { StoryTray } from '@/components/stories/StoryTray'
 import { StoryViewer } from '@/components/stories/StoryViewer'
 import { StoryComposer } from '@/components/stories/StoryComposer'
@@ -53,8 +55,11 @@ export default function HomePage(): React.JSX.Element {
       <Header />
 
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-2 md:px-5 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left Column */}
+        {/* Full-width safety/welfare banner */}
+        <SafetyBanner />
+
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          {/* Left column — profile, pets, groups, explore */}
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
             <MyPetsWidget />
@@ -62,13 +67,18 @@ export default function HomePage(): React.JSX.Element {
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column: Story Tray + Composer + Feed */}
-          <div className="lg:col-span-9 space-y-gutter pb-20 max-w-2xl">
+          {/* Center column — Field Updates + composer + feed */}
+          <div className="col-span-12 lg:col-span-6 space-y-gutter pb-20">
             <StoryTray
               onOpenRing={(authorId) => setViewerAuthorId(authorId)}
               onOpenComposer={() => setComposerOpen(true)}
             />
             <HomeFeed onShareToStory={(refType, refId) => setShareRef({ refType, refId })} />
+          </div>
+
+          {/* Right column — alerts, people, trending, events, verify */}
+          <div className="lg:col-span-3 space-y-gutter hidden lg:block">
+            <RightPanel />
           </div>
         </div>
       </main>
