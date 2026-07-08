@@ -42,6 +42,8 @@ interface MessageConversationProps {
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍']
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export function MessageConversation({
   conversationId,
   onBack,
@@ -71,7 +73,6 @@ export function MessageConversation({
   const [uploadingFile, setUploadingFile] = useState(false)
   const [disappearMode, setDisappearMode] = useState<'none' | 'view_once' | 'view_twice'>('none')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const API_URL = process.env.NEXT_PUBLIC_API_URL
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -234,12 +235,15 @@ export function MessageConversation({
   const otherPresence = otherUserId ? getPresence(otherUserId) : null
   const isOnline = otherPresence?.isOnline ?? conversation?.isOnline ?? false
 
-  // Typing indicator
-  const typingUsers = conversationId && conversation?.participants
-    ? conversation.participants
-        .filter((p) => p.id !== user?.id && isUserTyping(p.id, conversationId))
-        .map((p) => p.displayName)
-    : []
+  // Typing indicator — use useMemo to stabilize the dependency for the useMemo below
+  const typingUsers = useMemo(() =>
+    conversationId && conversation?.participants
+      ? conversation.participants
+          .filter((p) => p.id !== user?.id && isUserTyping(p.id, conversationId))
+          .map((p) => p.displayName)
+      : [],
+  [conversationId, conversation, user?.id, isUserTyping],
+  )
   const someoneTyping = typingUsers.length > 0
 
   const typingText = isOnline
@@ -405,7 +409,7 @@ export function MessageConversation({
     }
 
     void sendMessage(body, parentId, tempId)
-  }, [conversationId, input, replyingTo, user, profile, sendMessage])
+  }, [conversationId, input, replyingTo, user, profile, socket, sendMessage])
 
   const handleRetry = useCallback(async (tempId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== tempId))

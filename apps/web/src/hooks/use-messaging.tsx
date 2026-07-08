@@ -265,6 +265,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         }
       })
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, toastWarning, toastSuccess])
 
   // ── Fetch suggestions ───────────────────────────────────────────────────
