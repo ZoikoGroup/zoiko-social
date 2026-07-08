@@ -4,6 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useAuth } from '@/hooks/use-auth'
 import { notificationsApi, type NotificationItem } from '@/lib/api'
 import { getSocket, disconnectSocket } from '@/lib/socket'
+import type { Socket } from 'socket.io-client'
+
+// Module-level map to store socket cleanup functions without relying on `any` casts
+const notifCleanups = new Map<Socket, () => void>()
 
 interface NotificationsContextValue {
   unreadCount: number
@@ -43,14 +47,48 @@ export function NotificationsProvider({ children }: { children: ReactNode }): Re
 
     void getSocket().then((socket) => {
       if (!socket || cancelled) return
-      const onNew = (notification: NotificationItem): void => {
+
+      // Listen for notification-specific events
+      const onNotification = (notification: NotificationItem): void => {
         setLatest(notification)
         setUnreadCount((c) => c + 1)
       }
-      socket.on('notification.new', onNew)
+
+      // Listen for new messages from other users — update the notification badge
+      const onNewMessage = (msg: { sender?: { id: string }; conversationId: string }): void => {
+        // Only increment for messages from other people (not the current user)
+        // and when the tab is hidden (not actively viewing)
+        if (
+          typeof document !== 'undefined' &&
+          document.hidden &&
+          msg.sender?.id
+        ) {
+          setLatest(null) // Don't set a notification item, just increment count
+          setUnreadCount((c) => c + 1)
+        }
+      }
+
+      socket.on('notification:new', onNotification)
+      socket.on('message:new', onNewMessage)
+
+      // Store cleanup
+      notifCleanups.set(socket, () => {
+        socket.off('notification:new', onNotification)
+        socket.off('message:new', onNewMessage)
+      })
     })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      // Clean up notification listeners if they were registered
+      getSocket().then((s) => {
+        if (s) {
+          const cleanup = notifCleanups.get(s)
+          cleanup?.()
+          notifCleanups.delete(s)
+        }
+      })
+    }
   }, [isAuthenticated])
 
   const markRead = useCallback(async (id: string) => {

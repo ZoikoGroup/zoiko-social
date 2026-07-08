@@ -12,6 +12,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
+import { useMessaging } from '@/hooks/use-messaging'
 import { UserAvatar } from './UserAvatar'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
@@ -30,14 +31,6 @@ const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[]
 ]
 
 const MODULE_HREFS = MODULES.map((m) => m.href)
-
-// Primary top-nav: Home · Network · Messaging · Alerts (+ More menu)
-const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: boolean }[] = [
-  { name: 'Home',      Icon: Home,          href: '/',              always: true },
-  { name: 'Network',   Icon: Users,         href: '/network'                     },
-  { name: 'Messaging', Icon: MessageSquare, href: '/messages'                    },
-  { name: 'Alerts',    Icon: Bell,          href: '/notifications', badge: true, always: true },
-]
 
 function NineDotIcon(): React.JSX.Element {
   return (
@@ -61,7 +54,8 @@ export function Header(): React.JSX.Element {
   const pathname = usePathname()
   const router = useRouter()
   const { profile } = useAuth()
-  const { unreadCount } = useNotifications()
+  const { unreadCount: notifUnreadCount } = useNotifications()
+  const { unreadCount: msgUnreadCount } = useMessaging()
   const [searchTerm, setSearchTerm] = useState('')
 
   const isActive = (href: string): boolean => {
@@ -108,32 +102,66 @@ export function Header(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Center: Primary navigation */}
-        <nav className="flex items-center justify-center gap-0.5 md:gap-1 h-full flex-shrink-0">
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(item.href)
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`${item.always ? 'flex' : 'hidden sm:flex'} flex-col items-center justify-center min-w-[54px] h-full cursor-pointer transition-colors duration-200 border-b-2 ${
-                  active
-                    ? 'text-primary border-primary'
-                    : 'text-on-surface-variant hover:text-primary border-transparent'
-                }`}
-              >
-                <div className="relative">
-                  <item.Icon className="w-5 h-5" />
-                  {item.badge && unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] mt-0.5 ${active ? 'font-semibold' : ''}`}>{item.name}</span>
-              </Link>
-            )
-          })}
+        {/* Right: Navigation */}
+        <nav className="flex items-center gap-1 md:gap-2 h-full">
+          <Link
+            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/"
+          >
+            <Home className="w-5 h-5" />
+            <span className="text-[10px] font-semibold mt-0.5">Home</span>
+          </Link>
+          <Link
+            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/network')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/network"
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">Network</span>
+          </Link>
+          <Link
+            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
+              isActive('/messages')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/messages"
+          >
+            <div className="relative">
+              <MessageSquare className="w-5 h-5" />
+              {msgUnreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {msgUnreadCount > 99 ? '99+' : msgUnreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] mt-0.5">Messaging</span>
+          </Link>
+          <Link
+            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer relative transition-colors duration-200 ${
+              isActive('/notifications')
+                ? 'text-primary border-b-2 border-primary'
+                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
+            }`}
+            href="/notifications"
+          >
+            <div className="relative">
+              <Bell className="w-5 h-5" />
+              {notifUnreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] mt-0.5">Notifications</span>
+          </Link>
 
           {/* 9-dot Apps Menu */}
           <div className="relative" ref={menuRef}>

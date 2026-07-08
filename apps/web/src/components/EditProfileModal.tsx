@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Loader2, Lock, Camera, AtSign, CheckCircle2, XCircle } from 'lucide-react'
 import { profileApi, ApiError, type Profile } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/hooks/use-toast'
 
 interface EditProfileModalProps {
   open: boolean
@@ -136,6 +137,8 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     return data.publicUrl
   }
 
+  const toast = useToast()
+
   async function handleSave(): Promise<void> {
     setSaving(true)
     setError('')
@@ -152,8 +155,11 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
         ...(changedUsername !== profile.username && !usernameLocked ? { username: changedUsername } : {}),
       })
       onSaved(updated)
+      toast.success('Profile saved', 'Your changes have been updated successfully')
     } catch (e) {
-      setError(e instanceof ApiError || e instanceof Error ? e.message : 'Failed to save profile')
+      const msg = e instanceof ApiError || e instanceof Error ? e.message : 'Failed to save profile'
+      setError(msg)
+      toast.error('Save failed', msg)
     } finally {
       setSaving(false)
     }

@@ -20,6 +20,8 @@ import { HashtagsModule } from './modules/hashtags/hashtags.module'
 import { CommunitiesModule } from './modules/communities/communities.module'
 import { StoriesModule } from './modules/stories/stories.module'
 import { HealthModule } from './health/health.module'
+import { MessagingModule } from './modules/messaging/messaging.module'
+import { R2Module } from './modules/storage/r2.module'
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { HealthModule } from './health/health.module'
     CommunitiesModule,
     StoriesModule,
     HealthModule,
+    MessagingModule,
+    R2Module,
   ],
   controllers: [AppController],
   providers: [AppService],

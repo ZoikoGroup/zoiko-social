@@ -10,6 +10,7 @@ import { PeopleCard } from '@/components/PeopleCard'
 import { PendingInvitations } from '@/components/PendingInvitations'
 import { RightPanel } from '@/components/RightPanel'
 import { networkApi, type FollowSuggestion } from '@/lib/api'
+import { useToast } from '@/hooks/use-toast'
 
 const CATEGORY_FILTERS = [
   { slug: 'all', label: 'All' },
@@ -21,6 +22,7 @@ const CATEGORY_FILTERS = [
 ]
 
 export default function NetworkPage(): React.JSX.Element {
+  const toast = useToast()
   // Support deep links from the header search: /network?q=term
   const [search, setSearch] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
@@ -37,10 +39,10 @@ export default function NetworkPage(): React.JSX.Element {
   useEffect(() => {
     let cancelled = false
     networkApi.getSuggestions()
-      .then((data) => { if (!cancelled) setSuggestions(data) })
-      .catch(() => {})
+      .then((data) => { if (!cancelled) setSuggestions(data) })        .catch(() => { if (!cancelled) toast.error('Failed to load suggestions', 'Could not fetch people you may know') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Server-side search across ALL accounts (debounced) — not just suggestions
@@ -58,11 +60,17 @@ export default function NetworkPage(): React.JSX.Element {
       setSearching(true)
       networkApi.search(q, 20)
         .then((data) => { if (!cancelled) setSearchResults(data) })
-        .catch(() => { if (!cancelled) setSearchResults([]) })
+        .catch(() => {
+          if (!cancelled) {
+            setSearchResults([])
+            toast.error('Search failed', 'Could not search for people. Please try again.')
+          }
+        })
         .finally(() => { if (!cancelled) setSearching(false) })
     }, 350)
 
     return () => { cancelled = true; clearTimeout(timer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search])
 
   const isSearchMode = search.trim().length >= 2

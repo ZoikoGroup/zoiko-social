@@ -17,6 +17,11 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Cloudflare R2 (S3-compatible object storage for messaging attachments)
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().default('zoiko-media'),
   R2_PUBLIC_URL: z.string().url().optional(),
 })
 
@@ -75,5 +80,30 @@ export class ConfigService {
 
   get redisUrl(): string | undefined {
     return this.env.REDIS_URL
+  }
+
+  get r2AccountId(): string | undefined {
+    return this.env.R2_ACCOUNT_ID
+  }
+
+  get r2AccessKeyId(): string | undefined {
+    return this.env.R2_ACCESS_KEY_ID
+  }
+
+  get r2SecretAccessKey(): string | undefined {
+    return this.env.R2_SECRET_ACCESS_KEY
+  }
+
+  get r2BucketName(): string {
+    return this.env.R2_BUCKET_NAME
+  }
+
+  get r2PublicUrl(): string | undefined {
+    return this.env.R2_PUBLIC_URL
+  }
+
+  get r2Endpoint(): string | undefined {
+    const accountId = this.env.R2_ACCOUNT_ID
+    return accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined
   }
 }

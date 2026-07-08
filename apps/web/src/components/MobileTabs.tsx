@@ -8,6 +8,7 @@ import {
   Stethoscope, Activity, Heart,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useMessaging } from '@/hooks/use-messaging'
 
 interface MobileTabsProps {
   currentPage: string
@@ -38,6 +39,7 @@ const TRAY_MODULES: { name: string; Icon: LucideIcon; href: string }[] = [
 
 export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element {
   const [trayOpen, setTrayOpen] = useState(false)
+  const { unreadCount } = useMessaging()
 
   return (
     <>
@@ -98,8 +100,10 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
             >
               <tab.Icon className="w-5 h-5" />
               <span className={`text-[10px] ${isActive ? 'font-semibold' : ''}`}>{tab.label}</span>
-              {tab.page === 'messages' && (
-                <span className="absolute -top-0.5 right-0 w-2 h-2 bg-primary rounded-full"></span>
+              {tab.page === 'messages' && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
               )}
             </Link>
           )
