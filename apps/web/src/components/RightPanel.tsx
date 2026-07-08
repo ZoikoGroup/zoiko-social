@@ -6,7 +6,7 @@ import { Info, AtSign, MapPin, TrendingUp, Calendar, ShieldCheck, ChevronRight }
 import { UserAvatar } from './UserAvatar'
 import { FollowButton, initialFollowState } from './FollowButton'
 import { SkeletonWidget } from './Skeletons'
-import { networkApi, hashtagsApi, PROFESSIONAL_CATEGORY_LABELS, type FollowSuggestion } from '@/lib/api'
+import { networkApi, hashtagsApi, eventsApi, PROFESSIONAL_CATEGORY_LABELS, type FollowSuggestion, type EventItem } from '@/lib/api'
 
 interface Trending { tag: string; postsCount: number }
 
@@ -39,18 +39,28 @@ function Section({
   )
 }
 
+function eventDate(iso: string): { mon: string; day: string } {
+  const d = new Date(iso)
+  return { mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(), day: String(d.getDate()) }
+}
+function eventWhen(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 export function RightPanel(): React.JSX.Element {
   const [suggestions, setSuggestions] = useState<FollowSuggestion[]>([])
   const [trending, setTrending] = useState<Trending[]>([])
+  const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled([networkApi.getSuggestions(), hashtagsApi.trending()])
-      .then(([sug, trend]) => {
+    Promise.allSettled([networkApi.getSuggestions(), hashtagsApi.trending(), eventsApi.upcoming(null, 3)])
+      .then(([sug, trend, ev]) => {
         if (cancelled) return
         if (sug.status === 'fulfilled') setSuggestions(sug.value.slice(0, 4))
         if (trend.status === 'fulfilled') setTrending(trend.value.slice(0, 5))
+        if (ev.status === 'fulfilled') setEvents(ev.value.data.slice(0, 3))
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -136,10 +146,32 @@ export function RightPanel(): React.JSX.Element {
 
       {/* Upcoming Events */}
       <Section title="Upcoming Events" href="/events">
-        <div className="flex items-center gap-2 text-label-sm text-outline py-2">
-          <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
-          <span>Find adoption days, workshops and meetups on the Events page.</span>
-        </div>
+        {loading ? (
+          <SkeletonWidget />
+        ) : events.length === 0 ? (
+          <div className="flex items-center gap-2 text-label-sm text-outline py-2">
+            <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+            <span>No upcoming events yet — create one on the Events page.</span>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {events.map((e) => {
+              const d = eventDate(e.startsAt)
+              return (
+                <Link key={e.id} href="/events" className="flex items-center gap-3 group">
+                  <div className="flex flex-col items-center justify-center w-11 h-11 rounded-lg bg-primary/10 flex-shrink-0">
+                    <span className="text-[9px] font-bold text-primary leading-none">{d.mon}</span>
+                    <span className="text-label-md font-bold text-primary leading-tight">{d.day}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-label-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">{e.title}</p>
+                    <p className="text-[11px] text-outline truncate">{eventWhen(e.startsAt)}</p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </Section>
 
       {/* Build trust / Verify profile CTA */}

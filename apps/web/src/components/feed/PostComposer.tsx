@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { useAuth } from '@/hooks/use-auth'
-import { postsApi, type PostItem, type NewPostMedia } from '@/lib/api'
+import { postsApi, type PostItem, type NewPostMedia, type PostKind, type PostMetadata } from '@/lib/api'
 import { processImage } from '@/lib/image'
 import { createClient } from '@/lib/supabase/client'
 
@@ -19,14 +19,23 @@ interface PendingImage {
 
 interface PostComposerProps {
   onPosted?: (post: PostItem) => void
+  /** When set, the post is created inside this community (members only). */
+  communityId?: string
 }
 
-export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element {
+export function PostComposer({ onPosted, communityId }: PostComposerProps): React.JSX.Element {
   const { profile } = useAuth()
   const [caption, setCaption] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
   const [visibility, setVisibility] = useState<'public' | 'followers'>('public')
   const [expanded, setExpanded] = useState(false)
+  const [kind, setKind] = useState<PostKind>('standard')
+  // Structured metadata fields (used per kind)
+  const [species, setSpecies] = useState('')
+  const [condition, setCondition] = useState('')
+  const [supportNeeded, setSupportNeeded] = useState('')
+  const [petName, setPetName] = useState('')
+  const [lastSeen, setLastSeen] = useState('')
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -103,16 +112,36 @@ export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element
         })
       }
 
+      // Build structured metadata for non-standard kinds
+      const metadata: PostMetadata = {}
+      if (kind === 'rescue_case') {
+        if (species.trim()) metadata.species = species.trim()
+        if (condition.trim()) metadata.condition = condition.trim()
+        const support = supportNeeded.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 6)
+        if (support.length) metadata.supportNeeded = support
+      } else if (kind === 'lost_found') {
+        if (petName.trim()) metadata.petName = petName.trim()
+        if (lastSeen.trim()) metadata.lastSeen = lastSeen.trim()
+      } else if (kind === 'wildlife') {
+        if (species.trim()) metadata.species = species.trim()
+      }
+      const hasMeta = Object.keys(metadata).length > 0
+
       const post = await postsApi.create({
         ...(trimmed ? { caption: trimmed } : {}),
         visibility,
         ...(media.length ? { media } : {}),
+        ...(kind !== 'standard' ? { kind } : {}),
+        ...(hasMeta ? { metadata } : {}),
+        ...(communityId ? { communityId } : {}),
       })
 
       images.forEach((img) => URL.revokeObjectURL(img.preview))
       setCaption('')
       setImages([])
       setExpanded(false)
+      setKind('standard')
+      setSpecies(''); setCondition(''); setSupportNeeded(''); setPetName(''); setLastSeen('')
       onPosted?.(post)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to publish post')
@@ -160,6 +189,34 @@ export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element
 
       {error && <p className="text-label-sm text-red-500">{error}</p>}
 
+      {/* Structured fields for the selected post kind */}
+      {kind !== 'standard' && (
+        <div className="rounded-xl border border-outline-variant/40 bg-surface-container-low p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-primary">
+              {kind === 'rescue_case' ? 'Rescue Case' : kind === 'vet_tip' ? 'Vet Tip' : kind === 'lost_found' ? 'Lost & Found' : 'Wildlife Sighting'}
+            </span>
+            <button onClick={() => setKind('standard')} className="text-[11px] text-outline hover:text-on-surface cursor-pointer">Clear</button>
+          </div>
+          {kind === 'rescue_case' && (
+            <>
+              <input value={species} onChange={(e) => setSpecies(e.target.value)} placeholder="Species (e.g. Cat · Domestic Shorthair)" maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="Condition (e.g. Recovering from malnutrition)" maxLength={300} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={supportNeeded} onChange={(e) => setSupportNeeded(e.target.value)} placeholder="Support needed (comma-separated: Foster home, Vet checkups)" maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            </>
+          )}
+          {kind === 'lost_found' && (
+            <>
+              <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder="Pet name & breed (e.g. Friendly Golden Retriever)" maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={lastSeen} onChange={(e) => setLastSeen(e.target.value)} placeholder="Last seen (e.g. 16th Ave & Judah St, SF)" maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            </>
+          )}
+          {kind === 'vet_tip' && (
+            <p className="text-[11px] text-outline">An educational disclaimer is added automatically to vet tips.</p>
+          )}
+        </div>
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -180,16 +237,16 @@ export function PostComposer({ onPosted }: PostComposerProps): React.JSX.Element
           <span className="hidden xl:inline">Photo/Video</span>
           {images.length > 0 && <span className="text-[10px] text-outline">({images.length}/10)</span>}
         </button>
-        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+        <button onClick={() => { setKind('rescue_case'); setExpanded(true) }} className={`flex items-center gap-1.5 text-[12px] font-semibold hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${kind === 'rescue_case' ? 'text-secondary bg-secondary/10' : 'text-on-surface-variant'}`}>
           <LifeBuoy className="w-4 h-4 text-secondary" /><span className="hidden xl:inline">Rescue Case</span>
         </button>
-        <Link href="/lost-found" className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors">
+        <button onClick={() => { setKind('lost_found'); setExpanded(true) }} className={`flex items-center gap-1.5 text-[12px] font-semibold hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${kind === 'lost_found' ? 'text-secondary bg-secondary/10' : 'text-on-surface-variant'}`}>
           <MapPin className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Lost &amp; Found</span>
-        </Link>
+        </button>
         <Link href="/events" className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors">
           <Calendar className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Event</span>
         </Link>
-        <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">
+        <button onClick={() => { setKind('vet_tip'); setExpanded(true) }} className={`flex items-center gap-1.5 text-[12px] font-semibold hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer ${kind === 'vet_tip' ? 'text-primary bg-primary/10' : 'text-on-surface-variant'}`}>
           <Stethoscope className="w-4 h-4 text-primary" /><span className="hidden xl:inline">Vet Tip</span>
         </button>
         <button onClick={() => setExpanded(true)} className="flex items-center gap-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-container px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer">

@@ -9,6 +9,7 @@ import { JoinButton } from '@/components/communities/JoinButton'
 import { MembersModal } from '@/components/communities/MembersModal'
 import { CommunitySettingsModal } from '@/components/communities/CommunitySettingsModal'
 import { InviteModal } from '@/components/communities/InviteModal'
+import { CommunityFeed } from '@/components/communities/CommunityFeed'
 import { communitiesApi, ApiError, type Community } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
@@ -184,15 +185,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                     </p>
                   </section>
                 ) : (
-                  <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
-                    <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
-                      <Users className="w-6 h-6 text-outline" />
-                    </div>
-                    <p className="text-label-md font-semibold text-on-surface">Community posts coming soon</p>
-                    <p className="text-label-sm text-outline mt-1 max-w-sm mx-auto">
-                      Members will post here — this feed activates in the next phase.
-                    </p>
-                  </section>
+                  <CommunityFeed communityId={community.id} isMember={isMember} />
                 )
               )}
 

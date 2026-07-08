@@ -42,6 +42,29 @@ export class FeedController {
   }
 }
 
+/** Community post feed — members only. */
+@Controller('communities')
+export class CommunityPostsController {
+  constructor(private readonly postsService: PostsService) {}
+
+  @Get(':id/posts')
+  @UseGuards(JwtAuthGuard)
+  async communityPosts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.postsService.getCommunityPosts(
+      id,
+      user.id,
+      cursor ?? null,
+      limit ? parseInt(limit, 10) : 15,
+    )
+    return { data: result }
+  }
+}
+
 /** Profile post grids — lives here to keep the profile module untouched. */
 @Controller('profiles')
 export class ProfilePostsController {

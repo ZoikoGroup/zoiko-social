@@ -19,6 +19,8 @@ import { CommentsModule } from './modules/comments/comments.module'
 import { HashtagsModule } from './modules/hashtags/hashtags.module'
 import { CommunitiesModule } from './modules/communities/communities.module'
 import { StoriesModule } from './modules/stories/stories.module'
+import { PetsModule } from './modules/pets/pets.module'
+import { EventsModule } from './modules/events/events.module'
 import { HealthModule } from './health/health.module'
 
 @Module({
@@ -41,6 +43,8 @@ import { HealthModule } from './health/health.module'
     HashtagsModule,
     CommunitiesModule,
     StoriesModule,
+    PetsModule,
+    EventsModule,
     HealthModule,
   ],
   controllers: [AppController],

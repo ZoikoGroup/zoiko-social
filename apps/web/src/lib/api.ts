@@ -284,6 +284,18 @@ export interface PostMediaItem {
   blurhash: string | null
 }
 
+export type PostKind = 'standard' | 'rescue_case' | 'vet_tip' | 'lost_found' | 'wildlife'
+
+export interface PostMetadata {
+  species?: string
+  condition?: string
+  supportNeeded?: string[]
+  verifiedBy?: string
+  petName?: string
+  lastSeen?: string
+  location?: string
+}
+
 export interface PostItem {
   id: string
   author: {
@@ -292,7 +304,11 @@ export interface PostItem {
     displayName: string
     avatarUrl: string | null
     isVerified: boolean
+    professionalCategory: string | null
   }
+  community: { name: string; slug: string } | null
+  kind: PostKind
+  metadata: PostMetadata | null
   caption: string | null
   visibility: string
   media: PostMediaItem[]
@@ -352,7 +368,15 @@ export interface NewPostMedia {
 // ── Posts API ────────────────────────────────────────────────────────────────
 
 export const postsApi = {
-  create: (input: { caption?: string; visibility?: 'public' | 'followers'; commentsDisabled?: boolean; media?: NewPostMedia[] }) =>
+  create: (input: {
+    caption?: string
+    visibility?: 'public' | 'followers'
+    commentsDisabled?: boolean
+    media?: NewPostMedia[]
+    kind?: PostKind
+    metadata?: PostMetadata
+    communityId?: string
+  }) =>
     mutate<PostItem>('/posts', { method: 'POST', body: JSON.stringify(input) }),
   get: (id: string) => cachedGet<PostItem>(`/posts/${id}`, 15_000),
   update: (id: string, input: { caption?: string; commentsDisabled?: boolean }) =>
@@ -374,11 +398,110 @@ export const postsApi = {
     ),
 }
 
+// ── Pets ──────────────────────────────────────────────────────────────────
+export interface Pet {
+  id: string
+  ownerId: string
+  name: string
+  species: string
+  breed: string | null
+  avatarUrl: string | null
+  bio: string | null
+  birthdate: string | null
+  isPublic: boolean
+  createdAt: string
+}
+
+export interface NewPet {
+  name: string
+  species: string
+  breed?: string
+  avatarUrl?: string
+  bio?: string
+  birthdate?: string
+  isPublic?: boolean
+}
+
+export interface DiaryEntry {
+  id: string
+  petId: string
+  kind: string
+  title: string | null
+  body: string | null
+  photoUrl: string | null
+  entryDate: string
+  createdAt: string
+}
+
+export interface HealthRecord {
+  id: string
+  petId: string
+  type: string
+  title: string
+  notes: string | null
+  recordDate: string | null
+  nextDue: string | null
+  createdAt: string
+}
+
+export const petsApi = {
+  mine: () => cachedGet<Pet[]>('/pets', 15_000),
+  byProfile: (profileId: string) => cachedGet<Pet[]>(`/profiles/${profileId}/pets`, 30_000),
+  create: (input: NewPet) => mutate<Pet>('/pets', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewPet>) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/pets/${id}`, { method: 'DELETE' }),
+  // Diary
+  diary: (petId: string) => cachedGet<DiaryEntry[]>(`/pets/${petId}/diary`, 15_000),
+  addDiary: (petId: string, input: { kind?: string; title?: string; body?: string; photoUrl?: string; entryDate?: string }) =>
+    mutate<DiaryEntry>(`/pets/${petId}/diary`, { method: 'POST', body: JSON.stringify(input) }),
+  removeDiary: (petId: string, entryId: string) =>
+    mutate<{ success: boolean }>(`/pets/${petId}/diary/${entryId}`, { method: 'DELETE' }),
+  // Health
+  health: (petId: string) => cachedGet<HealthRecord[]>(`/pets/${petId}/health`, 15_000),
+  addHealth: (petId: string, input: { type: string; title: string; notes?: string; recordDate?: string; nextDue?: string }) =>
+    mutate<HealthRecord>(`/pets/${petId}/health`, { method: 'POST', body: JSON.stringify(input) }),
+  removeHealth: (petId: string, recordId: string) =>
+    mutate<{ success: boolean }>(`/pets/${petId}/health/${recordId}`, { method: 'DELETE' }),
+}
+
+// ── Events ────────────────────────────────────────────────────────────────
+export interface EventItem {
+  id: string
+  host: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  title: string
+  description: string | null
+  location: string | null
+  isOnline: boolean
+  coverUrl: string | null
+  startsAt: string
+  endsAt: string | null
+  goingCount: number
+  viewerGoing: boolean
+}
+export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
+
+export const eventsApi = {
+  upcoming: (cursor?: string | null, limit = 15) =>
+    request<EventPage>(`/events?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  get: (id: string) => cachedGet<EventItem>(`/events/${id}`, 30_000),
+  create: (input: {
+    title: string; description?: string; location?: string; isOnline?: boolean
+    coverUrl?: string; startsAt: string; endsAt?: string
+  }) => mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
+  rsvp: (id: string, status: 'going' | 'interested' = 'going') =>
+    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
+  cancelRsvp: (id: string) =>
+    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'DELETE' }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
+}
+
 export const feedApi = {
   home: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   explore: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  community: (communityId: string, cursor?: string | null, limit = 15) =>
+    request<PostPage>(`/communities/${communityId}/posts?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   profilePosts: (profileId: string, cursor?: string | null, mediaOnly = false, limit = 12) =>
     cachedGet<PostPage>(
       `/profiles/${profileId}/posts?limit=${limit}${mediaOnly ? '&mediaOnly=1' : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,

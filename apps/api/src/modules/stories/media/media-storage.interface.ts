@@ -9,6 +9,9 @@
  * @see docs/stories-architecture.md §4
  */
 
+/** DI token for the active MediaStorage implementation (R2 or Supabase, by env). */
+export const MEDIA_STORAGE = 'MEDIA_STORAGE'
+
 export interface SignedUploadResult {
   /** Pre-signed PUT URL the client uses to upload bytes directly. */
   uploadUrl: string

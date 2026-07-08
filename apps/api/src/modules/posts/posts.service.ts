@@ -23,6 +23,7 @@ export interface PostAuthor {
   displayName: string
   avatarUrl: string | null
   isVerified: boolean
+  professionalCategory: string | null
 }
 
 export interface PostMediaItem {
@@ -38,6 +39,9 @@ export interface PostMediaItem {
 export interface PostResponse {
   id: string
   author: PostAuthor
+  community: { name: string; slug: string } | null
+  kind: string
+  metadata: Record<string, unknown> | null
   caption: string | null
   visibility: string
   media: PostMediaItem[]
@@ -64,8 +68,13 @@ type PostWithRelations = Prisma.PostGetPayload<{
   include: {
     media: true
     author: {
-      select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true; isPrivate: true }
+      select: {
+        id: true; username: true; displayName: true; avatarUrl: true
+        verificationTier: true; isPrivate: true
+        professionalProfile: { select: { category: true } }
+      }
     }
+    community: { select: { name: true; slug: true } }
   }
 }>
 
@@ -108,13 +117,27 @@ export class PostsService {
         })
       : []
 
+    // Community post: only active members may post; forces visibility=community
+    if (input.communityId) {
+      const member = await this.prisma.communityMember.findUnique({
+        where: { communityId_userId: { communityId: input.communityId, userId: authorId } },
+        select: { status: true },
+      })
+      if (member?.status !== 'active') {
+        throw new ForbiddenException({ code: 'NOT_COMMUNITY_MEMBER', message: 'Join the community to post in it' })
+      }
+    }
+
     const post = await this.prisma.$transaction(async (tx) => {
       const created = await tx.post.create({
         data: {
           authorId,
           type: media.length > 0 ? 'image' : 'text',
+          kind: input.kind ?? 'standard',
+          ...(input.metadata ? { metadata: input.metadata as Prisma.InputJsonValue } : {}),
+          ...(input.communityId ? { communityId: input.communityId } : {}),
           body: caption,
-          visibility: input.visibility ?? 'public',
+          visibility: input.communityId ? 'community' : (input.visibility ?? 'public'),
           commentsDisabled: input.commentsDisabled ?? false,
           media: {
             create: media.map((m) => ({
@@ -293,6 +316,43 @@ export class PostsService {
     }
   }
 
+  /** A community's post feed — active members only. */
+  async getCommunityPosts(
+    communityId: string,
+    viewerId: string,
+    cursor: string | null,
+    limit = 15,
+  ): Promise<PostPage> {
+    const member = await this.prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId, userId: viewerId } },
+      select: { status: true },
+    })
+    if (member?.status !== 'active') {
+      throw new ForbiddenException({ code: 'NOT_COMMUNITY_MEMBER', message: 'Join the community to view its posts' })
+    }
+
+    const take = Math.min(limit, MAX_PAGE)
+    const decoded = cursor ? decodeCursor(cursor) : null
+    const posts = await this.prisma.post.findMany({
+      where: {
+        communityId,
+        isDeleted: false,
+        ...(decoded
+          ? {
+              OR: [
+                { createdAt: { lt: new Date(decoded.createdAt) } },
+                { createdAt: new Date(decoded.createdAt), id: { lt: decoded.tiebreaker } },
+              ],
+            }
+          : {}),
+      },
+      take: take + 1,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      include: this.postInclude(),
+    })
+    return this.buildPage(posts, take, viewerId)
+  }
+
   // ── UPDATE / DELETE ───────────────────────────────────────────────────────
 
   async updatePost(postId: string, authorId: string, input: UpdatePostInput): Promise<PostResponse> {
@@ -448,8 +508,10 @@ export class PostsService {
           avatarUrl: true,
           verificationTier: true,
           isPrivate: true,
+          professionalProfile: { select: { category: true } },
         },
       },
+      community: { select: { name: true, slug: true } },
     }
   }
 
@@ -545,7 +607,11 @@ export class PostsService {
         displayName: post.author.displayName,
         avatarUrl: post.author.avatarUrl,
         isVerified: post.author.verificationTier === 'professional',
+        professionalCategory: post.author.professionalProfile?.category ?? null,
       },
+      community: post.community ? { name: post.community.name, slug: post.community.slug } : null,
+      kind: post.kind,
+      metadata: (post.metadata as Record<string, unknown> | null) ?? null,
       caption: post.body,
       visibility: post.visibility,
       media: post.media.map((m) => ({

@@ -10,12 +10,28 @@ export const MediaItemSchema = z.object({
   position: z.number().int().min(0).max(9),
 })
 
+export const POST_KINDS = ['standard', 'rescue_case', 'vet_tip', 'lost_found', 'wildlife'] as const
+
+/** Structured, kind-specific fields (all optional; permissive but bounded). */
+export const PostMetadataSchema = z.object({
+  species: z.string().max(120).optional(),
+  condition: z.string().max(300).optional(),
+  supportNeeded: z.array(z.string().max(60)).max(6).optional(),
+  verifiedBy: z.string().max(120).optional(),
+  petName: z.string().max(120).optional(),
+  lastSeen: z.string().max(200).optional(),
+  location: z.string().max(200).optional(),
+})
+
 export const CreatePostSchema = z
   .object({
     caption: z.string().max(2200).optional(),
     visibility: z.enum(['public', 'followers']).optional(),
     commentsDisabled: z.boolean().optional(),
     media: z.array(MediaItemSchema).max(10).optional(),
+    kind: z.enum(POST_KINDS).optional(),
+    metadata: PostMetadataSchema.optional(),
+    communityId: z.string().uuid().optional(),
   })
   .refine((body) => (body.caption?.trim()?.length ?? 0) > 0 || (body.media?.length ?? 0) > 0, {
     message: 'A post needs a caption or at least one image',

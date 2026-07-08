@@ -9,7 +9,6 @@ import { ReactionsController } from './reactions/reactions.controller'
 import { ReactionsService } from './reactions/reactions.service'
 import { MentionsController } from './mentions/mentions.controller'
 import { MentionsService } from './mentions/mentions.service'
-import { SupabaseStorage } from './media/supabase-storage.service'
 import { TranscodeService } from './media/transcode.service'
 import { RefResolverService } from './refs/ref-resolver.service'
 import { FeedPostResolver } from './refs/feed-post.resolver'
@@ -60,7 +59,6 @@ import { ArchiveService } from './archive/archive.service'
     FeedPostResolver,
     ProfileResolver,
     CommunityPostResolver,
-    SupabaseStorage,
     TranscodeService,
     MusicService,
     InternalMusicProvider,

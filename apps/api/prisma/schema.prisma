@@ -349,6 +349,9 @@ model Profile {
 
   // ── Core Relations ──
   posts           Post[]
+  pets            Pet[]
+  eventsHosted    Event[]
+  eventRsvps      EventRsvp[]
   notifications   Notification[]
   userRoles       UserRoleAssignment[]
   auditLogs       AuditLog[]
@@ -377,6 +380,98 @@ model Profile {
   storyArchives    StoryArchive[]
 
   @@map("profiles")
+}
+
+model Pet {
+  id        String    @id @default(uuid())
+  ownerId   String    @map("owner_id")
+  name      String
+  species   String
+  breed     String?
+  avatarUrl String?   @map("avatar_url")
+  bio       String?
+  birthdate DateTime? @db.Date
+  isPublic  Boolean   @default(true) @map("is_public")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  owner        Profile           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  diaryEntries PetDiaryEntry[]
+  healthRecords PetHealthRecord[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("pets")
+}
+
+model PetDiaryEntry {
+  id        String   @id @default(uuid())
+  petId     String   @map("pet_id")
+  ownerId   String   @map("owner_id")
+  kind      String   @default("note")   // note | milestone | photo | checkup
+  title     String?
+  body      String?
+  photoUrl  String?  @map("photo_url")
+  entryDate DateTime @default(now()) @map("entry_date") @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, entryDate(sort: Desc)])
+  @@map("pet_diary")
+}
+
+model PetHealthRecord {
+  id         String    @id @default(uuid())
+  petId      String    @map("pet_id")
+  ownerId    String    @map("owner_id")
+  type       String                          // vaccination | vet_visit | medication | allergy | weight | note
+  title      String
+  notes      String?
+  recordDate DateTime? @map("record_date") @db.Date
+  nextDue    DateTime? @map("next_due") @db.Date
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, recordDate(sort: Desc)])
+  @@map("pet_health_records")
+}
+
+model Event {
+  id          String      @id @default(uuid())
+  hostId      String      @map("host_id")
+  title       String
+  description String?
+  location    String?
+  isOnline    Boolean     @default(false) @map("is_online")
+  coverUrl    String?     @map("cover_url")
+  startsAt    DateTime    @map("starts_at")
+  endsAt      DateTime?   @map("ends_at")
+  goingCount  Int         @default(0) @map("going_count")
+  isDeleted   Boolean     @default(false) @map("is_deleted")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  host  Profile     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  rsvps EventRsvp[]
+
+  @@index([startsAt])
+  @@index([hostId, startsAt])
+  @@map("events")
+}
+
+model EventRsvp {
+  eventId   String   @map("event_id")
+  userId    String   @map("user_id")
+  status    String   @default("going")   // going | interested
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("event_rsvps")
 }
 
 model UserRoleAssignment {
@@ -551,6 +646,8 @@ model Post {
   id               String         @id @default(uuid())
   authorId         String         @map("author_id")
   type             PostType       @default(text)
+  kind             String         @default("standard")   // post category: standard|rescue_case|vet_tip|lost_found|wildlife
+  metadata         Json?                                  // structured, kind-specific fields
   body             String?        // caption — kept as `body` for DB compat
   mediaUrls        String[]       @map("media_urls")
   visibility       PostVisibility @default(public)
