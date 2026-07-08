@@ -55,3 +55,7 @@ next-env.d.ts
 
 # ── SUPABASE ──────────────────────────────────────────────────────
 supabase/.temp/
+
+# Local design mockups / screenshots
+*.jpeg
+WhatsApp Image*
