@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Sun, X } from 'lucide-react'
+import { ThermometerSun, X } from 'lucide-react'
 import Link from 'next/link'
 
 const DISMISS_KEY = 'zk.safetyBanner.dismissed.v1'
 
 /**
- * Full-width safety/welfare alert banner shown at the top of the home feed.
+ * Safety/welfare advisory shown at the top of the home feed.
  * Dismissible per browser session (sessionStorage) so it reappears next visit.
  * Content is static welfare guidance for now; wire to a live alerts source later.
  */
@@ -25,24 +25,25 @@ export function SafetyBanner(): React.JSX.Element | null {
   }
 
   return (
-    <div className="w-full bg-gradient-to-r from-[#E8590C] to-[#F08C00] text-white">
-      <div className="max-w-container-max mx-auto px-3 md:px-5 py-2.5 flex items-center gap-3">
-        <Sun className="w-5 h-5 flex-shrink-0" />
-        <p className="flex-1 text-label-sm leading-snug">
-          <span className="font-bold">Heat Warning:</span>{' '}
-          Pavement temps can reach 50°C+ — risk of paw pad burns. Walk pets early morning or after
-          sundown. Carry water.
+    <div className="max-w-container-max mx-auto px-2 md:px-5 pt-4">
+      <div className="flex items-center gap-3 rounded-xl border border-secondary/30 bg-secondary/10 px-4 py-3">
+        <span className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-secondary/15">
+          <ThermometerSun className="w-5 h-5 text-secondary" />
+        </span>
+        <p className="flex-1 text-label-sm leading-snug text-on-surface">
+          <span className="font-bold">Heat Advisory:</span>{' '}
+          Pavement temperatures are high today. Test before walks and protect your pets.
         </p>
         <Link
           href="/pet-care"
-          className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg bg-white text-[#E8590C] text-label-sm font-semibold hover:bg-white/90 transition-colors flex-shrink-0"
+          className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg border border-secondary/50 text-secondary text-label-sm font-semibold hover:bg-secondary/10 transition-colors flex-shrink-0"
         >
-          View Safety Tips
+          View Safety Guide
         </Link>
         <button
           onClick={dismiss}
           aria-label="Dismiss"
-          className="p-1 rounded-lg hover:bg-white/20 transition-colors flex-shrink-0 cursor-pointer"
+          className="p-1.5 rounded-lg text-outline hover:bg-black/5 transition-colors flex-shrink-0 cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

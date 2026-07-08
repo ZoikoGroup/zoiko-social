@@ -352,6 +352,11 @@ model Profile {
   pets            Pet[]
   eventsHosted    Event[]
   eventRsvps      EventRsvp[]
+  adoptionPosts     AdoptionPost[]
+  adoptionEnquiries AdoptionEnquiry[]
+  serviceProviders  ServiceProvider[]
+  lostFoundPosts    LostFoundPost[]
+  lostFoundSightings LostFoundSighting[]
   notifications   Notification[]
   userRoles       UserRoleAssignment[]
   auditLogs       AuditLog[]
@@ -472,6 +477,119 @@ model EventRsvp {
   @@id([eventId, userId])
   @@index([userId])
   @@map("event_rsvps")
+}
+
+model AdoptionPost {
+  id             String   @id @default(uuid())
+  posterId       String   @map("poster_id")
+  name           String
+  species        String
+  breed          String?
+  age            String?
+  sex            String   @default("unknown")   // male | female | unknown
+  size           String?                         // small | medium | large
+  description    String?
+  location       String?
+  coverUrl       String?  @map("cover_url")
+  photos         String[] @default([])
+  vaccinated     Boolean  @default(false)
+  neutered       Boolean  @default(false)
+  goodWith       String[] @default([]) @map("good_with")
+  fee            Int?
+  status         String   @default("available")  // available | pending | adopted | withdrawn
+  enquiriesCount Int      @default(0) @map("enquiries_count")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  poster    Profile           @relation(fields: [posterId], references: [id], onDelete: Cascade)
+  enquiries AdoptionEnquiry[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([posterId, createdAt(sort: Desc)])
+  @@index([species])
+  @@map("adoption_posts")
+}
+
+model AdoptionEnquiry {
+  id          String   @id @default(uuid())
+  listingId   String   @map("listing_id")
+  applicantId String   @map("applicant_id")
+  message     String?
+  status      String   @default("pending")   // pending | accepted | rejected | withdrawn
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  listing   AdoptionPost @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  applicant Profile      @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, applicantId])
+  @@index([listingId, createdAt(sort: Desc)])
+  @@map("adoption_enquiries")
+}
+
+model ServiceProvider {
+  id          String   @id @default(uuid())
+  addedBy     String   @map("added_by")
+  category    String                          // vet | pet_care
+  name        String
+  serviceType String?  @map("service_type")
+  description String?
+  location    String?
+  address     String?
+  phone       String?
+  website     String?
+  coverUrl    String?  @map("cover_url")
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  addedByUser Profile @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+
+  @@index([category, createdAt(sort: Desc)])
+  @@index([addedBy])
+  @@map("service_providers")
+}
+
+model LostFoundPost {
+  id               String    @id @default(uuid())
+  reporterId       String    @map("reporter_id")
+  kind             String                              // lost | found
+  petName          String?   @map("pet_name")
+  species          String
+  breed            String?
+  description      String?
+  lastSeenLocation String?   @map("last_seen_location")
+  lastSeenAt       DateTime? @map("last_seen_at") @db.Date
+  photoUrl         String?   @map("photo_url")
+  contact          String?
+  reward           Int?
+  status           String    @default("active")        // active | reunited | closed
+  sightingsCount   Int       @default(0) @map("sightings_count")
+  isDeleted        Boolean   @default(false) @map("is_deleted")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  reporter  Profile             @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  sightings LostFoundSighting[]
+
+  @@index([kind, status, createdAt(sort: Desc)])
+  @@index([reporterId])
+  @@map("lost_found_posts")
+}
+
+model LostFoundSighting {
+  id         String   @id @default(uuid())
+  postId     String   @map("post_id")
+  reporterId String   @map("reporter_id")
+  message    String?
+  location   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  post     LostFoundPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reporter Profile       @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@map("lost_found_sightings")
 }
 
 model UserRoleAssignment {

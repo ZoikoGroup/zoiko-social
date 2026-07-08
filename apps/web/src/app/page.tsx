@@ -5,14 +5,11 @@ import { useAuth } from '@/hooks/use-auth'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
-import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { HomeFeed } from '@/components/feed/HomeFeed'
 import { MobileTabs } from '@/components/MobileTabs'
 import { RightPanel } from '@/components/RightPanel'
 import { SafetyBanner } from '@/components/SafetyBanner'
-import { StoryTray } from '@/components/stories/StoryTray'
-import { StoryViewer } from '@/components/stories/StoryViewer'
 import { StoryComposer } from '@/components/stories/StoryComposer'
 
 function FeedSkeleton(): React.JSX.Element {
@@ -34,8 +31,6 @@ function FeedSkeleton(): React.JSX.Element {
 }
 
 export default function HomePage(): React.JSX.Element {
-  const [viewerAuthorId, setViewerAuthorId] = useState<string | null>(null)
-  const [composerOpen, setComposerOpen] = useState(false)
   const [shareRef, setShareRef] = useState<{ refType: string; refId: string } | null>(null)
   const { loading, isAuthenticated } = useAuth()
 
@@ -61,20 +56,15 @@ export default function HomePage(): React.JSX.Element {
         <SafetyBanner />
 
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left column — profile, pets, groups, explore */}
+          {/* Left column — profile, pets, shortcuts */}
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
             <MyPetsWidget />
-            <CommunitiesWidget />
             <QuickLinksWidget />
           </div>
 
-          {/* Center column — Field Updates + composer + feed */}
+          {/* Center column — Live Animal Updates + feed */}
           <div className="col-span-12 lg:col-span-6 space-y-gutter pb-20">
-            <StoryTray
-              onOpenRing={(authorId) => setViewerAuthorId(authorId)}
-              onOpenComposer={() => setComposerOpen(true)}
-            />
             <HomeFeed onShareToStory={(refType, refId) => setShareRef({ refType, refId })} />
           </div>
 
@@ -87,19 +77,12 @@ export default function HomePage(): React.JSX.Element {
 
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {/* Story Viewer overlay */}
-      {viewerAuthorId && (
-        <StoryViewer
-          initialAuthorId={viewerAuthorId}
-          onClose={() => setViewerAuthorId(null)}
-        />
-      )}
-
-      {/* Story Composer overlay */}
-      {(composerOpen || shareRef) && (
+      {/* Story Composer overlay — opened when sharing a post to a story */}
+      {shareRef && (
         <StoryComposer
-          onClose={() => { setComposerOpen(false); setShareRef(null) }}
-          {...(shareRef ? { refType: shareRef.refType, refId: shareRef.refId } : {})}
+          onClose={() => setShareRef(null)}
+          refType={shareRef.refType}
+          refId={shareRef.refId}
         />
       )}
     </>

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { AtSign, BadgeCheck, MapPin, Camera } from 'lucide-react'
+import { AtSign, BadgeCheck, MapPin } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { UserAvatar } from './UserAvatar'
 import { PROFESSIONAL_CATEGORY_LABELS, type Profile } from '@/lib/api'
@@ -47,25 +47,22 @@ export function ProfileCard(): React.JSX.Element {
   const pct = strength(profile)
 
   const stats = [
-    { label: 'Followers', value: compact(profile.followersCount) },
+    { label: 'Connections', value: compact(profile.followersCount) },
     { label: 'Following', value: compact(profile.followingCount) },
     { label: 'Posts', value: compact(profile.postsCount) },
-    { label: 'Trust', value: String(profile.trustScore) },
   ]
 
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
       {/* Cover */}
-      <div className="h-20 bg-gradient-to-br from-primary/40 via-primary/15 to-secondary/30 relative" />
+      <div className="h-24 bg-gradient-to-br from-primary/40 via-primary/15 to-secondary/30 relative" />
 
       <div className="px-4 pb-4">
         {/* Avatar overlapping cover */}
         <div className="-mt-9 mb-2 flex items-end justify-between">
           <Link href="/profile" className="relative ring-4 ring-surface-container-lowest rounded-full">
             <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="lg" verified={isVerified} />
-            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-primary border-2 border-surface-container-lowest flex items-center justify-center">
-              <Camera className="w-3 h-3 text-white" />
-            </span>
+            <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-surface-container-lowest" />
           </Link>
         </div>
 
@@ -91,7 +88,7 @@ export function ProfileCard(): React.JSX.Element {
         {/* Profile strength */}
         <div className="mt-3">
           <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-outline">Profile strength</span>
+            <span className="text-on-surface-variant font-medium">Profile Strength</span>
             <span className="font-semibold text-primary">{pct}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-surface-container overflow-hidden">
@@ -99,8 +96,8 @@ export function ProfileCard(): React.JSX.Element {
           </div>
         </div>
 
-        {/* 4-stat grid */}
-        <div className="mt-4 grid grid-cols-4 gap-1 border-t border-outline-variant/30 pt-3">
+        {/* 3-stat grid */}
+        <div className="mt-4 grid grid-cols-3 gap-1 border-t border-outline-variant/30 pt-3">
           {stats.map((s) => (
             <Link key={s.label} href="/profile" className="flex flex-col items-center text-center group">
               <span className="text-label-md font-bold text-primary leading-tight group-hover:underline">{s.value}</span>

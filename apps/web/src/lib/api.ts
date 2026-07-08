@@ -495,6 +495,155 @@ export const eventsApi = {
   remove: (id: string) => mutate<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
 }
 
+// ── Adoption & Rescue ────────────────────────────────────────────────────────
+export interface AdoptionListing {
+  id: string
+  poster: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  name: string
+  species: string
+  breed: string | null
+  age: string | null
+  sex: string
+  size: string | null
+  description: string | null
+  location: string | null
+  coverUrl: string | null
+  photos: string[]
+  vaccinated: boolean
+  neutered: boolean
+  goodWith: string[]
+  fee: number | null
+  status: string
+  enquiriesCount: number
+  createdAt: string
+  viewerEnquiryStatus: string | null
+}
+export interface AdoptionEnquiryItem {
+  id: string
+  message: string | null
+  status: string
+  createdAt: string
+  applicant: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface AdoptionPage { data: AdoptionListing[]; nextCursor: string | null; hasMore: boolean }
+
+export interface NewListing {
+  name: string; species: string; breed?: string; age?: string
+  sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
+  description?: string; location?: string; coverUrl?: string; photos?: string[]
+  vaccinated?: boolean; neutered?: boolean; goodWith?: string[]; fee?: number
+}
+
+export const adoptionApi = {
+  browse: (filters: { species?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.species) qs.set('species', filters.species)
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<AdoptionPage>(`/adoption?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<AdoptionListing>(`/adoption/${id}`, 15_000),
+  create: (input: NewListing) => mutate<AdoptionListing>('/adoption', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewListing> & { status?: string }) =>
+    mutate<AdoptionListing>(`/adoption/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/adoption/${id}`, { method: 'DELETE' }),
+  enquire: (id: string, message?: string) =>
+    mutate<{ status: string }>(`/adoption/${id}/enquiries`, { method: 'POST', body: JSON.stringify({ ...(message ? { message } : {}) }) }),
+  enquiries: (id: string) => request<AdoptionEnquiryItem[]>(`/adoption/${id}/enquiries`),
+  respond: (id: string, enquiryId: string, status: 'accepted' | 'rejected') =>
+    mutate<{ status: string }>(`/adoption/${id}/enquiries/${enquiryId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+}
+
+// ── Service providers (Vet Finder + Pet Care) ────────────────────────────────
+export interface Provider {
+  id: string
+  category: string
+  name: string
+  serviceType: string | null
+  description: string | null
+  location: string | null
+  address: string | null
+  phone: string | null
+  website: string | null
+  coverUrl: string | null
+  addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  createdAt: string
+}
+export interface ProviderPage { data: Provider[]; nextCursor: string | null; hasMore: boolean }
+export interface NewProvider {
+  category: 'vet' | 'pet_care'; name: string; serviceType?: string; description?: string
+  location?: string; address?: string; phone?: string; website?: string; coverUrl?: string
+}
+
+export const providersApi = {
+  browse: (category: 'vet' | 'pet_care', filters: { q?: string; location?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('category', category); qs.set('limit', String(limit))
+    if (filters.q) qs.set('q', filters.q)
+    if (filters.location) qs.set('location', filters.location)
+    if (cursor) qs.set('cursor', cursor)
+    return request<ProviderPage>(`/providers?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<Provider>(`/providers/${id}`, 30_000),
+  create: (input: NewProvider) => mutate<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<Omit<NewProvider, 'category'>>) =>
+    mutate<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/providers/${id}`, { method: 'DELETE' }),
+}
+
+// ── Lost & Found ─────────────────────────────────────────────────────────────
+export interface LostFoundReport {
+  id: string
+  kind: string
+  petName: string | null
+  species: string
+  breed: string | null
+  description: string | null
+  lastSeenLocation: string | null
+  lastSeenAt: string | null
+  photoUrl: string | null
+  contact: string | null
+  reward: number | null
+  status: string
+  sightingsCount: number
+  reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  createdAt: string
+}
+export interface LostFoundSighting {
+  id: string
+  message: string | null
+  location: string | null
+  createdAt: string
+  reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface LostFoundPage { data: LostFoundReport[]; nextCursor: string | null; hasMore: boolean }
+export interface NewReport {
+  kind: 'lost' | 'found'; petName?: string; species: string; breed?: string; description?: string
+  lastSeenLocation?: string; lastSeenAt?: string; photoUrl?: string; contact?: string; reward?: number
+}
+
+export const lostFoundApi = {
+  browse: (filters: { kind?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.kind) qs.set('kind', filters.kind)
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<LostFoundPage>(`/lost-found?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<LostFoundReport>(`/lost-found/${id}`, 15_000),
+  create: (input: NewReport) => mutate<LostFoundReport>('/lost-found', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<Omit<NewReport, 'kind'>> & { status?: string }) =>
+    mutate<LostFoundReport>(`/lost-found/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/lost-found/${id}`, { method: 'DELETE' }),
+  sightings: (id: string) => request<LostFoundSighting[]>(`/lost-found/${id}/sightings`),
+  addSighting: (id: string, input: { message?: string; location?: string }) =>
+    mutate<{ id: string }>(`/lost-found/${id}/sightings`, { method: 'POST', body: JSON.stringify(input) }),
+}
+
 export const feedApi = {
   home: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
