@@ -1,249 +1,230 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Search, SlidersHorizontal, AlertTriangle, CheckCircle2, ChevronLeft } from 'lucide-react'
 import { Header } from '@/components/Header'
+import { ProfileCard } from '@/components/ProfileCard'
+import { QuickLinksWidget } from '@/components/QuickLinksWidget'
+import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
-import { LostPetCard, type LostPet, type PetStatus } from '@/components/LostPetCard'
-import { ReportLostPetModal } from '@/components/ReportLostPetModal'
+import { MapPin, Search, Plus, X, Loader2, Camera, Eye } from 'lucide-react'
+import { lostFoundApi, type LostFoundReport, type NewReport } from '@/lib/api'
+import { uploadCommunityImage } from '@/lib/community-image'
+import { useAuth } from '@/hooks/use-auth'
 
-const INITIAL_PETS: LostPet[] = [
-  {
-    id: '1',
-    petName: 'Luna',
-    species: 'Cat',
-    breed: 'Domestic Shorthair',
-    age: '2 years',
-    color: 'Grey & White',
-    image: 'https://images.unsplash.com/photo-1574144611937-0df059b5ef3e?w=600&h=400&fit=crop',
-    lastSeenLocation: 'Riverside Park, North Entrance',
-    lastSeenDate: 'Jun 29, 2026',
-    description: 'Luna has a small pink collar with a bell. Very friendly, responds to her name. She has a tiny white patch on her left ear.',
-    ownerName: 'Alex Rivera',
-    ownerVerified: true,
-    visibility: 'public',
-    status: 'lost',
-    postedAgo: '2 hours ago',
-  },
-  {
-    id: '2',
-    petName: 'Bruno',
-    species: 'Dog',
-    breed: 'Labrador Mix',
-    age: '4 years',
-    color: 'Golden',
-    image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=400&fit=crop',
-    lastSeenLocation: 'Greenview Market, near the bus stop',
-    lastSeenDate: 'Jun 28, 2026',
-    description: 'Bruno is wearing a blue harness and has a red ID tag. He is neutered and microchipped. Very friendly with people.',
-    ownerName: 'Priya Nair',
-    ownerVerified: false,
-    visibility: 'communities',
-    status: 'lost',
-    postedAgo: 'Yesterday',
-  },
-  {
-    id: '3',
-    petName: 'Kiwi',
-    species: 'Bird',
-    breed: 'Budgerigar',
-    age: '1 year',
-    color: 'Green & Yellow',
-    image: 'https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?w=600&h=400&fit=crop',
-    lastSeenLocation: 'Sector 12, Garden Colony',
-    lastSeenDate: 'Jun 27, 2026',
-    description: 'Kiwi flew out of an open window. Very tame, will fly toward people. Says "Kiwi hello" if spoken to. Last seen heading east.',
-    ownerName: 'Meera Singh',
-    ownerVerified: true,
-    visibility: 'public',
-    status: 'lost',
-    postedAgo: '2 days ago',
-  },
-  {
-    id: '4',
-    petName: 'Max',
-    species: 'Dog',
-    breed: 'German Shepherd',
-    age: '3 years',
-    color: 'Black & Tan',
-    image: 'https://images.unsplash.com/photo-1548681528-6a5c45b66b42?w=600&h=400&fit=crop',
-    lastSeenLocation: 'City Centre, near Metro Station',
-    lastSeenDate: 'Jun 25, 2026',
-    description: 'Max has a GPS collar but battery may have died. He responds to "Max" and "Sit". Scar on right hind leg.',
-    ownerName: 'Carlos Mendoza',
-    ownerVerified: true,
-    visibility: 'public',
-    status: 'found',
-    postedAgo: '4 days ago',
-  },
-]
+const TABS = [{ v: '', label: 'All' }, { v: 'lost', label: 'Lost' }, { v: 'found', label: 'Found' }]
 
-const SPECIES_FILTERS = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
+function kindChip(kind: string): string {
+  return kind === 'lost' ? 'bg-red-500/10 text-red-600' : 'bg-emerald-500/10 text-emerald-600'
+}
 
 export default function LostFoundPage(): React.JSX.Element {
-  const [pets, setPets] = useState<LostPet[]>(INITIAL_PETS)
-  const [search, setSearch] = useState('')
-  const [speciesFilter, setSpeciesFilter] = useState('All')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'lost' | 'found'>('all')
-  const [showReport, setShowReport] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const { loading: authLoading, isAuthenticated } = useAuth()
+  const [reports, setReports] = useState<LostFoundReport[]>([])
+  const [kind, setKind] = useState('')
+  const [query, setQuery] = useState('')
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [createOpen, setCreateOpen] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
-  function handleStatusChange(id: string, status: PetStatus): void {
-    setPets((prev) => prev.map((p) => p.id === id ? { ...p, status } : p))
-  }
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) window.location.replace('/login')
+  }, [authLoading, isAuthenticated])
 
-  const filtered = pets.filter((p) => {
-    if (search && !p.petName.toLowerCase().includes(search.toLowerCase()) && !p.lastSeenLocation.toLowerCase().includes(search.toLowerCase())) return false
-    if (speciesFilter !== 'All' && p.species !== speciesFilter) return false
-    if (statusFilter !== 'all' && p.status !== statusFilter) return false
-    return true
-  })
+  const load = useCallback((k: string, q: string) => {
+    setLoading(true)
+    lostFoundApi.browse({ ...(k ? { kind: k } : {}), ...(q ? { q } : {}) })
+      .then((p) => { setReports(p.data); setNextCursor(p.nextCursor); setHasMore(p.hasMore) })
+      .catch(() => setReports([]))
+      .finally(() => setLoading(false))
+  }, [])
 
-  const lostCount  = pets.filter((p) => p.status === 'lost').length
-  const foundCount = pets.filter((p) => p.status === 'found').length
+  useEffect(() => {
+    const t = setTimeout(() => load(kind, query.trim()), query ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [kind, query, load])
+
+  useEffect(() => {
+    const s = sentinelRef.current
+    if (!s || !hasMore) return
+    const obs = new IntersectionObserver((e) => {
+      if (e[0]?.isIntersecting && nextCursor) {
+        lostFoundApi.browse({ ...(kind ? { kind } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, nextCursor)
+          .then((p) => {
+            setReports((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
+            setNextCursor(p.nextCursor); setHasMore(p.hasMore)
+          }).catch(() => {})
+      }
+    }, { rootMargin: '400px' })
+    obs.observe(s)
+    return () => obs.disconnect()
+  }, [hasMore, nextCursor, kind, query])
+
+  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
 
   return (
     <>
       <Header />
-      <ReportLostPetModal
-        open={showReport}
-        onClose={() => setShowReport(false)}
-        onSubmit={(data) => {
-          const newPet: LostPet = {
-            id: String(Date.now()),
-            ...data,
-            image: 'https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=600&h=400&fit=crop',
-            ownerName: 'Alex Rivera',
-            ownerVerified: true,
-            status: 'lost',
-            postedAgo: 'Just now',
-          }
-          setPets((prev) => [newPet, ...prev])
-        }}
-      />
-
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-gutter">
-
-          {/* Page header with back button */}
-          <div className="flex items-start justify-between gap-4 mb-gutter">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-                aria-label="Back to home"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
-              <div>
-                <h1 className="font-headline text-headline-lg text-on-surface">Lost & Found</h1>
-                <p className="text-label-md text-outline mt-1">Help reunite pets with their families</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowReport(true)}
-              className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <AlertTriangle className="w-4 h-4" />
-              Report Lost Pet
-            </button>
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          <div className="lg:col-span-3 space-y-gutter hidden lg:block">
+            <ProfileCard />
+            <QuickLinksWidget />
           </div>
 
-          {/* Stats row */}
-          <div className="flex gap-3 mb-gutter">
-            <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-xl px-4 py-3 flex-1">
-              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <div>
-                <p className="font-bold text-headline-md text-red-600">{lostCount}</p>
-                <p className="text-[11px] text-red-400">Currently lost</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 bg-green-50 border border-green-100 rounded-xl px-4 py-3 flex-1">
-              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-              <div>
-                <p className="font-bold text-headline-md text-green-600">{foundCount}</p>
-                <p className="text-[11px] text-green-400">Reunited</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Search + filter bar */}
-          <div className="flex gap-3 mb-gutter">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by pet name or location…"
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-label-md focus:border-primary focus:outline-none transition-colors"
-              />
-            </div>
-            <button
-              onClick={() => setShowFilters((f) => !f)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span className="hidden sm:inline text-label-md">Filter</span>
-            </button>
-          </div>
-
-          {/* Filter chips */}
-          {showFilters && (
-            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 mb-gutter space-y-3">
-              <div>
-                <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Species</p>
-                <div className="flex flex-wrap gap-2">
-                  {SPECIES_FILTERS.map((s) => (
-                    <button key={s} onClick={() => setSpeciesFilter(s)}
-                      className={`px-3 py-1.5 rounded-full text-label-sm transition-colors cursor-pointer ${speciesFilter === s ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary'}`}>
-                      {s}
-                    </button>
-                  ))}
+          <div className="lg:col-span-6 space-y-gutter pb-20">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center"><MapPin className="w-5 h-5 text-secondary" /></div>
+                <div>
+                  <h1 className="font-headline text-headline-md text-on-surface leading-tight">Lost &amp; Found</h1>
+                  <p className="text-label-sm text-outline">Reunite pets with their families</p>
                 </div>
               </div>
-              <div>
-                <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Status</p>
-                <div className="flex gap-2">
-                  {(['all', 'lost', 'found'] as const).map((s) => (
-                    <button key={s} onClick={() => setStatusFilter(s)}
-                      className={`px-3 py-1.5 rounded-full text-label-sm capitalize transition-colors cursor-pointer ${statusFilter === s ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary'}`}>
-                      {s === 'all' ? 'All' : s === 'lost' ? '🔴 Lost' : '🟢 Reunited'}
-                    </button>
-                  ))}
-                </div>
+              <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary text-white text-label-sm font-semibold hover:bg-secondary/90 transition-colors cursor-pointer">
+                <Plus className="w-4 h-4" />Report
+              </button>
+            </div>
+
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 space-y-2.5">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name, breed, area…"
+                  className="w-full pl-9 pr-4 py-2 bg-surface-container-low rounded-xl text-label-sm border border-transparent focus:border-primary focus:outline-none" />
+              </div>
+              <div className="flex gap-2">
+                {TABS.map((t) => (
+                  <button key={t.v} onClick={() => setKind(t.v)}
+                    className={`px-4 py-1.5 rounded-full text-label-sm transition-colors cursor-pointer ${kind === t.v ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary'}`}>
+                    {t.label}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
 
-          {/* Results count */}
-          {(search || speciesFilter !== 'All' || statusFilter !== 'all') && (
-            <p className="text-label-sm text-outline mb-4">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</p>
-          )}
+            {loading ? (
+              <div className="grid grid-cols-2 gap-3">{[0, 1, 2, 3].map((i) => <div key={i} className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
+            ) : reports.length === 0 ? (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
+                <MapPin className="w-8 h-8 text-secondary mx-auto mb-2" />
+                <p className="text-label-md font-semibold text-on-surface">No reports here</p>
+                <p className="text-label-sm text-outline">Report a lost or found pet to alert the community.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {reports.map((r) => (
+                  <Link key={r.id} href={`/lost-found/${r.id}`} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden group">
+                    <div className="aspect-[4/3] bg-surface-container relative">
+                      {r.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={r.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      ) : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-10 h-10 text-outline/40" /></div>}
+                      <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kindChip(r.kind)}`}>{r.kind}</span>
+                      {r.status === 'reunited' && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">Reunited</span>}
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-bold text-label-md text-on-surface truncate">{r.petName ?? r.species}</h3>
+                      <p className="text-[12px] text-on-surface-variant truncate">{r.species}{r.breed ? ` · ${r.breed}` : ''}</p>
+                      {r.lastSeenLocation && <p className="flex items-center gap-1 text-[11px] text-outline mt-1 truncate"><MapPin className="w-3 h-3 flex-shrink-0" />{r.lastSeenLocation}</p>}
+                      {r.sightingsCount > 0 && <p className="flex items-center gap-1 text-[11px] text-primary mt-1"><Eye className="w-3 h-3" />{r.sightingsCount} sighting{r.sightingsCount > 1 ? 's' : ''}</p>}
+                    </div>
+                  </Link>
+                ))}
+                <div ref={sentinelRef} className="h-1 col-span-2" />
+              </div>
+            )}
+          </div>
 
-          {/* Pet grid */}
-          {filtered.length === 0 ? (
-            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
-              <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto mb-3" />
-              <p className="font-semibold text-label-md text-on-surface">No lost pets found</p>
-              <p className="text-label-sm text-outline mt-1">Try adjusting your filters, or check back later.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter pb-20">
-              {filtered.map((pet) => (
-                <LostPetCard
-                  key={pet.id}
-                  pet={pet}
-                  isOwner={pet.ownerName === 'Alex Rivera'}
-                  onStatusChange={handleStatusChange}
-                />
-              ))}
-            </div>
-          )}
+          <div className="lg:col-span-3 space-y-gutter hidden lg:block">
+            <RightPanel />
+          </div>
         </div>
       </main>
+      <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      <MobileTabs currentPage="lost-found" />
+      {createOpen && <ReportModal onClose={() => setCreateOpen(false)} onCreated={(r) => setReports((prev) => [r, ...prev])} />}
     </>
+  )
+}
+
+function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (r: LostFoundReport) => void }): React.JSX.Element {
+  const { profile } = useAuth()
+  const [form, setForm] = useState<NewReport>({ kind: 'lost', species: '' })
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  function set<K extends keyof NewReport>(k: K, v: NewReport[K]): void { setForm((f) => ({ ...f, [k]: v })) }
+
+  async function pickPhoto(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0]; e.target.value = ''
+    if (!file || !profile) return
+    setUploading(true); setError('')
+    try { setPhotoUrl(await uploadCommunityImage(profile.id, file, 'cover')) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Upload failed') } finally { setUploading(false) }
+  }
+
+  async function submit(): Promise<void> {
+    if (saving || !form.species.trim()) return
+    setSaving(true); setError('')
+    try {
+      const r = await lostFoundApi.create({ ...form, species: form.species.trim(), ...(photoUrl ? { photoUrl } : {}) })
+      onCreated(r); onClose()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create report') } finally { setSaving(false) }
+  }
+
+  const input = 'w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none'
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
+          <h2 className="font-headline text-headline-md text-on-surface">Report a pet</h2>
+          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3 overflow-y-auto flex-1">
+          <div className="flex gap-2">
+            {(['lost', 'found'] as const).map((k) => (
+              <button key={k} onClick={() => set('kind', k)}
+                className={`flex-1 py-2 rounded-xl text-label-md font-semibold capitalize cursor-pointer transition-colors ${form.kind === k ? (k === 'lost' ? 'bg-red-500 text-white' : 'bg-emerald-600 text-white') : 'border border-outline-variant text-on-surface-variant'}`}>
+                {k === 'lost' ? 'I lost a pet' : 'I found a pet'}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => fileRef.current?.click()} className="relative w-full h-28 rounded-xl overflow-hidden bg-surface-container flex items-center justify-center group cursor-pointer">
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+            ) : <Camera className="w-6 h-6 text-outline/50" />}
+            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              {uploading ? <Loader2 className="w-5 h-5 text-white animate-spin" /> : <Camera className="w-5 h-5 text-white" />}
+            </div>
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+          <div className="grid grid-cols-2 gap-3">
+            <input value={form.petName ?? ''} onChange={(e) => set('petName', e.target.value)} maxLength={80} placeholder="Pet name (optional)" className={input} />
+            <input value={form.species} onChange={(e) => set('species', e.target.value)} maxLength={40} placeholder="Species" className={input} />
+          </div>
+          <input value={form.breed ?? ''} onChange={(e) => set('breed', e.target.value)} maxLength={60} placeholder="Breed / colour (optional)" className={input} />
+          <input value={form.lastSeenLocation ?? ''} onChange={(e) => set('lastSeenLocation', e.target.value)} maxLength={200} placeholder="Last seen location" className={input} />
+          <label className="text-[11px] text-outline block">Last seen date
+            <input type="date" value={form.lastSeenAt ?? ''} onChange={(e) => set('lastSeenAt', e.target.value)} className={`${input} mt-1`} />
+          </label>
+          <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Details that help identify the pet…" className={`${input} resize-none`} />
+          <input value={form.contact ?? ''} onChange={(e) => set('contact', e.target.value)} maxLength={200} placeholder="Contact (phone / email)" className={input} />
+          {error && <p className="text-label-sm text-red-500">{error}</p>}
+        </div>
+        <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
+          <button onClick={submit} disabled={saving || !form.species.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-secondary text-white text-label-md font-semibold hover:bg-secondary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}Post report
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

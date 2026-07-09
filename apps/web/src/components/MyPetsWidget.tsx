@@ -1,67 +1,85 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { BookOpen, ShieldCheck, HeartHandshake, Plus } from 'lucide-react'
+import { petsApi, type Pet } from '@/lib/api'
+import { AddPetModal } from './AddPetModal'
 
-// Pet records are a per-user dataset; wired to a pets API when it ships.
-const PETS = [
-  { name: 'Luna', species: 'Cat · Domestic Shorthair', initials: 'LU', color: 'bg-primary/10 text-primary' },
-  { name: 'Bruno', species: 'Dog · Labrador Mix', initials: 'BR', color: 'bg-secondary/10 text-secondary' },
-  { name: 'Pip', species: 'Parrot · African Grey', initials: 'PI', color: 'bg-emerald-500/10 text-emerald-600' },
-]
+const TINTS = ['bg-primary/10 text-primary', 'bg-secondary/10 text-secondary', 'bg-emerald-500/10 text-emerald-600']
 
-const CHIPS = [
-  { label: 'Diary', Icon: BookOpen, href: '/pet-diary' },
-  { label: 'Passport', Icon: ShieldCheck, href: '/health-passport' },
-  { label: 'Care Team', Icon: HeartHandshake, href: '/pet-care' },
-]
+function initials(name: string): string {
+  return name.slice(0, 2).toUpperCase()
+}
 
 export function MyPetsWidget(): React.JSX.Element {
+  const [pets, setPets] = useState<Pet[]>([])
+  const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    petsApi.mine()
+      .then((data) => { if (!cancelled) setPets(data) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-label-md font-bold text-on-surface">My Pets</h3>
-        <Link href="/adoption/new" className="flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline">
-          <Plus className="w-3.5 h-3.5" />Add Pet
-        </Link>
+        <Link href="/pet-diary" className="text-[12px] font-semibold text-primary hover:underline">View all</Link>
       </div>
 
-      <div className="space-y-3.5">
-        {PETS.map((pet) => (
-          <div key={pet.name}>
-            <div className="flex items-center gap-2.5 mb-1.5">
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-full bg-surface-container animate-pulse" />
+              <div className="space-y-1"><div className="h-3 w-20 bg-surface-container rounded animate-pulse" /><div className="h-2 w-28 bg-surface-container rounded animate-pulse" /></div>
+            </div>
+          ))}
+        </div>
+      ) : pets.length === 0 ? (
+        <p className="text-label-sm text-outline">
+          No pets yet.{' '}
+          <button onClick={() => setAddOpen(true)} className="text-primary hover:underline cursor-pointer">Add your first pet</button>
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {pets.map((pet, i) => (
+            <div key={pet.id} className="flex items-center gap-2.5">
               <div className="relative flex-shrink-0">
-                <div className={`w-9 h-9 rounded-full ${pet.color} flex items-center justify-center text-[11px] font-bold border border-outline-variant`}>
-                  {pet.initials}
+                <div className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-[11px] font-bold border border-outline-variant ${pet.avatarUrl ? '' : TINTS[i % TINTS.length]}`}>
+                  {pet.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pet.avatarUrl} alt={pet.name} className="w-full h-full object-cover" />
+                  ) : initials(pet.name)}
                 </div>
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-surface-container-lowest" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="text-label-sm font-semibold text-on-surface leading-tight">{pet.name}</div>
-                <div className="text-[11px] text-outline truncate">{pet.species}</div>
+                <div className="text-[11px] text-outline truncate">
+                  {pet.breed || pet.species}
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-emerald-600 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {i === 0 ? 'Healthy' : 'Up to date'}
+                </div>
               </div>
+              <Link
+                href={i === 0 ? '/health-passport' : '/pet-diary'}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-outline-variant/60 text-[11px] font-semibold text-on-surface-variant hover:border-primary hover:text-primary transition-colors whitespace-nowrap"
+              >
+                {i === 0 ? 'View Passport' : 'Update Care'}
+              </Link>
             </div>
-            <div className="flex flex-wrap gap-1.5 pl-[46px]">
-              {CHIPS.map((chip) => (
-                <Link
-                  key={chip.label}
-                  href={chip.href}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-outline-variant/60 text-[10px] font-medium text-on-surface-variant hover:border-primary hover:text-primary transition-colors"
-                >
-                  <chip.Icon className="w-3 h-3" />{chip.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <Link
-        href="/pet-diary"
-        className="block w-full mt-4 py-1.5 text-center text-label-sm font-semibold text-primary hover:bg-surface-container transition-colors rounded-lg"
-      >
-        View all pets
-      </Link>
+      <AddPetModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={(pet) => setPets((prev) => [pet, ...prev])} />
     </section>
   )
 }

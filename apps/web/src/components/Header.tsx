@@ -12,7 +12,6 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
-import { useMessaging } from '@/hooks/use-messaging'
 import { UserAvatar } from './UserAvatar'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
@@ -32,21 +31,13 @@ const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[]
 
 const MODULE_HREFS = MODULES.map((m) => m.href)
 
-function NineDotIcon(): React.JSX.Element {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
-      <circle cx="3"  cy="3"  r="1.6"/>
-      <circle cx="9"  cy="3"  r="1.6"/>
-      <circle cx="15" cy="3"  r="1.6"/>
-      <circle cx="3"  cy="9"  r="1.6"/>
-      <circle cx="9"  cy="9"  r="1.6"/>
-      <circle cx="15" cy="9"  r="1.6"/>
-      <circle cx="3"  cy="15" r="1.6"/>
-      <circle cx="9"  cy="15" r="1.6"/>
-      <circle cx="15" cy="15" r="1.6"/>
-    </svg>
-  )
-}
+// Primary top-nav: Home · Network · Messaging · Alerts (+ More menu)
+const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: boolean }[] = [
+  { name: 'Home',      Icon: Home,          href: '/',              always: true },
+  { name: 'Network',   Icon: Users,         href: '/network'                     },
+  { name: 'Messaging', Icon: MessageSquare, href: '/messages'                    },
+  { name: 'Alerts',    Icon: Bell,          href: '/notifications', badge: true, always: true },
+]
 
 export function Header(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -55,7 +46,6 @@ export function Header(): React.JSX.Element {
   const router = useRouter()
   const { profile } = useAuth()
   const { unreadCount: notifUnreadCount } = useNotifications()
-  const { unreadCount: msgUnreadCount } = useMessaging()
   const [searchTerm, setSearchTerm] = useState('')
 
   const isActive = (href: string): boolean => {
@@ -80,15 +70,15 @@ export function Header(): React.JSX.Element {
       <div className="flex items-center w-full px-margin-mobile md:px-margin-desktop h-full max-w-container-max mx-auto">
 
         {/* Left: Logo + Search */}
-        <div className="flex items-center gap-6 flex-1 min-w-0">
+        <div className="flex items-center gap-4 lg:gap-6 flex-1 min-w-0">
           <Link href="/" className="flex items-center flex-shrink-0">
             <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={36} width={160} priority className="h-9 w-auto object-contain" />
           </Link>
-          <div className="hidden lg:flex relative w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
+          <div className="hidden md:flex relative flex-1 max-w-xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
-              className="pl-10 pr-4 py-1.5 w-full bg-surface-container-low border border-transparent focus:border-primary focus:outline-none rounded-lg text-label-md transition-all placeholder:text-outline/60"
-              placeholder="Search vets, rescues, pets, services, topics…"
+              className="pl-11 pr-4 py-2.5 w-full bg-surface-container-low border border-outline-variant/40 focus:border-primary focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70"
+              placeholder="Search pets, vets, rescues, services or welfare alerts"
               type="text"
               aria-label="Search"
               value={searchTerm}
@@ -102,81 +92,46 @@ export function Header(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Right: Navigation */}
-        <nav className="flex items-center gap-1 md:gap-2 h-full">
-          <Link
-            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
-              isActive('/')
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
-            }`}
-            href="/"
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px] font-semibold mt-0.5">Home</span>
-          </Link>
-          <Link
-            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
-              isActive('/network')
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
-            }`}
-            href="/network"
-          >
-            <Users className="w-5 h-5" />
-            <span className="text-[10px] mt-0.5">Network</span>
-          </Link>
-          <Link
-            className={`hidden sm:flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer transition-colors duration-200 ${
-              isActive('/messages')
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
-            }`}
-            href="/messages"
-          >
-            <div className="relative">
-              <MessageSquare className="w-5 h-5" />
-              {msgUnreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {msgUnreadCount > 99 ? '99+' : msgUnreadCount}
+        {/* Center: Primary navigation — text labels */}
+        <nav className="flex items-center justify-center gap-1 md:gap-5 lg:gap-7 h-full flex-shrink-0 mx-2 lg:mx-6">
+          {NAV_ITEMS.map((item) => {
+            const active = isActive(item.href)
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`${item.always ? 'flex' : 'hidden sm:flex'} items-center justify-center h-full cursor-pointer transition-colors duration-200 border-b-[2.5px] text-label-md ${
+                  active
+                    ? 'text-on-surface font-semibold border-secondary'
+                    : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
+                }`}
+              >
+                <span className="relative">
+                  {item.name}
+                  {item.badge && notifUnreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-3 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                      {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
+                    </span>
+                  )}
                 </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5">Messaging</span>
-          </Link>
-          <Link
-            className={`flex flex-col items-center justify-center min-w-[56px] h-full cursor-pointer relative transition-colors duration-200 ${
-              isActive('/notifications')
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-primary border-b-2 border-transparent'
-            }`}
-            href="/notifications"
-          >
-            <div className="relative">
-              <Bell className="w-5 h-5" />
-              {notifUnreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5">Notifications</span>
-          </Link>
+              </Link>
+            )
+          })}
 
-          {/* 9-dot Apps Menu */}
-          <div className="relative" ref={menuRef}>
+          {/* More — apps menu */}
+          <div className="relative h-full flex items-center" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`flex flex-col items-center justify-center min-w-[44px] h-16 transition-colors duration-200 cursor-pointer border-b-2 ${
+              className={`flex items-center gap-1 h-full transition-colors duration-200 cursor-pointer border-b-[2.5px] text-label-md ${
                 menuOpen || isOnModulePage
-                  ? 'text-primary border-primary'
-                  : 'text-on-surface-variant hover:text-primary border-transparent hover:border-primary/30'
+                  ? 'text-on-surface font-semibold border-secondary'
+                  : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
               }`}
               aria-label="All modules"
               aria-expanded={menuOpen}
             >
-              {menuOpen ? <X className="w-5 h-5" /> : <NineDotIcon />}
-              <span className="text-[10px] mt-0.5">More</span>
+              More
+              {menuOpen ? <X className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
 
             {menuOpen && (
@@ -216,18 +171,8 @@ export function Header(): React.JSX.Element {
           </div>
         </nav>
 
-        {/* Right: lost-pet pill + avatar */}
-        <div className="flex items-center gap-1 flex-1 justify-end min-w-0">
-          {/* Lost pet nearby pill */}
-          <Link
-            href="/lost-found"
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-secondary/50 text-secondary text-[12px] font-semibold hover:bg-secondary/5 transition-colors whitespace-nowrap"
-          >
-            <MapPin className="w-3.5 h-3.5" />
-            Lost pet nearby
-          </Link>
-
-          <div className="h-8 w-[1px] bg-outline-variant mx-1 hidden sm:block"></div>
+        {/* Right: avatar */}
+        <div className="flex items-center gap-1 justify-end flex-shrink-0">
           <Link href="/profile" className="flex items-center gap-1 p-1 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
             {profile ? (
               <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="sm" />

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { Queue, Worker, type Job } from 'bullmq'
 import * as path from 'path'
@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { ConfigService } from '../config/config.service'
 import { TranscodeService, type TranscodeResult } from '../stories/media/transcode.service'
-import { SupabaseStorage } from '../stories/media/supabase-storage.service'
+import { MEDIA_STORAGE, type MediaStorage } from '../stories/media/media-storage.interface'
 
 /** URLs of an uploaded transcode tree, or null when running degraded (no ffmpeg). */
 type RenditionUrls = {
@@ -78,7 +78,7 @@ export class StoryMediaService implements OnModuleInit, OnModuleDestroy {
     private readonly realtime: RealtimeService,
     private readonly config: ConfigService,
     private readonly transcode: TranscodeService,
-    private readonly storage: SupabaseStorage,
+    @Inject(MEDIA_STORAGE) private readonly storage: MediaStorage,
   ) {
     this.logger.log('StoryMediaService initialized')
   }

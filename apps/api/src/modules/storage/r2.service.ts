@@ -10,7 +10,7 @@ export class R2Service {
   private readonly bucket: string
 
   constructor(private readonly config: ConfigService) {
-    this.bucket = config.r2BucketName
+    this.bucket = config.r2Bucket ?? 'zoiko-media'
     const accountId = config.r2AccountId
     const accessKeyId = config.r2AccessKeyId
     const secretAccessKey = config.r2SecretAccessKey

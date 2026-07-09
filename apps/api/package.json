@@ -18,8 +18,8 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1079.0",
-    "@aws-sdk/s3-request-presigner": "^3.1079.0",
+    "@aws-sdk/client-s3": "^3.1081.0",
+    "@aws-sdk/s3-request-presigner": "^3.1081.0",
     "@fastify/compress": "^9.0.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.0",

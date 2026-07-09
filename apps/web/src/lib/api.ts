@@ -284,6 +284,18 @@ export interface PostMediaItem {
   blurhash: string | null
 }
 
+export type PostKind = 'standard' | 'rescue_case' | 'vet_tip' | 'lost_found' | 'wildlife'
+
+export interface PostMetadata {
+  species?: string
+  condition?: string
+  supportNeeded?: string[]
+  verifiedBy?: string
+  petName?: string
+  lastSeen?: string
+  location?: string
+}
+
 export interface PostItem {
   id: string
   author: {
@@ -292,7 +304,11 @@ export interface PostItem {
     displayName: string
     avatarUrl: string | null
     isVerified: boolean
+    professionalCategory: string | null
   }
+  community: { name: string; slug: string } | null
+  kind: PostKind
+  metadata: PostMetadata | null
   caption: string | null
   visibility: string
   media: PostMediaItem[]
@@ -352,7 +368,15 @@ export interface NewPostMedia {
 // ── Posts API ────────────────────────────────────────────────────────────────
 
 export const postsApi = {
-  create: (input: { caption?: string; visibility?: 'public' | 'followers'; commentsDisabled?: boolean; media?: NewPostMedia[] }) =>
+  create: (input: {
+    caption?: string
+    visibility?: 'public' | 'followers'
+    commentsDisabled?: boolean
+    media?: NewPostMedia[]
+    kind?: PostKind
+    metadata?: PostMetadata
+    communityId?: string
+  }) =>
     mutate<PostItem>('/posts', { method: 'POST', body: JSON.stringify(input) }),
   get: (id: string) => cachedGet<PostItem>(`/posts/${id}`, 15_000),
   update: (id: string, input: { caption?: string; commentsDisabled?: boolean }) =>
@@ -374,11 +398,259 @@ export const postsApi = {
     ),
 }
 
+// ── Pets ──────────────────────────────────────────────────────────────────
+export interface Pet {
+  id: string
+  ownerId: string
+  name: string
+  species: string
+  breed: string | null
+  avatarUrl: string | null
+  bio: string | null
+  birthdate: string | null
+  isPublic: boolean
+  createdAt: string
+}
+
+export interface NewPet {
+  name: string
+  species: string
+  breed?: string
+  avatarUrl?: string
+  bio?: string
+  birthdate?: string
+  isPublic?: boolean
+}
+
+export interface DiaryEntry {
+  id: string
+  petId: string
+  kind: string
+  title: string | null
+  body: string | null
+  photoUrl: string | null
+  entryDate: string
+  createdAt: string
+}
+
+export interface HealthRecord {
+  id: string
+  petId: string
+  type: string
+  title: string
+  notes: string | null
+  recordDate: string | null
+  nextDue: string | null
+  createdAt: string
+}
+
+export const petsApi = {
+  mine: () => cachedGet<Pet[]>('/pets', 15_000),
+  byProfile: (profileId: string) => cachedGet<Pet[]>(`/profiles/${profileId}/pets`, 30_000),
+  create: (input: NewPet) => mutate<Pet>('/pets', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewPet>) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/pets/${id}`, { method: 'DELETE' }),
+  // Diary
+  diary: (petId: string) => cachedGet<DiaryEntry[]>(`/pets/${petId}/diary`, 15_000),
+  addDiary: (petId: string, input: { kind?: string; title?: string; body?: string; photoUrl?: string; entryDate?: string }) =>
+    mutate<DiaryEntry>(`/pets/${petId}/diary`, { method: 'POST', body: JSON.stringify(input) }),
+  removeDiary: (petId: string, entryId: string) =>
+    mutate<{ success: boolean }>(`/pets/${petId}/diary/${entryId}`, { method: 'DELETE' }),
+  // Health
+  health: (petId: string) => cachedGet<HealthRecord[]>(`/pets/${petId}/health`, 15_000),
+  addHealth: (petId: string, input: { type: string; title: string; notes?: string; recordDate?: string; nextDue?: string }) =>
+    mutate<HealthRecord>(`/pets/${petId}/health`, { method: 'POST', body: JSON.stringify(input) }),
+  removeHealth: (petId: string, recordId: string) =>
+    mutate<{ success: boolean }>(`/pets/${petId}/health/${recordId}`, { method: 'DELETE' }),
+}
+
+// ── Events ────────────────────────────────────────────────────────────────
+export interface EventItem {
+  id: string
+  host: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  title: string
+  description: string | null
+  location: string | null
+  isOnline: boolean
+  coverUrl: string | null
+  startsAt: string
+  endsAt: string | null
+  goingCount: number
+  viewerGoing: boolean
+}
+export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
+
+export const eventsApi = {
+  upcoming: (cursor?: string | null, limit = 15) =>
+    request<EventPage>(`/events?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  get: (id: string) => cachedGet<EventItem>(`/events/${id}`, 30_000),
+  create: (input: {
+    title: string; description?: string; location?: string; isOnline?: boolean
+    coverUrl?: string; startsAt: string; endsAt?: string
+  }) => mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
+  rsvp: (id: string, status: 'going' | 'interested' = 'going') =>
+    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
+  cancelRsvp: (id: string) =>
+    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'DELETE' }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
+}
+
+// ── Adoption & Rescue ────────────────────────────────────────────────────────
+export interface AdoptionListing {
+  id: string
+  poster: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  name: string
+  species: string
+  breed: string | null
+  age: string | null
+  sex: string
+  size: string | null
+  description: string | null
+  location: string | null
+  coverUrl: string | null
+  photos: string[]
+  vaccinated: boolean
+  neutered: boolean
+  goodWith: string[]
+  fee: number | null
+  status: string
+  enquiriesCount: number
+  createdAt: string
+  viewerEnquiryStatus: string | null
+}
+export interface AdoptionEnquiryItem {
+  id: string
+  message: string | null
+  status: string
+  createdAt: string
+  applicant: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface AdoptionPage { data: AdoptionListing[]; nextCursor: string | null; hasMore: boolean }
+
+export interface NewListing {
+  name: string; species: string; breed?: string; age?: string
+  sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
+  description?: string; location?: string; coverUrl?: string; photos?: string[]
+  vaccinated?: boolean; neutered?: boolean; goodWith?: string[]; fee?: number
+}
+
+export const adoptionApi = {
+  browse: (filters: { species?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.species) qs.set('species', filters.species)
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<AdoptionPage>(`/adoption?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<AdoptionListing>(`/adoption/${id}`, 15_000),
+  create: (input: NewListing) => mutate<AdoptionListing>('/adoption', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewListing> & { status?: string }) =>
+    mutate<AdoptionListing>(`/adoption/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/adoption/${id}`, { method: 'DELETE' }),
+  enquire: (id: string, message?: string) =>
+    mutate<{ status: string }>(`/adoption/${id}/enquiries`, { method: 'POST', body: JSON.stringify({ ...(message ? { message } : {}) }) }),
+  enquiries: (id: string) => request<AdoptionEnquiryItem[]>(`/adoption/${id}/enquiries`),
+  respond: (id: string, enquiryId: string, status: 'accepted' | 'rejected') =>
+    mutate<{ status: string }>(`/adoption/${id}/enquiries/${enquiryId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+}
+
+// ── Service providers (Vet Finder + Pet Care) ────────────────────────────────
+export interface Provider {
+  id: string
+  category: string
+  name: string
+  serviceType: string | null
+  description: string | null
+  location: string | null
+  address: string | null
+  phone: string | null
+  website: string | null
+  coverUrl: string | null
+  addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  createdAt: string
+}
+export interface ProviderPage { data: Provider[]; nextCursor: string | null; hasMore: boolean }
+export interface NewProvider {
+  category: 'vet' | 'pet_care'; name: string; serviceType?: string; description?: string
+  location?: string; address?: string; phone?: string; website?: string; coverUrl?: string
+}
+
+export const providersApi = {
+  browse: (category: 'vet' | 'pet_care', filters: { q?: string; location?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('category', category); qs.set('limit', String(limit))
+    if (filters.q) qs.set('q', filters.q)
+    if (filters.location) qs.set('location', filters.location)
+    if (cursor) qs.set('cursor', cursor)
+    return request<ProviderPage>(`/providers?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<Provider>(`/providers/${id}`, 30_000),
+  create: (input: NewProvider) => mutate<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<Omit<NewProvider, 'category'>>) =>
+    mutate<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/providers/${id}`, { method: 'DELETE' }),
+}
+
+// ── Lost & Found ─────────────────────────────────────────────────────────────
+export interface LostFoundReport {
+  id: string
+  kind: string
+  petName: string | null
+  species: string
+  breed: string | null
+  description: string | null
+  lastSeenLocation: string | null
+  lastSeenAt: string | null
+  photoUrl: string | null
+  contact: string | null
+  reward: number | null
+  status: string
+  sightingsCount: number
+  reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  createdAt: string
+}
+export interface LostFoundSighting {
+  id: string
+  message: string | null
+  location: string | null
+  createdAt: string
+  reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface LostFoundPage { data: LostFoundReport[]; nextCursor: string | null; hasMore: boolean }
+export interface NewReport {
+  kind: 'lost' | 'found'; petName?: string; species: string; breed?: string; description?: string
+  lastSeenLocation?: string; lastSeenAt?: string; photoUrl?: string; contact?: string; reward?: number
+}
+
+export const lostFoundApi = {
+  browse: (filters: { kind?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.kind) qs.set('kind', filters.kind)
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<LostFoundPage>(`/lost-found?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<LostFoundReport>(`/lost-found/${id}`, 15_000),
+  create: (input: NewReport) => mutate<LostFoundReport>('/lost-found', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<Omit<NewReport, 'kind'>> & { status?: string }) =>
+    mutate<LostFoundReport>(`/lost-found/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/lost-found/${id}`, { method: 'DELETE' }),
+  sightings: (id: string) => request<LostFoundSighting[]>(`/lost-found/${id}/sightings`),
+  addSighting: (id: string, input: { message?: string; location?: string }) =>
+    mutate<{ id: string }>(`/lost-found/${id}/sightings`, { method: 'POST', body: JSON.stringify(input) }),
+}
+
 export const feedApi = {
   home: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   explore: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  community: (communityId: string, cursor?: string | null, limit = 15) =>
+    request<PostPage>(`/communities/${communityId}/posts?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   profilePosts: (profileId: string, cursor?: string | null, mediaOnly = false, limit = 12) =>
     cachedGet<PostPage>(
       `/profiles/${profileId}/posts?limit=${limit}${mediaOnly ? '&mediaOnly=1' : ''}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,

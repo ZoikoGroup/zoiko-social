@@ -3,13 +3,39 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, ChevronLeft, ChevronRight, Trash2, Link2 } from 'lucide-react'
+import {
+  Heart, MessageCircle, Send, Bookmark, MoreHorizontal, ChevronLeft, ChevronRight,
+  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
 import { postsApi, type PostItem } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { blurhashToDataURL } from '@/lib/image'
+
+// Short verified-badge label derived from the author's professional category.
+const CATEGORY_BADGE: Record<string, string> = {
+  veterinarian: 'Verified Vet',
+  verified_news_publisher: 'Verified News',
+  pet_care_service_provider: 'Verified Pro',
+  product_seller: 'Verified Seller',
+}
+function verifiedBadge(isVerified: boolean, category: string | null): string | null {
+  if (!isVerified) return null
+  return (category && CATEGORY_BADGE[category]) || 'Verified'
+}
+
+function InfoRow({ Icon, label, value }: { Icon: LucideIcon; label: string; value: string }): React.JSX.Element {
+  return (
+    <div className="flex items-start gap-2 text-[12px] leading-snug">
+      <Icon className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+      <span className="text-outline font-medium flex-shrink-0">{label}:</span>
+      <span className="text-on-surface">{value}</span>
+    </div>
+  )
+}
 
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -67,6 +93,8 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
   const lastTap = useRef(0)
 
   const isOwn = user?.id === post.author.id
+  const badge = verifiedBadge(post.author.isVerified, post.author.professionalCategory)
+  const meta = post.metadata
 
   async function toggleLike(forceLike = false): Promise<void> {
     if (forceLike && liked) return
@@ -139,10 +167,23 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
           <UserAvatar name={post.author.displayName} image={post.author.avatarUrl ?? undefined} size="md" verified={post.author.isVerified} />
         </Link>
         <div className="flex-1 min-w-0">
-          <Link href={`/profile/${post.author.username}`} className="font-semibold text-label-md text-on-surface hover:underline">
-            {post.author.username}
-          </Link>
-          <p className="text-[11px] text-outline">{timeAgo(post.createdAt)}{post.visibility === 'followers' ? ' · Followers' : ''}</p>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Link href={`/profile/${post.author.username}`} className="font-semibold text-label-md text-on-surface hover:underline truncate">
+              {post.author.displayName}
+            </Link>
+            {post.author.isVerified && <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />}
+            {badge && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold uppercase tracking-wide">
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-outline">
+            @{post.author.username} · {timeAgo(post.createdAt)}
+            {post.community ? (
+              <> · in <Link href={`/c/${post.community.slug}`} className="text-primary hover:underline font-medium">{post.community.name}</Link></>
+            ) : post.visibility === 'followers' ? ' · Followers' : ''}
+          </p>
         </div>
         <div className="relative">
           <button
@@ -219,6 +260,77 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Kind-specific structured block */}
+      {post.kind === 'rescue_case' && (
+        <div className="mx-4 mt-3 rounded-xl bg-primary/5 border border-primary/15 p-3 space-y-2">
+          {meta?.species && <InfoRow Icon={PawPrint} label="Species" value={meta.species} />}
+          {meta?.condition && <InfoRow Icon={HeartPulse} label="Condition" value={meta.condition} />}
+          {meta?.supportNeeded && meta.supportNeeded.length > 0 && (
+            <InfoRow Icon={HandHeart} label="Support Needed" value={meta.supportNeeded.join(' · ')} />
+          )}
+          {meta?.verifiedBy && <InfoRow Icon={BadgeCheck} label="Verified By" value={meta.verifiedBy} />}
+          <div className="flex gap-2 pt-1">
+            <Link
+              href={`/profile/${post.author.username}`}
+              className="flex-1 text-center py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"
+            >
+              Foster Enquiry
+            </Link>
+            <button
+              onClick={toggleSave}
+              className="px-4 py-2 rounded-lg border border-primary/30 text-primary text-label-sm font-semibold hover:bg-primary/10 transition-colors cursor-pointer"
+            >
+              {saved ? 'Following Case' : 'Follow Case'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {post.kind === 'vet_tip' && (
+        <div className="mx-4 mt-3 space-y-2">
+          <div className="flex items-start gap-2 rounded-xl bg-blue-500/5 border border-blue-500/15 p-3">
+            <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-[12px] text-on-surface-variant leading-snug">
+              This information is educational and not a substitute for veterinary care.
+            </p>
+          </div>
+          <button
+            onClick={toggleSave}
+            className="w-full py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+          >
+            {saved ? 'Advice Saved' : 'Save Advice'}
+          </button>
+        </div>
+      )}
+
+      {post.kind === 'lost_found' && (
+        <div className="mx-4 mt-3 rounded-xl bg-secondary/5 border border-secondary/25 p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-secondary text-[11px] font-bold uppercase tracking-wide">
+            <MapPin className="w-3.5 h-3.5" />Lost Pet Alert
+          </div>
+          {meta?.petName && <p className="text-label-md font-semibold text-on-surface">{meta.petName}</p>}
+          {meta?.lastSeen && <InfoRow Icon={MapPin} label="Last seen" value={meta.lastSeen} />}
+          <Link
+            href="/lost-found"
+            className="block text-center py-2 rounded-lg bg-secondary text-white text-label-sm font-semibold hover:bg-secondary/90 transition-colors"
+          >
+            I&apos;ve Found This Pet — Report Now
+          </Link>
+        </div>
+      )}
+
+      {post.kind === 'wildlife' && (
+        <div className="mx-4 mt-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 p-3 space-y-2">
+          {meta?.species && <InfoRow Icon={Bird} label="Species" value={meta.species} />}
+          <Link
+            href="/lost-found"
+            className="block text-center py-2 rounded-lg bg-emerald-600 text-white text-label-sm font-semibold hover:bg-emerald-700 transition-colors"
+          >
+            Report a Sighting
+          </Link>
         </div>
       )}
 
