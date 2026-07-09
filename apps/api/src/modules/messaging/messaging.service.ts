@@ -14,6 +14,7 @@ import type {
 
 @Injectable()
 export class MessagingService {
+  // Disappearing-message fields removed (never migrated to DB) — see removal in 2026-07.
   private readonly logger = new Logger(MessagingService.name)
 
   constructor(
@@ -349,8 +350,6 @@ export class MessagingService {
         receipt: msg.receipts[0]
           ? { status: msg.receipts[0].status, readAt: msg.receipts[0].readAt?.toISOString() ?? null }
           : null,
-        disappearMode: msg.disappearMode,
-        viewCount: msg.viewCount,
         createdAt: msg.createdAt.toISOString(),
       })),
       nextCursor: hasMore
@@ -360,7 +359,7 @@ export class MessagingService {
     }
   }
 
-  async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[]; disappearMode?: string }) {
+  async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[] }) {
     const member = await this.prisma.conversationMember.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
     })
@@ -372,8 +371,6 @@ export class MessagingService {
       throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content or media' })
     }
 
-    const disappearMode = (['view_once', 'view_twice'].includes(input.disappearMode ?? '') ? input.disappearMode : 'none') as 'none' | 'view_once' | 'view_twice'
-
     const message = await this.prisma.message.create({
       data: {
         conversationId,
@@ -382,7 +379,6 @@ export class MessagingService {
         type: input.type ?? 'text',
         parentId: input.parentId ?? null,
         mediaUrls: input.mediaUrls ?? [],
-        disappearMode,
       },
       include: {
         sender: {
@@ -451,8 +447,6 @@ export class MessagingService {
       editedAt: null,
       reactions: [],
       receipt: null,
-      disappearMode: message.disappearMode,
-      viewCount: message.viewCount,
       createdAt: message.createdAt.toISOString(),
     }
   }
@@ -925,56 +919,6 @@ export class MessagingService {
     else if (mimeType === 'image/gif') type = 'gif'
 
     return { url: uploadUrl, viewUrl, key, type }
-  }
-
-  // ── MEDIA VIEW TRACKING ────────────────────────────────────────────────────
-
-  async trackMediaView(userId: string, messageId: string): Promise<void> {
-    const message = await this.prisma.message.findUnique({
-      where: { id: messageId },
-      select: { id: true, disappearMode: true, viewCount: true },
-    })
-    if (!message) throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
-
-    // Only track for disappearing messages
-    if (message.disappearMode === 'none') return
-
-    // Check if this user already viewed it (prevent double-counting)
-    const existing = await this.prisma.messageMediaView.findUnique({
-      where: { messageId_userId: { messageId, userId } },
-    })
-    if (existing) return
-
-    // Record the view
-    await this.prisma.messageMediaView.create({
-      data: { messageId, userId },
-    })
-
-    // Increment view count
-    const totalViews = await this.prisma.messageMediaView.count({
-      where: { messageId },
-    })
-
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: { viewCount: totalViews },
-    })
-
-    // If view limit reached, notify via socket
-    const limit = message.disappearMode === 'view_once' ? 1 : 2
-    if (totalViews >= limit) {
-      const msg = await this.prisma.message.findUnique({
-        where: { id: messageId },
-        select: { conversationId: true },
-      })
-      if (msg) {
-        await this.realtime.publish(`conversation:${msg.conversationId}`, 'message:expired', {
-          messageId,
-          conversationId: msg.conversationId,
-          viewCount: totalViews,
-        })
-      }
-    }
   }
 
   // ── HELPERS ────────────────────────────────────────────────────────────────

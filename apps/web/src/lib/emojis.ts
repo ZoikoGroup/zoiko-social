@@ -54,15 +54,17 @@ const GROUP_IDS: Record<number, string> = {
   9: 'flags',
 }
 
-// Filter to valid emoji characters (exclude skin-tone components)
+// Filter to valid emoji characters. Require a real Unicode group so that
+// group-less entries (e.g. regional indicator symbols, which render as plain
+// A–Z letters) don't fall through to group 0 and pollute the Smileys tab.
 const ALL_EMOJI_DATA = (emojiData as EmojiEntry[]).filter(
-  (e) => e.emoji && e.emoji.length > 0 && e.type !== 2,
+  (e) => e.emoji && e.emoji.length > 0 && e.type !== 2 && typeof e.group === 'number',
 )
 
 // Group emojis by their Unicode group (0-9), skipping components (group 2)
 const grouped = new Map<number, string[]>()
 for (const e of ALL_EMOJI_DATA) {
-  const g = e.group ?? 0
+  const g = e.group as number
   if (g === 2) continue // Skin tone components — shown inline on emojis
   if (!grouped.has(g)) grouped.set(g, [])
   grouped.get(g)!.push(e.emoji)
