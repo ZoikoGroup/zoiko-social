@@ -103,10 +103,14 @@ export class RedisService implements OnModuleDestroy {
   createConnection(options?: { maxRetriesPerRequest?: number | null }): Redis | null {
     const url = this.config.redisUrl
     if (!url) return null
-    return new Redis(url, {
+    const conn = new Redis(url, {
       maxRetriesPerRequest: options?.maxRetriesPerRequest === undefined ? 2 : options.maxRetriesPerRequest,
       retryStrategy: (times) => Math.min(times * 500, 5_000),
     })
+    // MUST attach an error listener — an unhandled ioredis 'error' event
+    // (e.g. Upstash quota exceeded / outage) otherwise crashes the whole process.
+    conn.on('error', (err) => this.logger.error(`Redis connection error: ${err.message}`))
+    return conn
   }
 
   async onModuleDestroy(): Promise<void> {

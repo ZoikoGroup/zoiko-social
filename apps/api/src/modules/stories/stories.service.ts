@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,7 +11,7 @@ import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { StoryMediaService } from '../queue/story-media.service'
-import { SupabaseStorage } from './media/supabase-storage.service'
+import { MEDIA_STORAGE, type MediaStorage } from './media/media-storage.interface'
 import { RefResolverService } from './refs/ref-resolver.service'
 import type { StoryRefResult } from './refs/ref-resolver.interface'
 import { parseHashtags, parseMentions } from '../posts/caption-parser'
@@ -199,7 +200,7 @@ export class StoriesService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
     private readonly storyMedia: StoryMediaService,
-    private readonly storage: SupabaseStorage,
+    @Inject(MEDIA_STORAGE) private readonly storage: MediaStorage,
     private readonly refResolver: RefResolverService,
     private readonly stickerRegistry: StickerRegistryService,
   ) {}

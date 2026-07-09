@@ -1,286 +1,224 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
-import { MyPetsWidget } from '@/components/MyPetsWidget'
-import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
-import Link from 'next/link'
-import {
-  ChevronLeft, Heart, MessageSquare, Share2,
-  Camera, Calendar, MapPin, Award, Plus,
-  MoreHorizontal,
-} from 'lucide-react'
+import { BookOpen, Plus, Trash2, Loader2, PawPrint, Milestone, Camera, Stethoscope } from 'lucide-react'
+import { petsApi, type Pet, type DiaryEntry } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
 
-interface DiaryEntry {
-  id: string
-  type: 'photo' | 'milestone' | 'note' | 'checkup'
-  petName: string
-  petAvatar: string
-  petGradient: string
-  image?: string
-  content: string
-  date: string
-  time: string
-  location?: string
-  likes: number
-  comments: number
-  liked: boolean
-  tags: string[]
-}
-
-const ENTRIES: DiaryEntry[] = [
-  {
-    id: 'e1', type: 'photo', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    image: 'https://images.unsplash.com/photo-1574231164645-d6f0e8553590?w=600&h=600&fit=crop',
-    content: 'Cleo discovered the sunbeam spot in the living room. She spent 3 hours here and I got zero work done. Worth it. ☀️🐱',
-    date: 'Today', time: '2 hours ago', location: 'Living Room, Sacramento',
-    likes: 42, comments: 8, liked: true, tags: ['cat', 'sunbeam', 'cute'],
-  },
-  {
-    id: 'e2', type: 'milestone', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    content: '🎉 Cleo\'s 2nd Adoption Anniversary! Two years since she chose us at the shelter. She went from hiding under the couch to ruling the entire house. Happy gotcha day, princess!',
-    date: 'Yesterday', time: '10:00 AM',
-    likes: 128, comments: 23, liked: false, tags: ['milestone', 'adoption-story', 'anniversary'],
-  },
-  {
-    id: 'e3', type: 'photo', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    image: 'https://images.unsplash.com/photo-1577023311546-cdc07a8454d9?w=600&h=600&fit=crop',
-    content: 'New cat tree day! 🏰 She approved after a thorough 15-minute inspection of every platform level. The top perch is her throne now.',
-    date: '3 days ago', time: '4:30 PM',
-    likes: 67, comments: 12, liked: true, tags: ['cat-tree', 'new-toy', 'cleo'],
-  },
-  {
-    id: 'e4', type: 'note', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    content: 'Cleo has been drinking more water than usual this week. Monitoring her intake. Will mention it at the next vet visit. Also noticed she\'s been more affectionate — sleeping on my pillow every night.',
-    date: '1 week ago', time: '9:15 PM',
-    likes: 15, comments: 3, liked: false, tags: ['health-note', 'behavior', 'observation'],
-  },
-  {
-    id: 'e5', type: 'checkup', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    content: 'Annual checkup at Paw Care Vet. Weight: 4.2 kg (healthy!). All vaccines up to date. Blood work normal. The vet said she\'s in perfect health. Proud cat mom moment! 🏆',
-    date: '2 weeks ago', time: '2:00 PM', location: 'Paw Care Veterinary Clinic',
-    likes: 89, comments: 14, liked: true, tags: ['vet-visit', 'health', 'all-clear'],
-  },
-  {
-    id: 'e6', type: 'photo', petName: 'Cleo', petAvatar: 'CL', petGradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    image: 'https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=600&h=600&fit=crop',
-    content: 'Saturday morning snuggles are the best. She waited until I was done with coffee then claimed my lap for 2 hours. Not complaining. 🥰',
-    date: '2 weeks ago', time: '10:30 AM',
-    likes: 103, comments: 19, liked: false, tags: ['snuggle', 'weekend', 'lap-cat'],
-  },
+const KINDS = [
+  { value: 'note', label: 'Note', Icon: BookOpen },
+  { value: 'milestone', label: 'Milestone', Icon: Milestone },
+  { value: 'photo', label: 'Photo', Icon: Camera },
+  { value: 'checkup', label: 'Checkup', Icon: Stethoscope },
 ]
 
-export default function PetDiaryPage(): React.JSX.Element {
-  const [entries, setEntries] = useState(ENTRIES)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'photo' | 'milestone' | 'note' | 'checkup'>('all')
+function initials(n: string): string { return n.slice(0, 2).toUpperCase() }
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
-  function toggleLike(id: string): void {
-    setEntries((prev) => prev.map((e) => e.id === id ? { ...e, liked: !e.liked, likes: e.liked ? e.likes - 1 : e.likes + 1 } : e))
+export default function PetDiaryPage(): React.JSX.Element {
+  const { loading: authLoading, isAuthenticated } = useAuth()
+  const [pets, setPets] = useState<Pet[]>([])
+  const [activePet, setActivePet] = useState<string | null>(null)
+  const [entries, setEntries] = useState<DiaryEntry[]>([])
+  const [loadingPets, setLoadingPets] = useState(true)
+  const [loadingEntries, setLoadingEntries] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [kind, setKind] = useState('note')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) window.location.replace('/login')
+  }, [authLoading, isAuthenticated])
+
+  useEffect(() => {
+    let cancelled = false
+    petsApi.mine()
+      .then((data) => {
+        if (cancelled) return
+        setPets(data)
+        setActivePet((prev) => prev ?? data[0]?.id ?? null)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingPets(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  const loadEntries = useCallback((petId: string) => {
+    setLoadingEntries(true)
+    petsApi.diary(petId)
+      .then(setEntries)
+      .catch(() => setEntries([]))
+      .finally(() => setLoadingEntries(false))
+  }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (activePet) loadEntries(activePet)
+      else setEntries([])
+    }, 0)
+    return () => clearTimeout(t)
+  }, [activePet, loadEntries])
+
+  async function addEntry(): Promise<void> {
+    if (!activePet || saving || (!title.trim() && !body.trim())) return
+    setSaving(true)
+    try {
+      const entry = await petsApi.addDiary(activePet, {
+        kind,
+        ...(title.trim() ? { title: title.trim() } : {}),
+        ...(body.trim() ? { body: body.trim() } : {}),
+      })
+      setEntries((prev) => [entry, ...prev])
+      setTitle(''); setBody(''); setKind('note'); setShowForm(false)
+    } catch { /* ignore */ } finally { setSaving(false) }
   }
 
-  const filtered = activeFilter === 'all' ? entries : entries.filter((e) => e.type === activeFilter)
+  async function removeEntry(id: string): Promise<void> {
+    if (!activePet) return
+    setEntries((prev) => prev.filter((e) => e.id !== id))
+    await petsApi.removeDiary(activePet, id).catch(() => {})
+  }
+
+  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
 
   return (
     <>
       <Header />
-
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left Column */}
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
-            <MyPetsWidget />
-            <CommunitiesWidget />
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column */}
-          <div className="lg:col-span-6 space-y-4 pb-20">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
-              <div className="flex-1">
-                <h1 className="text-headline-md font-bold text-on-surface">Pet Diary</h1>
-                <p className="text-label-sm text-outline">Capture every moment with your pets</p>
+          <div className="lg:col-span-6 space-y-gutter pb-20">
+            {/* Title */}
+            <div className="flex items-center gap-2.5 px-1">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-primary" />
               </div>
-              <button className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-all duration-200 shadow-sm shadow-primary/20 active:scale-[0.97] cursor-pointer">
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New Entry</span>
-              </button>
-            </div>
-
-            {/* Filter tabs */}
-            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-1 shadow-sm">
-              <div className="flex gap-1">
-                {(['all', 'photo', 'milestone', 'note', 'checkup'] as const).map((f) => (
-                  <button
-                    key={f}
-                    onClick={() => setActiveFilter(f)}
-                    className={`flex-1 px-3 py-2 rounded-lg text-label-sm font-semibold capitalize transition-all duration-200 cursor-pointer ${
-                      activeFilter === f
-                        ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-                    }`}
-                  >
-                    {f === 'all' ? 'All' : f === 'checkup' ? 'Check-ups' : `${f}s`}
-                  </button>
-                ))}
+              <div>
+                <h1 className="font-headline text-headline-md text-on-surface leading-tight">Pet Diary</h1>
+                <p className="text-label-sm text-outline">Moments, milestones &amp; memories</p>
               </div>
             </div>
 
             {/* Pet selector */}
-            <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1">
-              {['Cleo'].map((pet) => (
-                <button
-                  key={pet}
-                  className="flex items-center gap-2 px-3.5 py-2 bg-primary/10 text-primary rounded-xl text-label-sm font-semibold border border-primary/20 cursor-pointer"
-                >
-                  <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-white">CL</div>
-                  {pet}
-                </button>
-              ))}
-              <button className="flex items-center gap-1.5 px-3.5 py-2 bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 rounded-xl text-label-sm font-semibold hover:border-primary/30 hover:text-primary transition-colors cursor-pointer">
-                <Plus className="w-3.5 h-3.5" />
-                Add Pet
-              </button>
-            </div>
-
-            {/* Diary entries */}
-            {filtered.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
-                  <Camera className="w-7 h-7 text-outline" />
-                </div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No entries yet</h3>
-                <p className="text-label-sm text-outline mb-4">Start capturing memories with your pet</p>
-                <button className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
-                  Create First Entry
-                </button>
+            {loadingPets ? (
+              <div className="h-14 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />
+            ) : pets.length === 0 ? (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-8 text-center">
+                <PawPrint className="w-8 h-8 text-primary mx-auto mb-2" />
+                <p className="text-label-md text-on-surface font-semibold">No pets yet</p>
+                <p className="text-label-sm text-outline">Add a pet from the home page to start a diary.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filtered.map((entry) => (
-                  <article
-                    key={entry.id}
-                    className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all duration-200"
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                {pets.map((pet) => (
+                  <button
+                    key={pet.id}
+                    onClick={() => setActivePet(pet.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0 transition-colors cursor-pointer ${
+                      activePet === pet.id ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
                   >
-                    {/* Header */}
-                    <div className="flex items-center gap-3 p-3.5">
-                      <div
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm flex-shrink-0"
-                        style={{ background: entry.petGradient }}
-                      >
-                        {entry.petAvatar}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-label-sm font-bold text-on-surface">{entry.petName}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant capitalize">
-                            {entry.type === 'checkup' ? 'Check-up' : entry.type}
-                          </span>
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold overflow-hidden ${activePet === pet.id ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
+                      {pet.avatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={pet.avatarUrl} alt="" className="w-full h-full object-cover" />
+                      ) : initials(pet.name)}
+                    </span>
+                    <span className="text-label-sm font-semibold">{pet.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Add entry */}
+            {pets.length > 0 && activePet && (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4">
+                {!showForm ? (
+                  <button onClick={() => setShowForm(true)} className="flex items-center gap-2 text-label-md font-semibold text-primary hover:underline cursor-pointer">
+                    <Plus className="w-4 h-4" />New diary entry
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      {KINDS.map((k) => (
+                        <button key={k.value} onClick={() => setKind(k.value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer transition-colors ${kind === k.value ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary'}`}>
+                          <k.Icon className="w-3.5 h-3.5" />{k.label}
+                        </button>
+                      ))}
+                    </div>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="Title (optional)"
+                      className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none" />
+                    <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={3} placeholder="What happened today?"
+                      className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none resize-none" />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => { setShowForm(false); setTitle(''); setBody('') }} className="px-4 py-2 rounded-xl border border-outline-variant text-on-surface-variant text-label-sm cursor-pointer">Cancel</button>
+                      <button onClick={addEntry} disabled={saving || (!title.trim() && !body.trim())}
+                        className="px-5 py-2 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center gap-2">
+                        {saving && <Loader2 className="w-4 h-4 animate-spin" />}Save entry
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Timeline */}
+            {loadingEntries ? (
+              <div className="h-32 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />
+            ) : pets.length > 0 && entries.length === 0 ? (
+              <p className="text-label-sm text-outline text-center py-8">No entries yet — add the first memory above.</p>
+            ) : (
+              <div className="space-y-3">
+                {entries.map((e) => {
+                  const K = KINDS.find((k) => k.value === e.kind) ?? KINDS[0]!
+                  return (
+                    <div key={e.id} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 group">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <K.Icon className="w-4 h-4 text-primary" />
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] text-outline">
-                          <span>{entry.date} · {entry.time}</span>
-                          {entry.location && (
-                            <>
-                              <span>·</span>
-                              <MapPin className="w-3 h-3" />
-                              <span>{entry.location}</span>
-                            </>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-label-md font-semibold text-on-surface">{e.title || K.label}</span>
+                            <span className="text-[11px] text-outline flex-shrink-0">{fmtDate(e.entryDate)}</span>
+                          </div>
+                          {e.body && <p className="text-label-sm text-on-surface-variant mt-1 whitespace-pre-line">{e.body}</p>}
+                          {e.photoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={e.photoUrl} alt="" className="mt-2 rounded-lg max-h-72 object-cover w-full" />
                           )}
                         </div>
-                      </div>
-                      <button className="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Image */}
-                    {entry.image && (
-                      <div className="relative bg-surface-container-low">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={entry.image}
-                          alt="Pet photo"
-                          className="w-full aspect-square object-cover max-h-[500px]"
-                        />
-                      </div>
-                    )}
-
-                    {/* Content */}
-                    <div className="p-3.5">
-                      {/* Type-specific badge */}
-                      {entry.type === 'milestone' && (
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Award className="w-4 h-4 text-secondary" />
-                          <span className="text-[11px] font-bold text-secondary uppercase tracking-wider">Milestone</span>
-                        </div>
-                      )}
-                      {entry.type === 'checkup' && (
-                        <div className="flex items-center gap-1.5 mb-2">
-                          <Calendar className="w-4 h-4 text-primary" />
-                          <span className="text-[11px] font-bold text-primary uppercase tracking-wider">Vet Visit</span>
-                        </div>
-                      )}
-
-                      <p className="text-body-md text-on-surface-variant leading-relaxed whitespace-pre-line">{entry.content}</p>
-
-                      {/* Tags */}
-                      {entry.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {entry.tags.map((tag) => (
-                            <span key={tag} className="text-[10px] text-primary bg-primary/5 px-2 py-0.5 rounded-full">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between px-3.5 pb-3.5">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleLike(entry.id) }}
-                          className={`flex items-center gap-1.5 p-1.5 rounded-lg transition-colors cursor-pointer ${
-                            entry.liked ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'
-                          }`}
-                        >
-                          <Heart className={`w-4 h-4 ${entry.liked ? 'fill-current' : ''}`} />
-                          <span className="text-label-sm font-semibold">{entry.likes}</span>
-                        </button>
-                        <button className="flex items-center gap-1.5 p-1.5 rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors cursor-pointer">
-                          <MessageSquare className="w-4 h-4" />
-                          <span className="text-label-sm font-semibold">{entry.comments}</span>
+                        <button onClick={() => removeEntry(e.id)} className="p-1.5 rounded-lg text-outline hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                      <button className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors cursor-pointer">
-                        <Share2 className="w-4 h-4" />
-                      </button>
                     </div>
-                  </article>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
 
-          {/* Right Column */}
-          <div className="lg:col-span-3 space-y-gutter hidden xl:block">
+          <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <RightPanel />
           </div>
         </div>
       </main>
-
-      <MobileTabs currentPage="pet-diary" />
+      <MobileTabs currentPage="home" onNavigate={() => {}} />
     </>
   )
 }

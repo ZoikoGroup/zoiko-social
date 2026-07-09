@@ -2,45 +2,60 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUp, PawPrint } from 'lucide-react'
+import { ArrowUp, PawPrint, SlidersHorizontal, ChevronDown, MapPin } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
-import { feedApi, type PostItem } from '@/lib/api'
+import { feedApi, lostFoundApi, type PostItem, type LostFoundReport } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
-// Topic tabs link to real hashtag discovery pages; For You/Following show the home feed.
+// Topic tabs link to real hashtag discovery pages; For You shows the home feed.
 const FEED_TABS: { label: string; tag?: string }[] = [
   { label: 'For You' },
-  { label: 'Following' },
   { label: 'Local', tag: 'local' },
   { label: 'Rescue', tag: 'rescue' },
   { label: 'Vet Advice', tag: 'vetadvice' },
   { label: 'Lost & Found', tag: 'lostandfound' },
-  { label: 'Adoption', tag: 'adoption' },
-  { label: 'Wildlife', tag: 'wildlife' },
-  { label: 'Environment', tag: 'environment' },
-  { label: 'Science', tag: 'science' },
-  { label: 'Events', tag: 'events' },
-  { label: 'Articles', tag: 'articles' },
 ]
 
 function FeedTabs(): React.JSX.Element {
   return (
-    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+    <div className="flex items-center gap-4 md:gap-6 border-b border-outline-variant/30 overflow-x-auto no-scrollbar">
       {FEED_TABS.map((t, i) => {
         const active = i === 0
-        const cls = `flex-shrink-0 px-3.5 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-colors ${
+        const cls = `flex-shrink-0 pb-2.5 -mb-px text-label-md font-semibold whitespace-nowrap border-b-[2.5px] transition-colors ${
           active
-            ? 'bg-primary text-white'
-            : 'bg-surface-container-lowest border border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'
+            ? 'text-on-surface border-secondary'
+            : 'text-on-surface-variant hover:text-on-surface border-transparent'
         }`
         return t.tag ? (
           <Link key={t.label} href={`/explore/tags/${t.tag}`} className={cls}>{t.label}</Link>
         ) : (
-          <span key={t.label} className={`${cls} ${active ? '' : 'cursor-pointer'}`}>{t.label}</span>
+          <span key={t.label} className={cls}>{t.label}</span>
         )
       })}
+      <Link href="/explore" className="flex-shrink-0 pb-2.5 flex items-center gap-0.5 text-label-md font-medium text-on-surface-variant hover:text-on-surface">
+        More <ChevronDown className="w-3.5 h-3.5" />
+      </Link>
+      <button className="ml-auto pb-2.5 text-outline hover:text-primary transition-colors cursor-pointer" aria-label="Filter feed">
+        <SlidersHorizontal className="w-4 h-4" />
+      </button>
     </div>
+  )
+}
+
+function LostPetAlert({ report }: { report: LostFoundReport }): React.JSX.Element {
+  return (
+    <Link
+      href={`/lost-found/${report.id}`}
+      className="flex items-center gap-2.5 rounded-xl border border-secondary/30 bg-secondary/10 px-4 py-3 hover:bg-secondary/15 transition-colors"
+    >
+      <MapPin className="w-4 h-4 text-secondary flex-shrink-0" />
+      <p className="flex-1 text-label-sm text-on-surface leading-snug">
+        <span className="font-bold">Lost Pet Alert:</span>{' '}
+        {report.petName ?? report.species}{report.lastSeenLocation ? ` was last seen near ${report.lastSeenLocation}` : ''}.
+      </p>
+      <span className="text-label-sm font-semibold text-secondary flex-shrink-0 whitespace-nowrap">View Details ›</span>
+    </Link>
   )
 }
 
@@ -78,6 +93,7 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [newPostsAvailable, setNewPostsAvailable] = useState(false)
+  const [lostAlert, setLostAlert] = useState<LostFoundReport | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const loadFirstPage = useCallback(async (): Promise<void> => {
@@ -97,6 +113,15 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
     const timer = setTimeout(() => { void loadFirstPage() }, 0)
     return () => clearTimeout(timer)
   }, [loadFirstPage])
+
+  // Latest lost-pet report for the bottom alert banner
+  useEffect(() => {
+    let cancelled = false
+    lostFoundApi.browse({ kind: 'lost' }, null, 1)
+      .then((page) => { if (!cancelled && page.data[0]) setLostAlert(page.data[0]) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // Realtime: someone I follow posted → show the "New posts" pill
   useEffect(() => {
@@ -192,6 +217,8 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
           {loadingMore && <FeedSkeleton />}
         </>
       )}
+
+      {lostAlert && <LostPetAlert report={lostAlert} />}
     </div>
   )
 }

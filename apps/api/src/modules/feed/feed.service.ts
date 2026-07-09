@@ -54,13 +54,20 @@ export class FeedService {
           // Own posts — every visibility
           { authorId: viewerId },
           // Followed authors — only public + followers-only posts
-          // (private stays author-only; community lives in its own surface)
+          // (private stays author-only)
           {
             visibility: { in: ['public', 'followers'] },
             author: {
               followsAsFollowing: {
                 some: { followerId: viewerId, status: 'active' },
               },
+            },
+          },
+          // Posts from communities the viewer is an active member of
+          {
+            visibility: 'community',
+            community: {
+              members: { some: { userId: viewerId, status: 'active' } },
             },
           },
         ],

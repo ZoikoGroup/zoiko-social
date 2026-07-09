@@ -29,6 +29,11 @@ RUN cd /app/deploy && /app/apps/api/node_modules/.bin/prisma generate
 FROM node:22-alpine AS runner
 WORKDIR /app
 
+# ffmpeg + ffprobe for the Stories video pipeline (transcode / segment / HLS /
+# poster). The API pod runs the BullMQ workers by default, so this enables real
+# video processing without a separate worker instance.
+RUN apk add --no-cache ffmpeg
+
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 

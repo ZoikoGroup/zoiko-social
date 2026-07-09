@@ -1,0 +1,44 @@
+# Worker image — identical build to the API but with ffmpeg installed for the
+# Stories video pipeline (transcode / segment / HLS / poster). Deploy this as a
+# Render Background Worker with ENABLE_WORKERS=true so it runs the BullMQ
+# consumers (media, lifecycle) instead of serving the API.
+FROM node:22-alpine AS base
+RUN npm install -g pnpm@9
+
+# ── Builder stage ─────────────────────────────────────────────────
+FROM base AS builder
+WORKDIR /app
+
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+COPY pnpm-lock.yaml ./
+COPY turbo.json ./
+COPY .npmrc ./
+
+COPY packages/ ./packages/
+COPY apps/api/ ./apps/api/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo build --filter=@zoiko/api
+RUN pnpm deploy --filter=@zoiko/api --prod /app/deploy
+RUN cd /app/deploy && /app/apps/api/node_modules/.bin/prisma generate
+
+# ── Runner stage ──────────────────────────────────────────────────
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+# ffmpeg + ffprobe for the video transcode pipeline
+RUN apk add --no-cache ffmpeg
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+COPY --from=builder --chown=nestjs:nodejs /app/deploy ./
+
+USER nestjs
+
+ENV NODE_ENV=production
+# Run the BullMQ workers in this process
+ENV ENABLE_WORKERS=true
+
+CMD ["node", "dist/main"]
