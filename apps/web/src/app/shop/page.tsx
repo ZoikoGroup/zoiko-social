@@ -1,507 +1,318 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
-import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  ShoppingBag, ChevronLeft, Search, Heart, Star,
-  Truck, Filter,
-  Package, BadgeCheck, Plus,
+  ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus,
 } from 'lucide-react'
+import { shopApi, type Product, type NewProduct } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
+import { uploadCommunityImage } from '@/lib/community-image'
+import { UserAvatar } from '@/components/UserAvatar'
 
-type ProductCategory = 'all' | 'food' | 'toys' | 'health' | 'grooming' | 'accessories' | 'beds' | 'tech'
-type SortOption = 'popular' | 'newest' | 'price-low' | 'price-high'
-
-interface ShopProduct {
-  id: string
-  name: string
-  price: number
-  originalPrice?: number
-  image: string
-  category: ProductCategory
-  shop: string
-  shopVerified: boolean
-  rating: number
-  reviewCount: number
-  shipping: string
-  inStock: boolean
-  badge?: 'bestseller' | 'sale' | 'new' | 'organic' | undefined
-  description: string
-}
-
-const CATEGORIES: { id: ProductCategory; label: string; icon: string }[] = [
-  { id: 'all',          label: 'All Products',   icon: '🛍️' },
-  { id: 'food',         label: 'Food & Treats',  icon: '🍖' },
-  { id: 'toys',         label: 'Toys & Play',    icon: '🧸' },
-  { id: 'health',       label: 'Health & Meds',  icon: '💊' },
-  { id: 'grooming',     label: 'Grooming',       icon: '✂️' },
-  { id: 'accessories',  label: 'Accessories',    icon: '🧣' },
-  { id: 'beds',         label: 'Beds & Crates',  icon: '🛏️' },
-  { id: 'tech',         label: 'Tech & Gadgets', icon: '📱' },
+const CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: 'all',         label: 'All Products',   icon: '🛍️' },
+  { id: 'food',        label: 'Food & Treats',  icon: '🍖' },
+  { id: 'toys',        label: 'Toys & Play',    icon: '🧸' },
+  { id: 'health',      label: 'Health & Meds',  icon: '💊' },
+  { id: 'grooming',    label: 'Grooming',       icon: '✂️' },
+  { id: 'accessories', label: 'Accessories',    icon: '🧣' },
+  { id: 'beds',        label: 'Beds & Crates',  icon: '🛏️' },
+  { id: 'tech',        label: 'Tech & Gadgets', icon: '📱' },
 ]
 
-const PRODUCTS: ShopProduct[] = [
-  {
-    id: 'p1', name: 'Premium Salmon & Sweet Potato Dog Food (25 lbs)', price: 64.99, originalPrice: 79.99,
-    image: 'https://images.unsplash.com/photo-1565706969-6b5b4a7e3f3a?w=400&h=400&fit=crop',
-    category: 'food', shop: 'Pawsome Nutrition Co.', shopVerified: true,
-    rating: 4.8, reviewCount: 2341, shipping: 'Free shipping', inStock: true,
-    badge: 'bestseller', description: 'Grain-free, high-protein formula with real salmon. Supports healthy skin, coat, and digestion.',
-  },
-  {
-    id: 'p2', name: 'Interactive Treat Dispensing Puzzle Ball', price: 24.99,
-    image: 'https://images.unsplash.com/photo-1591946614720-90a587da4a36?w=400&h=400&fit=crop',
-    category: 'toys', shop: 'PetIQ', shopVerified: true,
-    rating: 4.5, reviewCount: 876, shipping: 'Free shipping', inStock: true,
-    badge: 'bestseller', description: 'Adjustable difficulty levels. Keeps pets mentally stimulated for hours. Dishwasher safe.',
-  },
-  {
-    id: 'p3', name: 'Orthopedic Memory Foam Pet Bed — Large', price: 89.99, originalPrice: 129.99,
-    image: 'https://images.unsplash.com/photo-1547558962-98c4c24e43a9?w=400&h=400&fit=crop',
-    category: 'beds', shop: 'CozyPaws', shopVerified: true,
-    rating: 4.7, reviewCount: 1543, shipping: 'Free shipping', inStock: true,
-    badge: 'sale', description: 'High-density memory foam with cooling gel layer. Removable, machine-washable cover. Supports joints.',
-  },
-  {
-    id: 'p4', name: 'GPS Pet Tracker with Activity Monitoring', price: 129.99,
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e8ac?w=400&h=400&fit=crop',
-    category: 'tech', shop: 'PetTech Labs', shopVerified: true,
-    rating: 4.3, reviewCount: 432, shipping: 'Free shipping', inStock: true,
-    badge: 'new', description: 'Real-time GPS tracking, activity monitoring, virtual fence alerts. Waterproof. 7-day battery.',
-  },
-  {
-    id: 'p5', name: 'Organic Hemp Calming Chews for Dogs (60 ct)', price: 29.99,
-    image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=400&fit=crop',
-    category: 'health', shop: 'Natural Pet Wellness', shopVerified: true,
-    rating: 4.6, reviewCount: 1209, shipping: 'Free shipping over $35', inStock: true,
-    badge: 'organic', description: 'Organic hemp-derived calming support for anxiety, noise phobia, and travel stress. Vet recommended.',
-  },
-  {
-    id: 'p6', name: 'Adjustable No-Pull Dog Harness — Reflective', price: 34.99,
-    image: 'https://images.unsplash.com/photo-1574026111796-34c8b6382048?w=400&h=400&fit=crop',
-    category: 'accessories', shop: 'WalkWell Gear', shopVerified: false,
-    rating: 4.4, reviewCount: 678, shipping: 'Free shipping', inStock: true,
-    description: 'Padded, breathable mesh harness with reflective strips. Front and back D-rings. 4 sizes available.',
-  },
-  {
-    id: 'p7', name: 'Self-Cleaning Cat Litter Box — App Connected', price: 499.99,
-    image: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=400&h=400&fit=crop',
-    category: 'tech', shop: 'SmartCat Systems', shopVerified: true,
-    rating: 4.2, reviewCount: 321, shipping: 'Free shipping', inStock: false,
-    badge: 'new', description: 'Self-cleaning, health-monitoring smart litter box. Auto-scoops, tracks weight, and syncs to your phone.',
-  },
-  {
-    id: 'p8', name: 'Catnip-Infused Plush Fish Toy Set (5 Pack)', price: 14.99,
-    image: 'https://images.unsplash.com/photo-1545249390-6bdfa286032f?w=400&h=400&fit=crop',
-    category: 'toys', shop: 'KittyJoy', shopVerified: false,
-    rating: 4.9, reviewCount: 2156, shipping: 'Free shipping over $25', inStock: true,
-    badge: 'bestseller', description: 'Assorted catnip fish toys with crinkle paper interior. Hand-sewn, non-toxic materials. Cats love them!',
-  },
-  {
-    id: 'p9', name: 'Professional Pet Grooming Kit — Low Noise', price: 59.99, originalPrice: 79.99,
-    image: 'https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?w=400&h=400&fit=crop',
-    category: 'grooming', shop: 'FurPerfect', shopVerified: true,
-    rating: 4.4, reviewCount: 892, shipping: 'Free shipping', inStock: true,
-    badge: 'sale', description: '6-blade kit with ultra-quiet motor. Stainless steel, self-sharpening blades. Includes grooming guide.',
-  },
-  {
-    id: 'p10', name: 'Elevated Dog Bowl Stand — Bamboo (2 Bowls)', price: 44.99,
-    image: 'https://images.unsplash.com/photo-1579117097471-7e7a5f9e4c4b?w=400&h=400&fit=crop',
-    category: 'accessories', shop: 'EcoPet Home', shopVerified: true,
-    rating: 4.6, reviewCount: 543, shipping: 'Free shipping', inStock: true,
-    badge: 'organic', description: 'Sustainable bamboo stand with stainless steel bowls. Promotes healthy digestion. Non-slip feet.',
-  },
-  {
-    id: 'p11', name: 'Freeze-Dried Raw Duck Bites (8 oz)', price: 19.99,
-    image: 'https://images.unsplash.com/photo-1565706969-6b5b4a7e3f3a?w=400&h=400&fit=crop',
-    category: 'food', shop: 'Raw Instinct Pets', shopVerified: true,
-    rating: 4.7, reviewCount: 456, shipping: 'Free shipping over $35', inStock: true,
-    badge: 'organic', description: 'Single-ingredient freeze-dried duck. High-protein, grain-free training treat. Sourced from USA farms.',
-  },
-  {
-    id: 'p12', name: 'Portable Pet Water Bottle — 20 oz', price: 15.99,
-    image: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400&h=400&fit=crop',
-    category: 'accessories', shop: 'AdventurePup', shopVerified: false,
-    rating: 4.3, reviewCount: 234, shipping: '$4.99 shipping', inStock: true,
-    description: 'Leak-proof, one-hand operation water bottle with built-in drinking bowl. BPA-free. Perfect for walks.',
-  },
+const SORTS: { id: string; label: string }[] = [
+  { id: 'newest',     label: 'Newest' },
+  { id: 'popular',    label: 'Most Saved' },
+  { id: 'price-low',  label: 'Price: Low to High' },
+  { id: 'price-high', label: 'Price: High to Low' },
 ]
 
-function StarRating({ rating, size = 'sm' }: { rating: number; size?: 'sm' | 'xs' }): React.JSX.Element {
-  const stars = Math.round(rating)
-  const starSize = size === 'xs' ? 'w-3 h-3' : 'w-3.5 h-3.5'
-  return (
-    <span className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={`${starSize} ${i < stars ? 'text-amber-400 fill-amber-400' : 'text-outline/20'}`}
-        />
-      ))}
-    </span>
-  )
+function money(amount: number, currency: string): string {
+  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
+  const n = amount.toLocaleString(undefined, { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
+  return sym ? `${sym}${n}` : `${n} ${currency}`
 }
 
-function ProductBadge({ badge }: { badge: ShopProduct['badge'] }): React.JSX.Element | null {
-  if (!badge) return null
-  const styles: Record<string, string> = {
-    bestseller: 'bg-secondary/10 text-secondary border-secondary/20',
-    sale: 'bg-red-50 text-red-600 border-red-200',
-    new: 'bg-primary/10 text-primary border-primary/20',
-    organic: 'bg-green-50 text-green-600 border-green-200',
+function SaveButton({ product }: { product: Product }): React.JSX.Element {
+  const [saved, setSaved] = useState(product.viewerSaved)
+  // Re-sync when the server truth for this product changes (e.g. after a filter refetch).
+  const [seen, setSeen] = useState(product.viewerSaved)
+  if (seen !== product.viewerSaved) { setSeen(product.viewerSaved); setSaved(product.viewerSaved) }
+  async function toggle(e: React.MouseEvent): Promise<void> {
+    e.preventDefault(); e.stopPropagation()
+    const next = !saved
+    setSaved(next)
+    try { await (next ? shopApi.save(product.id) : shopApi.unsave(product.id)) } catch { setSaved(!next) }
   }
   return (
-    <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${styles[badge] ?? styles.bestseller}`}>
-      {badge === 'bestseller' ? '⭐ Best Seller' : badge === 'sale' ? '🔥 Sale' : badge === 'new' ? '✨ New' : '🌿 Organic'}
-    </span>
+    <button onClick={toggle} aria-label="Save"
+      className={`absolute top-2 right-2 z-20 p-2 rounded-full backdrop-blur-sm transition-colors cursor-pointer ${saved ? 'bg-white text-red-500' : 'bg-black/30 text-white hover:bg-white hover:text-red-500'}`}>
+      <Heart className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />
+    </button>
   )
 }
 
 export default function ShopPage(): React.JSX.Element {
-  const [activeCategory, setActiveCategory] = useState<ProductCategory>('all')
+  const { isAuthenticated } = useAuth()
+  const [products, setProducts] = useState<Product[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [category, setCategory] = useState('all')
+  const [sort, setSort] = useState('newest')
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState<SortOption>('popular')
-  const [wishlist, setWishlist] = useState<Set<string>>(new Set(['p1', 'p8', 'p5']))
-  const [showFilters, setShowFilters] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<ShopProduct | null>(null)
+  const [sellOpen, setSellOpen] = useState(false)
 
-  function toggleWishlist(id: string): void {
-    setWishlist((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const filters = useCallback(() => ({
+    ...(category !== 'all' ? { category } : {}),
+    ...(sort !== 'newest' ? { sort } : {}),
+    ...(search.trim() ? { q: search.trim() } : {}),
+  }), [category, sort, search])
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      if (cancelled) return
+      setLoading(true)
+      shopApi.browse(filters(), null, 12)
+        .then((page) => { if (cancelled) return; setProducts(page.data); setCursor(page.nextCursor); setHasMore(page.hasMore) })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [filters])
+
+  function loadMore(): void {
+    if (loadingMore || !cursor) return
+    setLoadingMore(true)
+    shopApi.browse(filters(), cursor, 12)
+      .then((page) => {
+        setProducts((prev) => {
+          const seen = new Set(prev.map((p) => p.id))
+          return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
+        })
+        setCursor(page.nextCursor); setHasMore(page.hasMore)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
   }
-
-  const filtered = [...PRODUCTS].filter((p) => {
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.shop.toLowerCase().includes(search.toLowerCase())) return false
-    if (activeCategory !== 'all' && p.category !== activeCategory) return false
-    return true
-  }).sort((a, b) => {
-    switch (sort) {
-      case 'popular': return b.reviewCount - a.reviewCount
-      case 'newest': return (b.badge === 'new' ? 1 : 0) - (a.badge === 'new' ? 1 : 0) // rough
-      case 'price-low': return a.price - b.price
-      case 'price-high': return b.price - a.price
-      default: return 0
-    }
-  })
 
   return (
     <>
       <Header />
-
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left Column */}
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
             <MyPetsWidget />
-            <CommunitiesWidget />
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column */}
           <div className="lg:col-span-9 space-y-4 pb-20">
-            {/* Header */}
             <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
-              <div className="flex-1">
-                <h1 className="text-headline-md font-bold text-on-surface">Shop</h1>
-                <p className="text-label-sm text-outline">Find the best products for your pets</p>
+              <div className="flex items-center gap-2 flex-1">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-secondary/15"><ShoppingBag className="w-5 h-5 text-secondary" /></span>
+                <div>
+                  <h1 className="font-headline text-headline-md font-bold text-on-surface">Marketplace</h1>
+                  <p className="text-label-sm text-outline">Pet food, gear &amp; supplies from trusted sellers</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all duration-200 cursor-pointer ${
-                    showFilters
-                      ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                      : 'text-on-surface-variant hover:bg-surface-container'
-                  }`}
-                >
-                  <Filter className="w-4 h-4" />
-                  <span className="hidden sm:inline">Filter</span>
+              {isAuthenticated && (
+                <button onClick={() => setSellOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                  <Plus className="w-4 h-4" /><span className="hidden sm:inline">Sell an Item</span>
                 </button>
-                <button className="relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold text-on-surface-variant hover:bg-surface-container transition-all duration-200 cursor-pointer">
-                  <Heart className="w-4 h-4" />
-                  <span className="hidden sm:inline">Wishlist</span>
-                  {wishlist.size > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full text-[8px] text-white font-bold flex items-center justify-center">
-                      {wishlist.size}
-                    </span>
-                  )}
-                </button>
-              </div>
+              )}
             </div>
 
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products, brands, or categories..."
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50"
-              />
-            </div>
-
-            {/* Category chips + sort */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              <div className="flex gap-2 flex-1">
-                {CATEGORIES.map((cat) => {
-                  const isActive = activeCategory === cat.id
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveCategory(cat.id)}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex-shrink-0 ${
-                        isActive
-                          ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                          : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'
-                      }`}
-                    >
-                      <span className="text-sm">{cat.icon}</span>
-                      {cat.label}
-                    </button>
-                  )
-                })}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search products..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50" />
               </div>
-              {/* Sort */}
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortOption)}
-                className="flex-shrink-0 px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant focus:border-primary focus:outline-none cursor-pointer appearance-none"
-              >
-                <option value="popular">Popular</option>
-                <option value="newest">Newest</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
+              <select value={sort} onChange={(e) => setSort(e.target.value)}
+                className="px-3 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-sm cursor-pointer">
+                {SORTS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
 
-            {/* Results count */}
-            <p className="text-label-sm text-outline">
-              {filtered.length} {filtered.length === 1 ? 'product' : 'products'} found
-              {wishlist.size > 0 && (
-                <span className="ml-2">· <Heart className="w-3 h-3 inline-block text-primary" /> {wishlist.size} saved</span>
-              )}
-            </p>
-
-            {/* Product Grid */}
-            {filtered.length === 0 ? (
-              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
-                  <ShoppingBag className="w-7 h-7 text-outline" />
-                </div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No products found</h3>
-                <p className="text-label-sm text-outline mb-4">Try a different category or search term</p>
-                <button
-                  onClick={() => { setSearch(''); setActiveCategory('all') }}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-                >
-                  Clear Filters
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+              {CATEGORIES.map((cat) => (
+                <button key={cat.id} onClick={() => setCategory(cat.id)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
+                  <span>{cat.icon}</span>{cat.label}
                 </button>
+              ))}
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-64 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}
+              </div>
+            ) : products.length === 0 ? (
+              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4"><Package className="w-7 h-7 text-outline" /></div>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">No products yet</h3>
+                <p className="text-label-sm text-outline mb-4">Be the first to list an item in the marketplace.</p>
+                {isAuthenticated && <button onClick={() => setSellOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Sell an Item</button>}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {filtered.map((product) => (
-                  <article
-                    key={product.id}
-                    onClick={() => setSelectedProduct(product)}
-                    className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
-                  >
-                    {/* Image */}
-                    <div className="relative aspect-square overflow-hidden bg-surface-container-low">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                      <ProductBadge badge={product.badge} />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleWishlist(product.id) }}
-                        className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${
-                          wishlist.has(product.id)
-                            ? 'bg-white text-primary shadow-md'
-                            : 'bg-white/80 text-outline hover:text-primary hover:bg-white opacity-0 group-hover:opacity-100'
-                        }`}
-                      >
-                        <Heart className={`w-4 h-4 ${wishlist.has(product.id) ? 'fill-current' : ''}`} />
-                      </button>
-                      {!product.inStock && (
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center">
-                          <span className="bg-white text-on-surface px-3 py-1 rounded-full text-label-sm font-semibold shadow-md">
-                            Out of Stock
-                          </span>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {products.map((p) => (
+                    <div key={p.id} className="group relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                      <Link href={`/shop/${p.id}`} aria-label={p.title} className="absolute inset-0 z-10" />
+                      <div className="relative aspect-square bg-surface-container overflow-hidden">
+                        {p.coverUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        )}
+                        {p.compareAt && p.compareAt > p.price && (
+                          <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">SALE</span>
+                        )}
+                        {!p.inStock && (
+                          <span className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-label-sm font-bold">Out of stock</span>
+                        )}
+                        <SaveButton product={p} />
+                      </div>
+                      <div className="p-3">
+                        <h3 className="text-label-sm font-semibold text-on-surface leading-snug line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5em]">{p.title}</h3>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className="text-label-md font-bold text-on-surface">{money(p.price, p.currency)}</span>
+                          {p.compareAt && p.compareAt > p.price && <span className="text-[11px] text-outline line-through">{money(p.compareAt, p.currency)}</span>}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Details */}
-                    <div className="p-3">
-                      {/* Shop name */}
-                      <div className="flex items-center gap-1 mb-1">
-                        <span className="text-[10px] text-outline truncate">{product.shop}</span>
-                        {product.shopVerified && (
-                          <BadgeCheck className="w-3 h-3 text-primary flex-shrink-0" />
-                        )}
-                      </div>
-
-                      <h3 className="text-label-sm font-semibold text-on-surface leading-snug line-clamp-2 mb-1.5 group-hover:text-primary transition-colors">
-                        {product.name}
-                      </h3>
-
-                      {/* Rating */}
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <StarRating rating={product.rating} size="xs" />
-                        <span className="text-[10px] text-outline">({product.reviewCount})</span>
-                      </div>
-
-                      {/* Price */}
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-label-md font-bold text-on-surface">${product.price.toFixed(2)}</span>
-                        {product.originalPrice && (
-                          <span className="text-[11px] text-outline line-through">${product.originalPrice.toFixed(2)}</span>
-                        )}
-                      </div>
-
-                      {/* Shipping + Add */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-green-600 font-medium flex items-center gap-0.5">
-                          <Truck className="w-3 h-3" />
-                          {product.shipping === 'Free shipping' ? 'Free' : product.shipping}
-                        </span>
-                        <button
-                          onClick={(e) => { e.stopPropagation() }}
-                          className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all duration-200 flex items-center justify-center cursor-pointer active:scale-[0.92]"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 mt-2 text-[11px] text-outline min-w-0">
+                          <UserAvatar name={p.seller.displayName} image={p.seller.avatarUrl ?? undefined} size="xs" />
+                          <span className="truncate">{p.seller.displayName}</span>
+                          {p.seller.isVerified && <BadgeCheck className="w-3 h-3 text-primary flex-shrink-0" />}
+                        </div>
+                        {p.shipping && <p className="flex items-center gap-1 text-[10px] text-primary mt-1.5"><Truck className="w-3 h-3" />{p.shipping}</p>}
                       </div>
                     </div>
-                  </article>
-                ))}
-              </div>
+                  ))}
+                </div>
+
+                {hasMore && (
+                  <div className="text-center pt-4">
+                    <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
+                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More
+                    </button>
+                  </div>
+                )}
+              </>
             )}
-
-            {/* Promo banner */}
-            <div className="bg-gradient-to-r from-primary/5 via-secondary/5 to-primary/5 rounded-2xl border border-outline-variant/20 p-5 text-center">
-              <h2 className="text-label-md font-bold text-on-surface mb-1">🐾 Free Shipping on Orders Over $35</h2>
-              <p className="text-label-sm text-outline">Plus, all purchases support animal rescue organizations. Shop with purpose!</p>
-            </div>
           </div>
         </div>
       </main>
 
       <MobileTabs currentPage="shop" />
 
-      {/* Product Detail Modal */}
-      {selectedProduct && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setSelectedProduct(null)}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div
-            className="relative bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close */}
-            <button
-              onClick={() => setSelectedProduct(null)}
-              className="absolute top-3 right-3 z-10 w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 text-white hover:bg-black/60 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {/* Image */}
-            <div className="relative aspect-square bg-surface-container-low">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedProduct.image}
-                alt={selectedProduct.name}
-                className="w-full h-full object-cover"
-              />
-              <ProductBadge badge={selectedProduct.badge} />
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Title + price */}
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-label-md font-bold text-on-surface">{selectedProduct.name}</h2>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[11px] text-outline">by {selectedProduct.shop}</span>
-                      {selectedProduct.shopVerified && (
-                        <BadgeCheck className="w-3.5 h-3.5 text-primary" />
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-headline-md font-bold text-on-surface">${selectedProduct.price.toFixed(2)}</span>
-                    {selectedProduct.originalPrice && (
-                      <div className="text-[11px] text-outline line-through">${selectedProduct.originalPrice.toFixed(2)}</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Rating */}
-              <div className="flex items-center gap-2">
-                <StarRating rating={selectedProduct.rating} />
-                <span className="text-label-sm text-on-surface-variant font-semibold">{selectedProduct.rating}</span>
-                <span className="text-label-sm text-outline">({selectedProduct.reviewCount.toLocaleString()} reviews)</span>
-              </div>
-
-              {/* Description */}
-              <p className="text-body-md text-on-surface-variant leading-relaxed">{selectedProduct.description}</p>
-
-              {/* Features */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-container">
-                  <Truck className="w-4 h-4 text-primary" />
-                  <span className="text-[11px] text-on-surface-variant">{selectedProduct.shipping}</span>
-                </div>
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-surface-container">
-                  <Package className="w-4 h-4 text-secondary" />
-                  <span className="text-[11px] text-on-surface-variant">{selectedProduct.inStock ? 'In Stock' : 'Out of Stock'}</span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl text-label-md font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md shadow-primary/20 active:scale-[0.97] cursor-pointer"
-                >
-                  <ShoppingBag className="w-5 h-5" />
-                  Add to Cart
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); toggleWishlist(selectedProduct.id) }}
-                  className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
-                    wishlist.has(selectedProduct.id)
-                      ? 'bg-primary/10 text-primary border-primary/20'
-                      : 'border-outline-variant text-outline hover:text-primary hover:border-primary/30'
-                  }`}
-                >
-                  <Heart className={`w-5 h-5 ${wishlist.has(selectedProduct.id) ? 'fill-current' : ''}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {sellOpen && <SellModal onClose={() => setSellOpen(false)} onListed={(p) => { setSellOpen(false); setProducts((prev) => [p, ...prev]) }} />}
     </>
+  )
+}
+
+function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: Product) => void }): React.JSX.Element {
+  const { profile } = useAuth()
+  const [title, setTitle] = useState('')
+  const [price, setPrice] = useState('')
+  const [compareAt, setCompareAt] = useState('')
+  const [category, setCategory] = useState('accessories')
+  const [condition, setCondition] = useState('new')
+  const [stock, setStock] = useState('1')
+  const [shipping, setShipping] = useState('')
+  const [description, setDescription] = useState('')
+  const [coverUrl, setCoverUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [error, setError] = useState('')
+
+  const priceNum = parseFloat(price)
+  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0
+
+  async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0]; e.target.value = ''
+    if (!file || !profile) return
+    setUploading(true)
+    try { setCoverUrl(await uploadCommunityImage(profile.id, file, 'cover')) } catch { setError('Image upload failed') } finally { setUploading(false) }
+  }
+
+  async function submit(): Promise<void> {
+    if (!valid || posting) return
+    setPosting(true); setError('')
+    try {
+      const input: NewProduct = {
+        title: title.trim(), price: priceNum, category, condition,
+        ...(compareAt && !isNaN(parseFloat(compareAt)) ? { compareAt: parseFloat(compareAt) } : {}),
+        ...(stock && !isNaN(parseInt(stock, 10)) ? { stock: parseInt(stock, 10) } : {}),
+        ...(shipping.trim() ? { shipping: shipping.trim() } : {}),
+        ...(description.trim() ? { description: description.trim() } : {}),
+        ...(coverUrl ? { coverUrl } : {}),
+      }
+      onListed(await shopApi.create(input))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to list') } finally { setPosting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface-container-lowest rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20 sticky top-0 bg-surface-container-lowest">
+          <h2 className="text-label-md font-bold text-on-surface">Sell an Item</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <label className="block">
+            <div className="relative h-36 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
+              {coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}{uploading ? 'Uploading…' : 'Add product photo'}
+                </span>
+              )}
+              <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
+            </div>
+          </label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder="Product title"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-md border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <div className="flex gap-2">
+            <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="Price"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            <input value={compareAt} onChange={(e) => setCompareAt(e.target.value)} inputMode="decimal" placeholder="Compare-at (optional)"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          </div>
+          <div className="flex gap-2">
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex-1 px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
+              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+            <select value={condition} onChange={(e) => setCondition(e.target.value)} className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
+              <option value="new">New</option>
+              <option value="used">Used</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <input value={stock} onChange={(e) => setStock(e.target.value)} inputMode="numeric" placeholder="Stock"
+              className="w-24 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            <input value={shipping} onChange={(e) => setShipping(e.target.value)} maxLength={120} placeholder="Shipping (e.g. Free shipping)"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          </div>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={4000} rows={4} placeholder="Describe your item…"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
+          {error && <p className="text-label-sm text-red-500">{error}</p>}
+          <button onClick={submit} disabled={!valid || posting || uploading}
+            className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Listing…' : 'List Item'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -94,6 +94,16 @@ export class ProvidersService {
     return this.map(p)
   }
 
+  /** All listings owned by the current user (any category), newest first. */
+  async listMine(userId: string): Promise<ProviderResponse[]> {
+    const rows = await this.prisma.serviceProvider.findMany({
+      where: { addedBy: userId, isDeleted: false },
+      orderBy: { createdAt: 'desc' },
+      include: this.include(),
+    })
+    return rows.map((r) => this.map(r))
+  }
+
   async create(addedBy: string, input: CreateProviderInput): Promise<ProviderResponse> {
     const p = await this.prisma.serviceProvider.create({
       data: {

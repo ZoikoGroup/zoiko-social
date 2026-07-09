@@ -175,7 +175,7 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
 
   return (
     <div className="space-y-4 relative">
-      <PostComposer onPosted={(post) => setPosts((prev) => [post, ...prev])} />
+      <PostComposer showLauncher onPosted={(post) => setPosts((prev) => [post, ...prev])} />
 
       <FeedTabs />
 

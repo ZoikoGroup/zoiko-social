@@ -24,6 +24,9 @@ import { EventsModule } from './modules/events/events.module'
 import { AdoptionModule } from './modules/adoption/adoption.module'
 import { ProvidersModule } from './modules/providers/providers.module'
 import { LostFoundModule } from './modules/lost-found/lost-found.module'
+import { NewsModule } from './modules/news/news.module'
+import { ShopModule } from './modules/shop/shop.module'
+import { BreedingModule } from './modules/breeding/breeding.module'
 import { HealthModule } from './health/health.module'
 
 @Module({
@@ -51,6 +54,9 @@ import { HealthModule } from './health/health.module'
     AdoptionModule,
     ProvidersModule,
     LostFoundModule,
+    NewsModule,
+    ShopModule,
+    BreedingModule,
     HealthModule,
   ],
   controllers: [AppController],

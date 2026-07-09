@@ -22,9 +22,11 @@ interface PostComposerProps {
   onPosted?: (post: PostItem) => void
   /** When set, the post is created inside this community (members only). */
   communityId?: string
+  /** Show the home-only "Live Animal Updates" quick-action launcher. */
+  showLauncher?: boolean
 }
 
-export function PostComposer({ onPosted, communityId }: PostComposerProps): React.JSX.Element {
+export function PostComposer({ onPosted, communityId, showLauncher = false }: PostComposerProps): React.JSX.Element {
   const { profile } = useAuth()
   const [caption, setCaption] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
@@ -66,10 +68,17 @@ export function PostComposer({ onPosted, communityId }: PostComposerProps): Reac
     })
   }
 
+  // A structured kind (rescue/lost&found/wildlife) is postable on its metadata alone.
+  const hasStructured =
+    (kind === 'rescue_case' && !!(species.trim() || condition.trim() || supportNeeded.trim())) ||
+    (kind === 'lost_found' && !!(petName.trim() || lastSeen.trim())) ||
+    (kind === 'wildlife' && species.trim().length > 0)
+  const canPost = caption.trim().length > 0 || images.length > 0 || hasStructured
+
   async function submit(): Promise<void> {
     if (posting) return
     const trimmed = caption.trim()
-    if (!trimmed && images.length === 0) return
+    if (!canPost) return
     if (!profile) return
 
     setPosting(true)
@@ -161,26 +170,30 @@ export function PostComposer({ onPosted, communityId }: PostComposerProps): Reac
 
   return (
     <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/30 shadow-sm flex flex-col gap-3">
-      {/* Live Animal Updates — quick action launcher */}
-      <h2 className="font-headline text-headline-md font-bold text-on-surface">Live Animal Updates</h2>
-      <div className="flex items-start justify-around gap-1 pb-1">
-        {actions.map((a) => {
-          const inner = (
-            <>
-              <span className={`flex items-center justify-center w-12 h-12 rounded-full ${a.ring} text-white shadow-sm`}>
-                <a.Icon className="w-5 h-5" />
-              </span>
-              <span className="text-[11px] font-medium text-on-surface-variant">{a.name}</span>
-            </>
-          )
-          const cls = 'flex flex-col items-center gap-1.5 cursor-pointer group'
-          return a.href ? (
-            <Link key={a.name} href={a.href} className={cls}>{inner}</Link>
-          ) : (
-            <button key={a.name} type="button" onClick={a.onClick} className={cls}>{inner}</button>
-          )
-        })}
-      </div>
+      {/* Live Animal Updates — home-only quick-action launcher */}
+      {showLauncher && (
+        <>
+          <h2 className="font-headline text-headline-md font-bold text-on-surface">Live Animal Updates</h2>
+          <div className="flex items-start justify-around gap-1 pb-1">
+            {actions.map((a) => {
+              const inner = (
+                <>
+                  <span className={`flex items-center justify-center w-12 h-12 rounded-full ${a.ring} text-white shadow-sm`}>
+                    <a.Icon className="w-5 h-5" />
+                  </span>
+                  <span className="text-[11px] font-medium text-on-surface-variant">{a.name}</span>
+                </>
+              )
+              const cls = 'flex flex-col items-center gap-1.5 cursor-pointer group'
+              return a.href ? (
+                <Link key={a.name} href={a.href} className={cls}>{inner}</Link>
+              ) : (
+                <button key={a.name} type="button" onClick={a.onClick} className={cls}>{inner}</button>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       <div className="flex gap-3 items-center">
         {profile ? (
@@ -195,7 +208,7 @@ export function PostComposer({ onPosted, communityId }: PostComposerProps): Reac
             onFocus={() => setExpanded(true)}
             maxLength={2200}
             rows={expanded ? 3 : 1}
-            placeholder="Share an update…"
+            placeholder={communityId ? 'Share something with this community…' : 'Share an update…'}
             className="w-full pl-4 pr-11 py-2.5 bg-surface-container-low rounded-2xl text-label-md border border-outline-variant/20 focus:border-primary focus:outline-none transition-all resize-none"
           />
           <button
@@ -295,7 +308,7 @@ export function PostComposer({ onPosted, communityId }: PostComposerProps): Reac
           </button>
           <button
             onClick={submit}
-            disabled={posting || (!caption.trim() && images.length === 0)}
+            disabled={posting || !canPost}
             className="px-5 py-2 rounded-full bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center gap-2"
           >
             {posting && <Loader2 className="w-4 h-4 animate-spin" />}

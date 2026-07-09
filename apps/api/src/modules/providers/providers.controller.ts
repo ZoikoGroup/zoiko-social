@@ -28,6 +28,12 @@ export class ProvidersController {
     return { data: await this.providers.browse(category, filters, cursor ?? null, limit ? parseInt(limit, 10) : 15) }
   }
 
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  async mine(@CurrentUser() user: AuthenticatedUser) {
+    return { data: await this.providers.listMine(user.id) }
+  }
+
   @Get(':id')
   async get(@Param('id') id: string) {
     return { data: await this.providers.get(id) }

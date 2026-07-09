@@ -27,6 +27,7 @@ export default function EventsPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadingMoreRef = useRef(false)
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
@@ -49,11 +50,12 @@ export default function EventsPage(): React.JSX.Element {
     const s = sentinelRef.current
     if (!s || !hasMore) return
     const obs = new IntersectionObserver((e) => {
-      if (e[0]?.isIntersecting && nextCursor) {
+      if (e[0]?.isIntersecting && nextCursor && !loadingMoreRef.current) {
+        loadingMoreRef.current = true
         eventsApi.upcoming(nextCursor).then((p) => {
           setEvents((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
           setNextCursor(p.nextCursor); setHasMore(p.hasMore)
-        }).catch(() => {})
+        }).catch(() => {}).finally(() => { loadingMoreRef.current = false })
       }
     }, { rootMargin: '400px' })
     obs.observe(s)

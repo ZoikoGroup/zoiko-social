@@ -33,10 +33,17 @@ export const CreatePostSchema = z
     metadata: PostMetadataSchema.optional(),
     communityId: z.string().uuid().optional(),
   })
-  .refine((body) => (body.caption?.trim()?.length ?? 0) > 0 || (body.media?.length ?? 0) > 0, {
-    message: 'A post needs a caption or at least one image',
-    path: ['caption'],
-  })
+  .refine(
+    (body) =>
+      (body.caption?.trim()?.length ?? 0) > 0 ||
+      (body.media?.length ?? 0) > 0 ||
+      // Structured posts (rescue/lost&found/wildlife) are valid with metadata alone.
+      (!!body.kind && body.kind !== 'standard' && !!body.metadata && Object.values(body.metadata).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))),
+    {
+      message: 'A post needs a caption, an image, or structured details',
+      path: ['caption'],
+    },
+  )
 
 export const UpdatePostSchema = z.object({
   caption: z.string().max(2200).optional(),

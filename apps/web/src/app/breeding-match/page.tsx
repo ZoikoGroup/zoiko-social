@@ -1,578 +1,307 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
-import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  ChevronLeft, Search, Star, MapPin,
-  ShieldCheck, BadgeCheck, Filter,
-  Heart, Dna, Syringe, Users,
-  PawPrint, CheckCircle2, AlertTriangle,
+  Search, MapPin, ShieldCheck, BadgeCheck, Dna, PawPrint, Plus, Loader2, X, ImagePlus, Venus, Mars,
 } from 'lucide-react'
+import { breedingApi, type BreedingProfile, type NewBreedingProfile } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
+import { uploadCommunityImage } from '@/lib/community-image'
+import { UserAvatar } from '@/components/UserAvatar'
 
-type BreedType = 'all' | 'dogs' | 'cats' | 'birds' | 'rabbits' | 'other'
+const SPECIES: { id: string; label: string }[] = [
+  { id: 'all',    label: 'All Breeds' },
+  { id: 'dog',    label: 'Dogs' },
+  { id: 'cat',    label: 'Cats' },
+  { id: 'bird',   label: 'Birds' },
+  { id: 'rabbit', label: 'Rabbits' },
+  { id: 'other',  label: 'Other' },
+]
 
-interface BreedingMatch {
-  id: string
-  name: string
-  breed: string
-  type: BreedType
-  age: string
-  location: string
-  distance: string
-  image: string
-  gradient: string
-  rating: number
-  reviewCount: number
-  about: string
-  healthTests: string[]
-  certifications: string[]
-  verified: boolean
-  matchScore: number
-  available: boolean
-  price: string
-  litters: number
+function money(amount: number, currency: string): string {
+  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
+  return sym ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()} ${currency}`
 }
 
-const BREED_TYPES: { id: BreedType; label: string }[] = [
-  { id: 'all',     label: 'All Breeds' },
-  { id: 'dogs',    label: 'Dogs' },
-  { id: 'cats',    label: 'Cats' },
-  { id: 'birds',   label: 'Birds' },
-  { id: 'rabbits', label: 'Rabbits' },
-  { id: 'other',   label: 'Other' },
-]
-
-const MATCHES: BreedingMatch[] = [
-  {
-    id: 'm1', name: 'Bella', breed: 'Golden Retriever', type: 'dogs',
-    age: '2 years', location: 'Sacramento, CA', distance: '3.2 km',
-    image: 'https://images.unsplash.com/photo-1552053831-71594a27632d?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#5C9E78,#2a6b4a)',
-    rating: 4.9, reviewCount: 87, about: 'Champion-bloodline Golden Retriever with excellent temperament and health clearances. OFA hips/elbows certified, cardiac clear.',
-    healthTests: ['OFA Hips', 'OFA Elbows', 'Cardiac', 'Eye CERF', 'DNA profile'],
-    certifications: ['AKC Registered', 'Champion Sire', 'Health Tested', 'Temperament Tested'],
-    verified: true, matchScore: 95, available: true, price: '$3,500', litters: 2,
-  },
-  {
-    id: 'm2', name: 'Simba', breed: 'Maine Coon', type: 'cats',
-    age: '3 years', location: 'Davis, CA', distance: '12.8 km',
-    image: 'https://images.unsplash.com/photo-1574158622682-e40e69881006?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#6a3a8a,#9a6aaa)',
-    rating: 4.8, reviewCount: 64, about: 'Magnificent Maine Coon with pedigree lineage tracing back 5 generations. HCM screened, negative for PKD and SMA.',
-    healthTests: ['HCM DNA test', 'PKD negative', 'SMA negative', 'Blood type A', 'FIV/FeLV negative'],
-    certifications: ['TICA Registered', 'CFA Registered', 'Health Guarantee', 'Pedigree Available'],
-    verified: true, matchScore: 88, available: true, price: '$2,800', litters: 1,
-  },
-  {
-    id: 'm3', name: 'Kiwi', breed: 'African Grey Parrot', type: 'birds',
-    age: '4 years', location: 'Fair Oaks, CA', distance: '8.5 km',
-    image: 'https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#3a5c2a,#6a9c3a)',
-    rating: 4.7, reviewCount: 42, about: 'Hand-raised, DNA-sexed African Grey. Exceptional talking ability, fully weaned, and socialized. Comes with extensive health records.',
-    healthTests: ['DNA sexing', 'Psittacosis negative', 'Avian polyomavirus negative', 'PBFD negative', 'Blood panel'],
-    certifications: ['USDA Licensed', 'CITES Appendix II', 'Health Certificate', 'Microchipped'],
-    verified: true, matchScore: 82, available: false, price: '$4,200', litters: 1,
-  },
-  {
-    id: 'm4', name: 'Snowflake', breed: 'Holland Lop', type: 'rabbits',
-    age: '1 year', location: 'Elk Grove, CA', distance: '6.1 km',
-    image: 'https://images.unsplash.com/photo-1535241749838-299277b6305f?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#9e7a5c,#6e5238)',
-    rating: 4.6, reviewCount: 38, about: 'Beautiful Holland Lop from show-winning line. Excellent conformation, friendly disposition, and raised with daily handling.',
-    healthTests: ['Vet health check', 'EC titer test', 'Dental evaluation', 'Vaccinated'],
-    certifications: ['ARBA Registered', 'Show Quality', 'Health Guarantee'],
-    verified: true, matchScore: 85, available: true, price: '$450', litters: 2,
-  },
-  {
-    id: 'm5', name: 'Maximus', breed: 'German Shepherd', type: 'dogs',
-    age: '2 years', location: 'Roseville, CA', distance: '15.4 km',
-    image: 'https://images.unsplash.com/photo-1568572933382-74d440642117?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#7a5c2a,#b88a3a)',
-    rating: 4.9, reviewCount: 112, about: 'Working-line German Shepherd from import bloodlines. Schutzhund titled, OFA excellent, exceptional drive and temperament.',
-    healthTests: ['OFA Hips (Excellent)', 'OFA Elbows', 'Degenerative Myelopathy DNA', 'Cardiac', 'Thyroid'],
-    certifications: ['AKC Registered', 'Schutzhund BH', 'Health Tested', 'Imported Bloodline'],
-    verified: true, matchScore: 91, available: true, price: '$4,500', litters: 1,
-  },
-  {
-    id: 'm6', name: 'Luna', breed: 'Birman', type: 'cats',
-    age: '2.5 years', location: 'Folsom, CA', distance: '10.2 km',
-    image: 'https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#4a6eab,#2a4a80)',
-    rating: 4.7, reviewCount: 55, about: 'Stunning Birman with deep blue eyes and silky coat. HCM clear, excellent pedigree, raised in a loving home environment.',
-    healthTests: ['HCM DNA test', 'PKD negative', 'FIV/FeLV negative', 'Blood type B'],
-    certifications: ['TICA Registered', 'CFA Registered', 'Pedigree 5 gen'],
-    verified: false, matchScore: 76, available: true, price: '$2,200', litters: 1,
-  },
-  {
-    id: 'm7', name: 'Coco', breed: 'Cockatiel', type: 'birds',
-    age: '6 months', location: 'Sacramento, CA', distance: '4.0 km',
-    image: 'https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#a05c2a,#7a3e18)',
-    rating: 4.5, reviewCount: 29, about: 'Hand-fed baby Cockatiel, pearl mutation. Tame, friendly, and already starting to whistle. DNA sexed — male.',
-    healthTests: ['DNA sexing', 'Wellness check', 'Fecal exam'],
-    certifications: ['Health Certificate', 'Hand-fed', 'Socialized'],
-    verified: false, matchScore: 73, available: true, price: '$250', litters: 0,
-  },
-  {
-    id: 'm8', name: 'Oreo', breed: 'Flemish Giant', type: 'rabbits',
-    age: '8 months', location: 'Citrus Heights, CA', distance: '9.7 km',
-    image: 'https://images.unsplash.com/photo-1511300636408-a63a89df3482?w=400&h=400&fit=crop',
-    gradient: 'linear-gradient(135deg,#5a4a3a,#8a6a4a)',
-    rating: 4.4, reviewCount: 22, about: 'Gentle giant Flemish Giant buck from champion lines. Excellent size and temperament, perfect for breeding or show.',
-    healthTests: ['Vet health check', 'EC titer', 'Vaccinated (RHDV2)'],
-    certifications: ['ARBA Registered', 'Show Quality'],
-    verified: false, matchScore: 68, available: true, price: '$350', litters: 0,
-  },
-]
-
-function MatchScoreBadge({ score }: { score: number }): React.JSX.Element {
-  const color = score >= 90 ? 'bg-green-500' : score >= 80 ? 'bg-primary' : score >= 70 ? 'bg-secondary' : 'bg-outline-variant'
+function SexBadge({ sex }: { sex: string }): React.JSX.Element {
+  const female = sex === 'female'
   return (
-    <div className={`w-12 h-12 rounded-full ${color} flex items-center justify-center text-white text-label-sm font-bold shadow-sm`}>
-      {score}%
-    </div>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${female ? 'bg-pink-500/10 text-pink-600' : 'bg-blue-500/10 text-blue-600'}`}>
+      {female ? <Venus className="w-3 h-3" /> : <Mars className="w-3 h-3" />}{female ? 'Female' : 'Male'}
+    </span>
   )
 }
 
 export default function BreedingMatchPage(): React.JSX.Element {
-  const [activeBreed, setActiveBreed] = useState<BreedType>('all')
+  const { isAuthenticated } = useAuth()
+  const [profiles, setProfiles] = useState<BreedingProfile[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [species, setSpecies] = useState('all')
   const [search, setSearch] = useState('')
-  const [showAvailable, setShowAvailable] = useState(false)
-  const [showVerified, setShowVerified] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-  const [selectedMatch, setSelectedMatch] = useState<BreedingMatch | null>(null)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(['m1', 'm5']))
-  const [minScore, setMinScore] = useState(0)
+  const [createOpen, setCreateOpen] = useState(false)
 
-  function toggleFavorite(id: string): void {
-    setFavorites((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  const filters = useCallback(() => ({
+    ...(species !== 'all' ? { species } : {}),
+    ...(search.trim() ? { q: search.trim() } : {}),
+  }), [species, search])
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      if (cancelled) return
+      setLoading(true)
+      breedingApi.browse(filters(), null, 12)
+        .then((page) => { if (cancelled) return; setProfiles(page.data); setCursor(page.nextCursor); setHasMore(page.hasMore) })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [filters])
+
+  function loadMore(): void {
+    if (loadingMore || !cursor) return
+    setLoadingMore(true)
+    breedingApi.browse(filters(), cursor, 12)
+      .then((page) => {
+        setProfiles((prev) => {
+          const seen = new Set(prev.map((p) => p.id))
+          return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
+        })
+        setCursor(page.nextCursor); setHasMore(page.hasMore)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
   }
-
-  const filtered = MATCHES.filter((m) => {
-    if (search && !m.breed.toLowerCase().includes(search.toLowerCase()) && !m.name.toLowerCase().includes(search.toLowerCase()) && !m.location.toLowerCase().includes(search.toLowerCase())) return false
-    if (activeBreed !== 'all' && m.type !== activeBreed) return false
-    if (showAvailable && !m.available) return false
-    if (showVerified && !m.verified) return false
-    if (minScore > 0 && m.matchScore < minScore) return false
-    return true
-  }).sort((a, b) => b.matchScore - a.matchScore)
 
   return (
     <>
       <Header />
-
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left Column */}
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
             <MyPetsWidget />
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column */}
-          <div className="lg:col-span-6 space-y-4 pb-20">
-            {/* Header */}
+          <div className="lg:col-span-9 space-y-4 pb-20">
             <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
-              <div className="flex-1">
-                <h1 className="text-headline-md font-bold text-on-surface">Breeding Match</h1>
-                <p className="text-label-sm text-outline">Find health-tested breeding partners for your pets</p>
+              <div className="flex items-center gap-2 flex-1">
+                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10"><Dna className="w-5 h-5 text-primary" /></span>
+                <div>
+                  <h1 className="font-headline text-headline-md font-bold text-on-surface">Responsible Breeder Match</h1>
+                  <p className="text-label-sm text-outline">Health-tested, ethically-bred companions</p>
+                </div>
               </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  showFilters
-                    ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                    : 'text-on-surface-variant hover:bg-surface-container'
-                }`}
-              >
-                <Filter className="w-4 h-4" />
-                <span className="hidden sm:inline">Filter</span>
-              </button>
+              {isAuthenticated && (
+                <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                  <Plus className="w-4 h-4" /><span className="hidden sm:inline">List Your Pet</span>
+                </button>
+              )}
             </div>
 
-            {/* Search */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-2">
+              <ShieldCheck className="w-4 h-4 text-secondary flex-shrink-0 mt-0.5" />
+              <p className="text-[12px] text-on-surface-variant leading-snug">
+                ZoikoSocial promotes <span className="font-semibold">responsible, health-tested breeding only</span>. Always verify health clearances and meet in person. Report unethical listings.
+              </p>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by breed, name, or location..."
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50"
-              />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or breed..."
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50" />
             </div>
 
-            {/* Breed type chips */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              {BREED_TYPES.map((b) => {
-                const isActive = activeBreed === b.id
-                return (
-                  <button
-                    key={b.id}
-                    onClick={() => setActiveBreed(b.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex-shrink-0 ${
-                      isActive
-                        ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                        : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'
-                    }`}
-                  >
-                    {b.label}
-                  </button>
-                )
-              })}
+              {SPECIES.map((s) => (
+                <button key={s.id} onClick={() => setSpecies(s.id)}
+                  className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${species === s.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
+                  {s.label}
+                </button>
+              ))}
             </div>
 
-            {/* Filter panel */}
-            {showFilters && (
-              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold tracking-wider uppercase text-outline mb-2">Minimum Match Score</p>
-                  <div className="flex gap-2">
-                    {[0, 70, 80, 90].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setMinScore(s)}
-                        className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-colors cursor-pointer ${
-                          minScore === s
-                            ? 'bg-primary text-white'
-                            : 'border border-outline-variant text-on-surface-variant hover:border-primary/30 hover:text-primary'
-                        }`}
-                      >
-                        {s === 0 ? 'Any' : `${s}%+`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <button
-                      role="switch"
-                      aria-checked={showAvailable}
-                      onClick={() => setShowAvailable(!showAvailable)}
-                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${showAvailable ? 'bg-primary' : 'bg-outline-variant'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${showAvailable ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                    <span className="text-label-sm text-on-surface font-semibold">Available only</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <button
-                      role="switch"
-                      aria-checked={showVerified}
-                      onClick={() => setShowVerified(!showVerified)}
-                      className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${showVerified ? 'bg-primary' : 'bg-outline-variant'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${showVerified ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
-                    <span className="text-label-sm text-on-surface font-semibold">Verified breeders</span>
-                  </label>
-                </div>
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[0, 1, 2, 3].map((i) => <div key={i} className="h-72 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}
               </div>
-            )}
-
-            {/* Results */}
-            {filtered.length === 0 ? (
+            ) : profiles.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
-                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
-                  <Dna className="w-7 h-7 text-outline" />
-                </div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No matches found</h3>
-                <p className="text-label-sm text-outline mb-4">Try adjusting your filters or search term</p>
-                <button
-                  onClick={() => { setSearch(''); setActiveBreed('all'); setShowAvailable(false); setShowVerified(false); setMinScore(0) }}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-                >
-                  Clear Filters
-                </button>
+                <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4"><PawPrint className="w-7 h-7 text-outline" /></div>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">No breeding profiles yet</h3>
+                <p className="text-label-sm text-outline mb-4">List your health-tested pet for responsible breeding.</p>
+                {isAuthenticated && <button onClick={() => setCreateOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">List Your Pet</button>}
               </div>
             ) : (
-              <div className="space-y-3">
-                {filtered.map((match) => (
-                  <article
-                    key={match.id}
-                    onClick={() => setSelectedMatch(match)}
-                    className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
-                  >
-                    <div className="flex p-4 gap-4">
-                      {/* Avatar with gradient */}
-                      <div className="relative flex-shrink-0">
-                        <div
-                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 border-outline-variant/20"
-                          style={{ background: match.gradient }}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={match.image}
-                            alt={match.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {match.available && (
-                          <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {profiles.map((p) => (
+                    <Link key={p.id} href={`/breeding-match/${p.id}`} className="group bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                      <div className="relative h-40 bg-surface-container overflow-hidden">
+                        {p.coverUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         )}
+                        {p.owner.isVerified && (
+                          <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-primary text-[10px] font-bold"><BadgeCheck className="w-3 h-3" />Verified Breeder</span>
+                        )}
+                        <span className="absolute top-2 right-2"><SexBadge sex={p.sex} /></span>
                       </div>
-
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="text-label-md font-bold text-on-surface group-hover:text-primary transition-colors">{match.name}</h3>
-                              {match.verified && <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />}
-                              {!match.available && (
-                                <span className="text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md font-semibold">Reserved</span>
-                              )}
-                            </div>
-                            <p className="text-label-sm text-on-surface-variant">{match.breed}</p>
-                          </div>
-                          <MatchScoreBadge score={match.matchScore} />
+                      <div className="p-3.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-label-md font-bold text-on-surface group-hover:text-primary transition-colors truncate">{p.petName}</h3>
+                          {p.fee != null && <span className="text-label-sm font-bold text-secondary flex-shrink-0">{money(p.fee, p.currency)}</span>}
                         </div>
-
-                        {/* Location + age */}
-                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-outline">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {match.distance}
-                          </span>
-                          <span className="text-outline/40">·</span>
-                          <span className="flex items-center gap-1">
-                            <PawPrint className="w-3.5 h-3.5" />
-                            {match.age}
-                          </span>
-                          <span className="text-outline/40">·</span>
-                          <span className="font-semibold text-primary">{match.price}</span>
-                        </div>
-
-                        {/* Rating */}
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star key={i} className={`w-3 h-3 ${i < Math.round(match.rating) ? 'text-amber-400 fill-amber-400' : 'text-outline/20'}`} />
+                        <p className="text-[12px] text-on-surface-variant">{p.breed}{p.age ? ` · ${p.age}` : ''}</p>
+                        {p.location && <p className="flex items-center gap-1 text-[11px] text-outline mt-1"><MapPin className="w-3 h-3" />{p.location}</p>}
+                        {p.healthTests.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {p.healthTests.slice(0, 3).map((t) => (
+                              <span key={t} className="px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 text-[9px] font-medium">{t}</span>
                             ))}
+                            {p.healthTests.length > 3 && <span className="text-[9px] text-outline">+{p.healthTests.length - 3}</span>}
                           </div>
-                          <span className="text-[10px] text-outline">{match.rating} ({match.reviewCount} reviews)</span>
-                        </div>
-
-                        {/* Health tests */}
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {match.healthTests.slice(0, 3).map((test) => (
-                            <span key={test} className="flex items-center gap-0.5 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[9px] font-medium">
-                              <Syringe className="w-2.5 h-2.5" />
-                              {test}
-                            </span>
-                          ))}
-                          {match.healthTests.length > 3 && (
-                            <span className="px-2 py-0.5 bg-surface-container text-on-surface-variant rounded-full text-[9px] font-medium">
-                              +{match.healthTests.length - 3} more
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Certifications */}
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {match.certifications.slice(0, 2).map((cert) => (
-                            <span key={cert} className="flex items-center gap-0.5 px-2 py-0.5 bg-primary/5 text-primary rounded-full text-[9px] font-medium">
-                              <CheckCircle2 className="w-2.5 h-2.5" />
-                              {cert}
-                            </span>
-                          ))}
-                        </div>
-
-                        {/* Bottom row */}
-                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-outline-variant/10">
-                          <div className="flex items-center gap-1.5 text-[10px] text-outline">
-                            <Users className="w-3 h-3" />
-                            {match.litters} {match.litters === 1 ? 'litter' : 'litters'}
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={(e) => { e.stopPropagation() }}
-                              className="px-3 py-1.5 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-all duration-200 active:scale-[0.97] cursor-pointer"
-                            >
-                              Connect
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleFavorite(match.id) }}
-                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                favorites.has(match.id) ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'
-                              }`}
-                            >
-                              <Heart className={`w-4 h-4 ${favorites.has(match.id) ? 'fill-current' : ''}`} />
-                            </button>
-                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 mt-2.5 pt-2.5 border-t border-outline-variant/10 text-[11px] text-outline min-w-0">
+                          <UserAvatar name={p.owner.displayName} image={p.owner.avatarUrl ?? undefined} size="xs" />
+                          <span className="truncate">{p.owner.displayName}</span>
                         </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
+                    </Link>
+                  ))}
+                </div>
 
-          {/* Right Column */}
-          <div className="lg:col-span-3 space-y-gutter hidden xl:block">
-            <RightPanel />
+                {hasMore && (
+                  <div className="text-center pt-4">
+                    <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
+                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </main>
 
       <MobileTabs currentPage="breeding-match" />
 
-      {/* Detail Modal */}
-      {selectedMatch && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={() => setSelectedMatch(null)}>
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-          <div
-            className="relative bg-surface-container-lowest rounded-2xl border border-outline-variant/30 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelectedMatch(null)}
-              className="absolute top-3 right-3 z-10 w-8 h-8 rounded-lg flex items-center justify-center bg-black/40 text-white hover:bg-black/60 transition-colors cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {/* Hero */}
-            <div className="relative h-48 overflow-hidden" style={{ background: selectedMatch.gradient }}>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
-                <div>
-                  <h2 className="text-headline-md font-bold text-white">{selectedMatch.name}</h2>
-                  <p className="text-label-sm text-white/80">{selectedMatch.breed} · {selectedMatch.age}</p>
-                </div>
-                <MatchScoreBadge score={selectedMatch.matchScore} />
-              </div>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Quick info */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-3 rounded-lg bg-surface-container">
-                  <MapPin className="w-4 h-4 text-primary mx-auto mb-1" />
-                  <p className="text-label-sm font-semibold text-on-surface">{selectedMatch.distance}</p>
-                  <p className="text-[9px] text-outline">Distance</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-surface-container">
-                  <PawPrint className="w-4 h-4 text-secondary mx-auto mb-1" />
-                  <p className="text-label-sm font-semibold text-on-surface">{selectedMatch.age}</p>
-                  <p className="text-[9px] text-outline">Age</p>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-surface-container">
-                  <Dna className="w-4 h-4 text-tertiary mx-auto mb-1" />
-                  <p className="text-label-sm font-semibold text-on-surface">{selectedMatch.price}</p>
-                  <p className="text-[9px] text-outline">Price</p>
-                </div>
-              </div>
-
-              {/* About */}
-              <div>
-                <h3 className="text-label-md font-bold text-on-surface mb-2">About</h3>
-                <p className="text-body-md text-on-surface-variant leading-relaxed">{selectedMatch.about}</p>
-              </div>
-
-              {/* Health Tests */}
-              <div>
-                <h3 className="text-label-md font-bold text-on-surface mb-2 flex items-center gap-1.5">
-                  <Syringe className="w-4 h-4 text-green-600" />
-                  Health Testing
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMatch.healthTests.map((t) => (
-                    <span key={t} className="flex items-center gap-1 px-3 py-1 bg-green-50 text-green-700 rounded-lg text-label-sm font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Certifications */}
-              <div>
-                <h3 className="text-label-md font-bold text-on-surface mb-2 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-primary" />
-                  Certifications
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMatch.certifications.map((c) => (
-                    <span key={c} className="px-3 py-1 bg-primary/5 text-primary rounded-lg text-label-sm font-medium">
-                      {c}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-container">
-                  <Users className="w-4 h-4 text-primary" />
-                  <div>
-                    <p className="text-label-sm font-semibold text-on-surface">{selectedMatch.litters} {selectedMatch.litters === 1 ? 'litter' : 'litters'}</p>
-                    <p className="text-[10px] text-outline">Total litters</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-surface-container">
-                  <Star className="w-4 h-4 text-amber-400" />
-                  <div>
-                    <p className="text-label-sm font-semibold text-on-surface">{selectedMatch.rating}</p>
-                    <p className="text-[10px] text-outline">{selectedMatch.reviewCount} reviews</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Availability */}
-              <div className={`rounded-xl p-3 ${selectedMatch.available ? 'bg-green-50 border border-green-200' : 'bg-surface-container border border-outline-variant/30'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {selectedMatch.available
-                      ? <><CheckCircle2 className="w-4 h-4 text-green-600" /><span className="text-label-sm font-semibold text-green-700">Available for matching</span></>
-                      : <><AlertTriangle className="w-4 h-4 text-amber-500" /><span className="text-label-sm font-semibold text-amber-700">Currently reserved</span></>
-                    }
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => setSelectedMatch(null)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-xl text-label-md font-semibold hover:bg-primary/90 transition-all duration-200 shadow-md shadow-primary/20 active:scale-[0.97] cursor-pointer"
-                >
-                  <Heart className="w-5 h-5" />
-                  Connect with Breeder
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); toggleFavorite(selectedMatch.id) }}
-                  className={`p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
-                    favorites.has(selectedMatch.id)
-                      ? 'bg-primary/10 text-primary border-primary/20'
-                      : 'border-outline-variant text-outline hover:text-primary hover:border-primary/30'
-                  }`}
-                >
-                  <Heart className={`w-5 h-5 ${favorites.has(selectedMatch.id) ? 'fill-current' : ''}`} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {createOpen && <CreateModal onClose={() => setCreateOpen(false)} onCreated={(p) => { setCreateOpen(false); setProfiles((prev) => [p, ...prev]) }} />}
     </>
+  )
+}
+
+function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (p: BreedingProfile) => void }): React.JSX.Element {
+  const { profile } = useAuth()
+  const [petName, setPetName] = useState('')
+  const [species, setSpecies] = useState('dog')
+  const [breed, setBreed] = useState('')
+  const [sex, setSex] = useState('male')
+  const [age, setAge] = useState('')
+  const [location, setLocation] = useState('')
+  const [about, setAbout] = useState('')
+  const [healthTests, setHealthTests] = useState('')
+  const [certifications, setCertifications] = useState('')
+  const [fee, setFee] = useState('')
+  const [coverUrl, setCoverUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [error, setError] = useState('')
+
+  const valid = petName.trim().length >= 1 && breed.trim().length >= 1
+
+  async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0]; e.target.value = ''
+    if (!file || !profile) return
+    setUploading(true)
+    try { setCoverUrl(await uploadCommunityImage(profile.id, file, 'cover')) } catch { setError('Image upload failed') } finally { setUploading(false) }
+  }
+
+  async function submit(): Promise<void> {
+    if (!valid || posting) return
+    setPosting(true); setError('')
+    try {
+      const toList = (s: string): string[] => s.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20)
+      const feeNum = parseFloat(fee)
+      const input: NewBreedingProfile = {
+        petName: petName.trim(), species, breed: breed.trim(), sex,
+        ...(age.trim() ? { age: age.trim() } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
+        ...(about.trim() ? { about: about.trim() } : {}),
+        ...(healthTests.trim() ? { healthTests: toList(healthTests) } : {}),
+        ...(certifications.trim() ? { certifications: toList(certifications) } : {}),
+        ...(fee && !isNaN(feeNum) ? { fee: feeNum } : {}),
+        ...(coverUrl ? { coverUrl } : {}),
+      }
+      onCreated(await breedingApi.create(input))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to create') } finally { setPosting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface-container-lowest rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20 sticky top-0 bg-surface-container-lowest">
+          <h2 className="text-label-md font-bold text-on-surface">List Your Pet for Breeding</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <label className="block">
+            <div className="relative h-36 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
+              {coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="flex flex-col items-center gap-1 text-outline text-label-sm">{uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}{uploading ? 'Uploading…' : 'Add photo'}</span>
+              )}
+              <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
+            </div>
+          </label>
+          <div className="flex gap-2">
+            <input value={petName} onChange={(e) => setPetName(e.target.value)} maxLength={120} placeholder="Pet name"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-md border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            <select value={sex} onChange={(e) => setSex(e.target.value)} className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <select value={species} onChange={(e) => setSpecies(e.target.value)} className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
+              {SPECIES.filter((s) => s.id !== 'all').map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+            <input value={breed} onChange={(e) => setBreed(e.target.value)} maxLength={120} placeholder="Breed"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          </div>
+          <div className="flex gap-2">
+            <input value={age} onChange={(e) => setAge(e.target.value)} maxLength={60} placeholder="Age (e.g. 2 years)"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+            <input value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" placeholder="Stud/fee (optional)"
+              className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          </div>
+          <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={160} placeholder="Location"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <input value={healthTests} onChange={(e) => setHealthTests(e.target.value)} placeholder="Health tests (comma-separated, e.g. OFA Hips, Cardiac)"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <input value={certifications} onChange={(e) => setCertifications(e.target.value)} placeholder="Certifications (comma-separated, e.g. AKC Registered)"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <textarea value={about} onChange={(e) => setAbout(e.target.value)} maxLength={3000} rows={4} placeholder="About this pet — temperament, lineage, health…"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
+          {error && <p className="text-label-sm text-red-500">{error}</p>}
+          <button onClick={submit} disabled={!valid || posting || uploading}
+            className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Listing…' : 'List Pet'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

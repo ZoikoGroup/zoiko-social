@@ -357,6 +357,15 @@ model Profile {
   serviceProviders  ServiceProvider[]
   lostFoundPosts    LostFoundPost[]
   lostFoundSightings LostFoundSighting[]
+  newsArticles      NewsArticle[]
+  newsLikes         NewsLike[]
+  newsSaves         NewsSave[]
+  newsComments      NewsComment[]
+  products          Product[]
+  productSaves      ProductSave[]
+  productEnquiries  ProductEnquiry[]
+  breedingProfiles  BreedingProfile[]
+  breedingRequests  BreedingRequest[]
   notifications   Notification[]
   userRoles       UserRoleAssignment[]
   auditLogs       AuditLog[]
@@ -1351,4 +1360,187 @@ model StoryArchive {
   @@index([ownerId, archivedAt(sort: Desc)])
   @@index([purgeAfter])
   @@map("story_archive")
+}
+
+model NewsArticle {
+  id          String   @id @default(uuid())
+  authorId    String   @map("author_id")
+  title       String
+  excerpt     String
+  body        String
+  coverUrl    String?  @map("cover_url")
+  category    String   @default("community")   // policy | science | rescue | health | climate | community
+  tier        String   @default("community")   // institutional | verified | community
+  sourceName  String?  @map("source_name")
+  sourceUrl   String?  @map("source_url")
+  readMinutes Int      @default(3) @map("read_minutes")
+  featured      Boolean  @default(false)
+  likesCount    Int      @default(0) @map("likes_count")
+  savesCount    Int      @default(0) @map("saves_count")
+  commentsCount Int      @default(0) @map("comments_count")
+  status        String   @default("published")   // published | draft
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  publishedAt   DateTime @default(now()) @map("published_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  author   Profile       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes    NewsLike[]
+  saves    NewsSave[]
+  comments NewsComment[]
+
+  @@index([publishedAt(sort: Desc), id(sort: Desc)])
+  @@index([category, publishedAt(sort: Desc)])
+  @@index([authorId, publishedAt(sort: Desc)])
+  @@map("news_articles")
+}
+
+model NewsComment {
+  id        String   @id @default(uuid())
+  articleId String   @map("article_id")
+  authorId  String   @map("author_id")
+  body      String
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  article NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  Profile     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([authorId])
+  @@map("news_comments")
+}
+
+model NewsLike {
+  articleId String   @map("article_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  article NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, userId])
+  @@index([userId])
+  @@map("news_likes")
+}
+
+model NewsSave {
+  articleId String   @map("article_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  article NewsArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, userId])
+  @@index([userId])
+  @@map("news_saves")
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  sellerId       String   @map("seller_id")
+  title          String
+  description    String?
+  priceCents     Int      @default(0) @map("price_cents")
+  compareCents   Int?     @map("compare_cents")
+  currency       String   @default("USD")
+  category       String   @default("accessories")  // food|toys|health|grooming|accessories|beds|tech
+  condition      String   @default("new")          // new | used
+  coverUrl       String?  @map("cover_url")
+  photos         String[] @default([])
+  stock          Int      @default(1)
+  shipping       String?
+  location       String?
+  status         String   @default("active")       // active | sold | withdrawn
+  savesCount     Int      @default(0) @map("saves_count")
+  enquiriesCount Int      @default(0) @map("enquiries_count")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  seller    Profile          @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  saves     ProductSave[]
+  enquiries ProductEnquiry[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([category, createdAt(sort: Desc)])
+  @@index([sellerId, createdAt(sort: Desc)])
+  @@map("products")
+}
+
+model ProductSave {
+  productId String   @map("product_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([productId, userId])
+  @@index([userId])
+  @@map("product_saves")
+}
+
+model ProductEnquiry {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  buyerId   String   @map("buyer_id")
+  message   String?
+  status    String   @default("pending")   // pending | replied | closed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  buyer   Profile @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, buyerId])
+  @@index([productId, createdAt(sort: Desc)])
+  @@map("product_enquiries")
+}
+
+model BreedingProfile {
+  id             String   @id @default(uuid())
+  ownerId        String   @map("owner_id")
+  petName        String   @map("pet_name")
+  species        String   @default("dog")     // dog|cat|bird|rabbit|other
+  breed          String
+  sex            String   @default("male")    // male | female
+  age            String?
+  location       String?
+  about          String?
+  healthTests    String[] @default([]) @map("health_tests")
+  certifications String[] @default([])
+  coverUrl       String?  @map("cover_url")
+  photos         String[] @default([])
+  feeCents       Int?     @map("fee_cents")
+  currency       String   @default("USD")
+  status         String   @default("available")  // available | paused | unavailable
+  requestsCount  Int      @default(0) @map("requests_count")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  owner    Profile           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  requests BreedingRequest[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([species, createdAt(sort: Desc)])
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("breeding_profiles")
+}
+
+model BreedingRequest {
+  id          String   @id @default(uuid())
+  profileId   String   @map("profile_id")
+  requesterId String   @map("requester_id")
+  message     String?
+  status      String   @default("pending")   // pending | accepted | declined
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  profile   BreedingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  requester Profile         @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, requesterId])
+  @@index([profileId, createdAt(sort: Desc)])
+  @@map("breeding_requests")
 }

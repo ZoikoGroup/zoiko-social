@@ -1,74 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
-import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  Newspaper, ChevronLeft, Search, Bookmark, Share2,
-  Clock, BadgeCheck, ShieldCheck,
-  Globe, TrendingUp, Filter,
-  Heart, MessageSquare, BookOpen,
+  Newspaper, Search, Bookmark, Clock, BadgeCheck, ShieldCheck,
+  Globe, TrendingUp, Filter, Heart, BookOpen, PenSquare, Loader2, X, ImagePlus, MessageCircle,
 } from 'lucide-react'
+import { newsApi, type NewsArticle, type NewArticle } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
+import { uploadCommunityImage } from '@/lib/community-image'
+import { UserAvatar } from '@/components/UserAvatar'
 
 type Tier = 'institutional' | 'verified' | 'community'
-type Category = 'all' | 'policy' | 'science' | 'rescue' | 'health' | 'climate' | 'community'
 
-interface NewsArticle {
-  id: string
-  title: string
-  excerpt: string
-  image: string
-  category: Category
-  tier: Tier
-  author: string
-  authorAvatar: string
-  source: string
-  time: string
-  readTime: string
-  likes: number
-  comments: number
-  featured: boolean
-  saved: boolean
-  url: string
+const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color: string; bgColor: string }> = {
+  institutional: { label: 'Institutional', icon: ShieldCheck, color: 'text-blue-600', bgColor: 'bg-blue-50 border-blue-200' },
+  verified:      { label: 'Verified',      icon: BadgeCheck,  color: 'text-secondary', bgColor: 'bg-amber-50 border-amber-200' },
+  community:     { label: 'Community',      icon: Globe,       color: 'text-primary',   bgColor: 'bg-teal-50 border-teal-200' },
 }
 
-const TIER_CONFIG: Record<Tier, {
-  label: string
-  icon: typeof ShieldCheck
-  color: string
-  bgColor: string
-  description: string
-}> = {
-  institutional: {
-    label: 'Institutional',
-    icon: ShieldCheck,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50 border-blue-200',
-    description: 'Verified government or research institution source',
-  },
-  verified: {
-    label: 'Verified',
-    icon: BadgeCheck,
-    color: 'text-secondary',
-    bgColor: 'bg-amber-50 border-amber-200',
-    description: 'Reviewed and verified by ZoikoSocial fact-checkers',
-  },
-  community: {
-    label: 'Community',
-    icon: Globe,
-    color: 'text-primary',
-    bgColor: 'bg-teal-50 border-teal-200',
-    description: 'Shared by community members with strong reputation',
-  },
-}
-
-const CATEGORIES: { id: Category; label: string }[] = [
+const CATEGORIES: { id: string; label: string }[] = [
   { id: 'all',       label: 'All News' },
   { id: 'policy',    label: 'Policy & Law' },
   { id: 'science',   label: 'Animal Science' },
@@ -78,215 +35,158 @@ const CATEGORIES: { id: Category; label: string }[] = [
   { id: 'community', label: 'Community' },
 ]
 
-const ARTICLES: NewsArticle[] = [
-  // Featured
-  {
-    id: 'a1', title: 'California Passes Landmark Wildlife Corridor Protection Act',
-    excerpt: 'The new legislation allocates $180M for wildlife crossings and habitat connectivity across the state, aiming to reduce road mortality by 40% within five years.',
-    image: 'https://images.unsplash.com/photo-1470071459604-7b8ec44ffd8e?w=800&h=500&fit=crop',
-    category: 'policy', tier: 'institutional', author: 'Dr. Maria Santos', authorAvatar: 'MS',
-    source: 'California Dept. of Wildlife', time: '2h ago', readTime: '4 min read',
-    likes: 892, comments: 134, featured: true, saved: true, url: '#',
-  },
-  {
-    id: 'a2', title: 'New Study Reveals Dogs Can Detect Early-Stage Parkinson\'s Disease',
-    excerpt: 'Researchers at the University of Cambridge have published groundbreaking findings showing trained canines can identify Parkinson\'s biomarkers with 93% accuracy.',
-    image: 'https://images.unsplash.com/photo-1553882809-a4f35714b272?w=800&h=500&fit=crop',
-    category: 'science', tier: 'institutional', author: 'Prof. James Whitfield', authorAvatar: 'JW',
-    source: 'Cambridge Veterinary Journal', time: '8h ago', readTime: '6 min read',
-    likes: 2341, comments: 412, featured: true, saved: false, url: '#',
-  },
-  {
-    id: 'a3', title: 'Global Heat Season: Essential Safety Guide for Pet Owners',
-    excerpt: 'Veterinary associations worldwide issue updated guidelines as temperatures rise, including paw pad protection, hydration schedules, and recognizing heatstroke signs.',
-    image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=800&h=500&fit=crop',
-    category: 'health', tier: 'verified', author: 'PawsWild Rescue', authorAvatar: 'PW',
-    source: 'ZoikoSocial Verified Content', time: '1d ago', readTime: '3 min read',
-    likes: 1567, comments: 289, featured: true, saved: true, url: '#',
-  },
-  // Regular articles
-  {
-    id: 'a4', title: 'Record Number of Sea Turtle Nests Recorded on Costa Rican Beaches',
-    excerpt: 'Conservation efforts pay off as olive ridley sea turtle nesting sites see a 35% increase compared to last year, marking the highest count in a decade.',
-    image: 'https://images.unsplash.com/photo-1570488344398-9b5f4b3c6c3b?w=600&h=400&fit=crop',
-    category: 'climate', tier: 'verified', author: 'Marine Life Guardians', authorAvatar: 'ML',
-    source: 'ZoikoSocial Verified Content', time: '1d ago', readTime: '3 min read',
-    likes: 1203, comments: 178, featured: false, saved: false, url: '#',
-  },
-  {
-    id: 'a5', title: 'Meet the Volunteers Rehabilitating Orphaned Baby Elephants in Kenya',
-    excerpt: 'A heartwarming look at the Sheldrick Wildlife Trust\'s elephant orphanage, where dedicated keepers raise and release orphaned calves back into the wild.',
-    image: 'https://images.unsplash.com/photo-1557050543-4d5f4e07ef76?w=600&h=400&fit=crop',
-    category: 'rescue', tier: 'community', author: 'Sara Renfeld', authorAvatar: 'SR',
-    source: 'Community Contribution', time: '2d ago', readTime: '5 min read',
-    likes: 3456, comments: 521, featured: false, saved: true, url: '#',
-  },
-  {
-    id: 'a6', title: 'FDA Approves First Oral Treatment for Canine Cognitive Dysfunction',
-    excerpt: 'The new medication aims to improve quality of life for aging dogs suffering from dementia-like symptoms, with clinical trials showing promising results.',
-    image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&h=400&fit=crop',
-    category: 'health', tier: 'institutional', author: 'FDA Communications', authorAvatar: 'FD',
-    source: 'U.S. Food & Drug Administration', time: '3d ago', readTime: '4 min read',
-    likes: 987, comments: 156, featured: false, saved: false, url: '#',
-  },
-  {
-    id: 'a7', title: 'Urban Beekeeping Initiatives Are Thriving in Major Cities Worldwide',
-    excerpt: 'From rooftop hives in New York to community gardens in Tokyo, urban beekeeping is helping restore pollinator populations and raise environmental awareness.',
-    image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=600&h=400&fit=crop',
-    category: 'climate', tier: 'community', author: 'ClimateEdu', authorAvatar: 'CE',
-    source: 'Community Contribution', time: '4d ago', readTime: '3 min read',
-    likes: 654, comments: 89, featured: false, saved: false, url: '#',
-  },
-  {
-    id: 'a8', title: 'New Zealand Bans Cosmetic Testing on Animals Effective Immediately',
-    excerpt: 'New Zealand becomes the 45th country to ban cosmetic animal testing, joining a growing global movement for cruelty-free beauty standards.',
-    image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=600&h=400&fit=crop',
-    category: 'policy', tier: 'institutional', author: 'NZ Ministry for Primary Industries', authorAvatar: 'NZ',
-    source: 'Government of New Zealand', time: '5d ago', readTime: '2 min read',
-    likes: 4210, comments: 623, featured: false, saved: true, url: '#',
-  },
-  {
-    id: 'a9', title: 'Community Effort Saves 150 Stranded Dolphins on Cape Cod Beach',
-    excerpt: 'A coordinated rescue operation involving over 200 volunteers successfully returned a pod of stranded common dolphins to deep waters off the coast.',
-    image: 'https://images.unsplash.com/photo-1570488344398-9b5f4b3c6c3b?w=600&h=400&fit=crop',
-    category: 'rescue', tier: 'verified', author: 'Ocean Guardian Network', authorAvatar: 'OG',
-    source: 'ZoikoSocial Verified Content', time: '6d ago', readTime: '4 min read',
-    likes: 5678, comments: 890, featured: false, saved: false, url: '#',
-  },
-  {
-    id: 'a10', title: 'Breakthrough in Avian Flu Vaccine Development for Poultry',
-    excerpt: 'Scientists at the Royal Veterinary College have developed a new mRNA-based vaccine that could dramatically reduce avian flu outbreaks in commercial poultry flocks.',
-    image: 'https://images.unsplash.com/photo-1522926193341-e9ffd686c60f?w=600&h=400&fit=crop',
-    category: 'science', tier: 'institutional', author: 'Dr. Helen Park', authorAvatar: 'HP',
-    source: 'Royal Veterinary College', time: '1w ago', readTime: '5 min read',
-    likes: 1234, comments: 198, featured: false, saved: false, url: '#',
-  },
-]
+function compact(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
+}
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  if (s < 604800) return `${Math.floor(s / 86400)}d ago`
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
-function TierBadge({ tier }: { tier: Tier }): React.JSX.Element {
-  const config = TIER_CONFIG[tier]
+function TierBadge({ tier }: { tier: string }): React.JSX.Element {
+  const config = TIER_CONFIG[(tier as Tier)] ?? TIER_CONFIG.community
   const Icon = config.icon
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${config.bgColor} ${config.color}`}>
-      <Icon className="w-3 h-3" />
-      {config.label}
+      <Icon className="w-3 h-3" />{config.label}
     </span>
   )
 }
 
-export default function NewsPage(): React.JSX.Element {
-  const [activeCategory, setActiveCategory] = useState<Category>('all')
-  const [search, setSearch] = useState('')
-  const [saved, setSaved] = useState<Set<string>>(new Set(['a1', 'a3', 'a5', 'a8']))
-  const [tierFilter, setTierFilter] = useState<Tier | 'all'>('all')
-  const [showFilters, setShowFilters] = useState(false)
+function SaveButton({ article, small }: { article: NewsArticle; small?: boolean }): React.JSX.Element {
+  const [saved, setSaved] = useState(article.viewerSaved)
+  // Re-sync when the server truth for this article changes (e.g. after a filter refetch).
+  const [seen, setSeen] = useState(article.viewerSaved)
+  if (seen !== article.viewerSaved) { setSeen(article.viewerSaved); setSaved(article.viewerSaved) }
+  async function toggle(e: React.MouseEvent): Promise<void> {
+    e.preventDefault(); e.stopPropagation()
+    const next = !saved
+    setSaved(next)
+    try { await (next ? newsApi.save(article.id) : newsApi.unsave(article.id)) } catch { setSaved(!next) }
+  }
+  const sz = small ? 'w-3.5 h-3.5' : 'w-4 h-4'
+  return (
+    <button onClick={toggle} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${saved ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'}`}>
+      <Bookmark className={`${sz} ${saved ? 'fill-current' : ''}`} />
+    </button>
+  )
+}
 
-  function toggleSave(id: string): void {
-    setSaved((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+export default function NewsPage(): React.JSX.Element {
+  const { isAuthenticated } = useAuth()
+  const [featured, setFeatured] = useState<NewsArticle[]>([])
+  const [articles, setArticles] = useState<NewsArticle[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [category, setCategory] = useState('all')
+  const [tier, setTier] = useState<Tier | 'all'>('all')
+  const [search, setSearch] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+
+  const filters = useCallback(() => ({
+    ...(category !== 'all' ? { category } : {}),
+    ...(tier !== 'all' ? { tier } : {}),
+    ...(search.trim() ? { q: search.trim() } : {}),
+  }), [category, tier, search])
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      if (cancelled) return
+      setLoading(true)
+      Promise.all([newsApi.featured(3), newsApi.browse(filters(), null, 12)])
+        .then(([feat, page]) => {
+          if (cancelled) return
+          setFeatured(feat)
+          setArticles(page.data)
+          setCursor(page.nextCursor)
+          setHasMore(page.hasMore)
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [filters])
+
+  function loadMore(): void {
+    if (loadingMore || !cursor) return
+    setLoadingMore(true)
+    newsApi.browse(filters(), cursor, 12)
+      .then((page) => {
+        setArticles((prev) => {
+          const seen = new Set(prev.map((a) => a.id))
+          return [...prev, ...page.data.filter((a) => !seen.has(a.id))]
+        })
+        setCursor(page.nextCursor)
+        setHasMore(page.hasMore)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
   }
 
-  const filtered = ARTICLES.filter((a) => {
-    if (search && !a.title.toLowerCase().includes(search.toLowerCase()) && !a.excerpt.toLowerCase().includes(search.toLowerCase())) return false
-    if (activeCategory !== 'all' && a.category !== activeCategory) return false
-    if (tierFilter !== 'all' && a.tier !== tierFilter) return false
-    return true
-  })
-
-  const featuredArticles = filtered.filter((a) => a.featured)
-  const regularArticles = filtered.filter((a) => !a.featured)
+  const showFeatured = category === 'all' && tier === 'all' && !search.trim()
+  const featuredIds = new Set(featured.map((a) => a.id))
+  // Only de-dupe against the featured section when it's actually rendered — otherwise
+  // a filtered view would silently drop articles that happen to be in the global top-3.
+  const latest = showFeatured ? articles.filter((a) => !featuredIds.has(a.id)) : articles
 
   return (
     <>
       <Header />
-
       <main className="pt-20 min-h-screen bg-background">
-        <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
-          {/* Left Column */}
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          {/* Left */}
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
             <MyPetsWidget />
-            <CommunitiesWidget />
             <QuickLinksWidget />
           </div>
 
-          {/* Center Column */}
+          {/* Center */}
           <div className="lg:col-span-6 space-y-4 pb-20">
-            {/* Header */}
             <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Link>
               <div className="flex-1">
-                <h1 className="text-headline-md font-bold text-on-surface">Verified News</h1>
+                <h1 className="font-headline text-headline-md font-bold text-on-surface">Verified News</h1>
                 <p className="text-label-sm text-outline">Curated, fact-checked animal &amp; conservation news</p>
               </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all duration-200 cursor-pointer ${
-                  showFilters
-                    ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                    : 'text-on-surface-variant hover:bg-surface-container'
-                }`}
-              >
-                <Filter className="w-4 h-4" />
-                <span className="hidden sm:inline">Filter</span>
+              {isAuthenticated && (
+                <button onClick={() => setComposeOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                  <PenSquare className="w-4 h-4" /><span className="hidden sm:inline">Write</span>
+                </button>
+              )}
+              <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold transition-all cursor-pointer ${showFilters ? 'bg-primary text-white' : 'text-on-surface-variant hover:bg-surface-container'}`}>
+                <Filter className="w-4 h-4" /><span className="hidden sm:inline">Filter</span>
               </button>
             </div>
 
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search news articles..."
-                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50"
-              />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search news articles..."
+                className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50" />
             </div>
 
-            {/* Category chips */}
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
-              {CATEGORIES.map((cat) => {
-                const isActive = activeCategory === cat.id
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer flex-shrink-0 ${
-                      isActive
-                        ? 'bg-primary text-white shadow-sm shadow-primary/20'
-                        : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                )
-              })}
+              {CATEGORIES.map((cat) => (
+                <button key={cat.id} onClick={() => setCategory(cat.id)}
+                  className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
+                  {cat.label}
+                </button>
+              ))}
             </div>
 
-            {/* Tier filter pills */}
             {showFilters && (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3">
                 <p className="text-[10px] font-bold tracking-wider uppercase text-outline mb-2">Source Tier</p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {(['all', 'institutional', 'verified', 'community'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTierFilter(t)}
-                      className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-colors cursor-pointer ${
-                        tierFilter === t
-                          ? 'bg-primary text-white'
-                          : 'border border-outline-variant text-on-surface-variant hover:border-primary/30 hover:text-primary'
-                      }`}
-                    >
+                    <button key={t} onClick={() => setTier(t)}
+                      className={`px-3 py-1.5 rounded-lg text-label-sm font-semibold transition-colors cursor-pointer ${tier === t ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary/30 hover:text-primary'}`}>
                       {t === 'all' ? 'All Sources' : TIER_CONFIG[t].label}
                     </button>
                   ))}
@@ -294,227 +194,149 @@ export default function NewsPage(): React.JSX.Element {
               </div>
             )}
 
-            {/* Results */}
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => <div key={i} className="h-32 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}
+              </div>
+            ) : latest.length === 0 && featured.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
                   <Newspaper className="w-7 h-7 text-outline" />
                 </div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No articles found</h3>
-                <p className="text-label-sm text-outline mb-4">Try a different category, search term, or filter</p>
-                <button
-                  onClick={() => { setSearch(''); setActiveCategory('all'); setTierFilter('all') }}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-                >
-                  Clear Filters
-                </button>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">No articles yet</h3>
+                <p className="text-label-sm text-outline mb-4">Be the first to publish verified news for the community.</p>
+                {isAuthenticated && (
+                  <button onClick={() => setComposeOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Write an Article</button>
+                )}
               </div>
             ) : (
               <>
-                {/* Featured hero */}
-                {featuredArticles.length > 0 && (
+                {showFeatured && featured.length > 0 && (
                   <section className="space-y-3">
                     <div className="flex items-center gap-2 mb-1">
                       <TrendingUp className="w-4 h-4 text-secondary" />
                       <h2 className="text-label-md font-bold text-on-surface">Top Stories</h2>
                     </div>
-                    {featuredArticles.slice(0, 1).map((article) => (
-                      <article
-                        key={article.id}
-                        className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer group"
-                      >
-                        <div className="relative h-48 sm:h-56 overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={article.image}
-                            alt={article.title}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                          <div className="absolute bottom-4 left-4 right-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <TierBadge tier={article.tier} />
-                              <span className="text-[10px] font-medium text-white/70 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">
-                                {article.readTime}
-                              </span>
-                            </div>
-                            <h3 className="text-label-md font-bold text-white leading-snug line-clamp-2">
-                              {article.title}
-                            </h3>
-                            <p className="text-[11px] text-white/70 mt-1 line-clamp-1">{article.excerpt}</p>
+                    <div className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
+                      <Link href={`/news/${featured[0]!.id}`} aria-label={featured[0]!.title} className="absolute inset-0 z-10" />
+                      <div className="relative h-48 sm:h-56 overflow-hidden bg-surface-container">
+                        {featured[0]!.coverUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={featured[0]!.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TierBadge tier={featured[0]!.tier} />
+                            <span className="text-[10px] font-medium text-white/80 bg-black/30 px-2 py-0.5 rounded-full backdrop-blur-sm">{featured[0]!.readMinutes} min read</span>
                           </div>
+                          <h3 className="text-label-md font-bold text-white leading-snug line-clamp-2">{featured[0]!.title}</h3>
+                          <p className="text-[11px] text-white/70 mt-1 line-clamp-1">{featured[0]!.excerpt}</p>
                         </div>
-                        <div className="p-3.5 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[9px] font-bold text-primary">
-                              {article.authorAvatar}
-                            </div>
-                            <span className="text-[11px] text-outline">{article.author}</span>
-                            <span className="text-[10px] text-outline/60">·</span>
-                            <span className="text-[11px] text-outline">{article.time}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); toggleSave(article.id) }}
-                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                saved.has(article.id) ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'
-                              }`}
-                            >
-                              <Bookmark className={`w-4 h-4 ${saved.has(article.id) ? 'fill-current' : ''}`} />
-                            </button>
-                            <button className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors cursor-pointer">
-                              <Share2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                      </div>
+                      <div className="p-3.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <UserAvatar name={featured[0]!.author.displayName} image={featured[0]!.author.avatarUrl ?? undefined} size="sm" verified={featured[0]!.author.isVerified} />
+                          <span className="text-[11px] text-outline">{featured[0]!.author.displayName}</span>
+                          <span className="text-[10px] text-outline/60">·</span>
+                          <span className="text-[11px] text-outline">{timeAgo(featured[0]!.publishedAt)}</span>
                         </div>
-                      </article>
-                    ))}
+                        <span className="relative z-20"><SaveButton article={featured[0]!} /></span>
+                      </div>
+                    </div>
 
-                    {/* Second and third featured */}
-                    {featuredArticles.length > 1 && (
+                    {featured.length > 1 && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {featuredArticles.slice(1, 3).map((article) => (
-                          <article
-                            key={article.id}
-                            className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all duration-200 cursor-pointer group"
-                          >
-                            <div className="relative h-32 overflow-hidden">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={article.image}
-                                alt={article.title}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              />
+                        {featured.slice(1, 3).map((a) => (
+                          <div key={a.id} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
+                            <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
+                            <div className="relative h-32 overflow-hidden bg-surface-container">
+                              {a.coverUrl && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                              <div className="absolute top-2 left-2">
-                                <TierBadge tier={article.tier} />
-                              </div>
+                              <div className="absolute top-2 left-2"><TierBadge tier={a.tier} /></div>
                               <div className="absolute bottom-2 left-2 right-2">
-                                <h3 className="text-label-sm font-bold text-white leading-tight line-clamp-2">{article.title}</h3>
+                                <h3 className="text-label-sm font-bold text-white leading-tight line-clamp-2">{a.title}</h3>
                               </div>
                             </div>
-                            <div className="p-3">
-                              <p className="text-[11px] text-outline line-clamp-2 mb-2">{article.excerpt}</p>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-outline/60">{article.time} · {article.readTime}</span>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleSave(article.id) }}
-                                  className={`p-1 rounded-lg transition-colors cursor-pointer ${
-                                    saved.has(article.id) ? 'text-primary' : 'text-outline hover:text-primary'
-                                  }`}
-                                >
-                                  <Bookmark className={`w-3.5 h-3.5 ${saved.has(article.id) ? 'fill-current' : ''}`} />
-                                </button>
-                              </div>
+                            <div className="p-3 flex items-center justify-between">
+                              <span className="text-[10px] text-outline/60">{timeAgo(a.publishedAt)} · {a.readMinutes} min</span>
+                              <span className="relative z-20"><SaveButton article={a} small /></span>
                             </div>
-                          </article>
+                          </div>
                         ))}
                       </div>
                     )}
                   </section>
                 )}
 
-                {/* Latest news */}
                 <section>
                   <div className="flex items-center gap-2 mb-3">
                     <Newspaper className="w-4 h-4 text-primary" />
                     <h2 className="text-label-md font-bold text-on-surface">
-                      {activeCategory === 'all' ? 'Latest News' : CATEGORIES.find((c) => c.id === activeCategory)?.label ?? 'Articles'}
+                      {category === 'all' ? 'Latest News' : CATEGORIES.find((c) => c.id === category)?.label ?? 'Articles'}
                     </h2>
-                    <span className="text-label-sm text-outline">({regularArticles.length})</span>
+                    <span className="text-label-sm text-outline">({latest.length})</span>
                   </div>
 
                   <div className="space-y-3">
-                    {regularArticles.map((article) => (
-                      <article
-                        key={article.id}
-                        className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
-                      >
+                    {latest.map((a) => (
+                      <div key={a.id} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                        <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
                         <div className="flex flex-col sm:flex-row">
-                          {/* Thumbnail */}
-                          <div className="sm:w-44 h-32 sm:h-auto flex-shrink-0 overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={article.image}
-                              alt={article.title}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                          </div>
-
-                          {/* Content */}
+                          {a.coverUrl && (
+                            <div className="sm:w-44 h-32 sm:h-auto flex-shrink-0 overflow-hidden bg-surface-container">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                            </div>
+                          )}
                           <div className="flex-1 p-4 flex flex-col justify-between">
                             <div>
                               <div className="flex items-center gap-2 mb-1.5">
-                                <TierBadge tier={article.tier} />
-                                <span className="text-[10px] text-outline/60">{article.category.charAt(0).toUpperCase() + article.category.slice(1)}</span>
+                                <TierBadge tier={a.tier} />
+                                <span className="text-[10px] text-outline/60 capitalize">{a.category}</span>
                               </div>
-                              <h3 className="text-label-md font-bold text-on-surface mb-1 group-hover:text-primary transition-colors leading-snug">
-                                {article.title}
-                              </h3>
-                              <p className="text-[11px] text-outline leading-relaxed line-clamp-2">{article.excerpt}</p>
+                              <h3 className="text-label-md font-bold text-on-surface mb-1 group-hover:text-primary transition-colors leading-snug line-clamp-2">{a.title}</h3>
+                              <p className="text-[11px] text-outline leading-relaxed line-clamp-2">{a.excerpt}</p>
                             </div>
-
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/10">
-                              <div className="flex items-center gap-2">
-                                <div className="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-[9px] font-bold text-on-surface-variant">
-                                  {article.authorAvatar}
-                                </div>
-                                <div>
-                                  <span className="text-[10px] font-medium text-on-surface-variant">{article.author}</span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <UserAvatar name={a.author.displayName} image={a.author.avatarUrl ?? undefined} size="sm" verified={a.author.isVerified} />
+                                <div className="min-w-0">
+                                  <span className="text-[10px] font-medium text-on-surface-variant truncate block">{a.author.displayName}</span>
                                   <div className="flex items-center gap-1.5 text-[10px] text-outline/60">
-                                    <Clock className="w-3 h-3" />
-                                    <span>{article.time}</span>
-                                    <span>·</span>
-                                    <BookOpen className="w-3 h-3" />
-                                    <span>{article.readTime}</span>
+                                    <Clock className="w-3 h-3" /><span>{timeAgo(a.publishedAt)}</span>
+                                    <span>·</span><BookOpen className="w-3 h-3" /><span>{a.readMinutes} min</span>
                                   </div>
                                 </div>
                               </div>
-
-                              <div className="flex items-center gap-1">
-                                <div className="flex items-center gap-2 mr-2 text-[10px] text-outline/60">
-                                  <span className="flex items-center gap-0.5">
-                                    <Heart className="w-3 h-3" />
-                                    {article.likes >= 1000 ? `${(article.likes / 1000).toFixed(1)}k` : article.likes}
-                                  </span>
-                                  <span className="flex items-center gap-0.5">
-                                    <MessageSquare className="w-3 h-3" />
-                                    {article.comments}
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleSave(article.id) }}
-                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                    saved.has(article.id) ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'
-                                  }`}
-                                >
-                                  <Bookmark className={`w-3.5 h-3.5 ${saved.has(article.id) ? 'fill-current' : ''}`} />
-                                </button>
-                                <button className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-surface-container transition-colors cursor-pointer">
-                                  <Share2 className="w-3.5 h-3.5" />
-                                </button>
+                              <div className="flex items-center gap-1 flex-shrink-0 relative z-20">
+                                <span className="flex items-center gap-0.5 text-[10px] text-outline/60 mr-1"><Heart className="w-3 h-3" />{compact(a.likesCount)}</span>
+                                <span className="flex items-center gap-0.5 text-[10px] text-outline/60 mr-1"><MessageCircle className="w-3 h-3" />{compact(a.commentsCount)}</span>
+                                <SaveButton article={a} small />
                               </div>
                             </div>
                           </div>
                         </div>
-                      </article>
+                      </div>
                     ))}
                   </div>
-                </section>
 
-                {/* Load more */}
-                {regularArticles.length >= 8 && (
-                  <div className="text-center pt-2">
-                    <button className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all duration-200 cursor-pointer">
-                      Load More Articles
-                    </button>
-                  </div>
-                )}
+                  {hasMore && (
+                    <div className="text-center pt-4">
+                      <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
+                        {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More Articles
+                      </button>
+                    </div>
+                  )}
+                </section>
               </>
             )}
           </div>
 
-          {/* Right Column */}
+          {/* Right */}
           <div className="lg:col-span-3 space-y-gutter hidden xl:block">
             <RightPanel />
           </div>
@@ -522,6 +344,100 @@ export default function NewsPage(): React.JSX.Element {
       </main>
 
       <MobileTabs currentPage="news" />
+
+      {composeOpen && (
+        <WriteArticleModal
+          onClose={() => setComposeOpen(false)}
+          onPublished={(a) => { setComposeOpen(false); setArticles((prev) => [a, ...prev]) }}
+        />
+      )}
     </>
+  )
+}
+
+function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPublished: (a: NewsArticle) => void }): React.JSX.Element {
+  const { profile } = useAuth()
+  const [title, setTitle] = useState('')
+  const [excerpt, setExcerpt] = useState('')
+  const [body, setBody] = useState('')
+  const [category, setCategory] = useState('community')
+  const [sourceName, setSourceName] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [coverUrl, setCoverUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [error, setError] = useState('')
+
+  const valid = title.trim().length >= 4 && excerpt.trim().length >= 10 && body.trim().length >= 20
+
+  async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !profile) return
+    setUploading(true)
+    try { setCoverUrl(await uploadCommunityImage(profile.id, file, 'cover')) } catch { setError('Cover upload failed') } finally { setUploading(false) }
+  }
+
+  async function submit(): Promise<void> {
+    if (!valid || posting) return
+    setPosting(true); setError('')
+    try {
+      const input: NewArticle = {
+        title: title.trim(), excerpt: excerpt.trim(), body: body.trim(), category,
+        ...(coverUrl ? { coverUrl } : {}),
+        ...(sourceName.trim() ? { sourceName: sourceName.trim() } : {}),
+        ...(sourceUrl.trim() ? { sourceUrl: sourceUrl.trim() } : {}),
+      }
+      onPublished(await newsApi.create(input))
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed to publish') } finally { setPosting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-surface-container-lowest rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20 sticky top-0 bg-surface-container-lowest">
+          <h2 className="text-label-md font-bold text-on-surface">Write an Article</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          <label className="block">
+            <div className="relative h-36 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
+              {coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}
+                  {uploading ? 'Uploading…' : 'Add cover image'}
+                </span>
+              )}
+              <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
+            </div>
+          </label>
+          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder="Headline"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-md border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <textarea value={excerpt} onChange={(e) => setExcerpt(e.target.value)} maxLength={400} rows={2} placeholder="Short summary (shown in the feed)…"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={20000} rows={6} placeholder="Write the full article…"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
+          <div className="flex gap-2">
+            <select value={category} onChange={(e) => setCategory(e.target.value)}
+              className="flex-1 px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
+              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+          </div>
+          <input value={sourceName} onChange={(e) => setSourceName(e.target.value)} maxLength={160} placeholder="Source name (optional, e.g. Cambridge Vet Journal)"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} maxLength={600} placeholder="Source URL (optional)"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+          {error && <p className="text-label-sm text-red-500">{error}</p>}
+          <p className="text-[11px] text-outline">Your trust tier is set automatically from your verified status.</p>
+          <button onClick={submit} disabled={!valid || posting || uploading}
+            className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Publishing…' : 'Publish Article'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

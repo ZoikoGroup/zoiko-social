@@ -587,6 +587,7 @@ export const providersApi = {
     return request<ProviderPage>(`/providers?${qs.toString()}`)
   },
   get: (id: string) => cachedGet<Provider>(`/providers/${id}`, 30_000),
+  mine: () => request<Provider[]>('/providers/mine'),
   create: (input: NewProvider) => mutate<Provider>('/providers', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: string, input: Partial<Omit<NewProvider, 'category'>>) =>
     mutate<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
@@ -642,6 +643,173 @@ export const lostFoundApi = {
   sightings: (id: string) => request<LostFoundSighting[]>(`/lost-found/${id}/sightings`),
   addSighting: (id: string, input: { message?: string; location?: string }) =>
     mutate<{ id: string }>(`/lost-found/${id}/sightings`, { method: 'POST', body: JSON.stringify(input) }),
+}
+
+export interface NewsArticle {
+  id: string
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  title: string
+  excerpt: string
+  body: string | null
+  coverUrl: string | null
+  category: string
+  tier: string
+  sourceName: string | null
+  sourceUrl: string | null
+  readMinutes: number
+  likesCount: number
+  savesCount: number
+  commentsCount: number
+  publishedAt: string
+  viewerLiked: boolean
+  viewerSaved: boolean
+}
+export interface NewsPage { data: NewsArticle[]; nextCursor: string | null; hasMore: boolean }
+export interface NewsComment {
+  id: string; body: string; createdAt: string
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface NewsCommentPage { data: NewsComment[]; nextCursor: string | null; hasMore: boolean }
+export interface NewArticle {
+  title: string; excerpt: string; body: string; coverUrl?: string
+  category?: string; sourceName?: string; sourceUrl?: string; readMinutes?: number
+}
+
+export const newsApi = {
+  browse: (filters: { category?: string; tier?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.category) qs.set('category', filters.category)
+    if (filters.tier) qs.set('tier', filters.tier)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<NewsPage>(`/news?${qs.toString()}`)
+  },
+  featured: (limit = 3) => request<NewsArticle[]>(`/news/featured?limit=${limit}`),
+  mine: () => request<NewsArticle[]>('/news/mine'),
+  get: (id: string) => cachedGet<NewsArticle>(`/news/${id}`, 15_000),
+  create: (input: NewArticle) => mutate<NewsArticle>('/news', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewArticle>) => mutate<NewsArticle>(`/news/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/news/${id}`, { method: 'DELETE' }),
+  like: (id: string) => mutate<{ liked: boolean; likesCount: number }>(`/news/${id}/like`, { method: 'POST' }),
+  unlike: (id: string) => mutate<{ liked: boolean; likesCount: number }>(`/news/${id}/like`, { method: 'DELETE' }),
+  save: (id: string) => mutate<{ saved: boolean; savesCount: number }>(`/news/${id}/save`, { method: 'POST' }),
+  unsave: (id: string) => mutate<{ saved: boolean; savesCount: number }>(`/news/${id}/save`, { method: 'DELETE' }),
+  comments: (id: string, cursor?: string | null, limit = 20) =>
+    request<NewsCommentPage>(`/news/${id}/comments?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  addComment: (id: string, body: string) => mutate<NewsComment>(`/news/${id}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+  deleteComment: (id: string, commentId: string) => mutate<{ success: boolean }>(`/news/${id}/comments/${commentId}`, { method: 'DELETE' }),
+}
+
+export interface Product {
+  id: string
+  seller: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  title: string
+  description: string | null
+  price: number
+  compareAt: number | null
+  currency: string
+  category: string
+  condition: string
+  coverUrl: string | null
+  photos: string[]
+  stock: number
+  inStock: boolean
+  shipping: string | null
+  location: string | null
+  status: string
+  savesCount: number
+  enquiriesCount: number
+  createdAt: string
+  viewerSaved: boolean
+}
+export interface ProductPage { data: Product[]; nextCursor: string | null; hasMore: boolean }
+export interface ProductEnquiry {
+  id: string; message: string | null; status: string; createdAt: string
+  buyer: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface ProductEnquiryInbox {
+  id: string; message: string | null; status: string; createdAt: string
+  product: { id: string; title: string; coverUrl: string | null }
+  buyer: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface NewProduct {
+  title: string; description?: string; price: number; compareAt?: number; currency?: string
+  category?: string; condition?: string; coverUrl?: string; photos?: string[]; stock?: number; shipping?: string; location?: string
+}
+
+export const shopApi = {
+  browse: (filters: { category?: string; condition?: string; q?: string; sort?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.category) qs.set('category', filters.category)
+    if (filters.condition) qs.set('condition', filters.condition)
+    if (filters.q) qs.set('q', filters.q)
+    if (filters.sort) qs.set('sort', filters.sort)
+    if (cursor) qs.set('cursor', cursor)
+    return request<ProductPage>(`/shop?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<Product>(`/shop/${id}`, 15_000),
+  mine: () => request<Product[]>('/shop/mine'),
+  enquiryInbox: () => request<ProductEnquiryInbox[]>('/shop/enquiries/inbox'),
+  create: (input: NewProduct) => mutate<Product>('/shop', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewProduct> & { status?: string }) => mutate<Product>(`/shop/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/shop/${id}`, { method: 'DELETE' }),
+  save: (id: string) => mutate<{ saved: boolean; savesCount: number }>(`/shop/${id}/save`, { method: 'POST' }),
+  unsave: (id: string) => mutate<{ saved: boolean; savesCount: number }>(`/shop/${id}/save`, { method: 'DELETE' }),
+  enquiries: (id: string) => request<ProductEnquiry[]>(`/shop/${id}/enquiries`),
+  enquire: (id: string, input: { message?: string }) => mutate<{ status: string }>(`/shop/${id}/enquiries`, { method: 'POST', body: JSON.stringify(input) }),
+}
+
+export interface BreedingProfile {
+  id: string
+  owner: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  petName: string
+  species: string
+  breed: string
+  sex: string
+  age: string | null
+  location: string | null
+  about: string | null
+  healthTests: string[]
+  certifications: string[]
+  coverUrl: string | null
+  photos: string[]
+  fee: number | null
+  currency: string
+  status: string
+  requestsCount: number
+  createdAt: string
+  viewerRequested: boolean
+}
+export interface BreedingPage { data: BreedingProfile[]; nextCursor: string | null; hasMore: boolean }
+export interface BreedingRequest {
+  id: string; message: string | null; status: string; createdAt: string
+  requester: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface NewBreedingProfile {
+  petName: string; species?: string; breed: string; sex?: string; age?: string; location?: string; about?: string
+  healthTests?: string[]; certifications?: string[]; coverUrl?: string; photos?: string[]; fee?: number; currency?: string
+}
+
+export const breedingApi = {
+  browse: (filters: { species?: string; sex?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+    const qs = new URLSearchParams()
+    qs.set('limit', String(limit))
+    if (filters.species) qs.set('species', filters.species)
+    if (filters.sex) qs.set('sex', filters.sex)
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.q) qs.set('q', filters.q)
+    if (cursor) qs.set('cursor', cursor)
+    return request<BreedingPage>(`/breeding?${qs.toString()}`)
+  },
+  get: (id: string) => cachedGet<BreedingProfile>(`/breeding/${id}`, 15_000),
+  create: (input: NewBreedingProfile) => mutate<BreedingProfile>('/breeding', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: Partial<NewBreedingProfile> & { status?: string }) => mutate<BreedingProfile>(`/breeding/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  remove: (id: string) => mutate<{ success: boolean }>(`/breeding/${id}`, { method: 'DELETE' }),
+  request: (id: string, input: { message?: string }) => mutate<{ status: string }>(`/breeding/${id}/requests`, { method: 'POST', body: JSON.stringify(input) }),
+  requests: (id: string) => request<BreedingRequest[]>(`/breeding/${id}/requests`),
+  respond: (id: string, requestId: string, status: 'accepted' | 'declined') => mutate<{ status: string }>(`/breeding/${id}/requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 }
 
 export const feedApi = {

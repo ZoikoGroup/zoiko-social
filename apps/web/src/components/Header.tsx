@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell, ChevronDown,
   Newspaper, Calendar, MapPin,
-  ShoppingBag, HandHeart, Stethoscope, Dna, X,
+  ShoppingBag, HandHeart, Stethoscope, Dna, X, LayoutDashboard,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
@@ -15,6 +15,7 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { UserAvatar } from './UserAvatar'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
+  { name: 'Dashboard',         Icon: LayoutDashboard, color: 'text-primary', href: '/dashboard'    },
   { name: 'Communities',       Icon: Users,       color: 'text-primary',   href: '/communities'    },
   { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary',   href: '/news'           },
   { name: 'Events',            Icon: Calendar,    color: 'text-secondary', href: '/events'         },
