@@ -28,6 +28,8 @@ import { NewsModule } from './modules/news/news.module'
 import { ShopModule } from './modules/shop/shop.module'
 import { BreedingModule } from './modules/breeding/breeding.module'
 import { HealthModule } from './health/health.module'
+import { MessagingModule } from './modules/messaging/messaging.module'
+import { R2Module } from './modules/storage/r2.module'
 
 @Module({
   imports: [
@@ -58,6 +60,8 @@ import { HealthModule } from './health/health.module'
     ShopModule,
     BreedingModule,
     HealthModule,
+    MessagingModule,
+    R2Module,
   ],
   controllers: [AppController],
   providers: [AppService],

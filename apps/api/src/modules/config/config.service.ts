@@ -82,6 +82,31 @@ export class ConfigService {
     return this.env.REDIS_URL
   }
 
+  get r2AccountId(): string | undefined {
+    return this.env.R2_ACCOUNT_ID
+  }
+
+  get r2AccessKeyId(): string | undefined {
+    return this.env.R2_ACCESS_KEY_ID
+  }
+
+  get r2SecretAccessKey(): string | undefined {
+    return this.env.R2_SECRET_ACCESS_KEY
+  }
+
+  get r2Bucket(): string | undefined {
+    return this.env.R2_BUCKET
+  }
+
+  get r2PublicUrl(): string | undefined {
+    return this.env.R2_PUBLIC_URL
+  }
+
+  get r2Endpoint(): string | undefined {
+    const accountId = this.env.R2_ACCOUNT_ID
+    return accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined
+  }
+
   /** True when all R2 credentials are configured — story media then uses R2. */
   get r2Enabled(): boolean {
     return !!(

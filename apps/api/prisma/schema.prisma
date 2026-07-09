@@ -71,14 +71,6 @@ enum PostVisibility {
   @@map("post_visibility")
 }
 
-enum ConversationType {
-  dm
-  group
-  community
-
-  @@map("conversation_type")
-}
-
 enum AnimalCategory {
   dog
   cat
@@ -131,6 +123,14 @@ enum HealthCertState {
 }
 
 // ── Profile & Network Enums ────────────────────────────────────────────────
+
+enum ConversationType_Deprecated {
+  dm
+  group
+  community
+
+  @@map("conversation_type")
+}
 
 enum ProfessionalCategory {
   verified_news_publisher
@@ -392,6 +392,24 @@ model Profile {
   storyMentionsMade StoryMention[] @relation("StoryMentionActor")
   storyHighlights  StoryHighlight[]
   storyArchives    StoryArchive[]
+
+  // ── Messaging Module Relations ──
+  conversationMembers        ConversationMember[]
+  conversationSettings       ConversationSetting[]
+  createdConversations       Conversation[] @relation("ConversationCreator")
+  sentMessages               Message[]
+  messageReactions           MessageReaction[]
+  messageReceipts            MessageReceipt[]
+  messageRequestsSent        MessageRequest[] @relation("MessageRequestSender")
+  messageRequestsReceived    MessageRequest[] @relation("MessageRequestRecipient")
+  groupMemberships           GroupMember[]
+  groupJoinRequests          GroupJoinRequest[]
+  favoriteContacts           FavoriteContact[] @relation("FavoriteContactUser")
+  favoritedBy                FavoriteContact[] @relation("FavoriteContactTarget")
+  pinnedChats                PinnedChat[]
+  userPresence               UserPresence?
+  userPrivacy                UserPrivacy?
+  professionalMessaging      ProfessionalMessagingSetting?
 
   @@map("profiles")
 }
@@ -947,6 +965,501 @@ model Notification {
   @@index([userId])
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+// ── MESSAGING MODULE ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Messaging Enums ──────────────────────────────────────────────────────────
+
+enum MessageRequestStatus {
+  pending
+  accepted
+  rejected
+  expired
+
+  @@map("message_request_status")
+}
+
+enum MessageType {
+  text
+  image
+  video
+  audio
+  voice_note
+  document
+  gif
+  sticker
+  location
+  contact
+
+  @@map("message_type")
+}
+
+enum GroupType {
+  private
+  public
+  invite_only
+
+  @@map("group_type")
+}
+
+enum GroupRole {
+  owner
+  admin
+  member
+
+  @@map("group_role")
+}
+
+enum GroupPermission {
+  send_messages
+  edit_group_info
+  edit_group_image
+  manage_description
+  add_members
+  remove_members
+  promote_admins
+  demote_admins
+  approve_join_requests
+  revoke_invite_links
+  pin_messages
+  delete_messages
+  mention_all
+  share_media
+  share_files
+  share_links
+
+  @@map("group_permission")
+}
+
+enum GroupSetting {
+  only_admins_can_send
+  everyone_can_send
+  only_admins_edit_group
+  everyone_edit_group
+  join_approval_required
+  invite_links_enabled
+  member_invites_enabled
+  mentions_enabled
+  read_receipts_enabled
+  show_group_history
+
+  @@map("group_setting")
+}
+
+enum MessageRequestExpiry {
+  seven_days
+  fourteen_days
+  thirty_days
+  never
+
+  @@map("message_request_expiry")
+}
+
+enum PresenceStatus {
+  online
+  offline
+  away
+  do_not_disturb
+
+  @@map("presence_status")
+}
+
+enum PrivacySetting {
+  everyone
+  my_connections
+  my_followers
+  nobody
+
+  @@map("privacy_setting")
+}
+
+// ── CONVERSATIONS ─────────────────────────────────────────────────────────────
+
+model Conversation {
+  id             String   @id @default(uuid())
+  type           String   // 'dm' | 'group' | 'community'
+  name           String?
+  avatarUrl      String?  @map("avatar_url")
+  createdBy      String?  @map("created_by")
+  lastMessageAt  DateTime? @map("last_message_at")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  creator        Profile?         @relation("ConversationCreator", fields: [createdBy], references: [id])
+  members        ConversationMember[]
+  messages       Message[]
+  settings       ConversationSetting[]
+  group          Group?
+  pinnedByUsers  PinnedChat[]
+
+  @@index([lastMessageAt])
+  @@index([type])
+  @@map("conversations")
+}
+
+model ConversationMember {
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  groupRole      String   @default("member") @map("group_role")
+  joinedAt       DateTime @default(now()) @map("joined_at")
+  lastReadAt     DateTime? @map("last_read_at")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  deletedAt      DateTime? @map("deleted_at")
+
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user          Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_members")
+}
+
+model ConversationSetting {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  userId         String   @map("user_id")
+  isPinned       Boolean  @default(false) @map("is_pinned")
+  isMuted        Boolean  @default(false) @map("is_muted")
+  isArchived     Boolean  @default(false) @map("is_archived")
+  mutedUntil     DateTime? @map("muted_until")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_settings")
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────────────────────
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String   @map("conversation_id")
+  senderId       String   @map("sender_id")
+  type           String   @default("text")
+  body           String?
+  mediaUrls      String[] @default([]) @map("media_urls")
+  parentId       String?  @map("parent_id")
+  forwardedFrom  String?  @map("forwarded_from")
+  isDeleted      Boolean  @default(false) @map("is_deleted")
+  deletedForEveryone Boolean @default(false) @map("deleted_for_everyone")
+  editedAt       DateTime? @map("edited_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         Profile      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  parent         Message?     @relation("MessageReply", fields: [parentId], references: [id])
+  replies        Message[]    @relation("MessageReply")
+  forwarded      Message?     @relation("MessageForward", fields: [forwardedFrom], references: [id])
+  forwards       Message[]    @relation("MessageForward")
+  attachments    MessageAttachment[]
+  reactions      MessageReaction[]
+  receipts       MessageReceipt[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([parentId])
+  @@map("messages")
+}
+
+model MessageAttachment {
+  id           String   @id @default(uuid())
+  messageId    String   @map("message_id")
+  type         String
+  url          String
+  thumbnailUrl String?  @map("thumbnail_url")
+  fileName     String?  @map("file_name")
+  fileSize     Int?     @map("file_size")
+  mimeType     String?  @map("mime_type")
+  width        Int?
+  height       Int?
+  duration     Int?
+  isVoiceNote  Boolean  @default(false) @map("is_voice_note")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("message_attachments")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  emoji     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("message_reactions")
+}
+
+model MessageReceipt {
+  id        String   @id @default(uuid())
+  messageId String   @map("message_id")
+  userId    String   @map("user_id")
+  status    String   // sent, delivered, read
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId, status])
+  @@map("message_receipts")
+}
+
+// ── MESSAGE REQUESTS ─────────────────────────────────────────────────────────
+
+model MessageRequest {
+  id              String               @id @default(uuid())
+  senderId        String               @map("sender_id")
+  recipientId     String               @map("recipient_id")
+  status          MessageRequestStatus @default(pending)
+  message         String?
+  expiresAt       DateTime?            @map("expires_at")
+  isSpam          Boolean              @default(false) @map("is_spam")
+  reviewedByAdmin String?              @map("reviewed_by_admin")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  sender    Profile @relation("MessageRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient Profile @relation("MessageRequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, recipientId])
+  @@index([recipientId, status])
+  @@index([senderId])
+  @@index([expiresAt])
+  @@map("message_requests")
+}
+
+// ── GROUPS ───────────────────────────────────────────────────────────────────
+
+model Group {
+  id              String   @id @default(uuid())
+  conversationId  String   @unique @map("conversation_id")
+  type            GroupType @default(private)
+  description     String?
+  coverImageUrl   String?  @map("cover_image_url")
+  isAnnouncement  Boolean  @default(false) @map("is_announcement")
+  slowModeSeconds Int      @default(0) @map("slow_mode_seconds")
+  maxMembers      Int      @default(256)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  members      GroupMember[]
+  settings     GroupSettingModel[]
+  inviteLinks  GroupInviteLink[]
+  joinRequests GroupJoinRequest[]
+  permissions  GroupPermissionModel[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id         String   @id @default(uuid())
+  groupId    String   @map("group_id")
+  userId     String   @map("user_id")
+  role       GroupRole @default(member)
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  invitedBy  String?  @map("invited_by")
+  isApproved Boolean  @default(true) @map("is_approved")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model GroupSettingModel {
+  id      String       @id @default(uuid())
+  groupId String       @map("group_id")
+  setting GroupSetting
+  enabled Boolean      @default(true)
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, setting])
+  @@map("group_settings")
+}
+
+model GroupPermissionModel {
+  id         String         @id @default(uuid())
+  groupId    String         @map("group_id")
+  role       GroupRole
+  permission GroupPermission
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, role, permission])
+  @@map("group_permissions")
+}
+
+model GroupInviteLink {
+  id        String   @id @default(uuid())
+  groupId   String   @map("group_id")
+  code      String   @unique
+  createdBy String   @map("created_by")
+  expiresAt DateTime? @map("expires_at")
+  maxUses   Int?     @default(0) @map("max_uses")
+  useCount  Int      @default(0) @map("use_count")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([groupId])
+  @@map("group_invite_links")
+}
+
+model GroupJoinRequest {
+  id         String   @id @default(uuid())
+  groupId    String   @map("group_id")
+  userId     String   @map("user_id")
+  status     String   @default("pending")
+  message    String?
+  reviewedBy String?  @map("reviewed_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId, status])
+  @@map("group_join_requests")
+}
+
+// ── CONTACT MANAGEMENT ───────────────────────────────────────────────────────
+
+model FavoriteContact {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  contactId String   @map("contact_id")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    Profile @relation("FavoriteContactUser", fields: [userId], references: [id], onDelete: Cascade)
+  contact Profile @relation("FavoriteContactTarget", fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contactId])
+  @@index([userId])
+  @@map("favorite_contacts")
+}
+
+model PinnedChat {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  conversationId String   @map("conversation_id")
+  pinnedAt       DateTime @default(now()) @map("pinned_at")
+
+  user         Profile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conversationId])
+  @@map("pinned_chats")
+}
+
+// ── USER PRESENCE ─────────────────────────────────────────────────────────────
+
+model UserPresence {
+  id           String         @id @default(uuid())
+  userId       String         @unique @map("user_id")
+  status       PresenceStatus @default(offline)
+  lastSeen     DateTime?      @map("last_seen")
+  isTyping     Boolean        @default(false) @map("is_typing")
+  typingIn     String?        @map("typing_in")
+  isRecording  Boolean        @default(false) @map("is_recording")
+  recordingIn  String?        @map("recording_in")
+  device       String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_presence")
+}
+
+// ── USER PRIVACY SETTINGS ─────────────────────────────────────────────────────
+
+model UserPrivacy {
+  id                     String              @id @default(uuid())
+  userId                 String              @unique @map("user_id")
+  whoCanMessage          PrivacySetting      @default(everyone) @map("who_can_message")
+  whoCanSendMessageRequest PrivacySetting     @default(everyone) @map("who_can_send_message_request")
+  whoCanSeeProfilePhoto  PrivacySetting      @default(everyone) @map("who_can_see_profile_photo")
+  whoCanSeeLastSeen      PrivacySetting      @default(everyone) @map("who_can_see_last_seen")
+  whoCanSeeOnlineStatus  PrivacySetting      @default(everyone) @map("who_can_see_online_status")
+  whoCanSeeReadReceipts  PrivacySetting      @default(everyone) @map("who_can_see_read_receipts")
+  whoCanAddToGroups      PrivacySetting      @default(everyone) @map("who_can_add_to_groups")
+  whoCanMention          PrivacySetting      @default(everyone) @map("who_can_mention")
+  messageRequestExpiry   MessageRequestExpiry @default(thirty_days) @map("message_request_expiry")
+  showReadReceipts       Boolean             @default(true) @map("show_read_receipts")
+  showTypingIndicator    Boolean             @default(true) @map("show_typing_indicator")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_privacy")
+}
+
+// ── PROFESSIONAL MESSAGING SETTINGS ───────────────────────────────────────────
+
+model ProfessionalMessagingSetting {
+  id                    String   @id @default(uuid())
+  userId                String   @unique @map("user_id")
+  greetingEnabled       Boolean  @default(false) @map("greeting_enabled")
+  greetingMessage       String?  @map("greeting_message")
+  awayMessageEnabled    Boolean  @default(false) @map("away_message_enabled")
+  awayMessage           String?  @map("away_message")
+  awayMessageSchedule   Json?    @map("away_message_schedule")
+  businessHoursEnabled  Boolean  @default(false) @map("business_hours_enabled")
+  businessHours         Json?    @map("business_hours")
+  autoReplyEnabled      Boolean  @default(false) @map("auto_reply_enabled")
+  autoReplyMessage      String?  @map("auto_reply_message")
+  quickReplies          Json?    @default("[]") @map("quick_replies")
+  serviceInquiryEnabled Boolean @default(false) @map("service_inquiry_enabled")
+  productInquiryEnabled Boolean @default(false) @map("product_inquiry_enabled")
+  appointmentEnabled    Boolean  @default(false) @map("appointment_enabled")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("professional_messaging_settings")
+}
+
+// ── RATE LIMITING ───────────────────────────────────────────────────────────
+
+model MessageRateLimit {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  count       Int      @default(0)
+  windowStart DateTime @map("window_start")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId, windowStart])
+  @@map("message_rate_limits")
 }
 
 // ── AUDIT LOG ──────────────────────────────────────────────────────────────

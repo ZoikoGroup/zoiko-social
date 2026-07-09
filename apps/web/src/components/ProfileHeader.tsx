@@ -5,8 +5,10 @@ import { Link2, BadgeCheck, Briefcase, Lock, Send } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
+import { MessageButton } from './MessageButton'
 import { profileApi, networkApi, type Profile, type Relationship, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useToast } from '@/hooks/use-toast'
 
 interface ProfileHeaderProps {
   /** Omit or pass undefined to show the signed-in user's own profile. */
@@ -64,6 +66,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
   const [followedBy, setFollowedBy] = useState(initialRelationship?.followedBy ?? false)
   const [followBusy, setFollowBusy] = useState(false)
   const [error, setError] = useState('')
+  const toast = useToast()
 
   // Own profile even when reached via /profile/[username] with an explicit id —
   // compare against the auth user id (available before the profile context loads)
@@ -104,21 +107,26 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
         await networkApi.unfollow(profile.id)
         setFollowing(false)
         setFetched((p) => p ? { ...p, followersCount: Math.max(0, p.followersCount - 1) } : p)
+        toast.success('Unfollowed', `You are no longer following ${profile.displayName}`)
       } else if (requested) {
         // Instagram: click "Requested" → cancel the pending request
         await networkApi.cancelRequest(profile.id)
         setRequested(false)
+        toast.info('Request cancelled', `Follow request to ${profile.displayName} was cancelled`)
       } else {
         const result = await networkApi.follow(profile.id)
         if (result.status === 'following' || result.status === 'already_following') {
           setFollowing(true)
           setFetched((p) => p ? { ...p, followersCount: p.followersCount + 1 } : p)
+          toast.success('Following', `You are now following ${profile.displayName}`)
         } else if (result.status === 'request_sent' || result.status === 'request_pending') {
           setRequested(true)
+          toast.success('Request sent', `Follow request sent to ${profile.displayName}`)
         }
       }
-    } catch {
+    } catch (e) {
       // Leave state unchanged on failure
+      toast.error('Action failed', e instanceof Error ? e.message : 'Could not update follow status')
     } finally {
       setFollowBusy(false)
     }
@@ -227,17 +235,20 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
                     {followedBy && !following && !requested && (
                       <span className="text-[11px] text-outline">Follows you</span>
                     )}
-                    <button
-                      onClick={handleFollowToggle}
-                      disabled={followBusy}
-                      className={`px-5 py-1.5 rounded-lg text-label-sm font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
-                        following || requested
-                          ? 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-                          : 'bg-primary text-white hover:bg-primary/90'
-                      }`}
-                    >
-                      {requested ? 'Requested' : following ? 'Following' : followedBy ? 'Follow Back' : 'Follow'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleFollowToggle}
+                        disabled={followBusy}
+                        className={`px-5 py-1.5 rounded-lg text-label-sm font-semibold transition-colors cursor-pointer disabled:opacity-60 ${
+                          following || requested
+                            ? 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                            : 'bg-primary text-white hover:bg-primary/90'
+                        }`}
+                      >
+                        {requested ? 'Requested' : following ? 'Following' : followedBy ? 'Follow Back' : 'Follow'}
+                      </button>
+                      <MessageButton userId={profile.id} size="md" />
+                    </div>
                   </>
                 )}
               </div>

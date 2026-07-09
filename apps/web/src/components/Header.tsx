@@ -46,7 +46,7 @@ export function Header(): React.JSX.Element {
   const pathname = usePathname()
   const router = useRouter()
   const { profile } = useAuth()
-  const { unreadCount } = useNotifications()
+  const { unreadCount: notifUnreadCount } = useNotifications()
   const [searchTerm, setSearchTerm] = useState('')
 
   const isActive = (href: string): boolean => {
@@ -109,9 +109,9 @@ export function Header(): React.JSX.Element {
               >
                 <span className="relative">
                   {item.name}
-                  {item.badge && unreadCount > 0 && (
+                  {item.badge && notifUnreadCount > 0 && (
                     <span className="absolute -top-1.5 -right-3 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {unreadCount > 99 ? '99+' : unreadCount}
+                      {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
                     </span>
                   )}
                 </span>
