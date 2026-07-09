@@ -6,7 +6,7 @@ import {
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2,
-  FileText, Eye, EyeOff,
+  FileText, EyeOff,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -76,6 +76,9 @@ export function MessageConversation({
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  // Chat-panel element held in state (via callback ref) so popovers can be
+  // constrained to it without reading a ref value during render.
+  const [conversationEl, setConversationEl] = useState<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wasTypingRef = useRef(false)
@@ -536,9 +539,15 @@ export function MessageConversation({
       return
     }
 
-    // Validate video duration (< 5 minutes)
+    // Validate video duration (< 5 minutes). Fail closed if metadata is unreadable.
     if (file.type.startsWith('video/')) {
-      const duration = await getVideoDuration(file)
+      let duration: number
+      try {
+        duration = await getVideoDuration(file)
+      } catch {
+        toastError('Unreadable video', 'Could not verify the video length. Please try a different file.')
+        return
+      }
       if (duration > 300) {
         toastError('Video too long', 'Videos must be under 5 minutes')
         return
@@ -721,7 +730,12 @@ export function MessageConversation({
               <MoreVertical className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="min-w-36 rounded-lg bg-popover p-1 shadow-xl" align="end">
+          <DropdownMenuContent
+            className="min-w-36 rounded-lg bg-popover p-1 shadow-xl"
+            align="end"
+            collisionBoundary={conversationEl}
+            collisionPadding={8}
+          >
             <div className="flex flex-col gap-1">
               <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
@@ -771,7 +785,12 @@ export function MessageConversation({
           <MoreHorizontal className="size-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-40 rounded-lg bg-popover p-1 shadow-xl">
+      <DropdownMenuContent
+        align="center"
+        collisionBoundary={conversationEl}
+        collisionPadding={8}
+        className="w-40 rounded-lg bg-popover p-1 shadow-xl"
+      >
         {/* React — available for all messages, opens reaction picker */}
         <DropdownMenuItem
           className="flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer"
@@ -850,7 +869,7 @@ export function MessageConversation({
   )
 
   // ── Render reactions for a message ──────────────────────────────────────
-  const renderReactions = (msg: MessageData) => {
+  const renderReactions = (msg: MessageData, isMine: boolean) => {
     if (!msg.reactions?.length) return null
 
     const grouped = msg.reactions.reduce<Record<string, { count: number; userIds: string[] }>>((acc, r) => {
@@ -865,8 +884,9 @@ export function MessageConversation({
     }, {})
 
     return (
-      <div className="flex gap-0.5 flex-wrap px-1">
+      <div className={cn('flex gap-1 flex-wrap -mt-1.5 px-0.5', isMine ? 'justify-end' : 'justify-start')}>
         {Object.entries(grouped).map(([emoji, { count, userIds }]) => {
+          const reactedByMe = userIds.includes(user?.id ?? '')
           const names = userIds.map((uid) => {
             if (uid === user?.id) return 'You'
             const p = conversation?.participants.find((p) => p.id === uid)
@@ -883,10 +903,18 @@ export function MessageConversation({
             <button
               key={emoji}
               onClick={() => handleReact(msg.id, emoji)}
-              className="text-xs bg-background rounded-full px-1.5 py-0.5 border shadow-sm hover:bg-accent transition-colors cursor-pointer"
+              className={cn(
+                'flex items-center gap-0.5 rounded-full border pl-1.5 pr-1.5 py-0.5 shadow-sm transition-colors cursor-pointer',
+                reactedByMe
+                  ? 'bg-primary/10 border-primary/40 text-primary'
+                  : 'bg-background border-border hover:bg-accent text-foreground',
+              )}
               title={tooltip}
             >
-              {emoji} {count > 1 ? count : ''}
+              <span className="text-[13px] leading-none">{emoji}</span>
+              {count > 1 && (
+                <span className="text-[11px] font-semibold leading-none tabular-nums">{count}</span>
+              )}
             </button>
           )
         })}
@@ -1020,7 +1048,7 @@ export function MessageConversation({
 
   // ── Main render ─────────────────────────────────────────────────────────
   return (
-    <Card className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none md:border md:rounded-lg">
+    <Card ref={setConversationEl} className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none md:border md:rounded-lg">
       {renderHeader()}
 
       <CardContent className="flex-1 p-0 overflow-hidden flex">
@@ -1201,6 +1229,9 @@ export function MessageConversation({
                           </div>
                         </div>
 
+                        {/* Reactions — aligned with the bubble */}
+                        {renderReactions(msg, isMine)}
+
                         {/* Time + status */}
                         <div className={cn('flex items-center gap-1 px-1', isMine ? 'justify-end' : 'justify-start')}>
                           <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.createdAt)}</span>
@@ -1246,9 +1277,6 @@ export function MessageConversation({
 
                     {/* Reaction bar — centered in chat window */}
                     {renderReactionBar(msg, isMine, isPending)}
-
-                    {/* Reactions at outer level — has full chat width, won't overflow */}
-                    {renderReactions(msg)}
                   </div>
                 )
               })
@@ -1293,23 +1321,6 @@ export function MessageConversation({
                 {uploadingFile ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-5" />}
               </Button>
 
-              {/* Disappear mode toggle for media messages */}
-              {disappearMode !== 'none' && (
-                <Button
-                  onClick={() => setDisappearMode(disappearMode === 'view_once' ? 'view_twice' : 'none')}
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    'size-8 md:size-9 rounded-lg flex-shrink-0',
-                    disappearMode === 'view_once' ? 'text-secondary' : 'text-destructive',
-                  )}
-                  aria-label={`Disappear mode: ${disappearMode}`}
-                  title={`Disappear mode: ${disappearMode === 'view_once' ? 'View once' : 'View twice'}`}
-                >
-                  {disappearMode === 'view_once' ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
-                </Button>
-              )}
-
               <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
@@ -1349,36 +1360,6 @@ export function MessageConversation({
                 )}
               </Button>
             </div>
-
-            {/* Disappear mode toggle row */}
-            {!editingMessageId && (
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  onClick={() => setDisappearMode(disappearMode === 'view_once' ? 'none' : 'view_once')}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors cursor-pointer',
-                    disappearMode === 'view_once'
-                      ? 'bg-secondary/10 text-secondary'
-                      : 'text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  <Eye className="size-3" />
-                  View once
-                </button>
-                <button
-                  onClick={() => setDisappearMode(disappearMode === 'view_twice' ? 'none' : 'view_twice')}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors cursor-pointer',
-                    disappearMode === 'view_twice'
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  <EyeOff className="size-3" />
-                  View twice
-                </button>
-              </div>
-            )}
 
             {/* Quick emoji picker */}
             {showEmojiPicker && (
@@ -1459,6 +1440,7 @@ export function MessageConversation({
       {reactionPickerMsg && (
         <ReactionPicker
           position={{ x: reactionPickerMsg.x, y: reactionPickerMsg.y }}
+          boundsEl={conversationEl}
           onSelect={(emoji) => void handleReact(reactionPickerMsg.messageId, emoji)}
           onClose={() => setReactionPickerMsg(null)}
         />

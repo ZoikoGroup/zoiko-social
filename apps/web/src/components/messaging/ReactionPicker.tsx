@@ -11,9 +11,11 @@ interface ReactionPickerProps {
   onClose: () => void
   /** Position relative to the trigger element */
   position?: { x: number; y: number }
+  /** Element whose bounds the picker must stay inside (e.g. the chat panel) */
+  boundsEl?: HTMLElement | null
 }
 
-export function ReactionPicker({ onSelect, onClose, position }: ReactionPickerProps): React.JSX.Element {
+export function ReactionPicker({ onSelect, onClose, position, boundsEl }: ReactionPickerProps): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('smileys')
   const [recentEmojis, setRecentEmojis] = useState<string[]>([])
@@ -80,14 +82,23 @@ export function ReactionPicker({ onSelect, onClose, position }: ReactionPickerPr
     return cat?.emojis ?? []
   }, [searchResults, displayCategories, activeCategory])
 
-  // Adjust position to keep picker in viewport
-  const adjustedStyle = useMemo(() => {
-    if (!position) return {}
-    return {
-      left: Math.min(position.x, typeof window !== 'undefined' ? window.innerWidth - 360 : position.x),
-      top: Math.min(position.y, typeof window !== 'undefined' ? window.innerHeight - 480 : position.y),
-    }
-  }, [position])
+  // Adjust position to keep the picker fully inside the chat box (or, if no
+  // bounds element is provided, inside the viewport).
+  const adjustedStyle = useMemo<React.CSSProperties>(() => {
+    if (!position || typeof window === 'undefined') return {}
+    const MARGIN = 8
+    const bounds = boundsEl?.getBoundingClientRect()
+    const minX = bounds ? bounds.left + MARGIN : MARGIN
+    const maxX = (bounds ? bounds.right : window.innerWidth) - MARGIN
+    const minY = bounds ? bounds.top + MARGIN : MARGIN
+    const maxY = (bounds ? bounds.bottom : window.innerHeight) - MARGIN
+
+    const width = Math.min(360, maxX - minX)
+    const height = Math.min(460, maxY - minY)
+    const left = Math.max(minX, Math.min(position.x, maxX - width))
+    const top = Math.max(minY, Math.min(position.y, maxY - height))
+    return { left, top, width }
+  }, [position, boundsEl])
 
   if (!position) {
     return (
@@ -117,7 +128,7 @@ export function ReactionPicker({ onSelect, onClose, position }: ReactionPickerPr
   return (
     <div
       ref={pickerRef}
-      className="fixed z-50 bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/40 w-[360px] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      className="fixed z-50 bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/40 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
       style={adjustedStyle}
     >
       <PickerContent

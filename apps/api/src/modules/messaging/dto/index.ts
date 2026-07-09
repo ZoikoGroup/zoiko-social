@@ -26,7 +26,6 @@ export const SendMessageSchema = z.object({
   type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact']).default('text'),
   parentId: z.string().uuid().optional(),
   mediaUrls: z.array(z.string().url()).max(10).optional(),
-  disappearMode: z.enum(['none', 'view_once', 'view_twice']).default('none'),
 })
 
 export const EditMessageSchema = z.object({
@@ -126,8 +125,6 @@ export interface MessageResponse {
   editedAt: string | null
   reactions: { emoji: string; userId: string }[]
   receipt: { status: string; readAt: string | null } | null
-  disappearMode: string
-  viewCount: number
   createdAt: string
 }
 

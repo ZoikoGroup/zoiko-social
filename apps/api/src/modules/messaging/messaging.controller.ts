@@ -489,16 +489,4 @@ export class MessagingController {
     const result = await this.messagingService.getUploadUrl(user.id, body.mimeType, body.fileName, body.fileSize)
     return result
   }
-
-  // ── MEDIA VIEW TRACKING ────────────────────────────────────────────────────
-
-  @Post('messages/:id/view')
-  @HttpCode(HttpStatus.OK)
-  async trackMediaView(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
-    await this.messagingService.trackMediaView(user.id, id)
-    return { success: true }
-  }
 }

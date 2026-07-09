@@ -5,6 +5,10 @@ import type { NextConfig } from 'next'
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? ''
 const apiWsUrl = apiUrl.replace(/^http/, 'ws')
 
+// Cloudflare R2 public read domain (custom domain, e.g. https://media.zoikosocial.com).
+// Presigned uploads always PUT to *.r2.cloudflarestorage.com regardless of this.
+const r2PublicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? ''
+
 const nextConfig: NextConfig = {
   // Both must point to the monorepo root so Turbopack can follow pnpm symlinks
   // (the virtual store lives at <root>/node_modules/.pnpm/) and so that the
@@ -34,9 +38,9 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} wss://*.livekit.cloud`,
-              `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev images.unsplash.com`,
-              "media-src 'self' blob: *.mux.com *.r2.dev",
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} wss://*.livekit.cloud https://*.r2.cloudflarestorage.com ${r2PublicUrl}`,
+              `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev ${r2PublicUrl} images.unsplash.com`,
+              `media-src 'self' blob: *.mux.com *.r2.dev ${r2PublicUrl}`,
               "style-src 'self' 'unsafe-inline'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "font-src 'self'",
