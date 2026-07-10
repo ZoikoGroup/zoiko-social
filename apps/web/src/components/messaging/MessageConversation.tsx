@@ -25,9 +25,10 @@ import { usePresence } from '@/hooks/use-presence'
 import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
+import { compressImage } from '@/lib/image'
 import { EmptyState } from '@/components/messaging/EmptyState'
-import { CallModal } from '@/components/messaging/CallModal'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
+import { useCall } from '@/hooks/use-call'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
 import type { Socket } from 'socket.io-client'
 
@@ -68,7 +69,6 @@ export function MessageConversation({
   const [messagesError, setMessagesError] = useState<string | null>(null)
   const [socket, setSocket] = useState<Socket | null>(null)
   const [pendingStatus, setPendingStatus] = useState<Record<string, 'sending' | 'failed'>>({})
-  const [callType, setCallType] = useState<'audio' | 'video' | null>(null)
   const [reactionPickerMsg, setReactionPickerMsg] = useState<{ messageId: string; x: number; y: number } | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [disappearMode, setDisappearMode] = useState<'none' | 'view_once' | 'view_twice'>('none')
@@ -89,8 +89,13 @@ export function MessageConversation({
   const avatarUrl = conversation?.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const otherUserId = otherParticipant?.id ?? null
-  const handleCloseCall = useCallback(() => setCallType(null), [])
   const { success: toastSuccess, error: toastError } = useToast()
+  const { startCall } = useCall()
+
+  const handleStartCall = useCallback((callType: 'audio' | 'video') => {
+    if (!conversationId || !otherUserId) return
+    startCall({ conversationId, peerUserId: otherUserId, peerName: displayName, peerAvatar: avatarUrl, callType })
+  }, [conversationId, otherUserId, displayName, avatarUrl, startCall])
 
   // Connect socket
   useEffect(() => {
@@ -540,15 +545,15 @@ export function MessageConversation({
     }
 
     // Validate video duration (< 5 minutes). Fail closed if metadata is unreadable.
+    let videoDuration: number | undefined
     if (file.type.startsWith('video/')) {
-      let duration: number
       try {
-        duration = await getVideoDuration(file)
+        videoDuration = await getVideoDuration(file)
       } catch {
         toastError('Unreadable video', 'Could not verify the video length. Please try a different file.')
         return
       }
-      if (duration > 300) {
+      if (videoDuration > 300) {
         toastError('Video too long', 'Videos must be under 5 minutes')
         return
       }
@@ -556,16 +561,32 @@ export function MessageConversation({
 
     setUploadingFile(true)
     try {
+      // Compress images before upload (resize → WebP) so they occupy far less storage
+      let uploadBlob: Blob = file
+      let uploadName = file.name
+      let uploadMime = file.type
+      if (file.type.startsWith('image/')) {
+        const compressed = await compressImage(file)
+        uploadBlob = compressed.blob
+        uploadName = compressed.fileName
+        uploadMime = compressed.mimeType
+      }
+
       const token = await getAuthToken()
 
-      // Get presigned upload URL
+      // Get a Supabase signed upload URL
       const urlRes = await fetch(`${API_URL}/api/v1/messaging/upload/presigned`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ mimeType: file.type, fileName: file.name, fileSize: file.size }),
+        body: JSON.stringify({
+          mimeType: uploadMime,
+          fileName: uploadName,
+          fileSize: uploadBlob.size,
+          ...(videoDuration !== undefined ? { durationSeconds: Math.round(videoDuration) } : {}),
+        }),
       })
       if (!urlRes.ok) {
         const err = await urlRes.json().catch(() => null)
@@ -574,15 +595,15 @@ export function MessageConversation({
 
       const { url: uploadUrl, viewUrl, key, type } = await urlRes.json() as { url: string; viewUrl: string; key: string; type: string }
 
-      // Upload file directly to R2
+      // Upload the file directly to Supabase Storage via the signed URL
       const uploadRes = await fetch(uploadUrl, {
         method: 'PUT',
-        body: file as Blob,
-        headers: { 'Content-Type': (file as Blob).type },
+        body: uploadBlob,
+        headers: { 'Content-Type': uploadMime },
       })
       if (!uploadRes.ok) throw new Error('Upload failed')
 
-      // Use the public view URL from R2
+      // Use the public URL from Supabase Storage
       const mediaUrl = viewUrl || key
 
       // Send message with media
@@ -640,35 +661,35 @@ export function MessageConversation({
 
   // ── Chat header ─────────────────────────────────────────────────────────
   const renderHeader = () => (
-    <div className="flex items-center gap-3 px-4 py-3 border-b bg-background flex-shrink-0">
+    <div className="flex items-center gap-2.5 md:gap-3 px-3 md:px-5 py-2.5 md:py-3 border-b border-outline-variant/20 bg-background/95 backdrop-blur-sm flex-shrink-0">
       {onBack && (
         <Button
           onClick={onBack}
           variant="ghost"
           size="icon"
-          className="md:hidden size-9 rounded-lg"
+          className="md:hidden size-9 rounded-full -ml-1"
           aria-label="Back to conversations"
         >
-          <ArrowLeft className="size-4" />
+          <ArrowLeft className="size-5" />
         </Button>
       )}
       <div className="relative flex-shrink-0">
-        <Avatar className="size-10">
+        <Avatar className="size-10 ring-2 ring-primary/10">
           {avatarUrl ? (
             <AvatarImage alt={displayName} src={avatarUrl} />
           ) : (
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+            <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-semibold">
               {displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
           )}
         </Avatar>
         {isOnline && (
-          <span className="absolute bottom-0 right-0 size-2.5 bg-green-500 border-2 border-background rounded-full" />
+          <span className="absolute bottom-0 right-0 size-3 bg-green-500 border-2 border-background rounded-full" />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className="font-semibold text-sm text-foreground truncate">{displayName}</p>
+          <p className="font-bold text-[15px] text-foreground truncate">{displayName}</p>
           {isVerified && (
             <svg className="size-4 text-primary flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
@@ -677,7 +698,7 @@ export function MessageConversation({
         </div>
         {someoneTyping ? (
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[11px] font-medium text-primary truncate max-w-[160px]">{typingLabel}</span>
+            <span className="text-[11.5px] font-medium text-primary truncate max-w-[160px]">{typingLabel}</span>
             <div className="flex items-center gap-[3px] flex-shrink-0">
               <span className="typing-dot w-[5px] h-[5px] rounded-full bg-primary" />
               <span className="typing-dot w-[5px] h-[5px] rounded-full bg-primary" />
@@ -685,38 +706,38 @@ export function MessageConversation({
             </div>
           </div>
         ) : (
-          <p className={cn('text-[11px] font-medium', isOnline ? 'text-green-600' : 'text-muted-foreground')}>
+          <p className={cn('text-[11.5px] font-medium', isOnline ? 'text-green-600' : 'text-muted-foreground')}>
             {typingText}
           </p>
         )}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5 md:gap-1">
         <Button
-                onClick={() => setCallType('audio')}
-                variant="ghost"
-                size="icon"
-                className="size-8 md:size-9 rounded-lg hidden sm:inline-flex"
-                aria-label="Audio call"
-              >
-                <Phone className="size-3.5 md:size-4" />
-              </Button>
-              <Button
-                onClick={() => setCallType('video')}
-                variant="ghost"
-                size="icon"
-                className="size-8 md:size-9 rounded-lg hidden sm:inline-flex"
-                aria-label="Video call"
-              >
-                <Video className="size-3.5 md:size-4" />
-              </Button>
+          onClick={() => handleStartCall('audio')}
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full text-primary hover:bg-primary/10"
+          aria-label="Audio call"
+        >
+          <Phone className="size-[18px]" />
+        </Button>
+        <Button
+          onClick={() => handleStartCall('video')}
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full text-primary hover:bg-primary/10"
+          aria-label="Video call"
+        >
+          <Video className="size-[18px]" />
+        </Button>
         <Button
           onClick={() => setShowInfo((s) => !s)}
           variant="ghost"
           size="icon"
-          className={cn('size-9 rounded-lg', showInfo && 'bg-accent text-accent-foreground')}
+          className={cn('size-9 rounded-full', showInfo && 'bg-primary/10 text-primary')}
           aria-label="Conversation info"
         >
-          <Info className="size-4" />
+          <Info className="size-[18px]" />
         </Button>
         {/* User actions dropdown */}
         <DropdownMenu>
@@ -725,9 +746,9 @@ export function MessageConversation({
               aria-label="User actions"
               variant="ghost"
               size="icon"
-              className="size-9 rounded-lg"
+              className="size-9 rounded-full"
             >
-              <MoreVertical className="size-4" />
+              <MoreVertical className="size-[18px]" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -777,7 +798,7 @@ export function MessageConversation({
       <DropdownMenuTrigger asChild>
         <Button
           aria-label="Message actions"
-          className="size-7 rounded-full bg-background hover:bg-accent shadow-sm border"
+          className="size-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-surface-container"
           size="icon"
           type="button"
           variant="ghost"
@@ -884,7 +905,7 @@ export function MessageConversation({
     }, {})
 
     return (
-      <div className={cn('flex gap-1 flex-wrap -mt-1.5 px-0.5', isMine ? 'justify-end' : 'justify-start')}>
+      <div className={cn('relative z-[1] flex gap-1 flex-wrap -mt-2.5', isMine ? 'justify-end pr-1.5' : 'justify-start pl-1.5')}>
         {Object.entries(grouped).map(([emoji, { count, userIds }]) => {
           const reactedByMe = userIds.includes(user?.id ?? '')
           const names = userIds.map((uid) => {
@@ -904,16 +925,16 @@ export function MessageConversation({
               key={emoji}
               onClick={() => handleReact(msg.id, emoji)}
               className={cn(
-                'flex items-center gap-0.5 rounded-full border pl-1.5 pr-1.5 py-0.5 shadow-sm transition-colors cursor-pointer',
+                'flex items-center gap-1 rounded-full border px-1.5 py-[3px] shadow-sm transition-all cursor-pointer hover:scale-110 active:scale-95',
                 reactedByMe
                   ? 'bg-primary/10 border-primary/40 text-primary'
-                  : 'bg-background border-border hover:bg-accent text-foreground',
+                  : 'bg-background border-outline-variant/30 hover:border-outline-variant/60 text-foreground',
               )}
               title={tooltip}
             >
               <span className="text-[13px] leading-none">{emoji}</span>
               {count > 1 && (
-                <span className="text-[11px] font-semibold leading-none tabular-nums">{count}</span>
+                <span className="text-[10.5px] font-bold leading-none tabular-nums">{count}</span>
               )}
             </button>
           )
@@ -922,24 +943,25 @@ export function MessageConversation({
     )
   }
 
-  // ── Inline reaction bar (hover) ─────────────────────────────────────────
+  // ── Floating hover toolbar — quick reactions + actions, anchored to the bubble ──
   const renderReactionBar = (msg: MessageData, isMine: boolean, isPending: boolean) => {
     if (isPending) return null
 
     return (
       <div
         className={cn(
-          'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/message:opacity-100 transition-opacity duration-150 z-10 hidden md:flex pointer-events-none',
+          'absolute -top-8 z-20 hidden md:flex opacity-0 group-hover/message:opacity-100 group-hover/message:-translate-y-1 transition-all duration-150 pointer-events-none',
+          isMine ? 'right-0' : 'left-0',
         )}
       >
-        <div className="flex items-center gap-0.5 bg-background/80 backdrop-blur-sm rounded-full shadow-lg border px-1.5 py-1 pointer-events-auto">
-          {['❤️', '😂', '😮', '😢', '🙏', '👍'].map((emoji) => (
+        <div className="flex items-center gap-0.5 bg-background rounded-full shadow-lg border border-outline-variant/30 px-1 py-0.5 pointer-events-auto">
+          {QUICK_REACTIONS.map((emoji) => (
             <button
               key={emoji}
               onClick={() => void handleReact(msg.id, emoji)}
               className={cn(
-                'size-7 flex items-center justify-center rounded-full text-sm hover:bg-accent transition-colors cursor-pointer',
-                msg.reactions?.some((r) => r.emoji === emoji && r.userId === user?.id) && 'scale-110',
+                'size-7 flex items-center justify-center rounded-full text-[15px] hover:bg-surface-container hover:scale-125 transition-all cursor-pointer',
+                msg.reactions?.some((r) => r.emoji === emoji && r.userId === user?.id) && 'bg-primary/10 scale-110',
               )}
               title={emoji}
             >
@@ -948,20 +970,88 @@ export function MessageConversation({
           ))}
           <button
             onClick={(e) => {
-              setReactionPickerMsg({ messageId: msg.id, x: e.clientX, y: e.clientY })
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+              setReactionPickerMsg({ messageId: msg.id, x: rect.left, y: rect.bottom + 8 })
             }}
-            className="size-7 flex items-center justify-center rounded-full text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors cursor-pointer"
+            className="size-7 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-surface-container transition-colors cursor-pointer"
             title="More reactions"
           >
             <Plus className="size-3.5" />
           </button>
+          <div className="w-px h-4 bg-outline-variant/40 mx-0.5" />
+          {renderMessageActions(msg, isMine)}
         </div>
       </div>
     )
   }
 
+  // ── WhatsApp-style quoted reply inside the bubble ───────────────────────
+  const renderReplyQuote = (msg: MessageData, isMine: boolean) => {
+    if (!msg.parentId) return null
+
+    // Prefer the API-provided snippet; fall back to a local lookup for older cached messages
+    const local = messages.find((m) => m.id === msg.parentId)
+    const snippet = msg.parent ?? (local
+      ? {
+          id: local.id,
+          body: local.isDeleted ? null : local.body,
+          type: local.type,
+          isDeleted: local.isDeleted,
+          senderId: local.sender.id,
+          senderName: local.sender.displayName,
+        }
+      : null)
+
+    const name = snippet ? (snippet.senderId === user?.id ? 'You' : snippet.senderName) : 'Message'
+    const preview = !snippet
+      ? 'Original message unavailable'
+      : snippet.isDeleted
+        ? 'This message was deleted'
+        : snippet.body?.trim()
+          ? snippet.body
+          : snippet.type === 'image'
+            ? '📷 Photo'
+            : snippet.type === 'video'
+              ? '🎥 Video'
+              : snippet.type === 'audio'
+                ? '🎤 Voice message'
+                : snippet.type === 'document' || snippet.type === 'file'
+                  ? '📄 Document'
+                  : snippet.type === 'gif'
+                    ? 'GIF'
+                    : 'Message'
+
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          const el = document.getElementById(`msg-${msg.parentId}`)
+          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Flash-highlight the original message, WhatsApp-style
+          if (el) {
+            el.classList.add('ring-2', 'ring-primary/60', 'transition-all', 'duration-300')
+            setTimeout(() => el.classList.remove('ring-2', 'ring-primary/60'), 1400)
+          }
+        }}
+        className={cn(
+          'w-full flex flex-col items-start mb-1.5 px-2.5 py-1.5 rounded-lg border-l-[3px] text-left cursor-pointer transition-colors',
+          isMine
+            ? 'bg-black/15 border-white/70 hover:bg-black/20'
+            : 'bg-primary/5 border-primary hover:bg-primary/10',
+        )}
+      >
+        <span className={cn('text-[11px] font-bold leading-tight', isMine ? 'text-white/95' : 'text-primary')}>
+          {name}
+        </span>
+        <span className={cn('text-[11.5px] leading-snug line-clamp-1 break-all', isMine ? 'text-white/75' : 'text-muted-foreground')}>
+          {preview}
+        </span>
+      </button>
+    )
+  }
+
   // ── Render media (images, videos, documents) ──────────────────────────
-  const renderMedia = (msg: MessageData) => {
+  const renderMedia = (msg: MessageData, hasQuote = false) => {
     if (!msg.mediaUrls || msg.mediaUrls.length === 0) return null
 
     const isImage = msg.type === 'image' || msg.mediaUrls[0]?.match(/\.(jpg|jpeg|png|gif|webp)(\?|$)/i)
@@ -985,7 +1075,7 @@ export function MessageConversation({
     }
 
     return (
-      <div className="-mx-4 -mt-2.5 mb-1 first:mt-0">
+      <div className={cn('-mx-4 mb-1', hasQuote ? 'mt-0 mx-0 rounded-lg overflow-hidden' : '-mt-2.5 first:mt-0')}>
         {msg.mediaUrls.map((url, i) => {
           if (isImage) {
             return (
@@ -1048,7 +1138,7 @@ export function MessageConversation({
 
   // ── Main render ─────────────────────────────────────────────────────────
   return (
-    <Card ref={setConversationEl} className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none md:border md:rounded-lg">
+    <Card ref={setConversationEl} className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none">
       {renderHeader()}
 
       <CardContent className="flex-1 p-0 overflow-hidden flex">
@@ -1057,7 +1147,7 @@ export function MessageConversation({
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-4 space-y-1"
+            className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-5 space-y-1 bg-surface-container-low/60"
           >
             {loadingMore && (
               <div className="flex justify-center py-2">
@@ -1084,12 +1174,12 @@ export function MessageConversation({
               </div>
             ) : messages.length === 0 ? (
               <div className="flex items-center justify-center h-full text-center">
-                <div>
-                  <div className="size-12 rounded-full bg-accent flex items-center justify-center mx-auto mb-3">
-                    <Send className="size-5 text-muted-foreground" />
+                <div className="px-6">
+                  <div className="size-16 rounded-full bg-gradient-to-br from-primary/15 to-primary/5 flex items-center justify-center mx-auto mb-4 shadow-inner">
+                    <Send className="size-6 text-primary" />
                   </div>
-                  <p className="text-sm text-muted-foreground">No messages yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">Send a message to start the conversation</p>
+                  <p className="text-[15px] font-semibold text-foreground">No messages yet</p>
+                  <p className="text-[12.5px] text-muted-foreground mt-1">Say hello to start the conversation 👋</p>
                 </div>
               </div>
             ) : (
@@ -1097,14 +1187,22 @@ export function MessageConversation({
                 const prevMsg = idx > 0 ? messages[idx - 1] : null
                 const showAvatar = !prevMsg || prevMsg.sender.id !== msg.sender.id
                 const isMine = isOwnMessage(msg)
+                const showDateChip = !prevMsg || !isSameDay(prevMsg.createdAt, msg.createdAt)
 
                 const msgStatus = pendingStatus[msg.id]
                 const isPending = msgStatus === 'sending'
                 const isFailed = msgStatus === 'failed'
 
                 return (
+                  <div key={msg.id} className="contents">
+                  {showDateChip && (
+                    <div className="flex justify-center py-3">
+                      <span className="px-3 py-1 bg-surface-container rounded-full text-[11px] font-semibold text-outline shadow-sm">
+                        {formatDateChip(msg.createdAt)}
+                      </span>
+                    </div>
+                  )}
                   <div
-                    key={msg.id}
                     className={cn(
                       'flex flex-col relative group/message',
                       isMine ? 'items-end' : 'items-start',
@@ -1129,17 +1227,9 @@ export function MessageConversation({
                         </div>
                       )}
 
-                      <div className={cn('max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
-                        {/* Reply indicator */}
-                        {msg.parentId && (
-                          <button
-                            onClick={() => document.getElementById(`msg-${msg.parentId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                            className="text-[10px] text-primary hover:underline px-1 text-left cursor-pointer"
-                          >
-                            Replying to a message
-                          </button>
-                        )}
-
+                      <div className={cn('relative max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
+                        {/* Floating hover toolbar — anchored to the bubble corner */}
+                        {renderReactionBar(msg, isMine, isPending)}
                         {/* Message bubble */}
                         <div>
                           <div
@@ -1155,10 +1245,11 @@ export function MessageConversation({
                               touch.dataset.longPressTimer = setTimeout(() => {
                                 if (touch.dataset.longPress === 'started') {
                                   touch.dataset.longPress = 'fired'
-                                  setReactionPickerMsg({
-                                    messageId: msg.id,
-                                    x: Number(touch.dataset.touchX),
-                                    y: Number(touch.dataset.touchY) - 40,
+                                  if (navigator.vibrate) navigator.vibrate(10)
+                                  setContextMenu({
+                                    message: msg,
+                                    x: Math.max(8, Math.min(Number(touch.dataset.touchX), window.innerWidth - 224)),
+                                    y: Math.max(8, Math.min(Number(touch.dataset.touchY) - 40, window.innerHeight - 360)),
                                   })
                                 }
                               }, 500).toString()
@@ -1188,15 +1279,19 @@ export function MessageConversation({
                                 return
                               }
                               e.preventDefault()
-                              setContextMenu({ message: msg, x: e.clientX, y: e.clientY })
+                              setContextMenu({
+                                message: msg,
+                                x: Math.max(8, Math.min(e.clientX, window.innerWidth - 224)),
+                                y: Math.max(8, Math.min(e.clientY, window.innerHeight - 360)),
+                              })
                             }}
                             className={cn(
-                              'relative px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap select-none',
+                              'relative px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap select-none overflow-hidden',
                               isMine
                                 ? editingMessageId === msg.id
-                                  ? 'bg-accent'
-                                  : 'bg-primary text-primary-foreground rounded-br-sm'
-                                : 'bg-accent text-foreground rounded-bl-sm',
+                                  ? 'bg-background border border-outline-variant/30 shadow-sm'
+                                  : 'bg-primary text-primary-foreground rounded-br-md shadow-sm'
+                                : 'bg-background text-foreground rounded-bl-md border border-outline-variant/25 shadow-sm',
                             )}
                           >
                             {editingMessageId === msg.id ? (
@@ -1217,8 +1312,11 @@ export function MessageConversation({
                               </div>
                             ) : (
                               <>
+                                {/* Quoted reply (WhatsApp-style) */}
+                                {renderReplyQuote(msg, isMine)}
+
                                 {/* Media content */}
-                                {renderMedia(msg)}
+                                {renderMedia(msg, !!msg.parentId)}
 
                                 {msg.body && (
                                   <p className="mt-1">{msg.body}</p>
@@ -1258,25 +1356,10 @@ export function MessageConversation({
                             <Check className="size-3 text-muted-foreground" />
                           )}
 
-                          {/* Message actions dropdown (mobile-friendly) */}
-                          {!isPending && !isFailed && (
-                            <div className="opacity-0 group-hover/message:opacity-100 transition-opacity duration-150 md:hidden">
-                              {renderMessageActions(msg, isMine)}
-                            </div>
-                          )}
                         </div>
-
-                        {/* Desktop message actions (shown on hover) */}
-                        {!isPending && !isFailed && (
-                          <div className="hidden md:block opacity-0 group-hover/message:opacity-100 transition-opacity duration-150 mt-0.5">
-                            {renderMessageActions(msg, isMine)}
-                          </div>
-                        )}
                       </div>
                     </div>
-
-                    {/* Reaction bar — centered in chat window */}
-                    {renderReactionBar(msg, isMine, isPending)}
+                  </div>
                   </div>
                 )
               })
@@ -1285,22 +1368,22 @@ export function MessageConversation({
           </div>
 
           {/* Input bar */}
-          <div className="px-3 py-3 md:px-4 bg-background border-t flex-shrink-0">
+          <div className="px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:px-4 md:py-3 bg-background border-t border-outline-variant/20 flex-shrink-0">
             {/* Reply indicator */}
             {replyingTo && (
-              <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-accent rounded-lg">
-                <div className="w-0.5 h-8 bg-primary rounded-full flex-shrink-0" />
+              <div className="flex items-center gap-2.5 mb-2 px-3 py-2 bg-primary/5 border border-primary/15 rounded-xl">
+                <div className="w-1 h-8 bg-primary rounded-full flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-semibold text-primary">Replying to {replyingTo.sender.displayName}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{replyingTo.body ?? 'Sent a message'}</p>
+                  <p className="text-[11.5px] font-semibold text-primary">Replying to {replyingTo.sender.displayName}</p>
+                  <p className="text-[11.5px] text-muted-foreground truncate">{replyingTo.body ?? 'Sent a message'}</p>
                 </div>
-                <button onClick={() => setReplyingTo(null)} className="text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0">
+                <button onClick={() => setReplyingTo(null)} className="flex items-center justify-center size-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-surface-container cursor-pointer flex-shrink-0 transition-colors">
                   <X className="size-3.5" />
                 </button>
               </div>
             )}
 
-            <div className="flex items-end gap-1.5 md:gap-3">
+            <div className="flex items-end gap-2">
               {/* Hidden file input */}
               <input
                 ref={fileInputRef}
@@ -1310,18 +1393,19 @@ export function MessageConversation({
                 accept="image/*,video/*,.pdf,.doc,.docx,.txt,.csv"
               />
 
-              <Button
-                onClick={() => fileInputRef.current?.click()}
-                variant="ghost"
-                size="icon"
-                disabled={uploadingFile}
-                className="size-8 md:size-9 rounded-lg flex-shrink-0 hidden sm:inline-flex"
-                aria-label="Attach file"
-              >
-                {uploadingFile ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-5" />}
-              </Button>
+              {/* Pill container: attach + input + emoji */}
+              <div className="flex-1 flex items-end gap-0.5 bg-surface-container rounded-3xl pl-1.5 pr-1.5 py-1 min-h-[44px]">
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="ghost"
+                  size="icon"
+                  disabled={uploadingFile}
+                  className="size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                  aria-label="Attach file"
+                >
+                  {uploadingFile ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
+                </Button>
 
-              <div className="flex-1 relative">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -1329,41 +1413,41 @@ export function MessageConversation({
                   onKeyDown={handleKeyDown}
                   placeholder={editingMessageId ? 'Edit message…' : replyingTo ? 'Reply…' : 'Type a message…'}
                   rows={1}
-                  className="w-full px-3 md:px-4 py-2 bg-accent rounded-xl text-sm border border-transparent focus:border-primary focus:outline-none transition-colors resize-none min-h-[36px] max-h-[120px]"
+                  className="flex-1 px-2 py-2 bg-transparent text-[14.5px] focus:outline-none resize-none min-h-[36px] max-h-[120px] placeholder:text-muted-foreground/70 self-center"
                   maxLength={650}
                 />
-              </div>
 
-              <Button
-                onClick={() => setShowEmojiPicker((s) => !s)}
-                variant="ghost"
-                size="icon"
-                className={cn('size-8 md:size-9 rounded-lg flex-shrink-0', showEmojiPicker && 'bg-accent text-accent-foreground')}
-                aria-label="Toggle emoji picker"
-              >
-                <Smile className="size-5" />
-              </Button>
+                <Button
+                  onClick={() => setShowEmojiPicker((s) => !s)}
+                  variant="ghost"
+                  size="icon"
+                  className={cn('size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10', showEmojiPicker && 'text-primary bg-primary/10')}
+                  aria-label="Toggle emoji picker"
+                >
+                  <Smile className="size-5" />
+                </Button>
+              </div>
 
               <Button
                 onClick={() => editingMessageId ? void handleEdit() : void handleSend()}
                 disabled={(!input.trim() && !editingMessageId) || uploadingFile}
                 size="icon"
-                className="size-9 md:size-10 rounded-xl flex-shrink-0"
+                className="size-11 rounded-full flex-shrink-0 shadow-md active:scale-95 transition-transform"
                 aria-label={editingMessageId ? 'Save edit' : 'Send message'}
               >
                 {uploadingFile ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-5 animate-spin" />
                 ) : editingMessageId ? (
-                  <Check className="size-4" />
+                  <Check className="size-5" />
                 ) : (
-                  <Send className="size-4" />
+                  <Send className="size-5 -ml-0.5 mt-0.5" />
                 )}
               </Button>
             </div>
 
             {/* Quick emoji picker */}
             {showEmojiPicker && (
-              <div className="flex gap-1.5 mt-3 p-2 bg-accent rounded-xl overflow-x-auto">
+              <div className="flex gap-1.5 mt-2.5 p-2 bg-surface-container rounded-2xl overflow-x-auto no-scrollbar">
                 {QUICK_REACTIONS.map((emoji) => (
                   <button
                     key={emoji}
@@ -1372,7 +1456,7 @@ export function MessageConversation({
                       setShowEmojiPicker(false)
                       inputRef.current?.focus()
                     }}
-                    className="size-8 flex items-center justify-center rounded-lg hover:bg-background transition-colors text-lg cursor-pointer flex-shrink-0"
+                    className="size-9 flex items-center justify-center rounded-xl hover:bg-background hover:scale-110 transition-all text-xl cursor-pointer flex-shrink-0"
                   >
                     {emoji}
                   </button>
@@ -1382,59 +1466,69 @@ export function MessageConversation({
           </div>
         </div>
 
-        {/* Info panel (desktop sidebar) */}
+        {/* Info panel — slide-over on mobile, sidebar on desktop */}
         {showInfo && (
-          <div className="w-72 flex-shrink-0 border-l bg-background overflow-y-auto hidden lg:block">
-            <div className="p-5 flex flex-col items-center text-center border-b">
-              <Avatar className="size-16">
-                {avatarUrl ? (
-                  <AvatarImage alt={displayName} src={avatarUrl} />
-                ) : (
-                  <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">
-                    {displayName.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <h3 className="font-semibold text-lg text-foreground mt-3 truncate max-w-full">{displayName}</h3>
-              {otherParticipant?.username && (
-                <p className="text-sm text-muted-foreground mt-0.5">@{otherParticipant.username}</p>
-              )}
-              <p className={cn('text-xs font-medium mt-1', isOnline ? 'text-green-600' : 'text-muted-foreground')}>
-                {isOnline ? 'Active now' : 'Offline'}
-              </p>
-            </div>
-            <div className="p-4 space-y-1">
-              {[
-                { label: 'Mute notifications' },
-                { label: 'Block user' },
-                { label: 'Report spam' },
-                { label: 'Delete conversation', danger: true },
-              ].map(({ label, danger }) => (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] lg:hidden"
+              onClick={() => setShowInfo(false)}
+            />
+            <div className="fixed inset-y-0 right-0 z-50 w-[85%] max-w-sm bg-background shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200 lg:static lg:z-auto lg:w-72 lg:max-w-none lg:flex-shrink-0 lg:border-l lg:shadow-none lg:animate-none">
+              {/* Mobile close */}
+              <div className="flex items-center justify-between px-4 pt-3 lg:hidden">
+                <span className="text-sm font-bold text-foreground">Details</span>
                 <button
-                  key={label}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors cursor-pointer',
-                    danger ? 'text-destructive hover:bg-destructive/10' : 'text-muted-foreground hover:bg-accent',
-                  )}
+                  onClick={() => setShowInfo(false)}
+                  className="flex items-center justify-center size-8 rounded-full hover:bg-surface-container text-muted-foreground cursor-pointer transition-colors"
+                  aria-label="Close details"
                 >
-                  {label}
+                  <X className="size-4" />
                 </button>
-              ))}
+              </div>
+              <div className="p-5 flex flex-col items-center text-center border-b border-outline-variant/20">
+                <Avatar className="size-20 ring-4 ring-primary/10">
+                  {avatarUrl ? (
+                    <AvatarImage alt={displayName} src={avatarUrl} />
+                  ) : (
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-primary text-2xl font-semibold">
+                      {displayName.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <h3 className="font-bold text-lg text-foreground mt-3 truncate max-w-full">{displayName}</h3>
+                {otherParticipant?.username && (
+                  <p className="text-sm text-muted-foreground mt-0.5">@{otherParticipant.username}</p>
+                )}
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full',
+                  isOnline ? 'text-green-700 bg-green-50' : 'text-muted-foreground bg-surface-container',
+                )}>
+                  <span className={cn('size-1.5 rounded-full', isOnline ? 'bg-green-500' : 'bg-muted-foreground/40')} />
+                  {isOnline ? 'Active now' : 'Offline'}
+                </span>
+              </div>
+              <div className="p-4 space-y-1">
+                {[
+                  { label: 'Mute notifications' },
+                  { label: 'Block user' },
+                  { label: 'Report spam' },
+                  { label: 'Delete conversation', danger: true },
+                ].map(({ label, danger }) => (
+                  <button
+                    key={label}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer',
+                      danger ? 'text-destructive hover:bg-destructive/10' : 'text-foreground/80 hover:bg-surface-container',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </CardContent>
-
-      {/* Call modal */}
-      <CallModal
-        open={callType !== null}
-        type={callType ?? 'audio'}
-        displayName={displayName}
-        avatarUrl={avatarUrl}
-        isVerified={isVerified}
-        isOnline={isOnline}
-        onClose={handleCloseCall}
-      />
 
       {/* Reaction picker (full emoji selector) */}
       {reactionPickerMsg && (
@@ -1453,18 +1547,21 @@ export function MessageConversation({
           onClick={() => setContextMenu(null)}
         >
           <div
-            className="absolute bg-popover rounded-xl shadow-2xl border py-1 min-w-[200px] overflow-hidden"
+            className="absolute bg-popover rounded-2xl shadow-2xl border border-outline-variant/25 py-1 min-w-[210px] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
             style={{ left: contextMenu.x, top: contextMenu.y }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Quick reactions */}
-            <div className="px-3 py-2 border-b">
-              <div className="flex gap-1.5 items-center">
+            <div className="px-2.5 py-2 border-b border-outline-variant/20">
+              <div className="flex gap-1 items-center justify-between">
                 {['❤️', '😂', '😮', '👍'].map((emoji) => (
                   <button
                     key={emoji}
                     onClick={() => void handleReact(contextMenu.message.id, emoji)}
-                    className="size-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors text-lg cursor-pointer"
+                    className={cn(
+                      'size-9 flex items-center justify-center rounded-full hover:bg-surface-container hover:scale-125 transition-all text-xl cursor-pointer',
+                      contextMenu.message.reactions?.some((r) => r.emoji === emoji && r.userId === user?.id) && 'bg-primary/10 scale-110',
+                    )}
                   >
                     {emoji}
                   </button>
@@ -1474,10 +1571,10 @@ export function MessageConversation({
                     setReactionPickerMsg({ messageId: contextMenu.message.id, x: contextMenu.x, y: contextMenu.y })
                     setContextMenu(null)
                   }}
-                  className="size-8 flex items-center justify-center rounded-lg text-xs text-primary hover:bg-primary/10 transition-colors cursor-pointer font-semibold"
+                  className="size-9 flex items-center justify-center rounded-full bg-surface-container text-muted-foreground hover:text-foreground hover:scale-110 transition-all cursor-pointer"
                   title="More reactions"
                 >
-                  +{QUICK_REACTIONS.length - 4}
+                  <Plus className="size-4" />
                 </button>
               </div>
             </div>
@@ -1529,6 +1626,25 @@ function getVideoDuration(file: File): Promise<number> {
       reject(new Error('Could not read video metadata'))
     }
     video.src = URL.createObjectURL(file)
+  })
+}
+
+function isSameDay(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString()
+}
+
+function formatDateChip(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (date.toDateString() === now.toDateString()) return 'Today'
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
   })
 }
 

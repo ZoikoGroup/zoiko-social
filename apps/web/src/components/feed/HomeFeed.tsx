@@ -19,13 +19,16 @@ const FEED_TABS: { label: string; tag?: string }[] = [
 
 function FeedTabs(): React.JSX.Element {
   return (
-    <div className="flex items-center gap-4 md:gap-6 border-b border-outline-variant/30 overflow-x-auto no-scrollbar">
+    <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/25 rounded-2xl px-3 py-2.5 shadow-sm overflow-x-auto no-scrollbar">
       {FEED_TABS.map((t, i) => {
         const active = i === 0
-        const cls = `flex-shrink-0 pb-2.5 -mb-px text-label-md font-semibold whitespace-nowrap border-b-[2.5px] transition-colors ${
+        const isRescue = t.label === 'Rescue'
+        const cls = `flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap border transition-all cursor-pointer active:scale-[0.97] ${
           active
-            ? 'text-on-surface border-secondary'
-            : 'text-on-surface-variant hover:text-on-surface border-transparent'
+            ? 'bg-primary text-white border-primary shadow-sm'
+            : isRescue
+              ? 'bg-background text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300'
+              : 'bg-background text-on-surface-variant border-outline-variant/40 hover:text-on-surface hover:border-outline-variant/70 hover:bg-surface-container-low'
         }`
         return t.tag ? (
           <Link key={t.label} href={`/explore/tags/${t.tag}`} className={cls}>{t.label}</Link>
@@ -33,10 +36,13 @@ function FeedTabs(): React.JSX.Element {
           <span key={t.label} className={cls}>{t.label}</span>
         )
       })}
-      <Link href="/explore" className="flex-shrink-0 pb-2.5 flex items-center gap-0.5 text-label-md font-medium text-on-surface-variant hover:text-on-surface">
+      <Link
+        href="/explore"
+        className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 rounded-full text-[13px] font-semibold text-outline border border-outline-variant/30 bg-background hover:text-on-surface hover:border-outline-variant/60 transition-all active:scale-[0.97]"
+      >
         More <ChevronDown className="w-3.5 h-3.5" />
       </Link>
-      <button className="ml-auto pb-2.5 text-outline hover:text-primary transition-colors cursor-pointer" aria-label="Filter feed">
+      <button className="ml-auto flex-shrink-0 flex items-center justify-center size-8 rounded-full text-outline hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer" aria-label="Filter feed">
         <SlidersHorizontal className="w-4 h-4" />
       </button>
     </div>

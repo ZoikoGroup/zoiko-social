@@ -12,9 +12,21 @@ import type { Server, Socket } from 'socket.io'
 import { JwtVerificationService } from '../auth/jwt-verification.service'
 import { MessagingService } from './messaging.service'
 import { PresenceService } from './presence.service'
+import { RealtimeService } from '../realtime/realtime.service'
 
 interface AuthSocket extends Socket {
   data: { userId?: string }
+}
+
+/** Ephemeral 1:1 call signaling relayed between participants (no DB state). */
+interface CallSignal {
+  conversationId?: string
+  toUserId?: string
+  callType?: 'audio' | 'video'
+  roomName?: string
+  fromDisplayName?: string
+  fromAvatarUrl?: string | null
+  reason?: string
 }
 
 @WebSocketGateway({
@@ -31,6 +43,7 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly jwtVerification: JwtVerificationService,
     private readonly messagingService: MessagingService,
     private readonly presenceService: PresenceService,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   async handleConnection(client: AuthSocket): Promise<void> {
@@ -135,5 +148,52 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   ): Promise<void> {
     if (!body?.userId) return
     await client.leave(`presence:${body.userId}`)
+  }
+
+  // ── CALL SIGNALING (1:1 audio/video) ────────────────────────────────────────
+  // Relays ephemeral signaling to the target user's private room. LiveKit carries
+  // the actual media; these events only coordinate ring/accept/reject/end.
+
+  private async relayCall(
+    client: AuthSocket,
+    event: 'call:invite' | 'call:accept' | 'call:reject' | 'call:cancel' | 'call:end',
+    body: CallSignal,
+  ): Promise<void> {
+    const fromUserId = client.data.userId
+    if (!fromUserId || !body?.toUserId || !body?.conversationId) return
+    await this.realtimeService.publishToUser(body.toUserId, event, {
+      conversationId: body.conversationId,
+      callType: body.callType ?? 'audio',
+      roomName: body.roomName ?? `call:${body.conversationId}`,
+      fromUserId,
+      fromDisplayName: body.fromDisplayName,
+      fromAvatarUrl: body.fromAvatarUrl ?? null,
+      reason: body.reason,
+    })
+  }
+
+  @SubscribeMessage('call:invite')
+  async onCallInvite(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
+    await this.relayCall(client, 'call:invite', body)
+  }
+
+  @SubscribeMessage('call:accept')
+  async onCallAccept(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
+    await this.relayCall(client, 'call:accept', body)
+  }
+
+  @SubscribeMessage('call:reject')
+  async onCallReject(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
+    await this.relayCall(client, 'call:reject', body)
+  }
+
+  @SubscribeMessage('call:cancel')
+  async onCallCancel(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
+    await this.relayCall(client, 'call:cancel', body)
+  }
+
+  @SubscribeMessage('call:end')
+  async onCallEnd(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
+    await this.relayCall(client, 'call:end', body)
   }
 }

@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, ExternalLink, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, ExternalLink, ChevronDown, Loader2 } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
 
 type SettingsTab =
   | 'account'
@@ -450,6 +451,14 @@ const SETTINGS_COMPONENTS: Record<SettingsTab, () => React.JSX.Element> = {
 export default function SettingsPage(): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsTab>('account')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
+  const { signOut } = useAuth()
+
+  const handleSignOut = async (): Promise<void> => {
+    if (signingOut) return
+    setSigningOut(true)
+    await signOut() // redirects to /login when done
+  }
 
   const SettingsComponent = SETTINGS_COMPONENTS[activeSection]
   const activeSectionMeta = SECTIONS.find((s) => s.id === activeSection)!
@@ -544,9 +553,13 @@ export default function SettingsPage(): React.JSX.Element {
                 })}
 
                 <div className="border-t border-outline-variant/20 p-3 mt-1">
-                  <button className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors text-label-sm font-semibold cursor-pointer">
-                    <LogOut className="w-4 h-4" />
-                    Sign Out
+                  <button
+                    onClick={() => void handleSignOut()}
+                    disabled={signingOut}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors text-label-sm font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                  >
+                    {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                    {signingOut ? 'Signing out…' : 'Sign Out'}
                   </button>
                 </div>
               </div>

@@ -18,6 +18,8 @@ interface AuthContextValue extends AuthState {
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signUp: (email: string, password: string, displayName?: string, username?: string) => Promise<{ error?: string; data?: { id: string; email: string | undefined; session: Session | null } }>
   signInWithGoogle: () => Promise<void>
+  signInWithApple: () => Promise<void>
+  signInWithFacebook: () => Promise<void>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error?: string }>
   updatePassword: (password: string) => Promise<{ error?: string }>
@@ -161,12 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     }
   }, [])
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithProvider = useCallback(async (provider: 'google' | 'apple' | 'facebook') => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL
 
     // Try the backend API first
     try {
-      const res = await fetch(apiUrl + '/api/v1/auth/google')
+      const res = await fetch(`${apiUrl}/api/v1/auth/${provider}`)
       if (res.ok) {
         const { data } = await res.json()
         if (data?.url) {
@@ -181,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     // Fallback: use Supabase directly
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: {
         redirectTo: window.location.origin + '/auth/callback',
       },
@@ -192,18 +194,39 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     }
   }, [])
 
-  const signOut = useCallback(async () => {
-    const { disconnectSocket } = await import('@/lib/socket')
-    disconnectSocket()
-    const supabase = createClient()
-    await supabase.auth.signOut()
+  const signInWithGoogle = useCallback(() => signInWithProvider('google'), [signInWithProvider])
+  const signInWithApple = useCallback(() => signInWithProvider('apple'), [signInWithProvider])
+  const signInWithFacebook = useCallback(() => signInWithProvider('facebook'), [signInWithProvider])
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL
+  const signOut = useCallback(async () => {
+    // Every step is best-effort — whatever happens, the user must end up signed
+    // out locally and back on the login page.
     try {
-      await fetch(apiUrl + '/api/v1/auth/logout', { method: 'POST' })
+      const { disconnectSocket } = await import('@/lib/socket')
+      disconnectSocket()
+    } catch {
+      // Socket module unavailable — nothing to disconnect
+    }
+
+    const supabase = createClient()
+    try {
+      // Global scope revokes the refresh token server-side
+      await supabase.auth.signOut()
+    } catch {
+      // Network/server failure — still clear the local session so the user is signed out on this device
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch {
+        // Even local cleanup failed — the redirect below still leaves the app in a signed-out state
+      }
+    }
+
+    try {
+      await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/v1/auth/logout', { method: 'POST' })
     } catch {
       // Ignore API logout errors
     }
+
     window.location.href = '/login'
   }, [])
 
@@ -260,6 +283,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         signIn,
         signUp,
         signInWithGoogle,
+        signInWithApple,
+        signInWithFacebook,
         signOut,
         resetPassword,
         updatePassword,

@@ -11,12 +11,12 @@ import { AttachmentService } from './attachment.service'
 import { ProfessionalMessagingService } from './professional-messaging.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
 import { AuthModule } from '../auth/auth.module'
-import { R2Module } from '../storage/r2.module'
+import { SupabaseStorageModule } from '../storage/supabase-storage.module'
 
 @Module({
   imports: [
     AuthModule,
-    R2Module,
+    SupabaseStorageModule,
     MessagingQueueModule.forRoot(),
   ],
   controllers: [MessagingController],

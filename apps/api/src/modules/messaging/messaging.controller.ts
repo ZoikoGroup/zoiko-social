@@ -484,9 +484,15 @@ export class MessagingController {
   @HttpCode(HttpStatus.OK)
   async getPresignedUploadUrl(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { mimeType: string; fileName?: string; fileSize?: number },
+    @Body() body: { mimeType: string; fileName?: string; fileSize?: number; durationSeconds?: number },
   ) {
-    const result = await this.messagingService.getUploadUrl(user.id, body.mimeType, body.fileName, body.fileSize)
+    const result = await this.messagingService.getUploadUrl(
+      user.id,
+      body.mimeType,
+      body.fileName,
+      body.fileSize,
+      body.durationSeconds,
+    )
     return result
   }
 }

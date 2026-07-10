@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestEx
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
-import { R2Service } from '../storage/r2.service'
+import { SupabaseStorageService } from '../storage/supabase-storage.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
 import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
@@ -21,7 +21,7 @@ export class MessagingService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
-    private readonly r2: R2Service,
+    private readonly storage: SupabaseStorageService,
     private readonly privacy: MessagingPrivacyService,
     private readonly presence: PresenceService,
   ) {}
@@ -277,6 +277,32 @@ export class MessagingService {
 
   // ── MESSAGES ───────────────────────────────────────────────────────────────
 
+  /** Compact snippet of a replied-to message, embedded in message payloads (WhatsApp-style quote). */
+  private mapParentSnippet(
+    parent: { id: string; body: string | null; type: string; isDeleted: boolean; sender: { id: string; displayName: string } } | null,
+  ) {
+    if (!parent) return null
+    return {
+      id: parent.id,
+      body: parent.isDeleted ? null : parent.body,
+      type: parent.type,
+      isDeleted: parent.isDeleted,
+      senderId: parent.sender.id,
+      senderName: parent.sender.displayName,
+    }
+  }
+
+  /** Prisma include fragment for the parent-message snippet. */
+  private static readonly PARENT_INCLUDE = {
+    select: {
+      id: true,
+      body: true,
+      type: true,
+      isDeleted: true,
+      sender: { select: { id: true, displayName: true } },
+    },
+  } as const
+
   async getMessages(userId: string, conversationId: string, cursor?: string | null) {
     // Verify membership
     const member = await this.prisma.conversationMember.findUnique({
@@ -308,6 +334,7 @@ export class MessagingService {
         sender: {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
+        parent: MessagingService.PARENT_INCLUDE,
         reactions: {
           select: { emoji: true, userId: true },
         },
@@ -344,6 +371,7 @@ export class MessagingService {
         body: msg.body,
         mediaUrls: msg.mediaUrls,
         parentId: msg.parentId,
+        parent: this.mapParentSnippet(msg.parent),
         isDeleted: msg.isDeleted,
         editedAt: msg.editedAt?.toISOString() ?? null,
         reactions: msg.reactions.map((r) => ({ emoji: r.emoji, userId: r.userId })),
@@ -384,6 +412,7 @@ export class MessagingService {
         sender: {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
+        parent: MessagingService.PARENT_INCLUDE,
       },
     })
 
@@ -407,6 +436,7 @@ export class MessagingService {
       body: message.body,
       mediaUrls: message.mediaUrls,
       parentId: message.parentId,
+      parent: this.mapParentSnippet(message.parent),
       createdAt: message.createdAt.toISOString(),
     })
 
@@ -443,6 +473,7 @@ export class MessagingService {
       body: message.body,
       mediaUrls: message.mediaUrls,
       parentId: message.parentId,
+      parent: this.mapParentSnippet(message.parent),
       isDeleted: message.isDeleted,
       editedAt: null,
       reactions: [],
@@ -886,8 +917,8 @@ export class MessagingService {
 
   // ── UPLOAD ──────────────────────────────────────────────────────────────────
 
-  async getUploadUrl(userId: string, mimeType: string, fileName?: string, fileSize?: number): Promise<{ url: string; viewUrl: string; key: string; type: string }> {
-    if (!this.r2.isEnabled) {
+  async getUploadUrl(userId: string, mimeType: string, fileName?: string, fileSize?: number, durationSeconds?: number): Promise<{ url: string; viewUrl: string; key: string; type: string }> {
+    if (!this.storage.isEnabled) {
       throw new BadRequestException({ code: 'STORAGE_NOT_CONFIGURED', message: 'File upload is not available' })
     }
 
@@ -895,6 +926,7 @@ export class MessagingService {
     const allowedTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
       'video/mp4', 'video/webm', 'video/quicktime',
+      'audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/webm',
       'application/pdf', 'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'text/plain', 'text/csv',
@@ -903,14 +935,31 @@ export class MessagingService {
       throw new BadRequestException({ code: 'INVALID_FILE_TYPE', message: `File type ${mimeType} is not supported` })
     }
 
-    // Validate file size (100MB max)
-    if (fileSize && fileSize > 100 * 1024 * 1024) {
-      throw new BadRequestException({ code: 'FILE_TOO_LARGE', message: 'File exceeds maximum size of 100MB' })
+    // Per-type size caps — images arrive pre-compressed by the client (WebP),
+    // so anything huge is either a raw bypass or an oversized GIF
+    const MB = 1024 * 1024
+    const sizeLimit = mimeType.startsWith('video/') ? 100 * MB
+      : mimeType.startsWith('image/') ? 25 * MB
+        : mimeType.startsWith('audio/') ? 25 * MB
+          : 25 * MB // documents
+    if (fileSize && fileSize > sizeLimit) {
+      throw new BadRequestException({ code: 'FILE_TOO_LARGE', message: `File exceeds maximum size of ${sizeLimit / MB}MB` })
     }
 
-    const key = this.r2.generateKey(userId, mimeType)
-    const uploadUrl = await this.r2.getPresignedUploadUrl(key, mimeType, 3600)
-    const viewUrl = this.r2.getPublicUrl(key)
+    // Videos must declare a duration and stay under 5 minutes (fail closed —
+    // the client measures it and the request is rejected without it)
+    if (mimeType.startsWith('video/')) {
+      if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+        throw new BadRequestException({ code: 'VIDEO_DURATION_REQUIRED', message: 'Video duration is required' })
+      }
+      if (durationSeconds > 300) {
+        throw new BadRequestException({ code: 'VIDEO_TOO_LONG', message: 'Videos must be under 5 minutes' })
+      }
+    }
+
+    const key = this.storage.generateKey(userId, mimeType)
+    const uploadUrl = await this.storage.getPresignedUploadUrl(key)
+    const viewUrl = this.storage.getPublicUrl(key)
 
     let type = 'document'
     if (mimeType.startsWith('image/')) type = 'image'

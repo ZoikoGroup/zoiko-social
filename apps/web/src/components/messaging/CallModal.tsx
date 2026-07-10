@@ -1,291 +1,194 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import {
-  PhoneOff, Mic, MicOff, Volume2, VolumeX,
-  Maximize2, Minimize2, X,
+  PhoneOff, Phone, Mic, MicOff, Video, VideoOff,
 } from 'lucide-react'
 import { UserAvatar } from '@/components/UserAvatar'
+import { useCall } from '@/hooks/use-call'
 
-interface CallModalProps {
-  open: boolean
-  type: 'audio' | 'video'
-  displayName: string
-  avatarUrl: string | null
-  isVerified: boolean
-  isOnline: boolean
-  onClose: () => void
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
-type CallState = 'ringing' | 'connecting' | 'connected' | 'ended'
+/**
+ * Global call UI, driven entirely by the CallProvider (useCall). Renders nothing
+ * when idle. Handles outgoing, incoming, connecting, connected and ended states
+ * for 1:1 audio/video calls, attaching real LiveKit tracks to media elements.
+ */
+export function CallModal(): React.JSX.Element | null {
+  const {
+    status, callInfo, endReason, isMuted, isCameraOff, duration,
+    localVideoTrack, remoteVideoTrack, remoteAudioTrack,
+    acceptCall, rejectCall, endCall, dismiss, toggleMute, toggleCamera,
+  } = useCall()
 
-export function CallModal({
-  open,
-  type,
-  displayName,
-  avatarUrl,
-  isVerified,
-  isOnline,
-  onClose,
-}: CallModalProps): React.JSX.Element | null {
-  const [callState, setCallState] = useState<CallState>('ringing')
-  const [isMuted, setIsMuted] = useState(false)
-  const [isSpeaker, setIsSpeaker] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [callDuration, setCallDuration] = useState(0)
-  const [showOverlay, setShowOverlay] = useState(false)
+  const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
 
-  const durationRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const ringingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Reset state when modal opens
+  // Attach/detach LiveKit media tracks to the DOM elements.
   useEffect(() => {
-    if (!open) return
-    const timer = setTimeout(() => {
-      setCallState('ringing')
-      setIsMuted(false)
-      setIsSpeaker(false)
-      setIsFullscreen(false)
-      setCallDuration(0)
-      setShowOverlay(false)
-    }, 0)
+    const el = remoteVideoRef.current
+    if (!remoteVideoTrack || !el) return undefined
+    remoteVideoTrack.attach(el)
+    return () => { remoteVideoTrack.detach(el) }
+  }, [remoteVideoTrack])
 
-    // Simulate connecting after a short ring
-    ringingRef.current = setTimeout(() => {
-      setCallState('connecting')
-      // Simulate connection success
-      setTimeout(() => {
-        setCallState('connected')
-      }, 1200)
-    }, 2000)
-
-    return () => {
-      clearTimeout(timer)
-      if (ringingRef.current) clearTimeout(ringingRef.current)
-    }
-  }, [open])
-
-  // Track call duration when connected
   useEffect(() => {
-    if (callState === 'connected') {
-      durationRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1)
-      }, 1000)
-    } else {
-      if (durationRef.current) {
-        clearInterval(durationRef.current)
-        durationRef.current = null
-      }
-    }
-    return () => {
-      if (durationRef.current) {
-        clearInterval(durationRef.current)
-        durationRef.current = null
-      }
-    }
-  }, [callState])
+    const el = localVideoRef.current
+    if (!localVideoTrack || !el) return undefined
+    localVideoTrack.attach(el)
+    return () => { localVideoTrack.detach(el) }
+  }, [localVideoTrack])
 
-  const handleEndCall = useCallback(() => {
-    if (callState !== 'ended') {
-      setCallState('ended')
-      // Auto-close after showing ended state
-      setTimeout(() => {
-        setShowOverlay(true)
-      }, 300)
-    }
-  }, [callState])
-
-  const handleClose = useCallback(() => {
-    if (durationRef.current) {
-      clearInterval(durationRef.current)
-      durationRef.current = null
-    }
-    if (ringingRef.current) {
-      clearTimeout(ringingRef.current)
-      ringingRef.current = null
-    }
-    onClose()
-  }, [onClose])
-
-  // Auto-close overlay click
   useEffect(() => {
-    if (!showOverlay) return
-    const t = setTimeout(() => {
-      handleClose()
-    }, 2000)
+    const el = remoteAudioRef.current
+    if (!remoteAudioTrack || !el) return undefined
+    remoteAudioTrack.attach(el)
+    return () => { remoteAudioTrack.detach(el) }
+  }, [remoteAudioTrack])
+
+  // Auto-dismiss the ended screen.
+  useEffect(() => {
+    if (status !== 'ended') return
+    const t = setTimeout(() => dismiss(), 2200)
     return () => clearTimeout(t)
-  }, [showOverlay, handleClose])
+  }, [status, dismiss])
 
-  const formatDuration = (seconds: number): string => {
-    const m = Math.floor(seconds / 60)
-    const s = seconds % 60
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-  }
+  if (status === 'idle' || !callInfo) return null
 
-  if (!open) return null
+  const isVideo = callInfo.callType === 'video'
+  const isIncoming = status === 'incoming'
+  const isRinging = status === 'outgoing'
+  const isConnecting = status === 'connecting'
+  const isConnected = status === 'connected'
+  const isEnded = status === 'ended'
 
-  const isActive = callState === 'connected'
-  const isRinging = callState === 'ringing'
-  const isEnded = callState === 'ended'
+  const statusText = isEnded
+    ? (endReason ?? 'Call ended')
+    : isIncoming
+      ? `Incoming ${isVideo ? 'video' : 'voice'} call`
+      : isRinging
+        ? 'Calling…'
+        : isConnecting
+          ? 'Connecting…'
+          : formatDuration(duration)
+
+  const showRemoteVideo = isVideo && isConnected && remoteVideoTrack
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-50 transition-all duration-500 ${
-          isEnded ? 'bg-black/60' : isFullscreen ? 'bg-black' : 'bg-black/80'
-        }`}
-        onClick={() => { if (isEnded) handleClose() }}
-      >
-        {/* Close button (top-right) */}
-        {!isEnded && (
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+    <div className="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center overflow-hidden">
+      {/* Remote audio (always mounted while a remote audio track exists) */}
+      <audio ref={remoteAudioRef} autoPlay />
 
-        {/* Fullscreen toggle */}
-        {isActive && (
-          <button
-            onClick={() => setIsFullscreen((s) => !s)}
-            className="absolute top-4 left-4 z-10 p-2 rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors cursor-pointer"
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
-        )}
+      {/* Remote video fills the screen when connected */}
+      {showRemoteVideo && (
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {/* Dark gradient scrim over video for control legibility */}
+      {showRemoteVideo && (
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/70 pointer-events-none" />
+      )}
 
-        {/* End overlay — shown after call ends */}
-        {showOverlay && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 animate-in fade-in duration-300">
-            <div className="text-center">
-              <p className="text-white/60 text-label-md mb-1">Call ended</p>
-              <p className="text-white/40 text-[11px]">
-                Duration: <span className="text-white/60 font-semibold">{formatDuration(callDuration)}</span>
-              </p>
+      {/* Self-view pip (video calls, once we have a local track) */}
+      {isVideo && (isConnected || isConnecting) && localVideoTrack && !isCameraOff && (
+        <div className="absolute top-4 right-4 z-10 w-24 h-36 md:w-32 md:h-44 rounded-xl overflow-hidden border border-white/20 bg-surface-container-low shadow-lg">
+          <video ref={localVideoRef} autoPlay playsInline muted className="h-full w-full object-cover -scale-x-100" />
+        </div>
+      )}
+
+      {/* Centre content: avatar + name + status (hidden behind remote video only when connected video) */}
+      {!showRemoteVideo && (
+        <div className="relative z-10 flex flex-col items-center text-center px-6">
+          <div className={isRinging || isIncoming ? 'ringing-ring' : ''}>
+            <UserAvatar name={callInfo.peerName} image={callInfo.peerAvatar ?? undefined} size="xl" />
+          </div>
+          <h2 className="text-white text-headline-md font-semibold mt-5">{callInfo.peerName}</h2>
+          <p className="text-white/60 text-label-sm mt-1.5">{statusText}</p>
+          {(isRinging || isIncoming) && !isEnded && (
+            <div className="flex items-center justify-center gap-1 mt-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0.15s]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0.3s]" />
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Main content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {/* Avatar / video placeholder */}
-          <div className={`transition-all duration-500 ${isFullscreen ? 'scale-75 translate-y-[-20%]' : ''}`}>
-            {type === 'video' && isActive ? (
-              <div className="relative w-72 h-96 md:w-96 md:h-[28rem] rounded-2xl bg-gradient-to-br from-surface-container to-surface-container-high overflow-hidden shadow-2xl border border-white/10">
-                {/* Simulated video background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-surface-container to-secondary/10 animate-pulse" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <UserAvatar name={displayName} image={avatarUrl ?? undefined} size="xl" verified={isVerified} />
-                    <p className="text-white text-label-md font-semibold mt-3">{displayName}</p>
-                    <p className="text-white/60 text-[11px] mt-1">Connected</p>
-                  </div>
-                </div>
-                {/* Self-view pip */}
-                <div className="absolute bottom-4 right-4 w-24 h-36 rounded-lg bg-surface-container-low border border-white/20 overflow-hidden shadow-lg">
-                  <div className="w-full h-full bg-gradient-to-br from-primary/10 to-surface-container flex items-center justify-center">
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-                      <UserAvatar name="" size="sm" />
-                    </div>
-                  </div>
-                </div>
-                {/* Video label */}
-                <div className="absolute bottom-4 left-4">
-                  <span className="text-[10px] text-white/50 font-medium bg-black/30 px-2 py-1 rounded-md">
-                    {isMuted ? <MicOff className="w-3 h-3 inline mr-1" /> : <Mic className="w-3 h-3 inline mr-1" />}
-                    {formatDuration(callDuration)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className={`text-center transition-all duration-500 ${isEnded ? 'scale-90 opacity-50' : ''}`}>
-                <div className={`relative ${isRinging ? 'animate-pulse' : ''}`}>
-                  <div className={`${isRinging ? 'ringing-ring' : ''}`}>
-                    <UserAvatar name={displayName} image={avatarUrl ?? undefined} size="xl" verified={isVerified} />
-                  </div>
-                  {isRinging && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-black rounded-full" />
-                  )}
-                </div>
-                <h2 className="text-white text-headline-md font-semibold mt-5">{displayName}</h2>
-                <p className="text-white/60 text-label-sm mt-1.5">
-                  {isEnded
-                    ? 'Call ended'
-                    : isRinging
-                      ? isOnline
-                        ? 'Ringing…'
-                        : 'Calling…'
-                      : callState === 'connecting'
-                        ? 'Connecting…'
-                        : formatDuration(callDuration)}
-                </p>
-                {isRinging && (
-                  <div className="flex items-center justify-center gap-1 mt-3">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0.15s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce [animation-delay:0.3s]" />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+      {/* Name + duration overlay for connected video calls */}
+      {showRemoteVideo && (
+        <div className="absolute top-5 left-0 right-0 z-10 flex flex-col items-center">
+          <h2 className="text-white text-label-lg font-semibold drop-shadow">{callInfo.peerName}</h2>
+          <p className="text-white/70 text-[11px] mt-0.5 drop-shadow">{formatDuration(duration)}</p>
+        </div>
+      )}
 
-          {/* Control buttons */}
-          {!isEnded && (
-            <div className={`flex items-center gap-4 md:gap-6 mt-8 md:mt-12 transition-all duration-300 ${isFullscreen ? 'translate-y-8' : ''}`}>
+      {/* Controls */}
+      {!isEnded && (
+        <div className="absolute bottom-10 md:bottom-14 left-0 right-0 z-10 flex items-center justify-center gap-4 md:gap-6">
+          {isIncoming ? (
+            <>
+              <button
+                onClick={rejectCall}
+                className="p-4 md:p-5 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                aria-label="Decline call"
+              >
+                <PhoneOff className="w-6 h-6" />
+              </button>
+              <button
+                onClick={acceptCall}
+                className="p-4 md:p-5 rounded-full bg-green-500 text-white hover:bg-green-600 shadow-lg shadow-green-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                aria-label="Accept call"
+              >
+                <Phone className="w-6 h-6" />
+              </button>
+            </>
+          ) : (
+            <>
               {/* Mute */}
               <button
-                onClick={() => setIsMuted((s) => !s)}
-                className={`p-4 rounded-full transition-all duration-200 cursor-pointer ${
-                  isMuted
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30'
-                    : 'bg-white/15 text-white hover:bg-white/25 hover:scale-105'
+                onClick={toggleMute}
+                className={`p-4 rounded-full transition-all cursor-pointer ${
+                  isMuted ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-white/15 text-white hover:bg-white/25 hover:scale-105'
                 }`}
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
 
-              {/* End call / Hang up */}
-              {isActive ? (
+              {/* Camera toggle (video calls only) */}
+              {isVideo && (
                 <button
-                  onClick={handleEndCall}
-                  className="p-4 md:p-5 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-                  aria-label="End call"
+                  onClick={toggleCamera}
+                  className={`p-4 rounded-full transition-all cursor-pointer ${
+                    isCameraOff ? 'bg-white/15 text-white/60 hover:bg-white/25' : 'bg-white/15 text-white hover:bg-white/25 hover:scale-105'
+                  }`}
+                  aria-label={isCameraOff ? 'Turn camera on' : 'Turn camera off'}
                 >
-                  <PhoneOff className="w-5 h-5 md:w-6 md:h-6" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleEndCall}
-                  className="p-4 md:p-5 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-                  aria-label="End call"
-                >
-                  <PhoneOff className="w-5 h-5 md:w-6 md:h-6" />
+                  {isCameraOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                 </button>
               )}
 
-              {/* Speaker */}
+              {/* End / hang up */}
               <button
-                onClick={() => setIsSpeaker((s) => !s)}
-                className={`p-4 rounded-full transition-all duration-200 cursor-pointer ${
-                  isSpeaker
-                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                    : 'bg-white/15 text-white hover:bg-white/25 hover:scale-105'
-                }`}
-                aria-label={isSpeaker ? 'Speaker off' : 'Speaker'}
+                onClick={endCall}
+                className="p-4 md:p-5 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                aria-label="End call"
               >
-                {isSpeaker ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                <PhoneOff className="w-5 h-5 md:w-6 md:h-6" />
               </button>
-            </div>
+            </>
           )}
         </div>
-      </div>
-    </>
+      )}
+    </div>
   )
 }

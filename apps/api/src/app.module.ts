@@ -29,6 +29,7 @@ import { ShopModule } from './modules/shop/shop.module'
 import { BreedingModule } from './modules/breeding/breeding.module'
 import { HealthModule } from './health/health.module'
 import { MessagingModule } from './modules/messaging/messaging.module'
+import { LivekitModule } from './modules/livekit/livekit.module'
 import { R2Module } from './modules/storage/r2.module'
 
 @Module({
@@ -61,6 +62,7 @@ import { R2Module } from './modules/storage/r2.module'
     BreedingModule,
     HealthModule,
     MessagingModule,
+    LivekitModule,
     R2Module,
   ],
   controllers: [AppController],

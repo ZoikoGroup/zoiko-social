@@ -1,5 +1,5 @@
-import { AnimatedAuthPage } from '@/components/ui/animated-characters-login-page'
+import { ZoikoAuthPage } from '@/components/ui/zoiko-auth-page'
 
 export default function SignupPage(): React.JSX.Element {
-  return <AnimatedAuthPage mode="signup" />
+  return <ZoikoAuthPage mode="signup" />
 }

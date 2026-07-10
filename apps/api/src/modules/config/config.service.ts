@@ -23,6 +23,10 @@ const envSchema = z.object({
   R2_ACCESS_KEY_ID: z.string().optional(),
   R2_SECRET_ACCESS_KEY: z.string().optional(),
   R2_BUCKET: z.string().optional(),
+  // LiveKit (audio/video calls). When all are set, calling is enabled.
+  LIVEKIT_URL: z.string().url().optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -116,5 +120,22 @@ export class ConfigService {
       this.env.R2_BUCKET &&
       this.env.R2_PUBLIC_URL
     )
+  }
+
+  get livekitUrl(): string | undefined {
+    return this.env.LIVEKIT_URL
+  }
+
+  get livekitApiKey(): string | undefined {
+    return this.env.LIVEKIT_API_KEY
+  }
+
+  get livekitApiSecret(): string | undefined {
+    return this.env.LIVEKIT_API_SECRET
+  }
+
+  /** True when all LiveKit credentials are configured — calling is then enabled. */
+  get livekitEnabled(): boolean {
+    return !!(this.env.LIVEKIT_URL && this.env.LIVEKIT_API_KEY && this.env.LIVEKIT_API_SECRET)
   }
 }

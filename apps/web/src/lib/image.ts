@@ -58,6 +58,37 @@ export async function processImage(file: File, maxEdge = 1440, quality = 0.82): 
   return { blob, thumbnailBlob, width: full.width, height: full.height, blurhash }
 }
 
+/**
+ * Compress an image for chat/attachment upload: resize to max edge → WebP.
+ * Animated GIFs are returned untouched (canvas re-encoding would freeze them),
+ * and if compression doesn't actually shrink the file the original is kept.
+ */
+export async function compressImage(
+  file: File,
+  maxEdge = 1920,
+  quality = 0.82,
+): Promise<{ blob: Blob; fileName: string; mimeType: string }> {
+  if (file.type === 'image/gif') {
+    return { blob: file, fileName: file.name, mimeType: file.type }
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file)
+    const canvas = drawScaled(bitmap, maxEdge)
+    bitmap.close()
+    const blob = await encodeCanvas(canvas, quality)
+
+    if (blob.size >= file.size) {
+      return { blob: file, fileName: file.name, mimeType: file.type }
+    }
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'image'
+    return { blob, fileName: `${baseName}.webp`, mimeType: 'image/webp' }
+  } catch {
+    // Undecodable in this browser — upload the original rather than failing
+    return { blob: file, fileName: file.name, mimeType: file.type }
+  }
+}
+
 /** Render a blurhash to a data URL for use as an <img> placeholder. */
 export function blurhashToDataURL(hash: string, width = 32, height = 32): string {
   try {

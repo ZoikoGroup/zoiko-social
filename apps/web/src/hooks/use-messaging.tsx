@@ -57,6 +57,15 @@ export interface MessageData {
   body: string | null
   mediaUrls: string[]
   parentId: string | null
+  /** WhatsApp-style snippet of the replied-to message (null if not a reply). */
+  parent?: {
+    id: string
+    body: string | null
+    type: string
+    isDeleted: boolean
+    senderId: string
+    senderName: string
+  } | null
   isDeleted: boolean
   editedAt: string | null
   reactions: { emoji: string; userId: string }[]

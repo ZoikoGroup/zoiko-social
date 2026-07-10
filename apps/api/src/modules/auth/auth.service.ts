@@ -158,23 +158,28 @@ export class AuthService {
   }
 
   async getGoogleOAuthUrl() {
+    return this.getOAuthUrl('google')
+  }
+
+  async getOAuthUrl(provider: 'google' | 'apple' | 'facebook') {
     const redirectUrl = `${this.config.allowedOrigin}/auth/callback`
+    // Offline access / forced consent are Google-specific; other providers reject them.
+    const queryParams =
+      provider === 'google' ? { access_type: 'offline', prompt: 'consent' } : undefined
+
     const { data, error } = await this.supabaseAdmin.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: {
         redirectTo: redirectUrl,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
+        ...(queryParams ? { queryParams } : {}),
       },
     })
 
     if (error || !data.url) {
-      this.logger.error(`Google OAuth URL generation failed: ${error?.message}`)
+      this.logger.error(`${provider} OAuth URL generation failed: ${error?.message}`)
       throw new BadRequestException({
         code: 'OAUTH_FAILED',
-        message: 'Failed to generate Google OAuth URL',
+        message: `Failed to generate ${provider} OAuth URL`,
       })
     }
 
@@ -188,7 +193,7 @@ export class AuthService {
       this.logger.error(`OAuth callback failed: ${error?.message}`)
       throw new UnauthorizedException({
         code: 'OAUTH_CALLBACK_FAILED',
-        message: 'Failed to complete Google sign-in',
+        message: 'Failed to complete sign-in',
       })
     }
 

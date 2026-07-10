@@ -124,7 +124,21 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalAuthGuard)
   async googleOAuth() {
-    return this.authService.getGoogleOAuthUrl()
+    return this.authService.getOAuthUrl('google')
+  }
+
+  @Get('apple')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(OptionalAuthGuard)
+  async appleOAuth() {
+    return this.authService.getOAuthUrl('apple')
+  }
+
+  @Get('facebook')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(OptionalAuthGuard)
+  async facebookOAuth() {
+    return this.authService.getOAuthUrl('facebook')
   }
 
   @Post('google/callback')

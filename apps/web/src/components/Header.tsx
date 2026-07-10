@@ -7,11 +7,13 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell, ChevronDown,
   Newspaper, Calendar, MapPin,
-  ShoppingBag, HandHeart, Stethoscope, Dna, X, LayoutDashboard,
+  ShoppingBag, HandHeart, Stethoscope, Dna, LayoutDashboard,
+  User, Settings, LogOut, Loader2, Heart, MoreHorizontal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
+import { useMessaging } from '@/hooks/use-messaging'
 import { UserAvatar } from './UserAvatar'
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
@@ -32,21 +34,26 @@ const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[]
 
 const MODULE_HREFS = MODULES.map((m) => m.href)
 
-// Primary top-nav: Home · Network · Messaging · Alerts (+ More menu)
-const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: boolean }[] = [
-  { name: 'Home',      Icon: Home,          href: '/',              always: true },
-  { name: 'Network',   Icon: Users,         href: '/network'                     },
-  { name: 'Messaging', Icon: MessageSquare, href: '/messages'                    },
-  { name: 'Alerts',    Icon: Bell,          href: '/notifications', badge: true, always: true },
+// Primary top-nav: icon-above-label items (+ More menu)
+const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: 'alerts' | 'messages' }[] = [
+  { name: 'Home',     Icon: Home,          href: '/',              always: true },
+  { name: 'Network',  Icon: Users,         href: '/network'                     },
+  { name: 'Pets',     Icon: Heart,         href: '/pet-care'                    },
+  { name: 'Messages', Icon: MessageSquare, href: '/messages',      badge: 'messages' },
+  { name: 'Alerts',   Icon: Bell,          href: '/notifications', badge: 'alerts', always: true },
 ]
 
 export function Header(): React.JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+  const [signingOut, setSigningOut] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const { profile } = useAuth()
+  const { profile, signOut } = useAuth()
   const { unreadCount: notifUnreadCount } = useNotifications()
+  const { unreadCount: msgUnreadCount } = useMessaging()
   const [searchTerm, setSearchTerm] = useState('')
 
   const isActive = (href: string): boolean => {
@@ -66,20 +73,39 @@ export function Header(): React.JSX.Element {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [menuOpen])
 
+  useEffect(() => {
+    function handleClick(e: MouseEvent): void {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false)
+      }
+    }
+    if (profileMenuOpen) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [profileMenuOpen])
+
+  const handleSignOut = async (): Promise<void> => {
+    if (signingOut) return
+    setSigningOut(true)
+    await signOut() // redirects to /login when done
+  }
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest border-b border-outline-variant/30 h-16">
       <div className="flex items-center w-full px-margin-mobile md:px-margin-desktop h-full max-w-container-max mx-auto">
 
         {/* Left: Logo + Search */}
         <div className="flex items-center gap-4 lg:gap-6 flex-1 min-w-0">
-          <Link href="/" className="flex items-center flex-shrink-0">
-            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={36} width={160} priority className="h-9 w-auto object-contain" />
+          <Link href="/" className="flex flex-col items-start flex-shrink-0 gap-0.5">
+            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={134} priority className="h-[30px] w-auto object-contain" />
+            <span className="hidden lg:block text-[7.5px] font-bold tracking-[0.28em] text-outline uppercase leading-none pl-0.5">
+              Animal Welfare Network
+            </span>
           </Link>
           <div className="hidden md:flex relative flex-1 max-w-xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
-              className="pl-11 pr-4 py-2.5 w-full bg-surface-container-low border border-outline-variant/40 focus:border-primary focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70"
-              placeholder="Search pets, vets, rescues, services or welfare alerts"
+              className="pl-11 pr-4 py-2.5 w-full bg-surface-container border border-transparent focus:border-primary/40 focus:bg-surface-container-lowest focus:shadow-sm focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70 placeholder:font-normal"
+              placeholder="Search pets, vets, rescues, services…"
               type="text"
               aria-label="Search"
               value={searchTerm}
@@ -93,28 +119,30 @@ export function Header(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Center: Primary navigation — text labels */}
-        <nav className="flex items-center justify-center gap-1 md:gap-5 lg:gap-7 h-full flex-shrink-0 mx-2 lg:mx-6">
+        {/* Center: Primary navigation — icon above label */}
+        <nav className="flex items-center justify-center gap-0.5 md:gap-2 lg:gap-4 h-full flex-shrink-0 mx-2 lg:mx-5">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href)
+            const badgeCount = item.badge === 'alerts' ? notifUnreadCount : item.badge === 'messages' ? msgUnreadCount : 0
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`${item.always ? 'flex' : 'hidden sm:flex'} items-center justify-center h-full cursor-pointer transition-colors duration-200 border-b-[2.5px] text-label-md ${
+                className={`${item.always ? 'flex' : 'hidden sm:flex'} flex-col items-center justify-center gap-1 min-w-[52px] lg:min-w-[60px] h-full cursor-pointer transition-colors duration-200 ${
                   active
-                    ? 'text-on-surface font-semibold border-secondary'
-                    : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
+                    ? 'text-primary'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className="relative">
-                  {item.name}
-                  {item.badge && notifUnreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-3 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                      {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
+                  <item.Icon className="w-[22px] h-[22px]" strokeWidth={active ? 2.4 : 1.9} />
+                  {item.badge && badgeCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-surface-container-lowest">
+                      {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                   )}
                 </span>
+                <span className={`text-[10.5px] leading-none ${active ? 'font-bold' : 'font-medium'}`}>{item.name}</span>
               </Link>
             )
           })}
@@ -123,16 +151,16 @@ export function Header(): React.JSX.Element {
           <div className="relative h-full flex items-center" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((o) => !o)}
-              className={`flex items-center gap-1 h-full transition-colors duration-200 cursor-pointer border-b-[2.5px] text-label-md ${
+              className={`flex flex-col items-center justify-center gap-1 min-w-[52px] lg:min-w-[60px] h-full transition-colors duration-200 cursor-pointer ${
                 menuOpen || isOnModulePage
-                  ? 'text-on-surface font-semibold border-secondary'
-                  : 'text-on-surface-variant hover:text-on-surface font-medium border-transparent'
+                  ? 'text-primary'
+                  : 'text-on-surface-variant hover:text-on-surface'
               }`}
               aria-label="All modules"
               aria-expanded={menuOpen}
             >
-              More
-              {menuOpen ? <X className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <MoreHorizontal className="w-[22px] h-[22px]" strokeWidth={menuOpen || isOnModulePage ? 2.4 : 1.9} />
+              <span className={`text-[10.5px] leading-none ${menuOpen || isOnModulePage ? 'font-bold' : 'font-medium'}`}>More</span>
             </button>
 
             {menuOpen && (
@@ -172,16 +200,68 @@ export function Header(): React.JSX.Element {
           </div>
         </nav>
 
-        {/* Right: avatar */}
-        <div className="flex items-center gap-1 justify-end flex-shrink-0">
-          <Link href="/profile" className="flex items-center gap-1 p-1 hover:bg-surface-container rounded-lg transition-colors cursor-pointer">
-            {profile ? (
-              <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="sm" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-surface-container animate-pulse border border-outline-variant" />
-            )}
-            <ChevronDown className="w-3.5 h-3.5 text-outline hidden sm:block" />
+        {/* Right: Rescue + avatar + profile menu */}
+        <div className="flex items-center gap-2 justify-end flex-shrink-0 relative" ref={profileMenuRef}>
+          {/* Emergency rescue CTA */}
+          <Link
+            href="/adoption"
+            className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 text-white text-[13px] font-bold shadow-sm hover:bg-red-700 active:scale-[0.97] transition-all"
+          >
+            <span className="size-2 rounded-full bg-white/90 animate-pulse" />
+            Rescue
           </Link>
+
+          <button
+            onClick={() => setProfileMenuOpen((o) => !o)}
+            className="flex items-center gap-1 p-1 hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+            aria-label="Account menu"
+            aria-expanded={profileMenuOpen}
+          >
+            <span className="rounded-full ring-2 ring-primary/60 ring-offset-1 ring-offset-surface-container-lowest flex">
+              {profile ? (
+                <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="sm" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-surface-container animate-pulse border border-outline-variant" />
+              )}
+            </span>
+            <ChevronDown className={`w-3.5 h-3.5 text-outline hidden sm:block transition-transform ${profileMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {profileMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-surface-container-lowest rounded-2xl border border-outline-variant/25 shadow-xl py-1.5 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {profile && (
+                <div className="px-4 py-2.5 border-b border-outline-variant/20">
+                  <p className="text-[13.5px] font-bold text-on-surface truncate">{profile.displayName}</p>
+                  <p className="text-[11.5px] text-outline truncate">@{profile.username}</p>
+                </div>
+              )}
+              <Link
+                href="/profile"
+                onClick={() => setProfileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-on-surface hover:bg-surface-container transition-colors"
+              >
+                <User className="w-4 h-4 text-outline" />
+                View Profile
+              </Link>
+              <Link
+                href="/settings"
+                onClick={() => setProfileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-on-surface hover:bg-surface-container transition-colors"
+              >
+                <Settings className="w-4 h-4 text-outline" />
+                Settings
+              </Link>
+              <div className="border-t border-outline-variant/20 my-1" />
+              <button
+                onClick={() => void handleSignOut()}
+                disabled={signingOut}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+              >
+                {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+                {signingOut ? 'Signing out…' : 'Sign Out'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

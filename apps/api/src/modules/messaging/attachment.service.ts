@@ -1,5 +1,4 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common'
-import { R2Service } from '../storage/r2.service'
 import { PrismaService } from '../prisma/prisma.service'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
@@ -23,10 +22,7 @@ const ALLOWED_MIME_TYPES = [
 export class AttachmentService {
   private readonly logger = new Logger(AttachmentService.name)
 
-  constructor(
-    private readonly r2: R2Service,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   validateFile(mimeType: string, size: number): void {
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
