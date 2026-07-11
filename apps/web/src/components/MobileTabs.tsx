@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Home, Users, Plus, MessageSquare, User, X,
   Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna,
-  Stethoscope, Activity, Heart,
+  Stethoscope, Activity, Heart, TriangleAlert,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useMessaging } from '@/hooks/use-messaging'
@@ -15,10 +15,10 @@ interface MobileTabsProps {
   onNavigate?: (page: string) => void
 }
 
-const TABS: { page: string; label: string; Icon: LucideIcon; href: string; center?: boolean }[] = [
+const TABS: { page: string; label: string; Icon: LucideIcon; href: string; accent?: boolean }[] = [
   { page: 'home',     label: 'Home',     Icon: Home,          href: '/'         },
-  { page: 'network',  label: 'Network',  Icon: Users,         href: '/network'  },
-  { page: 'more',     label: '',         Icon: Plus,          href: '#', center: true },
+  { page: 'rescue',   label: 'Rescue',   Icon: TriangleAlert, href: '/adoption', accent: true },
+  { page: 'pets',     label: 'Pets',     Icon: Heart,         href: '/pet-care' },
   { page: 'messages', label: 'Messages', Icon: MessageSquare, href: '/messages' },
   { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
 ]
@@ -48,7 +48,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
         <div className="md:hidden fixed inset-0 z-40" onClick={() => setTrayOpen(false)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
-            className="absolute bottom-16 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant rounded-t-2xl p-4 z-50"
+            className="absolute bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 bg-surface-container-lowest border-t border-outline-variant rounded-t-2xl p-4 z-50"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -76,35 +76,40 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
         </div>
       )}
 
+      {/* Floating "+" — explore modules */}
+      <button
+        onClick={() => setTrayOpen((o) => !o)}
+        className="md:hidden fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-50 flex items-center justify-center w-14 h-14 bg-primary rounded-full shadow-xl shadow-primary/30 active:scale-95 transition-transform cursor-pointer"
+        aria-label="Explore modules"
+        aria-expanded={trayOpen}
+      >
+        {trayOpen ? <X className="w-6 h-6 text-white" /> : <Plus className="w-7 h-7 text-white" />}
+      </button>
+
       {/* Bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container-lowest border-t border-outline-variant flex items-center justify-around px-4 z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant/40 flex items-stretch justify-around px-2 z-50 h-[calc(4rem+env(safe-area-inset-bottom))] pb-[env(safe-area-inset-bottom)]">
         {TABS.map((tab) => {
           const isActive = currentPage === tab.page
-          if (tab.center) {
-            return (
-              <button
-                key={tab.page}
-                onClick={() => setTrayOpen((o) => !o)}
-                className="flex items-center justify-center w-12 h-12 bg-primary rounded-full shadow-lg active:scale-95 transition-transform cursor-pointer -mt-4"
-                aria-label="Explore modules"
-              >
-                {trayOpen ? <X className="w-5 h-5 text-white" /> : <Plus className="w-6 h-6 text-white" />}
-              </button>
-            )
-          }
+          const color = tab.accent
+            ? 'text-red-600'
+            : isActive
+              ? 'text-primary'
+              : 'text-on-surface-variant'
           return (
             <Link
               key={tab.page}
               href={tab.href}
-              className={`flex flex-col items-center gap-1 cursor-pointer relative min-w-[44px] ${isActive ? 'text-primary' : 'text-on-surface-variant'}`}
+              className={`flex flex-col items-center justify-center gap-1 cursor-pointer relative min-w-[52px] ${color}`}
             >
-              <tab.Icon className="w-5 h-5" />
-              <span className={`text-[10px] ${isActive ? 'font-semibold' : ''}`}>{tab.label}</span>
-              {tab.page === 'messages' && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
+              <span className="relative">
+                <tab.Icon className="w-[22px] h-[22px]" strokeWidth={isActive ? 2.3 : 1.9} />
+                {tab.page === 'messages' && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-surface-container-lowest">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </span>
+              <span className={`text-[10.5px] leading-none ${isActive || tab.accent ? 'font-semibold' : 'font-medium'}`}>{tab.label}</span>
             </Link>
           )
         })}
