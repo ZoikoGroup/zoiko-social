@@ -188,7 +188,13 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       const body = await res.json().catch(() => null)
       throw new Error(body?.message ?? body?.error?.message ?? `Token error (${res.status})`)
     }
-    const { token, url } = await res.json() as { token: string; url: string }
+    // The API wraps responses in a { success, data } envelope
+    const json = await res.json() as { data?: { token?: string; url?: string }; token?: string; url?: string }
+    const token = json.data?.token ?? json.token
+    const url = json.data?.url ?? json.url
+    if (!token || !url) {
+      throw new Error('Call service returned a malformed token response')
+    }
 
     const room = new Room({ adaptiveStream: true, dynacast: true })
     roomRef.current = room
