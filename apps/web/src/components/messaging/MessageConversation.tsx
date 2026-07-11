@@ -1287,11 +1287,13 @@ export function MessageConversation({
                             }}
                             className={cn(
                               'relative px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words whitespace-pre-wrap select-none overflow-hidden',
-                              isMine
-                                ? editingMessageId === msg.id
-                                  ? 'bg-background border border-outline-variant/30 shadow-sm'
-                                  : 'bg-primary text-primary-foreground rounded-br-md shadow-sm'
-                                : 'bg-background text-foreground rounded-bl-md border border-outline-variant/25 shadow-sm',
+                              msg.type === 'call'
+                                ? 'bg-surface-container/80 text-muted-foreground border border-outline-variant/30 rounded-full px-4 py-2 text-[12.5px] font-medium'
+                                : isMine
+                                  ? editingMessageId === msg.id
+                                    ? 'bg-background border border-outline-variant/30 shadow-sm'
+                                    : 'bg-primary text-primary-foreground rounded-br-md shadow-sm'
+                                  : 'bg-background text-foreground rounded-bl-md border border-outline-variant/25 shadow-sm',
                             )}
                           >
                             {editingMessageId === msg.id ? (

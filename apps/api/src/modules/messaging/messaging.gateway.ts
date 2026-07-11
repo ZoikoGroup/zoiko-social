@@ -36,6 +36,17 @@ interface CallSignal {
 export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(MessagingGateway.name)
 
+  /**
+   * In-flight 1:1 calls keyed by conversationId — used to write a call record
+   * ("Voice call · 2:05" / "Missed video call") into the chat when the call
+   * finishes. In-memory state: fine on a single API instance (current
+   * deployment); calls are short-lived and a lost record is non-critical.
+   */
+  private readonly activeCalls = new Map<
+    string,
+    { callerId: string; callType: 'audio' | 'video'; acceptedAt: number | null }
+  >()
+
   @WebSocketServer()
   server!: Server
 
@@ -176,28 +187,53 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     })
   }
 
+  /** Close out an in-flight call and write its record into the conversation. */
+  private recordCall(conversationId: string | undefined, status: 'ended' | 'missed' | 'declined'): void {
+    if (!conversationId) return
+    const call = this.activeCalls.get(conversationId)
+    if (!call) return
+    this.activeCalls.delete(conversationId)
+    const durationSec = call.acceptedAt ? Math.round((Date.now() - call.acceptedAt) / 1000) : 0
+    this.messagingService
+      .recordCallMessage(call.callerId, conversationId, { kind: call.callType, status, durationSec })
+      .catch((err: Error) => this.logger.warn(`Call record failed: ${err.message}`))
+  }
+
   @SubscribeMessage('call:invite')
   async onCallInvite(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:invite', body)
+    if (client.data.userId && body?.conversationId) {
+      this.activeCalls.set(body.conversationId, {
+        callerId: client.data.userId,
+        callType: body.callType ?? 'audio',
+        acceptedAt: null,
+      })
+    }
   }
 
   @SubscribeMessage('call:accept')
   async onCallAccept(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:accept', body)
+    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    if (call && !call.acceptedAt) call.acceptedAt = Date.now()
   }
 
   @SubscribeMessage('call:reject')
   async onCallReject(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:reject', body)
+    // busy = the callee never saw it ring → record as missed, not declined
+    this.recordCall(body?.conversationId, body?.reason === 'busy' ? 'missed' : 'declined')
   }
 
   @SubscribeMessage('call:cancel')
   async onCallCancel(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:cancel', body)
+    this.recordCall(body?.conversationId, 'missed')
   }
 
   @SubscribeMessage('call:end')
   async onCallEnd(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:end', body)
+    this.recordCall(body?.conversationId, 'ended')
   }
 }

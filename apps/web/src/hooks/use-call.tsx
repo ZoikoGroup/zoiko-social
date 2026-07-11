@@ -13,6 +13,7 @@ import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { ringback, ringtone, playEndBlip, startVibration, stopVibration } from '@/lib/call-sounds'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,9 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const roomRef = useRef<Room | null>(null)
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Prefetched LiveKit token for an incoming call — resolves while the phone
+  // "rings", so accepting only has to connect + enable the mic (faster pickup).
+  const prefetchedTokenRef = useRef<Promise<{ token: string; url: string }> | null>(null)
   // Mirror live state for use inside stable socket callbacks (avoids stale closures).
   const infoRef = useRef<CallInfo | null>(null)
   const statusRef = useRef<CallStatus>('idle')
@@ -130,6 +134,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const reset = useCallback(() => {
     clearRingTimer()
     teardownRoom()
+    prefetchedTokenRef.current = null
     setStatus('idle')
     setCallInfo(null)
     setEndReason(null)
@@ -176,13 +181,14 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     syncConnected()
   }, [finishCall])
 
-  const connectRoom = useCallback(async (info: CallInfo) => {
+  /** Mint a LiveKit access token for this conversation's call room. */
+  const fetchToken = useCallback(async (conversationId: string): Promise<{ token: string; url: string }> => {
     if (!API_URL) throw new Error('API URL not configured')
     const authToken = await getAuthToken()
     const res = await fetch(`${API_URL}/api/v1/livekit/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
-      body: JSON.stringify({ conversationId: info.conversationId }),
+      body: JSON.stringify({ conversationId }),
     })
     if (!res.ok) {
       const body = await res.json().catch(() => null)
@@ -192,9 +198,14 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     const json = await res.json() as { data?: { token?: string; url?: string }; token?: string; url?: string }
     const token = json.data?.token ?? json.token
     const url = json.data?.url ?? json.url
-    if (!token || !url) {
-      throw new Error('Call service returned a malformed token response')
-    }
+    if (!token || !url) throw new Error('Call service returned a malformed token response')
+    return { token, url }
+  }, [])
+
+  const connectRoom = useCallback(async (info: CallInfo, prefetched?: Promise<{ token: string; url: string }> | null) => {
+    // A failed prefetch falls back to a fresh mint
+    const prefetchedCreds = prefetched ? await prefetched.catch(() => null) : null
+    const { token, url } = prefetchedCreds ?? await fetchToken(info.conversationId)
 
     const room = new Room({ adaptiveStream: true, dynacast: true })
     roomRef.current = room
@@ -207,7 +218,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       const pub = room.localParticipant.getTrackPublication(Track.Source.Camera)
       setLocalVideoTrack((pub?.videoTrack as LocalVideoTrack | undefined) ?? null)
     }
-  }, [attachRoomEvents])
+  }, [attachRoomEvents, fetchToken])
 
   // ── Public actions ─────────────────────────────────────────────────────────
 
@@ -225,18 +236,22 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     setCallInfo(info)
     setStatus('outgoing')
 
+    // Signal the callee IMMEDIATELY — their phone starts ringing while we
+    // connect to the media room in parallel (was sequential before, adding
+    // seconds of dead time between pressing call and the other side ringing).
+    emitSignal('call:invite', info)
+    ringTimerRef.current = setTimeout(() => {
+      if (statusRef.current === 'outgoing') {
+        emitSignal('call:cancel', info, { reason: 'no_answer' })
+        finishCall('No answer')
+      }
+    }, RING_TIMEOUT_MS)
+
     void (async () => {
       try {
         await connectRoom(info)
-        emitSignal('call:invite', info)
-        // Auto-cancel if unanswered.
-        ringTimerRef.current = setTimeout(() => {
-          if (statusRef.current === 'outgoing') {
-            emitSignal('call:cancel', info, { reason: 'no_answer' })
-            finishCall('No answer')
-          }
-        }, RING_TIMEOUT_MS)
       } catch (err) {
+        emitSignal('call:cancel', info, { reason: 'error' })
         toastError('Call failed', err instanceof Error ? err.message : 'Could not start the call')
         finishCall('Call failed')
       }
@@ -250,11 +265,14 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     setStatus('connecting')
     void (async () => {
       try {
-        await connectRoom(info)
+        // Use the token prefetched while ringing (fast path)
+        await connectRoom(info, prefetchedTokenRef.current)
+        prefetchedTokenRef.current = null
         emitSignal('call:accept', info)
         // Caller is already in the room; reflect connected immediately.
         if (roomRef.current && roomRef.current.remoteParticipants.size > 0) setStatus('connected')
       } catch (err) {
+        prefetchedTokenRef.current = null
         toastError('Call failed', err instanceof Error ? err.message : 'Could not join the call')
         emitSignal('call:reject', info, { reason: 'error' })
         finishCall('Call failed')
@@ -306,6 +324,25 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     return () => clearInterval(t)
   }, [status])
 
+  // ── Ringing sounds ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (status === 'outgoing') {
+      ringback.start()
+      return () => ringback.stop()
+    }
+    if (status === 'incoming') {
+      ringtone.start()
+      startVibration()
+      return () => {
+        ringtone.stop()
+        stopVibration()
+      }
+    }
+    if (status === 'ended') playEndBlip()
+    return undefined
+  }, [status])
+
   // ── Incoming-call socket listeners (global) ──────────────────────────────────
 
   useEffect(() => {
@@ -331,6 +368,10 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       })
       setEndReason(null)
       setStatus('incoming')
+      // Mint the media token while the phone rings — accepting is then instant
+      const prefetch = fetchToken(data.conversationId)
+      prefetch.catch(() => undefined) // silence unhandled rejection if the call is never accepted
+      prefetchedTokenRef.current = prefetch
     }
     const onAccept = () => {
       // Callee accepted; their join fires ParticipantConnected → connected.
@@ -365,7 +406,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
         socket?.off('call:end', onCancelOrEnd)
       })
     }
-  }, [isAuthenticated, user?.id, clearRingTimer, finishCall])
+  }, [isAuthenticated, user?.id, clearRingTimer, finishCall, fetchToken])
 
   const value: CallContextValue = {
     status, callInfo, endReason, isMuted, isCameraOff, duration,

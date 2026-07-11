@@ -482,6 +482,56 @@ export class MessagingService {
     }
   }
 
+  /**
+   * Write a call record into the conversation (WhatsApp-style), e.g.
+   * "📞 Voice call · 2:05" or "📞 Missed voice call". Broadcast like a normal
+   * message so both parties see it appear in the thread immediately.
+   */
+  async recordCallMessage(
+    callerId: string,
+    conversationId: string,
+    call: { kind: 'audio' | 'video'; status: 'ended' | 'missed' | 'declined'; durationSec?: number },
+  ): Promise<void> {
+    const icon = call.kind === 'video' ? '🎥' : '📞'
+    const label = call.kind === 'video' ? 'Video call' : 'Voice call'
+    const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
+    const body =
+      call.status === 'ended'
+        ? `${icon} ${label} · ${fmt(Math.max(1, call.durationSec ?? 1))}`
+        : call.status === 'declined'
+          ? `${icon} ${label} declined`
+          : `${icon} Missed ${label.toLowerCase()}`
+
+    const message = await this.prisma.message.create({
+      data: { conversationId, senderId: callerId, body, type: 'call' },
+      include: {
+        sender: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+      },
+    })
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: message.createdAt },
+    })
+
+    await this.realtime.publish(`conversation:${conversationId}`, 'message:new', {
+      id: message.id,
+      conversationId,
+      sender: {
+        id: message.sender.id,
+        username: message.sender.username,
+        displayName: message.sender.displayName,
+        avatarUrl: message.sender.avatarUrl,
+      },
+      type: 'call',
+      body,
+      mediaUrls: [],
+      parentId: null,
+      parent: null,
+      createdAt: message.createdAt.toISOString(),
+    })
+  }
+
   async deleteMessage(userId: string, messageId: string, forEveryone = false): Promise<void> {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
