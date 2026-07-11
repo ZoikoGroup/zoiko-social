@@ -46,4 +46,9 @@ EXPOSE 4000
 
 ENV NODE_ENV=production
 
+# Git SHA of the source this image was built from — surfaced at
+# /api/v1/health/version so deploys can be verified end-to-end.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 CMD ["node", "dist/main"]

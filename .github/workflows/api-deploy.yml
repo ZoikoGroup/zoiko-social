@@ -5,12 +5,14 @@ name: Deploy API → Render
 #
 # 1. Set up GitHub Container Registry access:
 #    The GITHUB_TOKEN can push packages to ghcr.io automatically.
-#    Image will be at: ghcr.io/zoikosocial/zoiko-api
+#    Image will be at: ghcr.io/zoikogroup/zoiko-social/zoiko-api
 #
 # 2. Update Render Service:
 #    Render Dashboard → zoiko-api → Settings
 #    - Environment: Existing Image (not Docker)
-#    - Image URL: ghcr.io/zoikosocial/zoiko-api:latest
+#    - Image URL: ghcr.io/zoikogroup/zoiko-social/zoiko-api:latest
+#      (MUST match what this workflow pushes — a stale path here means Render
+#       keeps redeploying an old frozen image while this workflow stays green)
 #    - Auto-deploy: OFF (this workflow triggers deploy via hook)
 #
 # 3. Copy the Deploy Hook URL from:
@@ -44,7 +46,7 @@ jobs:
   deploy:
     name: Deploy API to Render
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -107,6 +109,8 @@ jobs:
           context: .
           file: Dockerfile.api
           push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           tags: |
             ${{ steps.reg.outputs.image }}:latest
             ${{ steps.reg.outputs.image }}:${{ github.sha }}
@@ -118,3 +122,24 @@ jobs:
         run: |
           curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
           echo "Render deploy triggered"
+
+      # ── 7. Verify production actually went live ────────────────────────────
+      # Render rolls back silently when a deploy fails (and a stale Image URL
+      # makes every "deploy" redeploy old bits) — GitHub can't see either.
+      # Poll the version endpoint until prod serves THIS commit, or fail red.
+      - name: Verify production is running this build
+        run: |
+          echo "Waiting for api.zoikosocial.com to serve build ${GITHUB_SHA}…"
+          body=""
+          for i in $(seq 1 48); do
+            body=$(curl -fsS -m 10 "https://api.zoikosocial.com/api/v1/health/version" 2>/dev/null || true)
+            if echo "$body" | grep -q "${GITHUB_SHA}"; then
+              echo "✅ Production is live on ${GITHUB_SHA}"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Production never picked up ${GITHUB_SHA} after 12 minutes."
+          echo "::error::Version endpoint returned: ${body:-<no response — old build without /health/version>}"
+          echo "::error::Check Render Dashboard → zoiko-api → Events for a failed deploy, and Settings → Image URL (must be ghcr.io/zoikogroup/zoiko-social/zoiko-api:latest)."
+          exit 1

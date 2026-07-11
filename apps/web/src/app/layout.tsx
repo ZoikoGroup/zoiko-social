@@ -36,7 +36,10 @@ export default function RootLayout({
         {API_ORIGIN && <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />}
         {SUPABASE_ORIGIN && <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />}
       </head>
-      <body className="font-body antialiased bg-background text-on-surface">
+      {/* suppressHydrationWarning: browser extensions (Grammarly etc.) inject attributes
+          into <body> before React hydrates — only attribute diffs on this element are
+          suppressed; child hydration mismatches still surface normally. */}
+      <body className="font-body antialiased bg-background text-on-surface" suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>
