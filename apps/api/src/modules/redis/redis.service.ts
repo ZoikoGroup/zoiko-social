@@ -718,11 +718,15 @@ export class RedisService implements OnModuleDestroy {
 
   // ── PUB/SUB ───────────────────────────────────────────────────────────────
 
-  /** Publish a realtime event; returns false when Redis is unavailable so callers can fall back to local emit. */
-  async publishRealtime(room: string, event: string, payload: unknown): Promise<boolean> {
+  /**
+   * Publish a realtime event for OTHER instances to relay; returns false when
+   * Redis is unavailable. `origin` identifies the publishing instance so its
+   * own subscriber can skip the message (the publisher already emitted locally).
+   */
+  async publishRealtime(room: string, event: string, payload: unknown, origin?: string): Promise<boolean> {
     if (!this.client) return false
     try {
-      await this.client.publish(REALTIME_CHANNEL, JSON.stringify({ room, event, payload }))
+      await this.client.publish(REALTIME_CHANNEL, JSON.stringify({ room, event, payload, origin }))
       return true
     } catch (err) {
       this.logger.warn(`publishRealtime failed: ${(err as Error).message}`)
