@@ -46,6 +46,15 @@ const USERNAME_MESSAGES: Record<UsernameStatus, string> = {
   reserved: 'This username is not available',
 }
 
+const AUTH_LANGUAGES: { code: string; label: string }[] = [
+  { code: 'en', label: 'US English' },
+  { code: 'en-GB', label: 'UK English' },
+  { code: 'es', label: 'Español' },
+  { code: 'fr', label: 'Français' },
+  { code: 'de', label: 'Deutsch' },
+  { code: 'pt', label: 'Português' },
+]
+
 /* ---------------------------------- Brand icons ---------------------------------- */
 
 function GoogleIcon({ className }: { className?: string }) {
@@ -150,6 +159,37 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(null)
   const [rememberMe, setRememberMe] = useState(true)
+  const [language, setLanguage] = useState(() => {
+    if (typeof window === 'undefined') return 'en'
+    try {
+      return localStorage.getItem('zoiko-language') ?? 'en'
+    } catch {
+      return 'en'
+    }
+  })
+  const [langOpen, setLangOpen] = useState(false)
+
+  // Keep in sync when the language is changed from the settings page (other tab)
+  useEffect(() => {
+    function handle(e: StorageEvent) {
+      if (e.key === 'zoiko-language' && e.newValue) setLanguage(e.newValue)
+    }
+    window.addEventListener('storage', handle)
+    return () => window.removeEventListener('storage', handle)
+  }, [])
+
+  const currentLang = AUTH_LANGUAGES.find((l) => l.code === language) ?? AUTH_LANGUAGES[0]!
+
+  function handleLanguageSelect(code: string) {
+    setLanguage(code)
+    setLangOpen(false)
+    try {
+      localStorage.setItem('zoiko-language', code)
+    } catch {
+      // localStorage unavailable
+    }
+  }
+
   const [registered] = useState<boolean>(() => {
     if (typeof window === 'undefined' || mode !== 'login') return false
     return new URLSearchParams(window.location.search).get('registered') === 'true'
@@ -336,16 +376,46 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
 
           {/* -------------------- RIGHT — Form -------------------- */}
           <div className="relative flex flex-1 flex-col px-6 pb-10 pt-6 sm:px-10 lg:px-16">
-            {/* Language selector */}
-            <div className="flex justify-end">
+            {/* Language selector dropdown */}
+            <div className="relative flex justify-end">
               <button
                 type="button"
+                onClick={() => setLangOpen(!langOpen)}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-gray-600 transition-colors hover:text-gray-900"
               >
                 <Globe className="size-4" />
-                English (US)
-                <ChevronDown className="size-4" />
+                {currentLang.label}
+                <ChevronDown className={`size-4 transition-transform ${langOpen ? 'rotate-180' : ''}`} />
               </button>
+
+              {langOpen && (
+                <>
+                  {/* Backdrop to close on outside click */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setLangOpen(false)}
+                  />
+                  <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    {AUTH_LANGUAGES.map((lang) => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => handleLanguageSelect(lang.code)}
+                        className={`flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm transition-colors ${
+                          lang.code === language
+                            ? 'bg-primary/10 font-semibold text-primary'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {lang.code === language && (
+                          <CheckCircle2 className="size-3.5 shrink-0" />
+                        )}
+                        <span className={lang.code === language ? '' : 'ml-5'}>{lang.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex flex-1 items-center justify-center py-6">

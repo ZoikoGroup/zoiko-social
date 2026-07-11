@@ -339,10 +339,28 @@ function NotificationSettings(): React.JSX.Element {
 
 function PreferencesSettings(): React.JSX.Element {
   const [prefs, setPrefs] = useState({ darkMode: false, reducedMotion: false, compactView: false })
-  const [language, setLanguage] = useState('en')
+  const [language, setLanguage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('zoiko-language') ?? 'en'
+      } catch {
+        return 'en'
+      }
+    }
+    return 'en'
+  })
 
   function toggle(key: keyof typeof prefs): void {
     setPrefs((p) => ({ ...p, [key]: !p[key] }))
+  }
+
+  function handleLanguageChange(code: string) {
+    setLanguage(code)
+    try {
+      localStorage.setItem('zoiko-language', code)
+    } catch {
+      // localStorage unavailable
+    }
   }
 
   return (
@@ -355,10 +373,11 @@ function PreferencesSettings(): React.JSX.Element {
         </h4>
         <select
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
+          onChange={(e) => handleLanguageChange(e.target.value)}
           className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all appearance-none cursor-pointer"
         >
-          <option value="en">English (US)</option>
+          <option value="en">US English</option>
+          <option value="en-GB">UK English</option>
           <option value="es">Español</option>
           <option value="fr">Français</option>
           <option value="de">Deutsch</option>
