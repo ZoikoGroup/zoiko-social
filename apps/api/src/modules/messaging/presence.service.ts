@@ -45,14 +45,19 @@ export class PresenceService {
   }
 
   async setTyping(userId: string, conversationId: string, isTyping: boolean): Promise<void> {
-    if (isTyping) {
-      await this.redis.rawClient?.setex(
-        `${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`,
-        15,
-        '1',
-      )
-    } else {
-      await this.redis.rawClient?.del(`${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`)
+    // Best-effort — a Redis outage/quota rejection must never break typing events
+    try {
+      if (isTyping) {
+        await this.redis.rawClient?.setex(
+          `${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`,
+          15,
+          '1',
+        )
+      } else {
+        await this.redis.rawClient?.del(`${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`)
+      }
+    } catch {
+      // degrade silently — the broadcast below still tells clients
     }
 
     // Broadcast to the conversation room
@@ -64,8 +69,13 @@ export class PresenceService {
   }
 
   async getPresence(userId: string): Promise<{ status: string; lastSeen: string | null; isOnline: boolean }> {
-    // Check Redis first (fast path)
-    const cached = await this.redis.rawClient?.hgetall(`${PRESENCE_KEY_PREFIX}user:${userId}`)
+    // Check Redis first (fast path) — fall through to the DB on any Redis failure
+    let cached: Record<string, string> | undefined
+    try {
+      cached = await this.redis.rawClient?.hgetall(`${PRESENCE_KEY_PREFIX}user:${userId}`)
+    } catch {
+      cached = undefined
+    }
     if (cached?.status) {
       return {
         status: cached.status,
@@ -93,18 +103,26 @@ export class PresenceService {
   }
 
   async isTyping(conversationId: string, userId: string): Promise<boolean> {
-    const exists = await this.redis.rawClient?.exists(
-      `${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`,
-    )
-    return exists === 1
+    try {
+      const exists = await this.redis.rawClient?.exists(
+        `${PRESENCE_KEY_PREFIX}typing:${conversationId}:${userId}`,
+      )
+      return exists === 1
+    } catch {
+      return false
+    }
   }
 
   private async storePresence(userId: string, data: { status: string; lastSeen: string; device?: string }): Promise<void> {
     const redisKey = `${PRESENCE_KEY_PREFIX}user:${userId}`
 
-    // Redis cache
-    await this.redis.rawClient?.hset(redisKey, data)
-    await this.redis.rawClient?.expire(redisKey, PRESENCE_TTL_SECONDS)
+    // Redis cache — best-effort; the DB below is the source of truth
+    try {
+      await this.redis.rawClient?.hset(redisKey, data)
+      await this.redis.rawClient?.expire(redisKey, PRESENCE_TTL_SECONDS)
+    } catch {
+      // degrade to DB-only presence
+    }
 
     // Database
     await this.prisma.userPresence.upsert({

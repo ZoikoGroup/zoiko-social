@@ -7,6 +7,17 @@ import { Logger } from '@nestjs/common'
 import { ConfigService } from './modules/config/config.service'
 
 async function bootstrap(): Promise<void> {
+  // ── Crash safety net ──────────────────────────────────────────────────────
+  // Node ≥15 kills the process on any unhandled promise rejection. A single
+  // floating promise that rejects (e.g. a best-effort Redis write while the
+  // provider is over quota) must degrade to a log line, not take down the API
+  // — this exact failure mode crashed production repeatedly (Render then
+  // rolled back / 502'd while the process restarted).
+  process.on('unhandledRejection', (reason) => {
+    const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
+    new Logger('UnhandledRejection').error(msg)
+  })
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: true }),

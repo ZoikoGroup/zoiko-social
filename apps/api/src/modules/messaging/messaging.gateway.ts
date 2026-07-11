@@ -75,9 +75,13 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   async handleDisconnect(client: AuthSocket): Promise<void> {
     if (client.data.userId) {
-      // Set offline with a small delay to handle reconnections
+      // Set offline with a small delay to handle reconnections.
+      // MUST catch: a rejection here (e.g. Redis/DB hiccup) is otherwise an
+      // unhandled rejection, which kills the whole process on Node ≥15.
       setTimeout(() => {
-        void this.presenceService.setOffline(client.data.userId!)
+        this.presenceService.setOffline(client.data.userId!).catch((err: Error) => {
+          this.logger.warn(`setOffline failed for ${client.data.userId}: ${err.message}`)
+        })
       }, 5_000)
     }
   }
