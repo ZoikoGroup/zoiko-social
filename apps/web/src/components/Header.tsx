@@ -95,13 +95,17 @@ export function Header(): React.JSX.Element {
 
         {/* Left: Logo + Search */}
         <div className="flex items-center gap-4 lg:gap-6 flex-1 min-w-0">
-          <Link href="/" className="flex flex-col items-start flex-shrink-0 gap-0.5">
+          {/* Mobile: compact icon mark · Desktop: full wordmark + tagline */}
+          <Link href="/" className="md:hidden flex-shrink-0" aria-label="Home">
+            <Image src="/logo.svg" alt="ZoikoSocial" height={38} width={38} priority className="h-[38px] w-[38px] rounded-xl object-contain" />
+          </Link>
+          <Link href="/" className="hidden md:flex flex-col items-start flex-shrink-0 gap-0.5">
             <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={134} priority className="h-[30px] w-auto object-contain" />
             <span className="hidden lg:block text-[7.5px] font-bold tracking-[0.28em] text-outline uppercase leading-none pl-0.5">
               Animal Welfare Network
             </span>
           </Link>
-          <div className="hidden md:flex relative flex-1 max-w-xl">
+          <div className="flex relative flex-1 max-w-xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
               className="pl-11 pr-4 py-2.5 w-full bg-surface-container border border-transparent focus:border-primary/40 focus:bg-surface-container-lowest focus:shadow-sm focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70 placeholder:font-normal"
@@ -119,8 +123,8 @@ export function Header(): React.JSX.Element {
           </div>
         </div>
 
-        {/* Center: Primary navigation — icon above label */}
-        <nav className="flex items-center justify-center gap-0.5 md:gap-2 lg:gap-4 h-full flex-shrink-0 mx-2 lg:mx-5">
+        {/* Center: Primary navigation — icon above label (desktop; mobile uses the bottom tab bar) */}
+        <nav className="hidden md:flex items-center justify-center gap-0.5 md:gap-2 lg:gap-4 h-full flex-shrink-0 mx-2 lg:mx-5">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href)
             const badgeCount = item.badge === 'alerts' ? notifUnreadCount : item.badge === 'messages' ? msgUnreadCount : 0
@@ -200,7 +204,7 @@ export function Header(): React.JSX.Element {
           </div>
         </nav>
 
-        {/* Right: Rescue + avatar + profile menu */}
+        {/* Right: Rescue + alerts (mobile) / avatar menu (desktop) */}
         <div className="flex items-center gap-2 justify-end flex-shrink-0 relative" ref={profileMenuRef}>
           {/* Emergency rescue CTA */}
           <Link
@@ -211,9 +215,23 @@ export function Header(): React.JSX.Element {
             Rescue
           </Link>
 
+          {/* Mobile: alerts bell (profile lives in the bottom tab bar) */}
+          <Link
+            href="/notifications"
+            className="md:hidden relative flex items-center justify-center size-10 rounded-full text-on-surface-variant hover:bg-surface-container transition-colors"
+            aria-label="Alerts"
+          >
+            <Bell className="w-[22px] h-[22px]" strokeWidth={1.9} />
+            {notifUnreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-secondary text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-surface-container-lowest">
+                {notifUnreadCount > 99 ? '99+' : notifUnreadCount}
+              </span>
+            )}
+          </Link>
+
           <button
             onClick={() => setProfileMenuOpen((o) => !o)}
-            className="flex items-center gap-1 p-1 hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
+            className="hidden md:flex items-center gap-1 p-1 hover:bg-surface-container rounded-lg transition-colors cursor-pointer"
             aria-label="Account menu"
             aria-expanded={profileMenuOpen}
           >
