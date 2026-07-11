@@ -4,6 +4,7 @@ import type Redis from 'ioredis'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { ConfigService } from '../config/config.service'
+import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 
 /**
  * ScheduledJobsService — repeatable BullMQ jobs for counter reconciliation
@@ -99,7 +100,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
       async () => {
         await this.runCounterReconciliation()
       },
-      { connection, concurrency: 1 },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
     )
 
     worker.on('completed', (job) => {
@@ -230,7 +231,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
       async () => {
         await this.runNotificationCleanup()
       },
-      { connection, concurrency: 1 },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
     )
 
     worker.on('completed', (job) => {

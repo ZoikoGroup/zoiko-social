@@ -4,6 +4,7 @@ import type Redis from 'ioredis'
 import { RedisService } from '../redis/redis.service'
 import { NotificationWriterService, type NotificationJobData } from './notification-writer.service'
 import { ConfigService } from '../config/config.service'
+import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 
 export const NOTIFICATIONS_QUEUE = 'notifications'
 
@@ -60,7 +61,7 @@ export class NotificationQueueService implements OnModuleInit, OnModuleDestroy {
       async (job: Job) => {
         await this.writer.write(job.data as NotificationJobData)
       },
-      { connection: this.workerConnection, concurrency: 10 },
+      { connection: this.workerConnection, concurrency: 10, ...LOW_CHURN_WORKER_OPTS },
     )
 
     this.worker.on('failed', (job, err) => {

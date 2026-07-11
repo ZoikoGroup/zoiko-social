@@ -3,8 +3,9 @@ import { Job } from 'bullmq'
 import { Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { LOW_CHURN_WORKER_OPTS } from '../queue/worker-options'
 
-@Processor('messaging')
+@Processor('messaging', LOW_CHURN_WORKER_OPTS)
 export class MessagingProcessor extends WorkerHost {
   private readonly logger = new Logger(MessagingProcessor.name)
 

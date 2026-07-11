@@ -5,6 +5,7 @@ import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { ConfigService } from '../config/config.service'
+import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 
 export const FEED_QUEUE = 'feed'
 
@@ -61,7 +62,7 @@ export class FeedFanoutService implements OnModuleInit, OnModuleDestroy {
         this.worker = new Worker(
           FEED_QUEUE,
           async (job: Job) => this.process(job.data as FanoutJob),
-          { connection: this.workerConnection, concurrency: 5 },
+          { connection: this.workerConnection, concurrency: 5, ...LOW_CHURN_WORKER_OPTS },
         )
         this.worker.on('failed', (job, err) => {
           this.logger.error(`Feed fanout job ${job?.id} failed: ${err.message}`)

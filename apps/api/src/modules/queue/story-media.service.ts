@@ -9,6 +9,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { ConfigService } from '../config/config.service'
 import { TranscodeService, type TranscodeResult } from '../stories/media/transcode.service'
 import { MEDIA_STORAGE, type MediaStorage } from '../stories/media/media-storage.interface'
+import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 
 /** URLs of an uploaded transcode tree, or null when running degraded (no ffmpeg). */
 type RenditionUrls = {
@@ -120,7 +121,7 @@ export class StoryMediaService implements OnModuleInit, OnModuleDestroy {
         this.worker = new Worker(
           STORY_MEDIA_QUEUE,
           async (job: Job) => this.process(job.data as StoryMediaJob),
-          { connection: this.workerConnection, concurrency: 4 },
+          { connection: this.workerConnection, concurrency: 4, ...LOW_CHURN_WORKER_OPTS },
         )
         this.worker.on('failed', (job, err) => {
           this.logger.error(`Story media job ${job?.id} failed: ${err.message}`)
@@ -133,7 +134,7 @@ export class StoryMediaService implements OnModuleInit, OnModuleDestroy {
         this.lifecycleWorker = new Worker(
           STORY_LIFECYCLE_QUEUE,
           async (job: Job) => this.processLifecycle(job.data as StoryLifecycleJob),
-          { connection: this.lifecycleConnection, concurrency: 2 },
+          { connection: this.lifecycleConnection, concurrency: 2, ...LOW_CHURN_WORKER_OPTS },
         )
         this.lifecycleWorker.on('failed', (job, err) => {
           this.logger.error(`Story lifecycle job ${job?.id} failed: ${err.message}`)
