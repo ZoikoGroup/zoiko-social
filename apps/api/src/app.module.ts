@@ -4,6 +4,8 @@ import { AppService } from './app.service'
 import { ConfigModule } from './modules/config/config.module'
 import { DatabaseModule } from './modules/database/database.module'
 import { CommonModule } from './modules/common/common.module'
+import { AuditLogModule } from './modules/common/audit-log/audit-log.module'
+import { ModerationModule } from './modules/common/moderation/moderation.module'
 import { AuthModule } from './modules/auth/auth.module'
 import { PrismaModule } from './modules/prisma/prisma.module'
 import { RedisModule } from './modules/redis/redis.module'
@@ -31,6 +33,8 @@ import { HealthModule } from './health/health.module'
 import { MessagingModule } from './modules/messaging/messaging.module'
 import { LivekitModule } from './modules/livekit/livekit.module'
 import { R2Module } from './modules/storage/r2.module'
+import { ModerationOpsModule } from './modules/moderation/moderation.module'
+import { PaymentsModule } from './modules/payments/payments.module'
 
 @Module({
   imports: [
@@ -41,6 +45,8 @@ import { R2Module } from './modules/storage/r2.module'
     RealtimeModule,
     QueueModule,
     CommonModule,
+    AuditLogModule,
+    ModerationModule,
     AuthModule,
     ProfileModule,
     NetworkModule,
@@ -64,6 +70,8 @@ import { R2Module } from './modules/storage/r2.module'
     MessagingModule,
     LivekitModule,
     R2Module,
+    ModerationOpsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

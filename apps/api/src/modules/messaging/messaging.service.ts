@@ -6,6 +6,7 @@ import { SupabaseStorageService } from '../storage/supabase-storage.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
 import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import type {
   ConversationResponse,
   SuggestionResponse,
@@ -24,6 +25,7 @@ export class MessagingService {
     private readonly storage: SupabaseStorageService,
     private readonly privacy: MessagingPrivacyService,
     private readonly presence: PresenceService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -398,6 +400,7 @@ export class MessagingService {
     if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0)) {
       throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content or media' })
     }
+    if (input.body) this.profanity.assertClean(input.body, { actorId: userId, entityType: 'message' })
 
     const message = await this.prisma.message.create({
       data: {
@@ -566,6 +569,7 @@ export class MessagingService {
     if (message.senderId !== userId) {
       throw new ForbiddenException({ code: 'NOT_SENDER', message: 'You can only edit your own messages' })
     }
+    this.profanity.assertClean(body, { actorId: userId, entityType: 'message' })
 
     await this.prisma.message.update({
       where: { id: messageId },

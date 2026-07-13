@@ -15,8 +15,12 @@ export interface VideoRendition {
   audioBitrate: string // e.g. '128k'
 }
 
+// 1080p rendition intentionally dropped — stories are short-form, mostly
+// mobile-viewed, and each rendition + the mp4 fallback is re-uploaded to
+// storage from the transcode worker (Render egress). 720p as the top
+// rendition materially cuts that bandwidth with no visible quality loss on
+// the devices most viewers actually use.
 export const HLS_RENDITIONS: VideoRendition[] = [
-  { label: '1080', width: 1920, height: 1080, bitrate: '3000k', audioBitrate: '128k' },
   { label: '720',  width: 1280, height: 720,  bitrate: '2000k', audioBitrate: '96k' },
   { label: '480',  width: 854,  height: 480,  bitrate: '1000k', audioBitrate: '64k' },
 ]
@@ -297,11 +301,15 @@ export class TranscodeService {
     const masterPath = path.join(workDir, 'master.m3u8')
     fs.writeFileSync(masterPath, masterPlaylist)
 
-    // Generate mp4 fallback (best rendition)
+    // Generate mp4 fallback, capped at the top HLS rendition's resolution
+    // rather than the source's — otherwise a 4K/1080p upload re-encodes (and
+    // re-uploads to storage) at full resolution just for this one fallback file.
+    const topRendition = HLS_RENDITIONS[0]!
     const mp4Path = path.join(workDir, 'fallback.mp4')
     await this.runFfmpeg([
       '-i', inputPath,
       ...(audioTrackPath ? ['-i', audioTrackPath, '-shortest'] : []),
+      '-vf', `scale='min(${topRendition.width},iw)':'min(${topRendition.height},ih)':force_original_aspect_ratio=decrease`,
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-crf', '23',

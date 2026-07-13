@@ -761,6 +761,30 @@ export const shopApi = {
   enquire: (id: string, input: { message?: string }) => mutate<{ status: string }>(`/shop/${id}/enquiries`, { method: 'POST', body: JSON.stringify(input) }),
 }
 
+// ── Orders (Shop checkout via Stripe) ────────────────────────────────────────
+
+export interface Order {
+  id: string
+  productId: string
+  buyerId: string
+  sellerId: string
+  quantity: number
+  amountCents: number
+  currency: string
+  status: string
+  createdAt: string
+}
+
+export const orderApi = {
+  checkout: (productId: string, quantity = 1) =>
+    mutate<{ url: string; orderId: string }>(`/shop/${productId}/checkout`, {
+      method: 'POST',
+      body: JSON.stringify({ quantity }),
+    }),
+  mine: () => request<Order[]>('/orders/mine'),
+  selling: () => request<Order[]>('/orders/selling'),
+}
+
 export interface BreedingProfile {
   id: string
   owner: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
@@ -1499,4 +1523,106 @@ export const networkApi = {
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/followers/${userId}?page=${page}&limit=${limit}`),
   getFollowing: (userId: string, page = 1, limit = 20) =>
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/following/${userId}?page=${page}&limit=${limit}`),
+}
+
+// ── Verification review API (admin) ─────────────────────────────────────────
+
+export interface VerificationDocument {
+  id: string
+  documentType: string
+  documentUrl: string
+  fileName: string | null
+  status: string
+  createdAt: string
+}
+
+export interface VerificationRequest {
+  id: string
+  userId: string
+  user: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+  type: string
+  status: string
+  categorySlug: string | null
+  notes: string | null
+  reviewedBy: string | null
+  rejectionReason: string | null
+  createdAt: string
+  updatedAt: string
+  documents: VerificationDocument[]
+}
+
+export const verificationApi = {
+  adminList: (status?: string) => {
+    const qs = status ? `?status=${status}` : ''
+    return request<{ data: VerificationRequest[] }>(`/admin/verification-requests${qs}`).then((r) => r.data)
+  },
+  adminReview: (id: string, approved: boolean, rejectionReason?: string) =>
+    mutate<VerificationRequest>(`/admin/verification-requests/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, rejectionReason }),
+    }),
+}
+
+// ── Moderation / Trust & Safety API ─────────────────────────────────────────
+
+export type ReportTargetType = 'post' | 'comment' | 'message' | 'user' | 'story'
+export type ReportReason = 'spam' | 'harassment' | 'abuse' | 'animal_welfare' | 'impersonation' | 'other'
+export type ResolveAction = 'dismiss' | 'remove_content' | 'warn' | 'suspend' | 'ban'
+
+export interface ReportItem {
+  id: string
+  targetType: string
+  targetId: string
+  reason: string
+  note: string | null
+  status: string
+  reporter: { id: string; username: string; displayName: string } | null
+  reviewedBy: string | null
+  reviewedAt: string | null
+  createdAt: string
+}
+
+export interface AuditLogEntry {
+  id: string
+  actorId: string | null
+  action: string
+  entityType: string
+  entityId: string | null
+  createdAt: string
+}
+
+export const moderationApi = {
+  report: (targetType: ReportTargetType, targetId: string, reason: ReportReason, note?: string) =>
+    mutate<{ id: string; status: string }>('/moderation/reports', {
+      method: 'POST',
+      body: JSON.stringify({ targetType, targetId, reason, note }),
+    }),
+  queue: (status?: string, cursor?: string | null) => {
+    const qs = new URLSearchParams()
+    if (status) qs.set('status', status)
+    if (cursor) qs.set('cursor', cursor)
+    return request<{ data: ReportItem[]; nextCursor: string | null; hasMore: boolean }>(
+      `/admin/moderation/reports?${qs.toString()}`,
+    )
+  },
+  resolve: (reportId: string, action: ResolveAction, note?: string) =>
+    mutate<{ id: string; status: string }>(`/admin/moderation/reports/${reportId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ action, note }),
+    }),
+  suspendUser: (userId: string, reason: string) =>
+    mutate<{ success: boolean }>(`/admin/users/${userId}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  banUser: (userId: string, reason: string) =>
+    mutate<{ success: boolean }>(`/admin/users/${userId}/ban`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  reinstateUser: (userId: string) =>
+    mutate<{ success: boolean }>(`/admin/users/${userId}/reinstate`, { method: 'POST' }),
+  auditLog: (entityType?: string, actorId?: string, cursor?: string | null) => {
+    const qs = new URLSearchParams()
+    if (entityType) qs.set('entityType', entityType)
+    if (actorId) qs.set('actorId', actorId)
+    if (cursor) qs.set('cursor', cursor)
+    return request<{ data: AuditLogEntry[]; nextCursor: string | null; hasMore: boolean }>(
+      `/admin/audit-log?${qs.toString()}`,
+    )
+  },
 }

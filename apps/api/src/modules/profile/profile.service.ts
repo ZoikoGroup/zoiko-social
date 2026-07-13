@@ -10,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { AuditLogService } from '../common/audit-log/audit-log.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 
@@ -68,8 +70,15 @@ type ProfileWithProfessional = Prisma.ProfileGetPayload<{
 
 type ProfessionalProfileRecord = Prisma.ProfessionalProfileGetPayload<Record<string, never>>
 
+const VERIFICATION_REQUEST_USER_SELECT = {
+  id: true,
+  username: true,
+  displayName: true,
+  avatarUrl: true,
+} as const
+
 type VerificationRequestWithDocs = Prisma.VerificationRequestGetPayload<{
-  include: { documents: true }
+  include: { documents: true; user: { select: typeof VERIFICATION_REQUEST_USER_SELECT } }
 }>
 
 // ── Profile Response Types ─────────────────────────────────────────────────
@@ -113,6 +122,8 @@ export interface ProfessionalProfileResponse {
 
 export interface VerificationRequestResponse {
   id: string
+  userId: string
+  user: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
   type: string
   status: string
   categorySlug: string | null
@@ -173,6 +184,8 @@ export class ProfileService {
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
+    private readonly auditLog: AuditLogService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -284,6 +297,10 @@ export class ProfileService {
     }
 
     const goingPublic = before.isPrivate && input.isPrivate === false
+
+    if (input.displayName) this.profanity.assertClean(input.displayName, { actorId: userId, entityType: 'profile.displayName' })
+    if (input.bio) this.profanity.assertClean(input.bio, { actorId: userId, entityType: 'profile.bio' })
+    if (input.username) this.profanity.assertClean(input.username, { actorId: userId, entityType: 'profile.username' })
 
     // ── Username change: valid format, not reserved, unique, 30-day cooldown ──
     const { username: requestedUsername, ...rest } = input
@@ -559,7 +576,7 @@ export class ProfileService {
         categorySlug: input.categorySlug,
         notes: input.notes,
       },
-      include: { documents: true },
+      include: { documents: true, user: { select: VERIFICATION_REQUEST_USER_SELECT } },
     })
 
     this.logger.log(`Verification request ${request.id} created for user ${userId}`)
@@ -570,7 +587,7 @@ export class ProfileService {
     const request = await this.prisma.verificationRequest.findFirst({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { documents: true },
+      include: { documents: true, user: { select: VERIFICATION_REQUEST_USER_SELECT } },
     })
     if (!request) return null
     return this.mapVerificationRequest(request)
@@ -581,7 +598,7 @@ export class ProfileService {
     const requests = await this.prisma.verificationRequest.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { documents: true },
+      include: { documents: true, user: { select: VERIFICATION_REQUEST_USER_SELECT } },
     })
     return requests.map((r) => this.mapVerificationRequest(r))
   }
@@ -594,7 +611,7 @@ export class ProfileService {
   ): Promise<VerificationRequestResponse> {
     const request = await this.prisma.verificationRequest.findUnique({
       where: { id: requestId },
-      include: { documents: true },
+      include: { documents: true, user: { select: VERIFICATION_REQUEST_USER_SELECT } },
     })
 
     if (!request) {
@@ -613,7 +630,7 @@ export class ProfileService {
           reviewedAt: new Date(),
           rejectionReason: approved ? null : (rejectionReason ?? ''),
         },
-        include: { documents: true },
+        include: { documents: true, user: { select: VERIFICATION_REQUEST_USER_SELECT } },
       })
 
       if (approved) {
@@ -659,6 +676,14 @@ export class ProfileService {
       requestId,
       status,
       rejectionReason: approved ? null : (rejectionReason ?? null),
+    })
+
+    await this.auditLog.record({
+      actorId: reviewerId,
+      action: 'verification.review',
+      entityType: 'verification_request',
+      entityId: requestId,
+      newData: { status, rejectionReason: approved ? null : (rejectionReason ?? null), targetUserId: request.userId },
     })
 
     return this.mapVerificationRequest(updated)
@@ -834,6 +859,8 @@ export class ProfileService {
   private mapVerificationRequest(req: VerificationRequestWithDocs): VerificationRequestResponse {
     return {
       id: req.id,
+      userId: req.userId,
+      user: req.user,
       type: req.type,
       status: req.status,
       categorySlug: req.categorySlug,

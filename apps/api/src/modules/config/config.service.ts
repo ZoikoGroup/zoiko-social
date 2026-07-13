@@ -27,6 +27,9 @@ const envSchema = z.object({
   LIVEKIT_URL: z.string().url().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
+  // Stripe (Shop checkout). When both are set, checkout is enabled.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -137,5 +140,18 @@ export class ConfigService {
   /** True when all LiveKit credentials are configured — calling is then enabled. */
   get livekitEnabled(): boolean {
     return !!(this.env.LIVEKIT_URL && this.env.LIVEKIT_API_KEY && this.env.LIVEKIT_API_SECRET)
+  }
+
+  get stripeSecretKey(): string | undefined {
+    return this.env.STRIPE_SECRET_KEY
+  }
+
+  get stripeWebhookSecret(): string | undefined {
+    return this.env.STRIPE_WEBHOOK_SECRET
+  }
+
+  /** True when Stripe credentials are configured — Shop checkout is then enabled. */
+  get stripeEnabled(): boolean {
+    return !!(this.env.STRIPE_SECRET_KEY && this.env.STRIPE_WEBHOOK_SECRET)
   }
 }

@@ -11,6 +11,7 @@ import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { FeedFanoutService } from '../queue/feed-fanout.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { parseHashtags, parseMentions } from './caption-parser'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import type { CreatePostInput, UpdatePostInput } from './posts.schemas'
@@ -88,12 +89,14 @@ export class PostsService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
     private readonly feedFanout: FeedFanoutService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   // ── CREATE ────────────────────────────────────────────────────────────────
 
   async createPost(authorId: string, input: CreatePostInput): Promise<PostResponse> {
     const caption = input.caption?.trim() || null
+    if (caption) this.profanity.assertClean(caption, { actorId: authorId, entityType: 'post' })
     const media = [...(input.media ?? [])].sort((a, b) => a.position - b.position)
 
     // Anti-hotlink: media must live in the author's own storage folder
@@ -360,6 +363,7 @@ export class PostsService {
     if (post.authorId !== authorId) {
       throw new ForbiddenException({ code: 'NOT_AUTHOR', message: 'You can only edit your own posts' })
     }
+    if (input.caption) this.profanity.assertClean(input.caption, { actorId: authorId, entityType: 'post' })
 
     const updated = await this.prisma.post.update({
       where: { id: postId },

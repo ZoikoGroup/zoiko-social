@@ -5,14 +5,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Heart, MessageCircle, Send, Bookmark, MoreHorizontal, ChevronLeft, ChevronRight,
-  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird,
+  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird, Flag,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
-import { postsApi, type PostItem } from '@/lib/api'
+import { postsApi, moderationApi, type PostItem } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useToast } from '@/hooks/use-toast'
 import { blurhashToDataURL } from '@/lib/image'
 
 // Short verified-badge label derived from the author's professional category.
@@ -81,6 +82,7 @@ interface PostCardProps {
 export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): React.JSX.Element {
   const router = useRouter()
   const { user } = useAuth()
+  const { success: toastSuccess, error: toastError } = useToast()
   const [liked, setLiked] = useState(post.viewerLiked)
   const [saved, setSaved] = useState(post.viewerSaved)
   const [likesCount, setLikesCount] = useState(post.likesCount)
@@ -90,6 +92,7 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
   const [copied, setCopied] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [likersOpen, setLikersOpen] = useState(false)
+  const [reported, setReported] = useState(false)
   const lastTap = useRef(0)
 
   const isOwn = user?.id === post.author.id
@@ -150,6 +153,17 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
     setMenuOpen(false)
   }
 
+  async function reportPost(): Promise<void> {
+    setMenuOpen(false)
+    try {
+      await moderationApi.report('post', post.id, 'other')
+      setReported(true)
+      toastSuccess('Post reported', "We'll review it shortly.")
+    } catch {
+      toastError('Report failed', 'Could not submit the report. Please try again.')
+    }
+  }
+
   const media = post.media
 
   return (
@@ -208,6 +222,15 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
               {isOwn && (
                 <button onClick={deletePost} className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-red-500 hover:bg-red-50 cursor-pointer">
                   <Trash2 className="w-4 h-4" />Delete post
+                </button>
+              )}
+              {!isOwn && (
+                <button
+                  onClick={reportPost}
+                  disabled={reported}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-yellow-600 hover:bg-yellow-50 cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                >
+                  <Flag className="w-4 h-4" />{reported ? 'Reported' : 'Report post'}
                 </button>
               )}
             </div>

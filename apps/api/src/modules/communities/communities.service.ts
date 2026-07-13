@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { SLUG_REGEX, RESERVED_SLUGS, type CreateCommunityInput, type UpdateCommunityInput } from './communities.schemas'
+import { ProfanityService } from '../common/moderation/profanity.service'
 
 export interface CommunityResponse {
   id: string
@@ -68,6 +69,7 @@ export class CommunitiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private buildSearchDoc(name: string, slug: string, tags: string[], description: string | null): string {
@@ -101,6 +103,9 @@ export class CommunitiesService {
   // ── CREATE ────────────────────────────────────────────────────────────────
 
   async create(userId: string, input: CreateCommunityInput): Promise<CommunityResponse> {
+    this.profanity.assertClean(input.name, { actorId: userId, entityType: 'community.name' })
+    if (input.description) this.profanity.assertClean(input.description, { actorId: userId, entityType: 'community.description' })
+
     const check = await this.checkSlug(input.slug)
     if (!check.available) {
       throw new ConflictException({
@@ -317,6 +322,9 @@ export class CommunitiesService {
   // ── UPDATE / DELETE ───────────────────────────────────────────────────────
 
   async update(id: string, input: UpdateCommunityInput): Promise<CommunityResponse> {
+    if (input.name) this.profanity.assertClean(input.name, { entityType: 'community.name' })
+    if (input.description) this.profanity.assertClean(input.description, { entityType: 'community.description' })
+
     const existing = await this.prisma.community.findUnique({
       where: { id },
       select: { name: true, slug: true, tags: true, description: true },

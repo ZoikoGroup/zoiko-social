@@ -1638,6 +1638,26 @@ model CommunityReport {
   @@map("community_reports")
 }
 
+/// Platform-wide Trust & Safety report queue (posts, comments, messages,
+/// stories, users) — distinct from CommunityReport, which stays scoped to
+/// in-community moderation reviewed by a community's own moderators.
+model Report {
+  id         String    @id @default(uuid())
+  reporterId String    @map("reporter_id")
+  targetType String    @map("target_type")
+  targetId   String    @map("target_id")
+  reason     String
+  note       String?
+  status     String    @default("open")
+  reviewedBy String?   @map("reviewed_by")
+  reviewedAt DateTime? @map("reviewed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
 // ── STORIES MODULE ───────────────────────────────────────────────────────────
 
 model Story {
@@ -2009,6 +2029,29 @@ model ProductEnquiry {
   @@unique([productId, buyerId])
   @@index([productId, createdAt(sort: Desc)])
   @@map("product_enquiries")
+}
+
+/// One-time Shop purchase via Stripe Checkout. Amount is captured at order
+/// creation — later price changes on the product never retroactively affect
+/// an in-flight or completed order.
+model Order {
+  id                       String   @id @default(uuid())
+  productId                String   @map("product_id")
+  buyerId                  String   @map("buyer_id")
+  sellerId                 String   @map("seller_id")
+  quantity                 Int      @default(1)
+  amountCents              Int      @map("amount_cents")
+  currency                 String   @default("USD")
+  status                   String   @default("pending") // pending | paid | fulfilled | cancelled | refunded
+  stripeCheckoutSessionId  String?  @unique @map("stripe_checkout_session_id")
+  stripePaymentIntentId    String?  @map("stripe_payment_intent_id")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@index([buyerId, createdAt(sort: Desc)])
+  @@index([sellerId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("orders")
 }
 
 model BreedingProfile {

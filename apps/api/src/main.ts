@@ -60,6 +60,29 @@ async function bootstrap(): Promise<void> {
   // ── Global API prefix ────────────────────────────────────────────────────
   app.setGlobalPrefix('api/v1')
 
+  // ── Preserve the raw request body for Stripe webhook signature verification ──
+  // app.init() registers Nest's default Fastify body parsers; must run first,
+  // or our override collides with Nest's own `addContentTypeParser` call for
+  // 'application/json' ("Content type parser already present"). We remove and
+  // replace it so every request also gets `request.rawBody` (a Buffer)
+  // attached — `request.body` still parses as JSON exactly as before for
+  // every other route. Only the Stripe webhook controller reads rawBody.
+  await app.init()
+  const fastifyInstance = app.getHttpAdapter().getInstance()
+  fastifyInstance.removeContentTypeParser('application/json')
+  fastifyInstance.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (req: unknown, body: Buffer, done: (err: Error | null, result?: unknown) => void) => {
+      ;(req as { rawBody?: Buffer }).rawBody = body
+      try {
+        done(null, body.length ? JSON.parse(body.toString('utf8')) : {})
+      } catch (err) {
+        done(err as Error, undefined)
+      }
+    },
+  )
+
   // ── Start server ─────────────────────────────────────────────────────────
   const port = config.port
   await app.listen(port, '0.0.0.0')

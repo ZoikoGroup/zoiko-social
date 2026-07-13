@@ -18,6 +18,7 @@ import { parseHashtags, parseMentions } from '../posts/caption-parser'
 import type { CreateStoryInput, UploadUrlQuery } from './stories.schemas'
 import { StickerRegistryService, type StickerInput } from './stickers/sticker-registry.service'
 import type { StickerRenderItem } from './stickers/sticker-handler.interface'
+import { ProfanityService } from '../common/moderation/profanity.service'
 
 // ── Response shapes ─────────────────────────────────────────────────────────
 
@@ -203,6 +204,7 @@ export class StoriesService {
     @Inject(MEDIA_STORAGE) private readonly storage: MediaStorage,
     private readonly refResolver: RefResolverService,
     private readonly stickerRegistry: StickerRegistryService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   // ── UPLOAD URL ────────────────────────────────────────────────────────────
@@ -218,6 +220,7 @@ export class StoriesService {
 
   async createStory(authorId: string, input: CreateStoryInput): Promise<{ story: StoryResponse; status: string }> {
     const caption = input.caption?.trim() || null
+    if (caption) this.profanity.assertClean(caption, { actorId: authorId, entityType: 'story' })
     const media = (input.media ?? []).sort((a, b) => (a.path < b.path ? -1 : 1))
 
     // Anti-hotlink: media must live in the author's own storage folder

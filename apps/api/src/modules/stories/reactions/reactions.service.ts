@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { RedisService } from '../../redis/redis.service'
 import { RealtimeService } from '../../realtime/realtime.service'
 import { NotificationQueueService } from '../../queue/notification-queue.service'
+import { ModerationService } from '../../moderation/moderation.service'
 import type { StoryReactionInput, StoryReportInput } from '../stories.schemas'
 
 export interface ReactionItem {
@@ -60,6 +61,7 @@ export class ReactionsService {
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
+    private readonly moderation: ModerationService,
   ) {}
 
   // ── REACT ──────────────────────────────────────────────────────────────────
@@ -151,7 +153,17 @@ export class ReactionsService {
         },
         select: { id: true },
       })
-      // Report goes to moderation queue — TBD
+      // Also lands in the platform-wide Trust & Safety queue for review
+      try {
+        await this.moderation.createReport(userId, {
+          targetType: 'story',
+          targetId: storyId,
+          reason: 'other',
+          note: input.message ?? undefined,
+        })
+      } catch (err) {
+        this.logger.warn(`Failed to file moderation report for story ${storyId}: ${(err as Error).message}`)
+      }
       return { id: reaction.id }
     }
 

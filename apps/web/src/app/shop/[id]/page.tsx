@@ -7,9 +7,9 @@ import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
 import {
-  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, MapPin,
+  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, MapPin, ShoppingBag,
 } from 'lucide-react'
-import { shopApi, type Product } from '@/lib/api'
+import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 
 function money(amount: number, currency: string): string {
@@ -30,6 +30,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
   const [enquireOpen, setEnquireOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [enquiryState, setEnquiryState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -56,6 +58,18 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       await shopApi.enquire(id, message.trim() ? { message: message.trim() } : {})
       setEnquiryState('sent'); setEnquireOpen(false)
     } catch { setEnquiryState('idle') }
+  }
+  async function buyNow(): Promise<void> {
+    if (checkingOut) return
+    setCheckingOut(true)
+    setCheckoutError(null)
+    try {
+      const { url } = await orderApi.checkout(id)
+      window.location.href = url
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : 'Checkout is not available right now')
+      setCheckingOut(false)
+    }
   }
 
   if (notFound) {
@@ -132,14 +146,20 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 {isOwner ? (
                   <button onClick={remove} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-300 text-red-500 text-label-sm font-semibold hover:bg-red-50 cursor-pointer"><Trash2 className="w-4 h-4" />Delete listing</button>
                 ) : (
-                  <button onClick={() => setEnquireOpen(true)} disabled={enquiryState === 'sent'} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-60 cursor-pointer">
-                    {enquiryState === 'sent' ? <><Check className="w-4 h-4" />Enquiry sent</> : <><MessageCircle className="w-4 h-4" />Contact Seller</>}
-                  </button>
+                  <>
+                    <button onClick={buyNow} disabled={checkingOut || !product.inStock} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-60 cursor-pointer">
+                      {checkingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}Buy Now
+                    </button>
+                    <button onClick={() => setEnquireOpen(true)} disabled={enquiryState === 'sent'} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-outline-variant/50 text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container disabled:opacity-60 cursor-pointer">
+                      {enquiryState === 'sent' ? <><Check className="w-4 h-4" />Enquiry sent</> : <><MessageCircle className="w-4 h-4" />Contact Seller</>}
+                    </button>
+                  </>
                 )}
                 <button onClick={toggleSave} className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-label-sm font-semibold transition-colors cursor-pointer ${saved ? 'border-red-300 text-red-500 bg-red-50' : 'border-outline-variant/50 text-on-surface-variant hover:border-red-300 hover:text-red-500'}`}>
                   <Heart className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />{savesCount > 0 ? savesCount : ''}
                 </button>
               </div>
+              {checkoutError && <p className="text-label-sm text-red-500 mt-2">{checkoutError}</p>}
 
               {product.description && (
                 <div className="mt-5 pt-5 border-t border-outline-variant/20">

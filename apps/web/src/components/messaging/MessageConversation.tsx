@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
 import { compressImage } from '@/lib/image'
+import { moderationApi } from '@/lib/api'
 import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { useCall } from '@/hooks/use-call'
@@ -484,6 +485,16 @@ export function MessageConversation({
     }
   }, [toastSuccess, toastError])
 
+  // Report a message to Trust & Safety
+  const handleReportMessage = useCallback(async (messageId: string) => {
+    try {
+      await moderationApi.report('message', messageId, 'abuse')
+      toastSuccess('Message reported', "We'll review it shortly.")
+    } catch {
+      toastError('Report failed', 'Could not submit the report. Please try again.')
+    }
+  }, [toastSuccess, toastError])
+
   // ── EMOJI REACTIONS ─────────────────────────────────────────────────────
   const handleReact = useCallback(async (messageId: string, emoji: string) => {
     // Save previous reactions for rollback
@@ -781,6 +792,16 @@ export function MessageConversation({
                 size="sm"
                 type="button"
                 variant="ghost"
+                disabled={!otherUserId}
+                onClick={async () => {
+                  if (!otherUserId) return
+                  try {
+                    await moderationApi.report('user', otherUserId, 'harassment')
+                    toastSuccess('User reported', "We'll review it shortly.")
+                  } catch {
+                    toastError('Report failed', 'Could not submit the report. Please try again.')
+                  }
+                }}
               >
                 <Flag className="size-4" />
                 <span className="font-medium text-xs">Report User</span>
@@ -880,7 +901,7 @@ export function MessageConversation({
 
         <DropdownMenuItem
           className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-yellow-600 cursor-pointer"
-          onClick={() => {}}
+          onClick={() => void handleReportMessage(msg.id)}
         >
           <Flag className="size-3.5" />
           <span>Report</span>
@@ -1513,11 +1534,25 @@ export function MessageConversation({
                 {[
                   { label: 'Mute notifications' },
                   { label: 'Block user' },
-                  { label: 'Report spam' },
+                  {
+                    label: 'Report spam',
+                    onClick: otherUserId
+                      ? async () => {
+                          try {
+                            await moderationApi.report('user', otherUserId, 'spam')
+                            toastSuccess('User reported', "We'll review it shortly.")
+                          } catch {
+                            toastError('Report failed', 'Could not submit the report. Please try again.')
+                          }
+                        }
+                      : undefined,
+                  },
                   { label: 'Delete conversation', danger: true },
-                ].map(({ label, danger }) => (
+                ].map(({ label, danger, onClick }) => (
                   <button
                     key={label}
+                    onClick={onClick}
+                    disabled={!onClick && label === 'Report spam'}
                     className={cn(
                       'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer',
                       danger ? 'text-destructive hover:bg-destructive/10' : 'text-foreground/80 hover:bg-surface-container',

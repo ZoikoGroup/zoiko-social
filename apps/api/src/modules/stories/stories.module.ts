@@ -15,6 +15,7 @@ import { FeedPostResolver } from './refs/feed-post.resolver'
 import { ProfileResolver } from './refs/profile.resolver'
 import { CommunityPostResolver } from './refs/community-post.resolver'
 import { AuthModule } from '../auth/auth.module'
+import { ModerationOpsModule } from '../moderation/moderation.module'
 import { MusicController } from './music/music.controller'
 import { MusicService } from './music/music.service'
 import { InternalMusicProvider } from './music/providers/internal.provider'
@@ -38,7 +39,7 @@ import { ArchiveController } from './archive/archive.controller'
 import { ArchiveService } from './archive/archive.service'
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ModerationOpsModule],
   controllers: [
     StoriesController,
     TrayController,

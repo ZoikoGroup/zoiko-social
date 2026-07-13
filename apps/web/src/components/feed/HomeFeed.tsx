@@ -204,10 +204,16 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
             <PawPrint className="w-7 h-7 text-primary" />
           </div>
           <h3 className="text-label-md font-bold text-on-surface mb-1">Your feed is quiet</h3>
-          <p className="text-label-sm text-outline max-w-xs mx-auto">
-            Follow people from the network page, or share your first post above — your feed fills
-            with posts from accounts you follow.
+          <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">
+            Follow verified experts and organizations, or share your first update to connect with
+            your community.
           </p>
+          <button
+            onClick={() => document.getElementById('home-composer-textarea')?.focus()}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+          >
+            Share your first update
+          </button>
         </div>
       ) : (
         <>

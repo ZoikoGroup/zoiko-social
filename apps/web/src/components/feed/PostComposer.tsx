@@ -203,6 +203,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
         )}
         <div className="relative flex-1">
           <textarea
+            {...(showLauncher ? { id: 'home-composer-textarea' } : {})}
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
             onFocus={() => setExpanded(true)}

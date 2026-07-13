@@ -12,6 +12,7 @@ import { NotificationQueueService } from '../queue/notification-queue.service'
 import { PostsService } from '../posts/posts.service'
 import { parseMentions } from '../posts/caption-parser'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
+import { ProfanityService } from '../common/moderation/profanity.service'
 
 export interface CommentResponse {
   id: string
@@ -52,6 +53,7 @@ export class CommentsService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
     private readonly postsService: PostsService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   /** Run post-commit side effects without blocking the response. */
@@ -62,6 +64,7 @@ export class CommentsService {
   // ── CREATE ────────────────────────────────────────────────────────────────
 
   async create(userId: string, postId: string, body: string, parentId?: string): Promise<CommentResponse> {
+    this.profanity.assertClean(body, { actorId: userId, entityType: 'comment' })
     const post = await this.postsService.loadPostSlim(postId)
     await this.postsService.assertCanViewPost(post, userId)
 
@@ -249,6 +252,7 @@ export class CommentsService {
   // ── EDIT / DELETE ─────────────────────────────────────────────────────────
 
   async edit(commentId: string, userId: string, body: string): Promise<CommentResponse> {
+    this.profanity.assertClean(body, { actorId: userId, entityType: 'comment' })
     const comment = await this.loadComment(commentId)
     if (comment.authorId !== userId) {
       throw new ForbiddenException({ code: 'NOT_AUTHOR', message: 'You can only edit your own comments' })

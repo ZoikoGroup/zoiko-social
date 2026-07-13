@@ -3,10 +3,12 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common'
 import { FastifyRequest } from 'fastify'
 import { JwtVerificationService } from '../jwt-verification.service'
+import { PrismaService } from '../../prisma/prisma.service'
 
 export const AUTH_USER_KEY = 'auth_user'
 
@@ -27,7 +29,10 @@ export interface AuthenticatedUser {
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name)
 
-  constructor(private readonly jwtVerification: JwtVerificationService) {}
+  constructor(
+    private readonly jwtVerification: JwtVerificationService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<FastifyRequest>()
@@ -45,12 +50,28 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const user = await this.jwtVerification.verify(token)
 
+      // Enforce Trust & Safety suspension/ban — a token can still verify
+      // cryptographically after a moderator suspends or bans the account.
+      const profile = await this.prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { state: true },
+      })
+      if (profile && profile.state !== 'active') {
+        throw new ForbiddenException({
+          code: profile.state === 'banned' ? 'ACCOUNT_BANNED' : 'ACCOUNT_SUSPENDED',
+          message:
+            profile.state === 'banned'
+              ? 'This account has been banned.'
+              : 'This account is temporarily suspended.',
+        })
+      }
+
       // Attach user to request for downstream use
       ;(request as unknown as Record<string, unknown>)[AUTH_USER_KEY] = user
 
       return true
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
+      if (error instanceof UnauthorizedException || error instanceof ForbiddenException) {
         throw error
       }
       this.logger.error(`Auth error: ${(error as Error).message}`)
