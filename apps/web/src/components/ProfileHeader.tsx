@@ -273,20 +273,21 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
             </div>
           </div>
 
-          {/* Action pills */}
-          <div className="mt-4 flex items-center gap-2.5 flex-wrap">
+          {/* Action pills — equal width (basis-0) and fixed height so labels never
+              wrap the buttons out of alignment */}
+          <div className="mt-4 flex items-center gap-2.5">
             {isOwnProfile ? (
               <>
                 <button
                   onClick={() => setEditModalOpen(true)}
-                  className="flex-1 sm:flex-none px-6 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all cursor-pointer"
+                  className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full bg-primary text-white text-[13px] font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all cursor-pointer"
                 >
                   Edit profile
                 </button>
                 {!professional && (
                   <button
                     onClick={() => setProfessionalModalOpen(true)}
-                    className="flex-1 sm:flex-none px-6 py-2 rounded-full border border-primary/50 text-primary text-label-sm font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
+                    className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     Go Professional
                   </button>
@@ -297,7 +298,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
                 <button
                   onClick={handleFollowToggle}
                   disabled={followBusy}
-                  className={`flex-1 sm:flex-none px-7 py-2 rounded-full text-label-sm font-semibold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 ${
+                  className={`flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-7 inline-flex items-center justify-center whitespace-nowrap rounded-full text-[13px] font-semibold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 ${
                     following || requested
                       ? 'border border-outline-variant/60 text-on-surface hover:bg-surface-container'
                       : 'bg-primary text-white hover:bg-primary/90'
