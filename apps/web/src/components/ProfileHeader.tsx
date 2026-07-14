@@ -176,11 +176,18 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
 
       {/* Banner-style header (LinkedIn-inspired): cover, overlapping avatar, pill actions */}
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
-        {/* Cover banner — brand gradient with soft decorative shapes */}
-        <div className="relative h-28 sm:h-40 bg-gradient-to-r from-primary via-teal-700 to-emerald-600">
-          <div className="pointer-events-none absolute -right-8 -top-10 size-40 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute right-24 bottom-0 size-24 rounded-full bg-secondary/25 blur-xl" />
-          <div className="pointer-events-none absolute left-1/3 -bottom-8 size-28 rounded-full bg-white/5" />
+        {/* Cover banner — user image when set, brand gradient fallback */}
+        <div className="relative h-28 sm:h-40 bg-gradient-to-r from-primary via-teal-700 to-emerald-600 overflow-hidden">
+          {profile.bannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <>
+              <div className="pointer-events-none absolute -right-8 -top-10 size-40 rounded-full bg-white/10" />
+              <div className="pointer-events-none absolute right-24 bottom-0 size-24 rounded-full bg-secondary/25 blur-xl" />
+              <div className="pointer-events-none absolute left-1/3 -bottom-8 size-28 rounded-full bg-white/5" />
+            </>
+          )}
           {isOwnProfile && (
             <button
               onClick={() => setEditModalOpen(true)}

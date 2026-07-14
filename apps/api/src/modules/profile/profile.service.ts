@@ -22,6 +22,7 @@ export const UpdateProfileSchema = z.object({
   bio: z.string().max(500).optional(),
   websiteUrl: z.string().url().max(200).optional().nullable(),
   avatarUrl: z.string().url().max(500).optional().nullable(),
+  bannerUrl: z.string().url().max(500).optional().nullable(),
   isPrivate: z.boolean().optional(),
   username: z.string().min(3).max(30).optional(),
 })
@@ -89,6 +90,7 @@ export interface ProfileResponse {
   displayName: string
   bio: string | null
   avatarUrl: string | null
+  bannerUrl: string | null
   websiteUrl: string | null
   state: string
   role: string
@@ -820,6 +822,7 @@ export class ProfileService {
       displayName: profile.displayName,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
+      bannerUrl: profile.bannerUrl,
       websiteUrl: profile.websiteUrl,
       state: profile.state,
       role: profile.role,

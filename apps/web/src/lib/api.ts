@@ -170,6 +170,7 @@ export interface Profile {
   displayName: string
   bio: string | null
   avatarUrl: string | null
+  bannerUrl: string | null
   websiteUrl: string | null
   state: string
   role: string
@@ -263,6 +264,7 @@ export const profileApi = {
     bio?: string
     websiteUrl?: string | null
     avatarUrl?: string | null
+    bannerUrl?: string | null
     isPrivate?: boolean
     username?: string
   }) => mutate<Profile>('/profiles/me', { method: 'PUT', body: JSON.stringify(input) }),

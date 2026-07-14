@@ -32,10 +32,13 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
   const [isPrivate, setIsPrivate] = useState(profile.isPrivate)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string | null>(profile.bannerUrl)
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('unchanged')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const bannerInputRef = useRef<HTMLInputElement>(null)
 
   // Username cooldown: changeable once every 30 days
   const nextUsernameChange = profile.usernameChangedAt
@@ -84,6 +87,18 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     setError('')
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
+  }
+
+  function handleBannerSelect(e: React.ChangeEvent<HTMLInputElement>): void {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Banner image must be under 5 MB')
+      return
+    }
+    setError('')
+    setBannerFile(file)
+    setBannerPreview(URL.createObjectURL(file))
   }
 
   /**
@@ -137,6 +152,31 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     return data.publicUrl
   }
 
+  /** Banner goes to the same owner-path bucket — resized wider (1600px) since it spans the page. */
+  async function uploadBanner(): Promise<string | null> {
+    if (!bannerFile) return null
+    const supabase = createClient()
+
+    let blob: Blob = bannerFile
+    let ext = bannerFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
+    try {
+      blob = await resizeImage(bannerFile, 1600)
+      if (blob.type === 'image/webp') ext = 'webp'
+    } catch {
+      // Resize unsupported (old browser) — upload the original
+    }
+
+    const path = `${profile.id}/banner-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
+      cacheControl: '31536000',
+      contentType: blob.type || 'image/jpeg',
+      upsert: true,
+    })
+    if (uploadError) throw new Error(`Banner upload failed: ${uploadError.message}`)
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    return data.publicUrl
+  }
+
   const toast = useToast()
 
   async function handleSave(): Promise<void> {
@@ -144,6 +184,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     setError('')
     try {
       const avatarUrl = await uploadAvatar()
+      const bannerUrl = await uploadBanner()
 
       const changedUsername = username.trim().toLowerCase()
       const updated = await profileApi.update({
@@ -152,6 +193,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
         websiteUrl: websiteUrl.trim() || null,
         isPrivate,
         ...(avatarUrl ? { avatarUrl } : {}),
+        ...(bannerUrl ? { bannerUrl } : {}),
         ...(changedUsername !== profile.username && !usernameLocked ? { username: changedUsername } : {}),
       })
       onSaved(updated)
@@ -180,6 +222,35 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto flex-1">
+          {/* Banner */}
+          <div>
+            <label className="text-label-sm font-semibold text-on-surface block mb-1.5">Banner</label>
+            <div className="relative h-24 rounded-xl overflow-hidden border border-outline-variant/30">
+              {bannerPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={bannerPreview} alt="Banner" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-r from-primary via-teal-700 to-emerald-600" />
+              )}
+              <button
+                type="button"
+                onClick={() => bannerInputRef.current?.click()}
+                className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/45 text-white text-[11.5px] font-semibold backdrop-blur-sm hover:bg-black/60 transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                Change banner
+              </button>
+            </div>
+            <p className="text-[10px] text-outline mt-1">Wide images look best (e.g. 1600×400) · max 5 MB</p>
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleBannerSelect}
+            />
+          </div>
+
           {/* Profile photo */}
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0">

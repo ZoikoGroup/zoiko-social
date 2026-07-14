@@ -320,6 +320,7 @@ model Profile {
   displayName       String           @map("display_name")
   bio               String?
   avatarUrl         String?          @map("avatar_url")
+  bannerUrl         String?          @map("banner_url")
   websiteUrl        String?          @map("website_url")
   state             UserState        @default(active)
   role              UserRole         @default(user)
