@@ -196,7 +196,10 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
         <div className="px-5 sm:px-8 pb-6">
           {/* Avatar overlapping the banner */}
           <div className="flex items-end justify-between">
-            <div className="-mt-10 sm:-mt-14 w-24 h-24 sm:w-32 sm:h-32 rounded-full ring-4 ring-surface-container-lowest overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 shadow-md">
+            {/* relative z-10: the banner above is position:relative, and positioned
+                elements paint over static ones — without this the banner covers
+                the avatar's overlapping top half */}
+            <div className="relative z-10 -mt-10 sm:-mt-14 w-24 h-24 sm:w-32 sm:h-32 rounded-full ring-4 ring-surface-container-lowest overflow-hidden bg-primary/10 flex items-center justify-center flex-shrink-0 shadow-md">
               {profile.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={profile.avatarUrl} alt={profile.displayName} className="w-full h-full object-cover" />
