@@ -1258,7 +1258,7 @@ model Group {
   coverImageUrl   String?  @map("cover_image_url")
   isAnnouncement  Boolean  @default(false) @map("is_announcement")
   slowModeSeconds Int      @default(0) @map("slow_mode_seconds")
-  maxMembers      Int      @default(256)
+  maxMembers      Int      @default(256) @map("max_members")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

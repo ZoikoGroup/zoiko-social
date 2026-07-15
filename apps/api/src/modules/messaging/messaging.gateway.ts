@@ -18,7 +18,11 @@ interface AuthSocket extends Socket {
   data: { userId?: string }
 }
 
-/** Ephemeral 1:1 call signaling relayed between participants (no DB state). */
+/**
+ * Ephemeral call signaling relayed between participants (no DB state).
+ * DM calls target a single `toUserId`; group calls omit it and the gateway
+ * fans the signal out to every other member of the conversation.
+ */
 interface CallSignal {
   conversationId?: string
   toUserId?: string
@@ -27,6 +31,8 @@ interface CallSignal {
   fromDisplayName?: string
   fromAvatarUrl?: string | null
   reason?: string
+  isGroup?: boolean
+  conversationName?: string
 }
 
 @WebSocketGateway({
@@ -44,7 +50,7 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
    */
   private readonly activeCalls = new Map<
     string,
-    { callerId: string; callType: 'audio' | 'video'; acceptedAt: number | null }
+    { callerId: string; callType: 'audio' | 'video'; acceptedAt: number | null; isGroup: boolean }
   >()
 
   @WebSocketServer()
@@ -165,9 +171,25 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     await client.leave(`presence:${body.userId}`)
   }
 
-  // ── CALL SIGNALING (1:1 audio/video) ────────────────────────────────────────
-  // Relays ephemeral signaling to the target user's private room. LiveKit carries
-  // the actual media; these events only coordinate ring/accept/reject/end.
+  // ── CALL SIGNALING (1:1 and group audio/video) ─────────────────────────────
+  // Relays ephemeral signaling to user rooms. LiveKit carries the actual media
+  // (its rooms are natively multi-party); these events only coordinate
+  // ring/accept/reject/end. DM signals target one user; group signals fan out
+  // to every other conversation member.
+
+  private buildCallPayload(fromUserId: string, body: CallSignal) {
+    return {
+      conversationId: body.conversationId,
+      callType: body.callType ?? 'audio',
+      roomName: body.roomName ?? `call:${body.conversationId}`,
+      fromUserId,
+      fromDisplayName: body.fromDisplayName,
+      fromAvatarUrl: body.fromAvatarUrl ?? null,
+      reason: body.reason,
+      isGroup: body.isGroup ?? false,
+      conversationName: body.conversationName,
+    }
+  }
 
   private async relayCall(
     client: AuthSocket,
@@ -176,15 +198,20 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   ): Promise<void> {
     const fromUserId = client.data.userId
     if (!fromUserId || !body?.toUserId || !body?.conversationId) return
-    await this.realtimeService.publishToUser(body.toUserId, event, {
-      conversationId: body.conversationId,
-      callType: body.callType ?? 'audio',
-      roomName: body.roomName ?? `call:${body.conversationId}`,
-      fromUserId,
-      fromDisplayName: body.fromDisplayName,
-      fromAvatarUrl: body.fromAvatarUrl ?? null,
-      reason: body.reason,
-    })
+    await this.realtimeService.publishToUser(body.toUserId, event, this.buildCallPayload(fromUserId, body))
+  }
+
+  /** Fan a group-call signal out to every other active member of the conversation. */
+  private async fanOutCall(
+    client: AuthSocket,
+    event: 'call:invite' | 'call:cancel' | 'call:end',
+    body: CallSignal,
+  ): Promise<void> {
+    const fromUserId = client.data.userId
+    if (!fromUserId || !body?.conversationId) return
+    const memberIds = await this.messagingService.getOtherMemberIds(body.conversationId, fromUserId)
+    const payload = this.buildCallPayload(fromUserId, { ...body, isGroup: true })
+    await Promise.all(memberIds.map((uid) => this.realtimeService.publishToUser(uid, event, payload)))
   }
 
   /** Close out an in-flight call and write its record into the conversation. */
@@ -201,12 +228,16 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   @SubscribeMessage('call:invite')
   async onCallInvite(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
-    await this.relayCall(client, 'call:invite', body)
+    const isGroup = !body?.toUserId || body?.isGroup === true
+    if (isGroup) await this.fanOutCall(client, 'call:invite', body)
+    else await this.relayCall(client, 'call:invite', body)
+
     if (client.data.userId && body?.conversationId) {
       this.activeCalls.set(body.conversationId, {
         callerId: client.data.userId,
         callType: body.callType ?? 'audio',
         acceptedAt: null,
+        isGroup,
       })
     }
   }
@@ -221,19 +252,34 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('call:reject')
   async onCallReject(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:reject', body)
+    // Group calls: one member declining doesn't finish the call — no record.
+    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    if (call?.isGroup) return
     // busy = the callee never saw it ring → record as missed, not declined
     this.recordCall(body?.conversationId, body?.reason === 'busy' ? 'missed' : 'declined')
   }
 
   @SubscribeMessage('call:cancel')
   async onCallCancel(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
-    await this.relayCall(client, 'call:cancel', body)
+    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    // Group: cancel must stop EVERY member's ringing
+    if (call?.isGroup || (!body?.toUserId && body?.conversationId)) {
+      await this.fanOutCall(client, 'call:cancel', body)
+    } else {
+      await this.relayCall(client, 'call:cancel', body)
+    }
     this.recordCall(body?.conversationId, 'missed')
   }
 
   @SubscribeMessage('call:end')
   async onCallEnd(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
-    await this.relayCall(client, 'call:end', body)
+    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    // Group: a member hanging up just leaves the room — others keep talking,
+    // so the end signal is NOT relayed. The record is written once (first leave,
+    // MVP semantics) and the map delete makes later end signals no-ops.
+    if (!call?.isGroup) {
+      await this.relayCall(client, 'call:end', body)
+    }
     this.recordCall(body?.conversationId, 'ended')
   }
 }

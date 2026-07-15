@@ -485,6 +485,15 @@ export class MessagingService {
     }
   }
 
+  /** Ids of all active members of a conversation except `excludeUserId` — group-call fan-out. */
+  async getOtherMemberIds(conversationId: string, excludeUserId: string): Promise<string[]> {
+    const members = await this.prisma.conversationMember.findMany({
+      where: { conversationId, isDeleted: false, userId: { not: excludeUserId } },
+      select: { userId: true },
+    })
+    return members.map((m) => m.userId)
+  }
+
   /**
    * Write a call record into the conversation (WhatsApp-style), e.g.
    * "📞 Voice call · 2:05" or "📞 Missed voice call". Broadcast like a normal

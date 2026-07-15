@@ -6,7 +6,6 @@ import {
 } from 'react'
 import {
   Room, RoomEvent, Track,
-  type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant,
   type LocalVideoTrack, type RemoteVideoTrack, type RemoteAudioTrack,
 } from 'livekit-client'
 import { getSocket } from '@/lib/socket'
@@ -22,13 +21,25 @@ export type CallStatus = 'idle' | 'outgoing' | 'incoming' | 'connecting' | 'conn
 
 export interface CallInfo {
   conversationId: string
-  peerUserId: string
+  /** DM: the other user. Group: the caller when incoming, null when outgoing. */
+  peerUserId: string | null
+  /** DM: the other user's name. Group: the conversation/group name. */
   peerName: string
   peerAvatar: string | null
   callType: CallType
   roomName: string
   /** true when we initiated the call, false when we're the callee */
   isCaller: boolean
+  /** Group conversation call — invite fans out to all members */
+  isGroup: boolean
+}
+
+/** One remote participant's live media state (group calls have many). */
+export interface RemoteParticipantState {
+  id: string
+  name: string
+  videoTrack: RemoteVideoTrack | null
+  audioTrack: RemoteAudioTrack | null
 }
 
 /** Signaling payload relayed by the messaging gateway. */
@@ -40,6 +51,8 @@ interface CallSignal {
   fromDisplayName?: string
   fromAvatarUrl?: string | null
   reason?: string
+  isGroup?: boolean
+  conversationName?: string
 }
 
 interface CallContextValue {
@@ -50,9 +63,16 @@ interface CallContextValue {
   isCameraOff: boolean
   duration: number
   localVideoTrack: LocalVideoTrack | null
-  remoteVideoTrack: RemoteVideoTrack | null
-  remoteAudioTrack: RemoteAudioTrack | null
-  startCall: (args: { conversationId: string; peerUserId: string; peerName: string; peerAvatar: string | null; callType: CallType }) => void
+  remoteParticipants: RemoteParticipantState[]
+  startCall: (args: {
+    conversationId: string
+    callType: CallType
+    peerUserId?: string
+    peerName?: string
+    peerAvatar?: string | null
+    isGroup?: boolean
+    conversationName?: string
+  }) => void
   acceptCall: () => void
   rejectCall: () => void
   endCall: () => void
@@ -79,8 +99,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const [isCameraOff, setIsCameraOff] = useState(false)
   const [duration, setDuration] = useState(0)
   const [localVideoTrack, setLocalVideoTrack] = useState<LocalVideoTrack | null>(null)
-  const [remoteVideoTrack, setRemoteVideoTrack] = useState<RemoteVideoTrack | null>(null)
-  const [remoteAudioTrack, setRemoteAudioTrack] = useState<RemoteAudioTrack | null>(null)
+  const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantState[]>([])
 
   const roomRef = useRef<Room | null>(null)
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -100,11 +119,14 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const emitSignal = useCallback((event: string, info: CallInfo, extra?: { reason?: string }) => {
     void getSocket().then((s) => s?.emit(event, {
       conversationId: info.conversationId,
-      toUserId: info.peerUserId,
+      // Group signals omit toUserId — the gateway fans out to all members
+      ...(info.peerUserId ? { toUserId: info.peerUserId } : {}),
       callType: info.callType,
       roomName: info.roomName,
       fromDisplayName: profile?.displayName,
       fromAvatarUrl: profile?.avatarUrl ?? null,
+      isGroup: info.isGroup,
+      ...(info.isGroup ? { conversationName: info.peerName } : {}),
       ...extra,
     }))
   }, [profile?.displayName, profile?.avatarUrl])
@@ -126,8 +148,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       void room.disconnect()
     }
     setLocalVideoTrack(null)
-    setRemoteVideoTrack(null)
-    setRemoteAudioTrack(null)
+    setRemoteParticipants([])
   }, [])
 
   /** Fully reset back to idle (called after the ended screen is dismissed). */
@@ -154,31 +175,50 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   // ── LiveKit connection ───────────────────────────────────────────────────────
 
   const attachRoomEvents = useCallback((room: Room) => {
-    const syncConnected = () => {
-      if (room.remoteParticipants.size > 0) setStatus('connected')
+    // Idempotent full resync from the room's live participant set — one code
+    // path handles join, leave, and every track change, for 1:1 and group alike.
+    const syncParticipants = () => {
+      const list: RemoteParticipantState[] = []
+      room.remoteParticipants.forEach((p) => {
+        let videoTrack: RemoteVideoTrack | null = null
+        let audioTrack: RemoteAudioTrack | null = null
+        p.trackPublications.forEach((pub) => {
+          const t = pub.track
+          if (!t) return
+          if (t.kind === Track.Kind.Video) videoTrack = t as RemoteVideoTrack
+          else if (t.kind === Track.Kind.Audio) audioTrack = t as RemoteAudioTrack
+        })
+        list.push({ id: p.identity, name: p.name || p.identity, videoTrack, audioTrack })
+      })
+      setRemoteParticipants(list)
+      if (list.length > 0 && (statusRef.current === 'outgoing' || statusRef.current === 'connecting')) {
+        setStatus('connected')
+      }
     }
 
     room
-      .on(RoomEvent.ParticipantConnected, () => {
-        setStatus('connected')
-      })
-      .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, _p: RemoteParticipant) => {
-        if (track.kind === Track.Kind.Video) setRemoteVideoTrack(track as RemoteVideoTrack)
-        else if (track.kind === Track.Kind.Audio) setRemoteAudioTrack(track as RemoteAudioTrack)
-      })
-      .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-        if (track.kind === Track.Kind.Video) setRemoteVideoTrack((cur) => (cur === track ? null : cur))
-        else if (track.kind === Track.Kind.Audio) setRemoteAudioTrack((cur) => (cur === track ? null : cur))
-      })
+      .on(RoomEvent.ParticipantConnected, syncParticipants)
+      .on(RoomEvent.TrackSubscribed, syncParticipants)
+      .on(RoomEvent.TrackUnsubscribed, syncParticipants)
+      .on(RoomEvent.TrackMuted, syncParticipants)
+      .on(RoomEvent.TrackUnmuted, syncParticipants)
       .on(RoomEvent.ParticipantDisconnected, () => {
-        // Remote party left the room → the call is over.
-        finishCall('Call ended')
+        syncParticipants()
+        if (infoRef.current?.isGroup) {
+          // Group: the call continues while anyone else is still in the room
+          if (room.remoteParticipants.size === 0 && statusRef.current === 'connected') {
+            finishCall('Call ended')
+          }
+        } else {
+          // DM: the other party left → the call is over
+          finishCall('Call ended')
+        }
       })
       .on(RoomEvent.Disconnected, () => {
         if (statusRef.current !== 'ended') finishCall('Call ended')
       })
 
-    syncConnected()
+    syncParticipants()
   }, [finishCall])
 
   /** Mint a LiveKit access token for this conversation's call room. */
@@ -222,16 +262,26 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
 
   // ── Public actions ─────────────────────────────────────────────────────────
 
-  const startCall = useCallback((args: { conversationId: string; peerUserId: string; peerName: string; peerAvatar: string | null; callType: CallType }) => {
+  const startCall = useCallback((args: {
+    conversationId: string
+    callType: CallType
+    peerUserId?: string
+    peerName?: string
+    peerAvatar?: string | null
+    isGroup?: boolean
+    conversationName?: string
+  }) => {
     if (statusRef.current !== 'idle') return
+    const isGroup = args.isGroup === true
     const info: CallInfo = {
       conversationId: args.conversationId,
-      peerUserId: args.peerUserId,
-      peerName: args.peerName,
-      peerAvatar: args.peerAvatar,
+      peerUserId: isGroup ? null : (args.peerUserId ?? null),
+      peerName: isGroup ? (args.conversationName ?? 'Group call') : (args.peerName ?? 'Call'),
+      peerAvatar: isGroup ? null : (args.peerAvatar ?? null),
       callType: args.callType,
       roomName: `call:${args.conversationId}`,
       isCaller: true,
+      isGroup,
     }
     setCallInfo(info)
     setStatus('outgoing')
@@ -357,14 +407,19 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
         }))
         return
       }
+      const isGroup = data.isGroup === true
       setCallInfo({
         conversationId: data.conversationId,
+        // Group incoming: peerUserId is the caller — accept/reject route back to them
         peerUserId: data.fromUserId,
-        peerName: data.fromDisplayName ?? 'Incoming call',
-        peerAvatar: data.fromAvatarUrl ?? null,
+        peerName: isGroup
+          ? (data.conversationName ?? `${data.fromDisplayName ?? 'Group'} — group call`)
+          : (data.fromDisplayName ?? 'Incoming call'),
+        peerAvatar: isGroup ? null : (data.fromAvatarUrl ?? null),
         callType: data.callType,
         roomName: data.roomName,
         isCaller: false,
+        isGroup,
       })
       setEndReason(null)
       setStatus('incoming')
@@ -378,12 +433,17 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       clearRingTimer()
     }
     const onReject = (data: CallSignal) => {
+      // Group: one member declining doesn't end the call — others may still join
+      if (infoRef.current?.isGroup) return
       if (statusRef.current === 'outgoing') {
         finishCall(data.reason === 'busy' ? 'User is busy' : 'Call declined')
       }
     }
     const onCancelOrEnd = () => {
       if (statusRef.current === 'idle') return
+      // Group: once connected, a member leaving is handled by the room events —
+      // only a cancel while still ringing should tear the call down
+      if (infoRef.current?.isGroup && statusRef.current === 'connected') return
       finishCall('Call ended')
     }
 
@@ -410,7 +470,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
 
   const value: CallContextValue = {
     status, callInfo, endReason, isMuted, isCameraOff, duration,
-    localVideoTrack, remoteVideoTrack, remoteAudioTrack,
+    localVideoTrack, remoteParticipants,
     startCall, acceptCall, rejectCall, endCall, dismiss, toggleMute, toggleCamera,
   }
 

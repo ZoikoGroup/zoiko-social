@@ -38,6 +38,15 @@ export class LivekitController {
       })
     }
 
-    return this.livekit.mintToken(userId, `call:${body.conversationId}`, { canPublish: true })
+    // Carry the display name so group-call tiles can label participants
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { displayName: true },
+    })
+
+    return this.livekit.mintToken(userId, `call:${body.conversationId}`, {
+      canPublish: true,
+      name: profile?.displayName ?? undefined,
+    })
   }
 }

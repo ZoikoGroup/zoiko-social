@@ -94,9 +94,14 @@ export function MessageConversation({
   const { startCall } = useCall()
 
   const handleStartCall = useCallback((callType: 'audio' | 'video') => {
-    if (!conversationId || !otherUserId) return
-    startCall({ conversationId, peerUserId: otherUserId, peerName: displayName, peerAvatar: avatarUrl, callType })
-  }, [conversationId, otherUserId, displayName, avatarUrl, startCall])
+    if (!conversationId) return
+    if (isDM && otherUserId) {
+      startCall({ conversationId, peerUserId: otherUserId, peerName: displayName, peerAvatar: avatarUrl, callType })
+    } else if (!isDM) {
+      // Group/community conversation — the invite fans out to all members
+      startCall({ conversationId, callType, isGroup: true, conversationName: displayName || 'Group call' })
+    }
+  }, [conversationId, isDM, otherUserId, displayName, avatarUrl, startCall])
 
   // Connect socket
   useEffect(() => {
