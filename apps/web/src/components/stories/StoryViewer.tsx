@@ -1,15 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { StoryProgressBar } from './StoryProgressBar'
-import { HlsVideoPlayer } from './HlsVideoPlayer'
 import { StoryRefCard } from './StoryRefCard'
 import { ReactionBar } from './ReactionBar'
 import { UserAvatar } from '../UserAvatar'
 import { storiesApi, trayApi, viewsApi, type StoryItem, type TrayRing } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+
+// Lazy-load HlsVideoPlayer (~40KB hls.js chunk) — most stories are images,
+// so we only download it when the user actually reaches a video story.
+const HlsVideoPlayerLazy = dynamic(
+  () => import('./HlsVideoPlayer').then((mod) => mod.HlsVideoPlayer),
+  { ssr: false },
+)
 
 interface StoryViewerProps {
   initialAuthorId: string
@@ -279,20 +286,26 @@ export function StoryViewer({ initialAuthorId, onClose }: StoryViewerProps): Rea
                   </p>
                 </div>
               ) : isVideo && media?.hlsUrl ? (
-                <HlsVideoPlayer
-                  src={media.hlsUrl}
-                  poster={media.previewUrl ?? media.thumbnailUrl}
-                  muted={true}
-                  showMuteToggle={true}
-                  onTimeUpdate={(_current, _dur) => {
-                    // Video progress tracked internally by StoryProgressBar
-                  }}
-                  onEnded={goNext}
-                  onPlay={() => setVideoPaused(false)}
-                  onPause={() => setVideoPaused(true)}
-                  onReady={() => setVideoReady(true)}
-                  paused={paused || videoPaused}
-                />
+                <Suspense fallback={
+                  <div className="flex items-center justify-center h-full w-full">
+                    <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  </div>
+                }>
+                  <HlsVideoPlayerLazy
+                    src={media.hlsUrl}
+                    poster={media.previewUrl ?? media.thumbnailUrl}
+                    muted={true}
+                    showMuteToggle={true}
+                    onTimeUpdate={(_current, _dur) => {
+                      // Video progress tracked internally by StoryProgressBar
+                    }}
+                    onEnded={goNext}
+                    onPlay={() => setVideoPaused(false)}
+                    onPause={() => setVideoPaused(true)}
+                    onReady={() => setVideoReady(true)}
+                    paused={paused || videoPaused}
+                  />
+                </Suspense>
               ) : isSharedStory && currentStory.refType && currentStory.refId ? (
                 <div className="w-full h-full flex items-center justify-center p-6">
                   <div className="w-full max-w-xs">

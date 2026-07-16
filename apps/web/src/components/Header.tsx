@@ -97,10 +97,10 @@ export function Header(): React.JSX.Element {
         <div className="flex items-center gap-4 lg:gap-6 flex-1 min-w-0">
           {/* Mobile: compact icon mark · Desktop: full wordmark + tagline */}
           <Link href="/" className="md:hidden flex-shrink-0" aria-label="Home">
-            <Image src="/logo.svg" alt="ZoikoSocial" height={38} width={38} priority className="h-[38px] w-[38px] rounded-xl object-contain" />
+            <Image src="/logo.svg" alt="ZoikoSocial" height={38} width={38} priority fetchPriority="high" className="h-[38px] w-[38px] rounded-xl object-contain" />
           </Link>
           <Link href="/" className="hidden md:flex flex-col items-start flex-shrink-0 gap-0.5">
-            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={134} priority className="h-[30px] w-auto object-contain" />
+            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={134} priority fetchPriority="high" className="h-[30px] w-auto object-contain" />
             <span className="hidden lg:block text-[7.5px] font-bold tracking-[0.28em] text-outline uppercase leading-none pl-0.5">
               Animal Welfare Network
             </span>

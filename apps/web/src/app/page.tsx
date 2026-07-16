@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/hooks/use-auth'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -10,7 +11,13 @@ import { HomeFeed } from '@/components/feed/HomeFeed'
 import { MobileTabs } from '@/components/MobileTabs'
 import { RightPanel } from '@/components/RightPanel'
 import { SafetyBanner } from '@/components/SafetyBanner'
-import { StoryComposer } from '@/components/stories/StoryComposer'
+
+// StoryComposer is only rendered when the user explicitly opens it (shareRef state),
+// so we defer loading its heavy subcomponents (MusicPicker, StickerLayer, etc.).
+const StoryComposer = dynamic(
+  () => import('@/components/stories/StoryComposer').then((mod) => mod.StoryComposer),
+  { ssr: false },
+)
 
 function FeedSkeleton(): React.JSX.Element {
   return (
@@ -79,11 +86,13 @@ export default function HomePage(): React.JSX.Element {
 
       {/* Story Composer overlay — opened when sharing a post to a story */}
       {shareRef && (
-        <StoryComposer
-          onClose={() => setShareRef(null)}
-          refType={shareRef.refType}
-          refId={shareRef.refId}
-        />
+        <Suspense fallback={null}>
+          <StoryComposer
+            onClose={() => setShareRef(null)}
+            refType={shareRef.refType}
+            refId={shareRef.refId}
+          />
+        </Suspense>
       )}
     </>
   )
