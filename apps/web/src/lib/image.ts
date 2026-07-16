@@ -147,3 +147,66 @@ export function blurhashToDataURL(hash: string, width = 32, height = 32): string
     return ''
   }
 }
+
+// ── Image CDN Optimization ─────────────────────────────────────────────────────
+// Supabase Storage has a built-in image transformation endpoint that serves
+// auto-format (WebP/AVIF), resized, and quality-optimized images. We auto-detect
+// Supabase public URLs and rewrite them to use this endpoint.
+
+const SUPABASE_RENDER_RE = /^https:\/\/[^.]+\.supabase\.co\/storage\/v1\/object\/public\/(.+)$/i
+
+/**
+ * Common responsive breakpoints used across the app.
+ * These match typical Tailwind container widths the images appear in.
+ */
+export const IMG_BREAKPOINTS = [320, 640, 960, 1280] as const
+
+/**
+ * Rewrite a Supabase Storage public URL to use the render (transform) endpoint
+ * with `format=auto` (serves WebP/AVIF depending on browser support) and
+ * optional resizing. Returns the original URL unchanged for non-Supabase URLs.
+ *
+ * If the URL already has query parameters (unusual for public Supabase URLs,
+ * but possible with presigned or migrated URLs), pass it through unchanged
+ * to avoid double `?` corruption.
+ *
+ * @example
+ *   input:  https://abc.supabase.co/storage/v1/object/public/post-media/photo.webp
+ *   output: https://abc.supabase.co/storage/v1/render/image/public/post-media/photo.webp?format=auto&quality=78
+ */
+export function getOptimizedUrl(src: string, width?: number): string {
+  // Pass through if already has query params (avoids double-? corruption)
+  if (src.includes('?')) return src
+
+  const match = src.match(SUPABASE_RENDER_RE)
+  if (!match) return src // pass-through for R2 / external URLs
+
+  const params = new URLSearchParams()
+  params.set('format', 'auto')
+  params.set('quality', '78')
+  if (width) params.set('width', String(width))
+
+  // Rewrite to the render endpoint
+  const base = src.replace(
+    /^(https:\/\/[^.]+\.supabase\.co)\/storage\/v1\/object\/public\//i,
+    '$1/storage/v1/render/image/public/',
+  )
+  return `${base}?${params.toString()}`
+}
+
+/**
+ * Generate a responsive `srcSet` string from a Supabase storage URL.
+ * Returns undefined for non-Supabase URLs so the consumer can fall back.
+ */
+export function getSrcSet(src: string): string | undefined {
+  if (!SUPABASE_RENDER_RE.test(src)) return undefined
+  return IMG_BREAKPOINTS
+    .map((w) => `${getOptimizedUrl(src, w)} ${w}w`)
+    .join(', ')
+}
+
+/**
+ * Default `sizes` attribute — covers the most common layouts.
+ * Consumption pages can override this via the `sizes` prop on `Img`.
+ */
+export const DEFAULT_SIZES = '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Source_Serif_4 } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -50,6 +51,7 @@ export default function RootLayout({
           into <body> before React hydrates — only attribute diffs on this element are
           suppressed; child hydration mismatches still surface normally. */}
       <body className="font-body antialiased bg-background text-on-surface" suppressHydrationWarning>
+        <ServiceWorkerRegister />
         <Providers>
           {children}
         </Providers>
