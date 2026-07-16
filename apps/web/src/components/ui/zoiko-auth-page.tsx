@@ -316,8 +316,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
       <div className="flex min-h-screen w-full flex-col overflow-hidden bg-white">
         {/* Top: hero + form — fixed desktop min-height so the hero renders identically on login and signup */}
         <div className="flex flex-1 flex-col lg:flex-row lg:min-h-[900px]">
-          {/* -------------------- LEFT — Hero -------------------- */}
-          <div className="relative flex min-h-[340px] flex-col overflow-hidden p-8 sm:p-10 lg:min-h-0 lg:w-[49%] lg:p-12">
+          {/* -------------------- LEFT — Hero (desktop only; hidden on mobile & tablet) -------------------- */}
+          <div className="relative hidden min-h-[340px] flex-col overflow-hidden p-8 sm:p-10 lg:flex lg:min-h-0 lg:w-[49%] lg:p-12">
             {/* Fallback gradient (shows if the photo is missing) */}
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900" />
             {/* Hero photo */}
