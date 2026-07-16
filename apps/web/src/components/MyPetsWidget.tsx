@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { petsApi, type Pet } from '@/lib/api'
+import { useCachedValue } from '@/hooks/use-cache'
 import { AddPetModal } from './AddPetModal'
 
 const TINTS = ['bg-primary/10 text-primary', 'bg-secondary/10 text-secondary', 'bg-emerald-500/10 text-emerald-600']
@@ -12,18 +13,9 @@ function initials(name: string): string {
 }
 
 export function MyPetsWidget(): React.JSX.Element {
-  const [pets, setPets] = useState<Pet[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, isLoading: loading, setData } = useCachedValue<Pet[]>('pets:mine', () => petsApi.mine())
+  const pets = data ?? []
   const [addOpen, setAddOpen] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    petsApi.mine()
-      .then((data) => { if (!cancelled) setPets(data) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
 
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
@@ -79,7 +71,7 @@ export function MyPetsWidget(): React.JSX.Element {
         </div>
       )}
 
-      <AddPetModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={(pet) => setPets((prev) => [pet, ...prev])} />
+      <AddPetModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={(pet) => setData((prev) => [pet, ...(prev ?? [])])} />
     </section>
   )
 }

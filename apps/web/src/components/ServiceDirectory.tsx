@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
 import type { LucideIcon } from 'lucide-react'
 import { Search, Plus, MapPin, Phone, Globe, X, Loader2, Camera } from 'lucide-react'
 import { Header } from './Header'
@@ -23,12 +24,8 @@ interface ServiceDirectoryProps {
 
 export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes, addLabel }: ServiceDirectoryProps): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [items, setItems] = useState<Provider[]>([])
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -36,36 +33,34 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  const load = useCallback((q: string, loc: string) => {
-    setLoading(true)
-    providersApi.browse(category, { ...(q ? { q } : {}), ...(loc ? { location: loc } : {}) })
-      .then((p) => { setItems(p.data); setNextCursor(p.nextCursor); setHasMore(p.hasMore) })
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false))
-  }, [category])
-
-  useEffect(() => {
-    const t = setTimeout(() => load(query.trim(), location.trim()), (query || location) ? 350 : 0)
-    return () => clearTimeout(t)
-  }, [query, location, load])
+  const listKey = `providers:${category}:${query.trim()}:${location.trim()}`
+  const {
+    items, isLoading: loading, hasMore, loadMore, patch: patchItems,
+  } = usePagedList<Provider>(
+    listKey,
+    (cursor) => providersApi.browse(category, { ...(query.trim() ? { q: query.trim() } : {}), ...(location.trim() ? { location: location.trim() } : {}) }, cursor),
+    (query || location) ? 300 : 0,
+  )
 
   useEffect(() => {
     const s = sentinelRef.current
     if (!s || !hasMore) return
-    const obs = new IntersectionObserver((e) => {
-      if (e[0]?.isIntersecting && nextCursor) {
-        providersApi.browse(category, { ...(query.trim() ? { q: query.trim() } : {}), ...(location.trim() ? { location: location.trim() } : {}) }, nextCursor)
-          .then((p) => {
-            setItems((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
-            setNextCursor(p.nextCursor); setHasMore(p.hasMore)
-          }).catch(() => {})
-      }
-    }, { rootMargin: '400px' })
+    const obs = new IntersectionObserver((e) => { if (e[0]?.isIntersecting) loadMore() }, { rootMargin: '400px' })
     obs.observe(s)
     return () => obs.disconnect()
-  }, [hasMore, nextCursor, category, query, location])
+  }, [hasMore, loadMore])
 
-  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
+  if (authLoading || !isAuthenticated) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+          <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -148,7 +143,7 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {addOpen && <AddProviderModal category={category} serviceTypes={serviceTypes} title={addLabel} onClose={() => setAddOpen(false)} onAdded={(p) => setItems((prev) => [p, ...prev])} />}
+      {addOpen && <AddProviderModal category={category} serviceTypes={serviceTypes} title={addLabel} onClose={() => setAddOpen(false)} onAdded={(p) => patchItems((prev) => [p, ...prev])} />}
     </>
   )
 }

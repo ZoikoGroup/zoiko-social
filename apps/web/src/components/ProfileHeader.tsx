@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Link2, BadgeCheck, Briefcase, Lock, Send, Pencil } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Send, Pencil, Loader2 } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
@@ -56,6 +56,8 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
   const profile: Profile | null = profileId ? fetched : myProfile
 
   const [professionalModalOpen, setProfessionalModalOpen] = useState(false)
+  const [revertOpen, setRevertOpen] = useState(false)
+  const [reverting, setReverting] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [followListTab, setFollowListTab] = useState<'followers' | 'following' | null>(null)
   const [following, setFollowing] = useState(initialRelationship?.following ?? false)
@@ -129,6 +131,21 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
     }
   }
 
+  async function handleRevertToPersonal(): Promise<void> {
+    if (reverting) return
+    setReverting(true)
+    try {
+      await profileApi.revertToPersonal()
+      await refreshProfile()
+      setRevertOpen(false)
+      toast.success('Switched to personal', 'Your professional tools and badge are now off.')
+    } catch (e) {
+      toast.error('Could not switch', e instanceof Error ? e.message : 'Please try again')
+    } finally {
+      setReverting(false)
+    }
+  }
+
   if ((profileId && loading) || (!profileId && !profile && !error)) {
     return <HeaderSkeleton />
   }
@@ -155,6 +172,23 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
           setProfessionalModalOpen(false)
         }}
       />
+      {revertOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !reverting && setRevertOpen(false)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 className="font-headline text-headline-md text-on-surface">Switch to personal account?</h2>
+            <p className="text-label-sm text-on-surface-variant mt-2 leading-relaxed">
+              Your professional dashboard, verified badge, and category will be turned off. Your posts, followers, messages, and listings stay — switch back to professional anytime to restore your dashboard and badge.
+            </p>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setRevertOpen(false)} disabled={reverting} className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container disabled:opacity-50 cursor-pointer">Cancel</button>
+              <button onClick={handleRevertToPersonal} disabled={reverting} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
+                {reverting && <Loader2 className="w-4 h-4 animate-spin" />}Switch to Personal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <EditProfileModal
         open={editModalOpen}
         profile={profile}
@@ -294,12 +328,19 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship, 
                 >
                   Edit profile
                 </button>
-                {!professional && (
+                {!professional ? (
                   <button
                     onClick={() => setProfessionalModalOpen(true)}
                     className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     Go Professional
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setRevertOpen(true)}
+                    className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-outline-variant/60 text-on-surface-variant text-[13px] font-semibold hover:bg-surface-container active:scale-[0.98] transition-all cursor-pointer"
+                  >
+                    Switch to Personal
                   </button>
                 )}
               </>

@@ -8,6 +8,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift } from 'lucide-react'
 import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/lib/api'
+import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 
 function fmtDate(iso: string | null): string {
@@ -63,7 +64,23 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
       <div className="text-center"><MapPin className="w-10 h-10 text-outline mx-auto mb-2" /><p className="text-label-md text-on-surface">Report not found</p>
       <Link href="/lost-found" className="text-primary hover:underline text-label-sm">Back to Lost &amp; Found</Link></div></main></>)
   }
-  if (!report) return <div className="min-h-screen bg-background" />
+  if (!report) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto px-2 md:px-5 py-4 pb-24 space-y-4">
+          <div className="h-4 w-32 bg-surface-container rounded animate-pulse" />
+          <div className="rounded-2xl bg-surface-container animate-pulse aspect-[16/10]" />
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 space-y-3">
+            <div className="flex gap-2"><div className="h-6 w-16 bg-surface-container rounded-full animate-pulse" /><div className="h-6 w-20 bg-surface-container rounded-full animate-pulse" /></div>
+            <div className="h-7 w-1/2 bg-surface-container rounded animate-pulse" />
+            <div className="h-4 w-2/3 bg-surface-container rounded animate-pulse" />
+            <div className="space-y-2 pt-2">{Array.from({ length: 3 }, (_, i) => <div key={i} className="h-4 w-full bg-surface-container rounded animate-pulse" />)}</div>
+          </div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -74,8 +91,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
 
           {report.photoUrl && (
             <div className="rounded-2xl overflow-hidden bg-surface-container aspect-[16/10]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={report.photoUrl} alt="" className="w-full h-full object-cover" />
+              <Img src={report.photoUrl} alt="" priority className="w-full h-full object-cover" />
             </div>
           )}
 

@@ -11,6 +11,7 @@ import {
   BadgeCheck, ShieldCheck, Globe, Newspaper, MessageCircle, Send, Loader2,
 } from 'lucide-react'
 import { newsApi, type NewsArticle, type NewsComment } from '@/lib/api'
+import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 
 type Tier = 'institutional' | 'verified' | 'community'
@@ -107,7 +108,29 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
       <div className="text-center"><Newspaper className="w-10 h-10 text-outline mx-auto mb-2" /><p className="text-label-md text-on-surface">Article not found</p>
       <Link href="/news" className="text-primary hover:underline text-label-sm">Back to News</Link></div></main></>)
   }
-  if (!article) return <div className="min-h-screen bg-background" />
+  if (!article) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-3xl mx-auto px-2 md:px-5 py-4 pb-24">
+          <div className="h-4 w-28 bg-surface-container rounded animate-pulse mb-4" />
+          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden">
+            <div className="w-full aspect-[16/9] bg-surface-container animate-pulse" />
+            <div className="p-5 md:p-7 space-y-4">
+              <div className="h-4 w-24 bg-surface-container rounded-full animate-pulse" />
+              <div className="space-y-2"><div className="h-7 w-11/12 bg-surface-container rounded animate-pulse" /><div className="h-7 w-3/4 bg-surface-container rounded animate-pulse" /></div>
+              <div className="h-4 w-full bg-surface-container rounded animate-pulse" />
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-10 h-10 rounded-full bg-surface-container animate-pulse" />
+                <div className="space-y-1.5"><div className="h-3.5 w-32 bg-surface-container rounded animate-pulse" /><div className="h-3 w-24 bg-surface-container rounded animate-pulse" /></div>
+              </div>
+              <div className="space-y-2 pt-2">{Array.from({ length: 5 }, (_, i) => <div key={i} className={`h-4 bg-surface-container rounded animate-pulse ${i % 3 === 2 ? 'w-2/3' : 'w-full'}`} />)}</div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
+  )
 
   const tier = TIER_CONFIG[(article.tier as Tier)] ?? TIER_CONFIG.community
   const TierIcon = tier.icon
@@ -123,8 +146,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
           <article className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 overflow-hidden">
             {article.coverUrl && (
               <div className="w-full aspect-[16/9] bg-surface-container overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={article.coverUrl} alt="" className="w-full h-full object-cover" />
+                <Img src={article.coverUrl} alt="" priority className="w-full h-full object-cover" />
               </div>
             )}
             <div className="p-5 md:p-7">

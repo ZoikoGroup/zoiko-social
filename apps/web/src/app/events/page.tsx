@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
@@ -21,59 +22,48 @@ function when(iso: string): string {
 
 export default function EventsPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  const loadingMoreRef = useRef(false)
+
+  const {
+    items: events, isLoading: loading, isRefreshing, hasMore, loadMore, patch: patchEvents,
+  } = usePagedList<EventItem>('events', (cursor) => eventsApi.upcoming(cursor))
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  const loadFirst = useCallback(() => {
-    setLoading(true)
-    eventsApi.upcoming()
-      .then((p) => { setEvents(p.data); setNextCursor(p.nextCursor); setHasMore(p.hasMore) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(loadFirst, 0)
-    return () => clearTimeout(t)
-  }, [loadFirst])
-
   useEffect(() => {
     const s = sentinelRef.current
     if (!s || !hasMore) return
-    const obs = new IntersectionObserver((e) => {
-      if (e[0]?.isIntersecting && nextCursor && !loadingMoreRef.current) {
-        loadingMoreRef.current = true
-        eventsApi.upcoming(nextCursor).then((p) => {
-          setEvents((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
-          setNextCursor(p.nextCursor); setHasMore(p.hasMore)
-        }).catch(() => {}).finally(() => { loadingMoreRef.current = false })
-      }
-    }, { rootMargin: '400px' })
+    const obs = new IntersectionObserver((e) => { if (e[0]?.isIntersecting) loadMore() }, { rootMargin: '400px' })
     obs.observe(s)
     return () => obs.disconnect()
-  }, [hasMore, nextCursor])
+  }, [hasMore, loadMore])
 
   async function toggleRsvp(ev: EventItem): Promise<void> {
     const optimistic = !ev.viewerGoing
-    setEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: optimistic, goingCount: e.goingCount + (optimistic ? 1 : -1) } : e))
+    patchEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: optimistic, goingCount: e.goingCount + (optimistic ? 1 : -1) } : e))
     try {
       const r = optimistic ? await eventsApi.rsvp(ev.id) : await eventsApi.cancelRsvp(ev.id)
-      setEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: r.going, goingCount: r.goingCount } : e))
+      patchEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: r.going, goingCount: r.goingCount } : e))
     } catch {
-      setEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: ev.viewerGoing, goingCount: ev.goingCount } : e))
+      patchEvents((prev) => prev.map((e) => e.id === ev.id ? { ...e, viewerGoing: ev.viewerGoing, goingCount: ev.goingCount } : e))
     }
   }
 
-  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
+  if (authLoading || !isAuthenticated) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+          <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-72 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -86,6 +76,11 @@ export default function EventsPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-6 space-y-gutter pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -154,7 +149,7 @@ export default function EventsPage(): React.JSX.Element {
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {createOpen && <CreateEventModal onClose={() => setCreateOpen(false)} onCreated={(ev) => setEvents((prev) => [ev, ...prev])} />}
+      {createOpen && <CreateEventModal onClose={() => setCreateOpen(false)} onCreated={(ev) => patchEvents((prev) => [ev, ...prev])} />}
     </>
   )
 }

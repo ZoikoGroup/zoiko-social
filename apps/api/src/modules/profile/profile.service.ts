@@ -471,8 +471,41 @@ export class ProfileService {
 
   async switchToProfessional(userId: string, input: SwitchProfessionalInput): Promise<ProfessionalProfileResponse> {
     const existing = await this.prisma.professionalProfile.findUnique({ where: { userId } })
-    if (existing) {
+    if (existing && !existing.deletedAt) {
       throw new ConflictException({ code: 'ALREADY_PROFESSIONAL', message: 'You are already a professional account' })
+    }
+
+    // Reactivate a previously-reverted professional profile (personal → professional again).
+    if (existing) {
+      const [reactivated] = await this.prisma.$transaction([
+        this.prisma.professionalProfile.update({
+          where: { userId },
+          data: {
+            deletedAt: null,
+            category: input.category,
+            businessName: input.businessName,
+            businessEmail: input.businessEmail,
+            businessPhone: input.businessPhone,
+            businessAddress: input.businessAddress,
+            description: input.description,
+            websiteUrl: input.websiteUrl,
+            serviceAreas: input.serviceAreas ?? [],
+            businessHours: (input.businessHours as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+            licenseNumber: input.licenseNumber,
+          },
+        }),
+        this.prisma.professionalSetting.upsert({ where: { userId }, create: { userId }, update: {} }),
+        this.prisma.verificationRequest.create({
+          data: { userId, type: 'professional', categorySlug: input.category },
+        }),
+        // Restore listings hidden when they previously switched to personal.
+        this.prisma.product.updateMany({ where: { sellerId: userId, hiddenAt: { not: null } }, data: { hiddenAt: null } }),
+        this.prisma.newsArticle.updateMany({ where: { authorId: userId, hiddenAt: { not: null } }, data: { hiddenAt: null } }),
+        this.prisma.serviceProvider.updateMany({ where: { addedBy: userId, hiddenAt: { not: null } }, data: { hiddenAt: null } }),
+      ])
+      await this.redis.invalidateProfile(userId)
+      this.logger.log(`User ${userId} re-activated professional (${input.category})`)
+      return this.mapProfessionalProfile(reactivated)
     }
 
     const [professional] = await this.prisma.$transaction([
@@ -545,13 +578,22 @@ export class ProfileService {
       throw new NotFoundException({ code: 'NOT_PROFESSIONAL', message: 'You are not a professional account' })
     }
 
-    await this.prisma.$transaction([
-      this.prisma.professionalProfile.update({
-        where: { userId },
-        data: { deletedAt: new Date() },
-      }),
+    const now = new Date()
+    const ops: Prisma.PrismaPromise<unknown>[] = [
+      this.prisma.professionalProfile.update({ where: { userId }, data: { deletedAt: now } }),
       this.prisma.professionalSetting.deleteMany({ where: { userId } }),
-    ])
+      // Fully stop professional activity: drop the verified tier + badge.
+      this.prisma.profile.update({ where: { id: userId }, data: { verificationTier: 'none' } }),
+    ]
+    // Hide the pro's public listings for their category (restored on switch-back).
+    if (professional.category === 'product_seller') {
+      ops.push(this.prisma.product.updateMany({ where: { sellerId: userId, isDeleted: false, status: 'active', hiddenAt: null }, data: { hiddenAt: now } }))
+    } else if (professional.category === 'verified_news_publisher') {
+      ops.push(this.prisma.newsArticle.updateMany({ where: { authorId: userId, isDeleted: false, status: 'published', hiddenAt: null }, data: { hiddenAt: now } }))
+    } else if (professional.category === 'veterinarian' || professional.category === 'pet_care_service_provider') {
+      ops.push(this.prisma.serviceProvider.updateMany({ where: { addedBy: userId, isDeleted: false, hiddenAt: null }, data: { hiddenAt: now } }))
+    }
+    await this.prisma.$transaction(ops)
 
     await this.redis.invalidateProfile(userId)
     this.logger.log(`User ${userId} reverted to personal account`)
@@ -835,7 +877,7 @@ export class ProfileService {
       usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
-      professionalProfile: profile.professionalProfile
+      professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt
         ? this.mapProfessionalProfile(profile.professionalProfile)
         : null,
     }

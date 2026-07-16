@@ -59,6 +59,7 @@ export class ProvidersService {
     const rows = await this.prisma.serviceProvider.findMany({
       where: {
         isDeleted: false,
+        hiddenAt: null,
         category,
         ...(filters.location ? { location: { contains: filters.location, mode: 'insensitive' } } : {}),
         ...(filters.q
@@ -90,7 +91,7 @@ export class ProvidersService {
 
   async get(id: string): Promise<ProviderResponse> {
     const p = await this.prisma.serviceProvider.findUnique({ where: { id }, include: this.include() })
-    if (!p || p.isDeleted) throw new NotFoundException({ code: 'PROVIDER_NOT_FOUND', message: 'Provider not found' })
+    if (!p || p.isDeleted || p.hiddenAt) throw new NotFoundException({ code: 'PROVIDER_NOT_FOUND', message: 'Provider not found' })
     return this.map(p)
   }
 

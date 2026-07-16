@@ -568,6 +568,7 @@ model ServiceProvider {
   website     String?
   coverUrl    String?  @map("cover_url")
   isDeleted   Boolean  @default(false) @map("is_deleted")
+  hiddenAt    DateTime? @map("hidden_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -1914,6 +1915,7 @@ model NewsArticle {
   commentsCount Int      @default(0) @map("comments_count")
   status        String   @default("published")   // published | draft
   isDeleted     Boolean  @default(false) @map("is_deleted")
+  hiddenAt      DateTime? @map("hidden_at")
   publishedAt   DateTime @default(now()) @map("published_at")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -1990,6 +1992,7 @@ model Product {
   savesCount     Int      @default(0) @map("saves_count")
   enquiriesCount Int      @default(0) @map("enquiries_count")
   isDeleted      Boolean  @default(false) @map("is_deleted")
+  hiddenAt       DateTime? @map("hidden_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

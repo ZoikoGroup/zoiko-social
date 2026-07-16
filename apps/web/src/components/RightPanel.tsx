@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
 import { Bell, AtSign, MapPin, TrendingUp, Calendar, ShieldCheck, ChevronRight, AlertTriangle, PawPrint, Info } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
@@ -63,26 +64,24 @@ function eventWhen(iso: string): string {
 type BottomTab = 'today' | 'trending' | 'trust'
 
 export function RightPanel(): React.JSX.Element {
-  const [suggestions, setSuggestions] = useState<FollowSuggestion[]>([])
-  const [trending, setTrending] = useState<Trending[]>([])
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [alerts, setAlerts] = useState<LostFoundReport[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, isLoading: loading } = useCachedValue<{
+    suggestions: FollowSuggestion[]; trending: Trending[]; events: EventItem[]; alerts: LostFoundReport[]
+  }>('rightpanel', async () => {
+    const [sug, trend, ev, lf] = await Promise.allSettled([
+      networkApi.getSuggestions(), hashtagsApi.trending(), eventsApi.upcoming(null, 3), lostFoundApi.browse({}, null, 4),
+    ])
+    return {
+      suggestions: sug.status === 'fulfilled' ? sug.value.slice(0, 4) : [],
+      trending: trend.status === 'fulfilled' ? trend.value.slice(0, 5) : [],
+      events: ev.status === 'fulfilled' ? ev.value.data.slice(0, 3) : [],
+      alerts: lf.status === 'fulfilled' ? lf.value.data.slice(0, 4) : [],
+    }
+  })
+  const suggestions = data?.suggestions ?? []
+  const trending = data?.trending ?? []
+  const events = data?.events ?? []
+  const alerts = data?.alerts ?? []
   const [tab, setTab] = useState<BottomTab>('today')
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.allSettled([networkApi.getSuggestions(), hashtagsApi.trending(), eventsApi.upcoming(null, 3), lostFoundApi.browse({}, null, 4)])
-      .then(([sug, trend, ev, lf]) => {
-        if (cancelled) return
-        if (sug.status === 'fulfilled') setSuggestions(sug.value.slice(0, 4))
-        if (trend.status === 'fulfilled') setTrending(trend.value.slice(0, 5))
-        if (ev.status === 'fulfilled') setEvents(ev.value.data.slice(0, 3))
-        if (lf.status === 'fulfilled') setAlerts(lf.value.data.slice(0, 4))
-      })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
 
   return (
     <div className="space-y-gutter">

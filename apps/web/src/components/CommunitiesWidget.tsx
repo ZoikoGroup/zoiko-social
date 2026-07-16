@@ -1,22 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Users, Plus } from 'lucide-react'
 import { communitiesApi, type CommunityCard } from '@/lib/api'
+import { useCachedValue } from '@/hooks/use-cache'
 
 export function CommunitiesWidget(): React.JSX.Element {
-  const [communities, setCommunities] = useState<CommunityCard[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    communitiesApi.mine()
-      .then((data) => { if (!cancelled) setCommunities(data.slice(0, 4)) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+  const { data, isLoading: loading } = useCachedValue<CommunityCard[]>('communities:mine', () => communitiesApi.mine())
+  const communities = (data ?? []).slice(0, 4)
 
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">

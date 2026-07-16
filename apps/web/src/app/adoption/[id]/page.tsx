@@ -10,6 +10,7 @@ import {
   ChevronLeft, MapPin, PawPrint, Check, X, Loader2, Trash2, ShieldCheck, Heart, Syringe, Baby, Dog, Cat,
 } from 'lucide-react'
 import { adoptionApi, type AdoptionListing, type AdoptionEnquiryItem } from '@/lib/api'
+import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 
 const GOOD_ICON: Record<string, typeof Baby> = { kids: Baby, dogs: Dog, cats: Cat }
@@ -77,7 +78,24 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
       </main></>
     )
   }
-  if (!listing) return <div className="min-h-screen bg-background" />
+  if (!listing) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-2xl mx-auto px-2 md:px-5 py-4 pb-24 space-y-4">
+          <div className="h-4 w-32 bg-surface-container rounded animate-pulse" />
+          <div className="rounded-2xl bg-surface-container animate-pulse aspect-[16/10]" />
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 space-y-3">
+            <div className="h-7 w-1/2 bg-surface-container rounded animate-pulse" />
+            <div className="h-4 w-2/3 bg-surface-container rounded animate-pulse" />
+            <div className="flex gap-2"><div className="h-7 w-24 bg-surface-container rounded-lg animate-pulse" /><div className="h-7 w-24 bg-surface-container rounded-lg animate-pulse" /></div>
+            <div className="space-y-2 pt-2">{Array.from({ length: 3 }, (_, i) => <div key={i} className="h-4 w-full bg-surface-container rounded animate-pulse" />)}</div>
+            <div className="h-11 w-full bg-surface-container rounded-xl animate-pulse mt-2" />
+          </div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -89,8 +107,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
           {/* Cover */}
           <div className="rounded-2xl overflow-hidden bg-surface-container aspect-[16/10]">
             {listing.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={listing.coverUrl} alt={listing.name} className="w-full h-full object-cover" />
+              <Img src={listing.coverUrl} alt={listing.name} priority className="w-full h-full object-cover" />
             ) : <div className="w-full h-full flex items-center justify-center"><PawPrint className="w-14 h-14 text-outline/40" /></div>}
           </div>
 

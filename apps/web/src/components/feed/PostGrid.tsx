@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { Heart, MessageCircle, Images, FileText } from 'lucide-react'
 import type { PostItem } from '@/lib/api'
-import { blurhashToDataURL } from '@/lib/image'
+import { Img } from '../Img'
 
 interface PostGridProps {
   posts: PostItem[]
@@ -53,17 +53,11 @@ export function PostGrid({
               className="relative aspect-square overflow-hidden rounded-sm group bg-surface-container"
             >
               {cover ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Img
                   src={cover.thumbnailUrl ?? cover.url}
                   alt=""
-                  loading="lazy"
+                  blurhash={cover.blurhash}
                   className="w-full h-full object-cover"
-                  style={
-                    cover.blurhash
-                      ? { backgroundImage: `url(${blurhashToDataURL(cover.blurhash)})`, backgroundSize: 'cover' }
-                      : undefined
-                  }
                 />
               ) : (
                 <div className="w-full h-full p-3 flex flex-col">

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
+import { Img } from '@/components/Img'
 import {
   ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, MapPin, ShoppingBag,
 } from 'lucide-react'
@@ -77,7 +78,30 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
       <div className="text-center"><Package className="w-10 h-10 text-outline mx-auto mb-2" /><p className="text-label-md text-on-surface">Product not found</p>
       <Link href="/shop" className="text-primary hover:underline text-label-sm">Back to Marketplace</Link></div></main></>)
   }
-  if (!product) return <div className="min-h-screen bg-background" />
+  if (!product) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto px-2 md:px-5 py-4 pb-24">
+          <div className="h-4 w-28 bg-surface-container rounded animate-pulse mb-4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="aspect-square rounded-2xl bg-surface-container animate-pulse" />
+            <div className="space-y-4">
+              <div className="flex gap-2"><div className="h-5 w-16 bg-surface-container rounded-full animate-pulse" /><div className="h-5 w-16 bg-surface-container rounded-full animate-pulse" /></div>
+              <div className="h-7 w-3/4 bg-surface-container rounded animate-pulse" />
+              <div className="h-8 w-28 bg-surface-container rounded animate-pulse" />
+              <div className="h-4 w-40 bg-surface-container rounded animate-pulse" />
+              <div className="flex items-center gap-2.5 pt-4 border-t border-outline-variant/20">
+                <div className="w-9 h-9 rounded-full bg-surface-container animate-pulse" />
+                <div className="space-y-1.5"><div className="h-3.5 w-28 bg-surface-container rounded animate-pulse" /><div className="h-3 w-14 bg-surface-container rounded animate-pulse" /></div>
+              </div>
+              <div className="flex gap-2"><div className="h-11 flex-1 bg-surface-container rounded-xl animate-pulse" /><div className="h-11 w-20 bg-surface-container rounded-xl animate-pulse" /></div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
+  )
 
   const gallery = [product.coverUrl, ...product.photos].filter(Boolean) as string[]
   const isOwner = !!user && user.id === product.seller.id
@@ -95,8 +119,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div>
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container border border-outline-variant/20">
                 {gallery[slide] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={gallery[slide]} alt="" className="w-full h-full object-cover" />
+                  <Img src={gallery[slide]} alt="" priority className="w-full h-full object-cover" />
                 )}
                 {onSale && <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-500 text-white text-[11px] font-bold">SALE</span>}
               </div>
@@ -104,8 +127,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 <div className="flex gap-2 mt-2 overflow-x-auto no-scrollbar">
                   {gallery.map((g, i) => (
                     <button key={g} onClick={() => setSlide(i)} className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 ${i === slide ? 'border-primary' : 'border-transparent'}`}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={g} alt="" className="w-full h-full object-cover" />
+                      <Img src={g} alt="" className="w-full h-full object-cover" />
                     </button>
                   ))}
                 </div>

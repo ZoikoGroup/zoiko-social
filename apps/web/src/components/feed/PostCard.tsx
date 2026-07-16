@@ -9,12 +9,12 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
+import { Img } from '../Img'
 import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
 import { postsApi, moderationApi, type PostItem } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { blurhashToDataURL } from '@/lib/image'
 
 // Short verified-badge label derived from the author's professional category.
 const CATEGORY_BADGE: Record<string, string> = {
@@ -241,17 +241,12 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
       {/* Media carousel */}
       {media.length > 0 && (
         <div className="relative bg-black/5 select-none" onClick={handleMediaTap}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Img
             src={media[slide]!.url}
             alt=""
-            loading="lazy"
+            priority={slide === 0}
+            blurhash={media[slide]!.blurhash}
             className="w-full max-h-[560px] object-cover"
-            style={
-              media[slide]!.blurhash
-                ? { backgroundImage: `url(${blurhashToDataURL(media[slide]!.blurhash!)})`, backgroundSize: 'cover' }
-                : undefined
-            }
           />
           {heartBurst && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

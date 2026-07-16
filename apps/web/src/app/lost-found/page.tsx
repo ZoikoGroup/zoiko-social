@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
+import { Img } from '@/components/Img'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -20,12 +22,8 @@ function kindChip(kind: string): string {
 
 export default function LostFoundPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [reports, setReports] = useState<LostFoundReport[]>([])
   const [kind, setKind] = useState('')
   const [query, setQuery] = useState('')
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -33,36 +31,35 @@ export default function LostFoundPage(): React.JSX.Element {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  const load = useCallback((k: string, q: string) => {
-    setLoading(true)
-    lostFoundApi.browse({ ...(k ? { kind: k } : {}), ...(q ? { q } : {}) })
-      .then((p) => { setReports(p.data); setNextCursor(p.nextCursor); setHasMore(p.hasMore) })
-      .catch(() => setReports([]))
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => load(kind, query.trim()), query ? 350 : 0)
-    return () => clearTimeout(t)
-  }, [kind, query, load])
+  const listKey = `lostfound:${kind}:${query.trim()}`
+  const {
+    items: reports, isLoading: loading, isRefreshing, hasMore, loadMore, patch: patchReports,
+  } = usePagedList<LostFoundReport>(
+    listKey,
+    (cursor) => lostFoundApi.browse({ ...(kind ? { kind } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, cursor),
+    query ? 300 : 0,
+  )
 
   useEffect(() => {
     const s = sentinelRef.current
     if (!s || !hasMore) return
-    const obs = new IntersectionObserver((e) => {
-      if (e[0]?.isIntersecting && nextCursor) {
-        lostFoundApi.browse({ ...(kind ? { kind } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, nextCursor)
-          .then((p) => {
-            setReports((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
-            setNextCursor(p.nextCursor); setHasMore(p.hasMore)
-          }).catch(() => {})
-      }
-    }, { rootMargin: '400px' })
+    const obs = new IntersectionObserver((e) => { if (e[0]?.isIntersecting) loadMore() }, { rootMargin: '400px' })
     obs.observe(s)
     return () => obs.disconnect()
-  }, [hasMore, nextCursor, kind, query])
+  }, [hasMore, loadMore])
 
-  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
+  if (authLoading || !isAuthenticated) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+          <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-72 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -75,6 +72,11 @@ export default function LostFoundPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-6 space-y-gutter pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-secondary/10 flex items-center justify-center"><MapPin className="w-5 h-5 text-secondary" /></div>
@@ -115,11 +117,10 @@ export default function LostFoundPage(): React.JSX.Element {
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {reports.map((r) => (
-                  <Link key={r.id} href={`/lost-found/${r.id}`} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden group">
+                  <Link key={r.id} href={`/lost-found/${r.id}`} onMouseEnter={() => { void lostFoundApi.get(r.id).catch(() => {}) }} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden group">
                     <div className="aspect-[4/3] bg-surface-container relative">
                       {r.photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <Img src={r.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                       ) : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-10 h-10 text-outline/40" /></div>}
                       <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kindChip(r.kind)}`}>{r.kind}</span>
                       {r.status === 'reunited' && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">Reunited</span>}
@@ -144,7 +145,7 @@ export default function LostFoundPage(): React.JSX.Element {
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {createOpen && <ReportModal onClose={() => setCreateOpen(false)} onCreated={(r) => setReports((prev) => [r, ...prev])} />}
+      {createOpen && <ReportModal onClose={() => setCreateOpen(false)} onCreated={(r) => patchReports((prev) => [r, ...prev])} />}
     </>
   )
 }

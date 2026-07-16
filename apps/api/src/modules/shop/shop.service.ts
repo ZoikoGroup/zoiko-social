@@ -87,6 +87,7 @@ export class ShopService {
     const baseWhere: Prisma.ProductWhereInput = {
       isDeleted: false,
       status: 'active',
+      hiddenAt: null,
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.condition ? { condition: filters.condition } : {}),
       ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: 'insensitive' } }, { description: { contains: filters.q, mode: 'insensitive' } }] } : {}),
@@ -125,7 +126,7 @@ export class ShopService {
 
   async get(id: string, viewerId?: string): Promise<ProductResponse> {
     const p = await this.prisma.product.findUnique({ where: { id }, include: this.sellerInclude() })
-    if (!p || p.isDeleted) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
+    if (!p || p.isDeleted || p.hiddenAt) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
     const saved = await this.savedFlags([p.id], viewerId)
     return this.map(p, saved.has(p.id))
   }

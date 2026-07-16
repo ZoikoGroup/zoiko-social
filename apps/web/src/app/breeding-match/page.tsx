@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
+import { Img } from '@/components/Img'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
@@ -40,11 +42,6 @@ function SexBadge({ sex }: { sex: string }): React.JSX.Element {
 
 export default function BreedingMatchPage(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
-  const [profiles, setProfiles] = useState<BreedingProfile[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [species, setSpecies] = useState('all')
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
@@ -54,33 +51,10 @@ export default function BreedingMatchPage(): React.JSX.Element {
     ...(search.trim() ? { q: search.trim() } : {}),
   }), [species, search])
 
-  useEffect(() => {
-    let cancelled = false
-    const t = setTimeout(() => {
-      if (cancelled) return
-      setLoading(true)
-      breedingApi.browse(filters(), null, 12)
-        .then((page) => { if (cancelled) return; setProfiles(page.data); setCursor(page.nextCursor); setHasMore(page.hasMore) })
-        .catch(() => {})
-        .finally(() => { if (!cancelled) setLoading(false) })
-    }, 250)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [filters])
-
-  function loadMore(): void {
-    if (loadingMore || !cursor) return
-    setLoadingMore(true)
-    breedingApi.browse(filters(), cursor, 12)
-      .then((page) => {
-        setProfiles((prev) => {
-          const seen = new Set(prev.map((p) => p.id))
-          return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
-        })
-        setCursor(page.nextCursor); setHasMore(page.hasMore)
-      })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false))
-  }
+  const listKey = `breeding:${species}:${search.trim()}`
+  const {
+    items: profiles, isLoading: loading, isRefreshing, hasMore, loadingMore, loadMore, patch: patchProfiles,
+  } = usePagedList<BreedingProfile>(listKey, (cursor) => breedingApi.browse(filters(), cursor, 12))
 
   return (
     <>
@@ -94,6 +68,11 @@ export default function BreedingMatchPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-9 space-y-4 pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 -mb-3 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 flex-1">
                 <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10"><Dna className="w-5 h-5 text-primary" /></span>
@@ -146,11 +125,10 @@ export default function BreedingMatchPage(): React.JSX.Element {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {profiles.map((p) => (
-                    <Link key={p.id} href={`/breeding-match/${p.id}`} className="group bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                    <Link key={p.id} href={`/breeding-match/${p.id}`} onMouseEnter={() => { void breedingApi.get(p.id).catch(() => {}) }} className="group bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
                       <div className="relative h-40 bg-surface-container overflow-hidden">
                         {p.coverUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <Img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         )}
                         {p.owner.isVerified && (
                           <span className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 text-primary text-[10px] font-bold"><BadgeCheck className="w-3 h-3" />Verified Breeder</span>
@@ -196,7 +174,7 @@ export default function BreedingMatchPage(): React.JSX.Element {
 
       <MobileTabs currentPage="breeding-match" />
 
-      {createOpen && <CreateModal onClose={() => setCreateOpen(false)} onCreated={(p) => { setCreateOpen(false); setProfiles((prev) => [p, ...prev]) }} />}
+      {createOpen && <CreateModal onClose={() => setCreateOpen(false)} onCreated={(p) => { setCreateOpen(false); patchProfiles((prev) => [p, ...prev]) }} />}
     </>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { usePagedList, useCachedValue } from '@/hooks/use-cache'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
@@ -16,6 +17,7 @@ import { newsApi, type NewsArticle, type NewArticle } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
+import { Img } from '@/components/Img'
 
 type Tier = 'institutional' | 'verified' | 'community'
 
@@ -77,12 +79,6 @@ function SaveButton({ article, small }: { article: NewsArticle; small?: boolean 
 
 export default function NewsPage(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
-  const [featured, setFeatured] = useState<NewsArticle[]>([])
-  const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [category, setCategory] = useState('all')
   const [tier, setTier] = useState<Tier | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -95,40 +91,12 @@ export default function NewsPage(): React.JSX.Element {
     ...(search.trim() ? { q: search.trim() } : {}),
   }), [category, tier, search])
 
-  useEffect(() => {
-    let cancelled = false
-    const t = setTimeout(() => {
-      if (cancelled) return
-      setLoading(true)
-      Promise.all([newsApi.featured(3), newsApi.browse(filters(), null, 12)])
-        .then(([feat, page]) => {
-          if (cancelled) return
-          setFeatured(feat)
-          setArticles(page.data)
-          setCursor(page.nextCursor)
-          setHasMore(page.hasMore)
-        })
-        .catch(() => {})
-        .finally(() => { if (!cancelled) setLoading(false) })
-    }, 250)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [filters])
-
-  function loadMore(): void {
-    if (loadingMore || !cursor) return
-    setLoadingMore(true)
-    newsApi.browse(filters(), cursor, 12)
-      .then((page) => {
-        setArticles((prev) => {
-          const seen = new Set(prev.map((a) => a.id))
-          return [...prev, ...page.data.filter((a) => !seen.has(a.id))]
-        })
-        setCursor(page.nextCursor)
-        setHasMore(page.hasMore)
-      })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false))
-  }
+  const listKey = `news:${category}:${tier}:${search.trim()}`
+  const {
+    items: articles, isLoading: loading, isRefreshing, hasMore, loadingMore, loadMore, patch: patchArticles,
+  } = usePagedList<NewsArticle>(listKey, (cursor) => newsApi.browse(filters(), cursor, 12))
+  const { data: featuredData } = useCachedValue<NewsArticle[]>('news:featured', () => newsApi.featured(3))
+  const featured = featuredData ?? []
 
   const showFeatured = category === 'all' && tier === 'all' && !search.trim()
   const featuredIds = new Set(featured.map((a) => a.id))
@@ -150,6 +118,11 @@ export default function NewsPage(): React.JSX.Element {
 
           {/* Center */}
           <div className="lg:col-span-6 space-y-4 pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 -mb-3 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <h1 className="font-headline text-headline-md font-bold text-on-surface">Verified News</h1>
@@ -221,8 +194,7 @@ export default function NewsPage(): React.JSX.Element {
                       <Link href={`/news/${featured[0]!.id}`} aria-label={featured[0]!.title} className="absolute inset-0 z-10" />
                       <div className="relative h-48 sm:h-56 overflow-hidden bg-surface-container">
                         {featured[0]!.coverUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={featured[0]!.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <Img src={featured[0]!.coverUrl} alt="" priority className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                         <div className="absolute bottom-4 left-4 right-4">
@@ -252,8 +224,7 @@ export default function NewsPage(): React.JSX.Element {
                             <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
                             <div className="relative h-32 overflow-hidden bg-surface-container">
                               {a.coverUrl && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                                <Img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                               <div className="absolute top-2 left-2"><TierBadge tier={a.tier} /></div>
@@ -283,13 +254,12 @@ export default function NewsPage(): React.JSX.Element {
 
                   <div className="space-y-3">
                     {latest.map((a) => (
-                      <div key={a.id} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all group">
+                      <div key={a.id} onMouseEnter={() => { void newsApi.get(a.id).catch(() => {}) }} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all group">
                         <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
                         <div className="flex flex-col sm:flex-row">
                           {a.coverUrl && (
                             <div className="sm:w-44 h-32 sm:h-auto flex-shrink-0 overflow-hidden bg-surface-container">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              <Img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                             </div>
                           )}
                           <div className="flex-1 p-4 flex flex-col justify-between">
@@ -348,7 +318,7 @@ export default function NewsPage(): React.JSX.Element {
       {composeOpen && (
         <WriteArticleModal
           onClose={() => setComposeOpen(false)}
-          onPublished={(a) => { setComposeOpen(false); setArticles((prev) => [a, ...prev]) }}
+          onPublished={(a) => { setComposeOpen(false); patchArticles((prev) => [a, ...prev]) }}
         />
       )}
     </>

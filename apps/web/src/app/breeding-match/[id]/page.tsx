@@ -11,6 +11,7 @@ import {
   Venus, Mars, HeartHandshake, PawPrint,
 } from 'lucide-react'
 import { breedingApi, type BreedingProfile, type BreedingRequest } from '@/lib/api'
+import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 
 function money(amount: number, currency: string): string {
@@ -66,7 +67,30 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
       <div className="text-center"><PawPrint className="w-10 h-10 text-outline mx-auto mb-2" /><p className="text-label-md text-on-surface">Profile not found</p>
       <Link href="/breeding-match" className="text-primary hover:underline text-label-sm">Back to Breeder Match</Link></div></main></>)
   }
-  if (!profile) return <div className="min-h-screen bg-background" />
+  if (!profile) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto px-2 md:px-5 py-4 pb-24">
+          <div className="h-4 w-28 bg-surface-container rounded animate-pulse mb-4" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="aspect-square rounded-2xl bg-surface-container animate-pulse" />
+            <div className="space-y-4">
+              <div className="flex gap-2"><div className="h-5 w-16 bg-surface-container rounded-full animate-pulse" /><div className="h-5 w-16 bg-surface-container rounded-full animate-pulse" /></div>
+              <div className="h-7 w-2/3 bg-surface-container rounded animate-pulse" />
+              <div className="h-4 w-1/2 bg-surface-container rounded animate-pulse" />
+              <div className="h-8 w-24 bg-surface-container rounded animate-pulse" />
+              <div className="flex items-center gap-2.5 pt-4 border-t border-outline-variant/20">
+                <div className="w-9 h-9 rounded-full bg-surface-container animate-pulse" />
+                <div className="space-y-1.5"><div className="h-3.5 w-28 bg-surface-container rounded animate-pulse" /><div className="h-3 w-16 bg-surface-container rounded animate-pulse" /></div>
+              </div>
+              <div className="h-11 w-full bg-surface-container rounded-xl animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </main>
+    </>
+  )
 
   const gallery = [profile.coverUrl, ...profile.photos].filter(Boolean) as string[]
   const female = profile.sex === 'female'
@@ -82,8 +106,7 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
             <div>
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container border border-outline-variant/20">
                 {gallery[0] && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={gallery[0]} alt="" className="w-full h-full object-cover" />
+                  <Img src={gallery[0]} alt="" priority className="w-full h-full object-cover" />
                 )}
                 {profile.owner.isVerified && (
                   <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/90 text-primary text-[11px] font-bold"><BadgeCheck className="w-3.5 h-3.5" />Verified Breeder</span>

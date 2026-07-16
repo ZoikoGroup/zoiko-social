@@ -104,6 +104,7 @@ export class NewsService {
     const where: Prisma.NewsArticleWhereInput = {
       isDeleted: false,
       status: 'published',
+      hiddenAt: null,
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.tier ? { tier: filters.tier } : {}),
       ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: 'insensitive' } }, { excerpt: { contains: filters.q, mode: 'insensitive' } }] } : {}),
@@ -145,7 +146,7 @@ export class NewsService {
   /** Top stories — most-liked recent published articles. */
   async featured(viewerId: string | undefined, limit = 3): Promise<ArticleResponse[]> {
     const rows = await this.prisma.newsArticle.findMany({
-      where: { isDeleted: false, status: 'published' },
+      where: { isDeleted: false, status: 'published', hiddenAt: null },
       take: Math.min(limit, 6),
       orderBy: [{ likesCount: 'desc' }, { publishedAt: 'desc' }],
       include: this.authorInclude(),
@@ -156,7 +157,7 @@ export class NewsService {
 
   async get(id: string, viewerId?: string): Promise<ArticleResponse> {
     const a = await this.prisma.newsArticle.findUnique({ where: { id }, include: this.authorInclude() })
-    if (!a || a.isDeleted || a.status !== 'published') throw new NotFoundException({ code: 'ARTICLE_NOT_FOUND', message: 'Article not found' })
+    if (!a || a.isDeleted || a.status !== 'published' || a.hiddenAt) throw new NotFoundException({ code: 'ARTICLE_NOT_FOUND', message: 'Article not found' })
     const flags = await this.viewerFlags([a.id], viewerId)
     return this.map(a, flags.liked.has(a.id), flags.saved.has(a.id), true)
   }

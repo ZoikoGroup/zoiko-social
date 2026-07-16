@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
+import { Img } from '@/components/Img'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
@@ -60,11 +62,6 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 
 export default function ShopPage(): React.JSX.Element {
   const { isAuthenticated } = useAuth()
-  const [products, setProducts] = useState<Product[]>([])
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState('newest')
   const [search, setSearch] = useState('')
@@ -76,33 +73,10 @@ export default function ShopPage(): React.JSX.Element {
     ...(search.trim() ? { q: search.trim() } : {}),
   }), [category, sort, search])
 
-  useEffect(() => {
-    let cancelled = false
-    const t = setTimeout(() => {
-      if (cancelled) return
-      setLoading(true)
-      shopApi.browse(filters(), null, 12)
-        .then((page) => { if (cancelled) return; setProducts(page.data); setCursor(page.nextCursor); setHasMore(page.hasMore) })
-        .catch(() => {})
-        .finally(() => { if (!cancelled) setLoading(false) })
-    }, 250)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [filters])
-
-  function loadMore(): void {
-    if (loadingMore || !cursor) return
-    setLoadingMore(true)
-    shopApi.browse(filters(), cursor, 12)
-      .then((page) => {
-        setProducts((prev) => {
-          const seen = new Set(prev.map((p) => p.id))
-          return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
-        })
-        setCursor(page.nextCursor); setHasMore(page.hasMore)
-      })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false))
-  }
+  const listKey = `shop:${category}:${sort}:${search.trim()}`
+  const {
+    items: products, isLoading: loading, isRefreshing, hasMore, loadingMore, loadMore, patch: patchProducts,
+  } = usePagedList<Product>(listKey, (cursor) => shopApi.browse(filters(), cursor, 12))
 
   return (
     <>
@@ -116,6 +90,11 @@ export default function ShopPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-9 space-y-4 pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 -mb-3 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 flex-1">
                 <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-secondary/15"><ShoppingBag className="w-5 h-5 text-secondary" /></span>
@@ -167,12 +146,11 @@ export default function ShopPage(): React.JSX.Element {
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {products.map((p) => (
-                    <div key={p.id} className="group relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
+                    <div key={p.id} onMouseEnter={() => { void shopApi.get(p.id).catch(() => {}) }} className="group relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
                       <Link href={`/shop/${p.id}`} aria-label={p.title} className="absolute inset-0 z-10" />
                       <div className="relative aspect-square bg-surface-container overflow-hidden">
                         {p.coverUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <Img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         )}
                         {p.compareAt && p.compareAt > p.price && (
                           <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">SALE</span>
@@ -214,7 +192,7 @@ export default function ShopPage(): React.JSX.Element {
 
       <MobileTabs currentPage="shop" />
 
-      {sellOpen && <SellModal onClose={() => setSellOpen(false)} onListed={(p) => { setSellOpen(false); setProducts((prev) => [p, ...prev]) }} />}
+      {sellOpen && <SellModal onClose={() => setSellOpen(false)} onListed={(p) => { setSellOpen(false); patchProducts((prev) => [p, ...prev]) }} />}
     </>
   )
 }

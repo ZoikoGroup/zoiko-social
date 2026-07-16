@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
+import { Img } from '@/components/Img'
 import {
   LayoutDashboard, ShoppingBag, Newspaper, Stethoscope, HandHeart, ShieldCheck, BadgeCheck,
   Plus, Heart, Bookmark, MessageCircle, Package, MailOpen, PawPrint, ChevronRight, Pencil, MapPin,
@@ -67,18 +69,15 @@ function StatusPill({ status }: { status: string }): React.JSX.Element {
 
 // ── Product Seller ───────────────────────────────────────────────────────────
 function SellerDashboard(): React.JSX.Element {
-  const [products, setProducts] = useState<Product[]>([])
-  const [inbox, setInbox] = useState<ProductEnquiryInbox[]>([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    let cancelled = false
-    Promise.allSettled([shopApi.mine(), shopApi.enquiryInbox()]).then(([m, i]) => {
-      if (cancelled) return
-      if (m.status === 'fulfilled') setProducts(m.value)
-      if (i.status === 'fulfilled') setInbox(i.value)
-    }).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+  const { data, isLoading: loading } = useCachedValue<{ products: Product[]; inbox: ProductEnquiryInbox[] }>('dash:seller', async () => {
+    const [m, i] = await Promise.allSettled([shopApi.mine(), shopApi.enquiryInbox()])
+    return {
+      products: m.status === 'fulfilled' ? m.value : [],
+      inbox: i.status === 'fulfilled' ? i.value : [],
+    }
+  })
+  const products = data?.products ?? []
+  const inbox = data?.inbox ?? []
 
   const active = products.filter((p) => p.status === 'active').length
   const totalSaves = products.reduce((s, p) => s + p.savesCount, 0)
@@ -142,13 +141,8 @@ function SellerDashboard(): React.JSX.Element {
 
 // ── Verified News Publisher ──────────────────────────────────────────────────
 function PublisherDashboard(): React.JSX.Element {
-  const [articles, setArticles] = useState<NewsArticle[]>([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    let cancelled = false
-    newsApi.mine().then((a) => { if (!cancelled) setArticles(a) }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+  const { data, isLoading: loading } = useCachedValue<NewsArticle[]>('dash:publisher', () => newsApi.mine())
+  const articles = data ?? []
 
   const likes = articles.reduce((s, a) => s + a.likesCount, 0)
   const saves = articles.reduce((s, a) => s + a.savesCount, 0)
@@ -193,19 +187,17 @@ function PublisherDashboard(): React.JSX.Element {
 // ── Veterinarian ─────────────────────────────────────────────────────────────
 function VetDashboard(): React.JSX.Element {
   const { profile } = useAuth()
-  const [tips, setTips] = useState<PostItem[]>([])
-  const [listings, setListings] = useState<Provider[]>([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    if (!profile) return
-    let cancelled = false
-    Promise.allSettled([feedApi.profilePosts(profile.id, null, false, 30), providersApi.mine()]).then(([p, l]) => {
-      if (cancelled) return
-      if (p.status === 'fulfilled') setTips(p.value.data.filter((x) => x.kind === 'vet_tip'))
-      if (l.status === 'fulfilled') setListings(l.value.filter((x) => x.category === 'vet'))
-    }).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [profile])
+  const pid = profile?.id ?? ''
+  const { data, isLoading: loading } = useCachedValue<{ tips: PostItem[]; listings: Provider[] }>(`dash:vet:${pid}`, async () => {
+    if (!pid) return { tips: [], listings: [] }
+    const [p, l] = await Promise.allSettled([feedApi.profilePosts(pid, null, false, 30), providersApi.mine()])
+    return {
+      tips: p.status === 'fulfilled' ? p.value.data.filter((x) => x.kind === 'vet_tip') : [],
+      listings: l.status === 'fulfilled' ? l.value.filter((x) => x.category === 'vet') : [],
+    }
+  })
+  const tips = data?.tips ?? []
+  const listings = data?.listings ?? []
 
   const tipSaves = tips.reduce((s, t) => s + t.savesCount, 0)
 
@@ -264,13 +256,11 @@ function VetDashboard(): React.JSX.Element {
 // ── Pet Care Service Provider ────────────────────────────────────────────────
 function PetCareDashboard(): React.JSX.Element {
   const { profile } = useAuth()
-  const [listings, setListings] = useState<Provider[]>([])
-  const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    let cancelled = false
-    providersApi.mine().then((l) => { if (!cancelled) setListings(l.filter((x) => x.category === 'pet_care')) }).catch(() => {}).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [])
+  const { data, isLoading: loading } = useCachedValue<Provider[]>('dash:petcare', async () => {
+    const l = await providersApi.mine()
+    return l.filter((x) => x.category === 'pet_care')
+  })
+  const listings = data ?? []
 
   return (
     <>
@@ -306,10 +296,7 @@ function PetCareDashboard(): React.JSX.Element {
 
 function Thumb({ url, className, fallback }: { url: string | null; className: string; fallback?: React.ReactNode }): React.JSX.Element {
   if (!url) return <>{fallback ?? null}</>
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt="" className={className} />
-  )
+  return <Img src={url} alt="" className={className} />
 }
 
 function Skeleton({ rows }: { rows: number }): React.JSX.Element {

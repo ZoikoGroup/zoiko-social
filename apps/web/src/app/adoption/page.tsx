@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { usePagedList } from '@/hooks/use-cache'
+import { Img } from '@/components/Img'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -26,12 +28,8 @@ function StatusChip({ status }: { status: string }): React.JSX.Element {
 
 export default function AdoptionPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [listings, setListings] = useState<AdoptionListing[]>([])
   const [species, setSpecies] = useState('All')
   const [query, setQuery] = useState('')
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -39,36 +37,35 @@ export default function AdoptionPage(): React.JSX.Element {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  const load = useCallback((sp: string, q: string) => {
-    setLoading(true)
-    adoptionApi.browse({ ...(sp !== 'All' ? { species: sp } : {}), ...(q ? { q } : {}) })
-      .then((p) => { setListings(p.data); setNextCursor(p.nextCursor); setHasMore(p.hasMore) })
-      .catch(() => setListings([]))
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => load(species, query.trim()), query ? 350 : 0)
-    return () => clearTimeout(t)
-  }, [species, query, load])
+  const listKey = `adoption:${species}:${query.trim()}`
+  const {
+    items: listings, isLoading: loading, isRefreshing, hasMore, loadMore, patch: patchListings,
+  } = usePagedList<AdoptionListing>(
+    listKey,
+    (cursor) => adoptionApi.browse({ ...(species !== 'All' ? { species } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, cursor),
+    query ? 300 : 0,
+  )
 
   useEffect(() => {
     const s = sentinelRef.current
     if (!s || !hasMore) return
-    const obs = new IntersectionObserver((e) => {
-      if (e[0]?.isIntersecting && nextCursor) {
-        adoptionApi.browse({ ...(species !== 'All' ? { species } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, nextCursor)
-          .then((p) => {
-            setListings((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...p.data.filter((x) => !seen.has(x.id))] })
-            setNextCursor(p.nextCursor); setHasMore(p.hasMore)
-          }).catch(() => {})
-      }
-    }, { rootMargin: '400px' })
+    const obs = new IntersectionObserver((e) => { if (e[0]?.isIntersecting) loadMore() }, { rootMargin: '400px' })
     obs.observe(s)
     return () => obs.disconnect()
-  }, [hasMore, nextCursor, species, query])
+  }, [hasMore, loadMore])
 
-  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-background" />
+  if (authLoading || !isAuthenticated) return (
+    <>
+      <Header />
+      <main className="pt-20 min-h-screen bg-background">
+        <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+          <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
+          <div className="lg:col-span-3 hidden lg:block"><div className="h-72 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
+        </div>
+      </main>
+    </>
+  )
 
   return (
     <>
@@ -81,6 +78,11 @@ export default function AdoptionPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-6 space-y-gutter pb-20">
+            {isRefreshing && !loading && (
+              <div className="h-0.5 overflow-hidden rounded-full bg-primary/10">
+                <div className="h-full w-1/3 bg-primary/60 animate-pulse rounded-full" />
+              </div>
+            )}
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center"><PawPrint className="w-5 h-5 text-primary" /></div>
@@ -123,11 +125,10 @@ export default function AdoptionPage(): React.JSX.Element {
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {listings.map((l) => (
-                  <Link key={l.id} href={`/adoption/${l.id}`} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden group">
+                  <Link key={l.id} href={`/adoption/${l.id}`} onMouseEnter={() => { void adoptionApi.get(l.id).catch(() => {}) }} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden group">
                     <div className="aspect-[4/3] bg-surface-container relative">
                       {l.coverUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={l.coverUrl} alt={l.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <Img src={l.coverUrl} alt={l.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center"><PawPrint className="w-10 h-10 text-outline/40" /></div>
                       )}
@@ -155,7 +156,7 @@ export default function AdoptionPage(): React.JSX.Element {
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {createOpen && <ListPetModal onClose={() => setCreateOpen(false)} onCreated={(l) => setListings((prev) => [l, ...prev])} />}
+      {createOpen && <ListPetModal onClose={() => setCreateOpen(false)} onCreated={(l) => patchListings((prev) => [l, ...prev])} />}
     </>
   )
 }
