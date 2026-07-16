@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
       <head>
         {/* TLS handshakes start before the first fetch — saves ~100ms on first request */}
         {API_ORIGIN && <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />}

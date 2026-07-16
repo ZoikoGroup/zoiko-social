@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* ── shadcn/ui tokens ── */
     --background: 40 33% 97%;
     --foreground: 0 0% 7%;
     --card: 0 0% 100%;
@@ -24,6 +25,135 @@
     --input: 220 13% 91%;
     --ring: 189 91% 25%;
     --radius: 0.5rem;
+
+    /* ── ZoikoSocial Material palette (light) ── */
+    --zk-primary: 189 91% 25%;
+    --zk-primary-container: 189 52% 89%;
+    --zk-on-primary: 0 0% 100%;
+    --zk-primary-fixed: 189 52% 89%;
+    --zk-primary-fixed-dim: 189 43% 76%;
+    --zk-on-primary-fixed: 193 96% 10%;
+    --zk-on-primary-fixed-variant: 189 93% 18%;
+    --zk-secondary: 31 81% 53%;
+    --zk-secondary-container: 35 94% 93%;
+    --zk-on-secondary: 0 0% 100%;
+    --zk-on-secondary-container: 27 100% 18%;
+    --zk-secondary-fixed: 35 94% 93%;
+    --zk-secondary-fixed-dim: 37 91% 73%;
+    --zk-on-secondary-fixed: 27 100% 18%;
+    --zk-on-secondary-fixed-variant: 32 100% 33%;
+    --zk-tertiary: 220 9% 46%;
+    --zk-tertiary-container: 220 13% 91%;
+    --zk-on-tertiary: 0 0% 100%;
+    --zk-on-tertiary-container: 217 19% 27%;
+    --zk-tertiary-fixed: 220 14% 96%;
+    --zk-tertiary-fixed-dim: 216 12% 84%;
+    --zk-on-tertiary-fixed: 221 39% 11%;
+    --zk-on-tertiary-fixed-variant: 215 14% 34%;
+    --zk-error: 0 75% 42%;
+    --zk-error-container: 6 100% 92%;
+    --zk-on-error: 0 0% 100%;
+    --zk-on-error-container: 356 100% 29%;
+    --zk-background: 180 7% 97%;
+    --zk-on-background: 0 0% 7%;
+    --zk-surface: 0 0% 100%;
+    --zk-surface-dim: 220 13% 91%;
+    --zk-surface-bright: 0 0% 100%;
+    --zk-surface-container-lowest: 0 0% 100%;
+    --zk-surface-container-low: 180 7% 97%;
+    --zk-surface-container: 180 3% 94%;
+    --zk-surface-container-high: 180 2% 91%;
+    --zk-surface-container-highest: 180 2% 88%;
+    --zk-on-surface: 0 0% 7%;
+    --zk-on-surface-variant: 217 19% 27%;
+    --zk-surface-variant: 220 13% 91%;
+    --zk-outline: 220 9% 46%;
+    --zk-outline-variant: 216 12% 84%;
+    --zk-surface-tint: 189 91% 25%;
+    --zk-inverse-surface: 215 28% 17%;
+    --zk-inverse-on-surface: 210 20% 98%;
+    --zk-inverse-primary: 189 43% 76%;
+
+    /* raw hex vars (focus rings, scrollbar) */
+    --color-primary: #066879;
+    --color-secondary: #E88924;
+    --color-outline-variant: #D1D5DB;
+  }
+
+  .dark {
+    /* ── shadcn/ui tokens (dark) ── */
+    --background: 220 14% 8%;
+    --foreground: 210 17% 92%;
+    --card: 220 13% 11%;
+    --card-foreground: 210 17% 92%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 210 17% 92%;
+    --primary: 189 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 31 88% 58%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 220 12% 16%;
+    --muted-foreground: 216 12% 65%;
+    --accent: 220 12% 16%;
+    --accent-foreground: 210 17% 92%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 22%;
+    --input: 220 10% 22%;
+    --ring: 189 60% 45%;
+
+    /* ── ZoikoSocial Material palette (dark) ── */
+    --zk-primary: 189 60% 45%;
+    --zk-primary-container: 190 55% 20%;
+    --zk-on-primary: 0 0% 100%;
+    --zk-primary-fixed: 190 52% 22%;
+    --zk-primary-fixed-dim: 189 43% 40%;
+    --zk-on-primary-fixed: 189 52% 88%;
+    --zk-on-primary-fixed-variant: 189 43% 76%;
+    --zk-secondary: 31 88% 58%;
+    --zk-secondary-container: 28 55% 18%;
+    --zk-on-secondary: 0 0% 100%;
+    --zk-on-secondary-container: 35 90% 85%;
+    --zk-secondary-fixed: 28 55% 20%;
+    --zk-secondary-fixed-dim: 32 70% 40%;
+    --zk-on-secondary-fixed: 35 90% 85%;
+    --zk-on-secondary-fixed-variant: 33 80% 72%;
+    --zk-tertiary: 220 10% 65%;
+    --zk-tertiary-container: 220 10% 25%;
+    --zk-on-tertiary: 220 15% 12%;
+    --zk-on-tertiary-container: 216 14% 82%;
+    --zk-tertiary-fixed: 220 10% 22%;
+    --zk-tertiary-fixed-dim: 220 9% 38%;
+    --zk-on-tertiary-fixed: 210 17% 92%;
+    --zk-on-tertiary-fixed-variant: 216 12% 74%;
+    --zk-error: 0 75% 62%;
+    --zk-error-container: 0 55% 22%;
+    --zk-on-error: 0 0% 100%;
+    --zk-on-error-container: 6 100% 88%;
+    --zk-background: 220 14% 8%;
+    --zk-on-background: 210 17% 92%;
+    --zk-surface: 220 13% 11%;
+    --zk-surface-dim: 220 14% 8%;
+    --zk-surface-bright: 220 12% 20%;
+    --zk-surface-container-lowest: 220 16% 6%;
+    --zk-surface-container-low: 220 13% 11%;
+    --zk-surface-container: 220 12% 13%;
+    --zk-surface-container-high: 220 11% 16%;
+    --zk-surface-container-highest: 220 10% 20%;
+    --zk-on-surface: 210 17% 92%;
+    --zk-on-surface-variant: 216 12% 74%;
+    --zk-surface-variant: 220 10% 26%;
+    --zk-outline: 220 9% 55%;
+    --zk-outline-variant: 220 10% 30%;
+    --zk-surface-tint: 189 55% 55%;
+    --zk-inverse-surface: 210 17% 92%;
+    --zk-inverse-on-surface: 220 13% 11%;
+    --zk-inverse-primary: 189 91% 25%;
+
+    /* raw hex vars (focus rings, scrollbar) */
+    --color-primary: #35a5b8;
+    --color-secondary: #f4a820;
+    --color-outline-variant: #414651;
   }
 
   * {
@@ -33,12 +163,6 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
-}
-
-:root {
-  --color-primary: #066879;
-  --color-secondary: #E88924;
-  --color-outline-variant: #D1D5DB;
 }
 
 html {

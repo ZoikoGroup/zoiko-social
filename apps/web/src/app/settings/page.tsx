@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, ExternalLink, ChevronDown, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
 
 type SettingsTab =
@@ -337,8 +338,20 @@ function NotificationSettings(): React.JSX.Element {
 
 // ── PREFERENCES ─────────────────────────────────────────────
 
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+] as const
+
+// `true` only after client mount — server and first client render return `false`
+// so theme highlighting stays hydration-safe without a setState-in-effect.
+const emptySubscribe = (): (() => void) => () => {}
+
 function PreferencesSettings(): React.JSX.Element {
-  const [prefs, setPrefs] = useState({ darkMode: false, reducedMotion: false, compactView: false })
+  const { theme, setTheme } = useTheme()
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+  const [prefs, setPrefs] = useState({ reducedMotion: false, compactView: false })
   const [language, setLanguage] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -363,8 +376,44 @@ function PreferencesSettings(): React.JSX.Element {
     }
   }
 
+  const activeTheme = mounted ? theme ?? 'system' : undefined
+
   return (
     <div className="space-y-5">
+      {/* Theme */}
+      <div>
+        <h4 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
+          <Sun className="w-4 h-4 text-primary" />
+          Appearance
+        </h4>
+        <p className="text-[11px] text-outline mb-3">Choose how ZoikoSocial looks. &ldquo;System&rdquo; follows your device settings.</p>
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Theme">
+          {THEME_OPTIONS.map((option) => {
+            const Icon = option.icon
+            const selected = activeTheme === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setTheme(option.value)}
+                className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl border text-label-sm font-semibold transition-all ${
+                  selected
+                    ? 'border-primary bg-primary/5 text-primary'
+                    : 'border-outline-variant/50 text-on-surface-variant hover:bg-surface-container hover:border-outline-variant'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <hr className="border-outline-variant/30" />
+
       {/* Language */}
       <div>
         <h4 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
@@ -395,7 +444,6 @@ function PreferencesSettings(): React.JSX.Element {
         </h4>
         <div className="space-y-1">
           {([
-            { label: 'Dark Mode', key: 'darkMode' as const, desc: 'Use dark theme across the platform' },
             { label: 'Reduced Motion', key: 'reducedMotion' as const, desc: 'Minimize animations and transitions' },
             { label: 'Compact View', key: 'compactView' as const, desc: 'Show more content in less space' },
           ]).map((item) => (
