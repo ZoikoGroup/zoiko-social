@@ -32,7 +32,17 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`}>
       <head>
-        {/* TLS handshakes start before the first fetch — saves ~100ms on first request */}
+        {/* ── Resource Hints ────────────────────────────────────────────────
+         * Preconnect early origins so the browser starts the TLS handshake
+         * before the first fetch, saving ~100-150ms on initial load.
+         *
+         * fonts.gstatic.com: Google Fonts CDN — next/font/google inserts its
+         *   own preconnect internally, but being explicit here ensures it's
+         *   discovered even earlier by the HTML parser.
+         * NEXT_PUBLIC_API_URL: NestJS API + Socket.IO server.
+         * NEXT_PUBLIC_SUPABASE_URL: Supabase Auth + Realtime.
+         */}
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {API_ORIGIN && <link rel="preconnect" href={API_ORIGIN} crossOrigin="anonymous" />}
         {SUPABASE_ORIGIN && <link rel="preconnect" href={SUPABASE_ORIGIN} crossOrigin="anonymous" />}
       </head>

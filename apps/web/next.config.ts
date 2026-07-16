@@ -19,6 +19,8 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingRoot: path.resolve(__dirname, '../..'),
   reactStrictMode: true,
+  poweredByHeader: false,
+  skipTrailingSlashRedirect: true,
 
   async headers() {
     return [

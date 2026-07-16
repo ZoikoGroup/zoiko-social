@@ -22,6 +22,10 @@ export default function RootLayout({
 }): React.JSX.Element {
   return (
     <html lang="en">
+      <head>
+        {/* Preconnect to origins the landing page will fetch from */}
+        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+      </head>
       <body className="bg-paper text-teal-deep antialiased">{children}</body>
     </html>
   )
