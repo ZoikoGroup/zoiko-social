@@ -11,7 +11,7 @@ export async function uploadCommunityImage(
   file: File,
   kind: 'avatar' | 'cover',
 ): Promise<string> {
-  const maxEdge = kind === 'cover' ? 1600 : 512
+  const maxEdge = kind === 'cover' ? 1280 : 400
   const processed = await processImage(file, maxEdge)
   const supabase = createClient()
   const path = `${userId}/community-${kind}-${Date.now()}.webp`

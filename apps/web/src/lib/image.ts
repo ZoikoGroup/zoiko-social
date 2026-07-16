@@ -36,7 +36,7 @@ function drawScaled(bitmap: ImageBitmap, maxEdge: number): HTMLCanvasElement {
   return canvas
 }
 
-export async function processImage(file: File, maxEdge = 1440, quality = 0.82): Promise<ProcessedImage> {
+export async function processImage(file: File, maxEdge = 1280, quality = 0.7): Promise<ProcessedImage> {
   const bitmap = await createImageBitmap(file)
 
   const full = drawScaled(bitmap, maxEdge)
@@ -52,7 +52,7 @@ export async function processImage(file: File, maxEdge = 1440, quality = 0.82): 
 
   const [blob, thumbnailBlob] = await Promise.all([
     encodeCanvas(full, quality),
-    encodeCanvas(thumb, 0.8),
+    encodeCanvas(thumb, 0.65),
   ])
 
   return { blob, thumbnailBlob, width: full.width, height: full.height, blurhash }
@@ -65,8 +65,8 @@ export async function processImage(file: File, maxEdge = 1440, quality = 0.82): 
  */
 export async function compressImage(
   file: File,
-  maxEdge = 1920,
-  quality = 0.82,
+  maxEdge = 1600,
+  quality = 0.7,
 ): Promise<{ blob: Blob; fileName: string; mimeType: string }> {
   if (file.type === 'image/gif') {
     return { blob: file, fileName: file.name, mimeType: file.type }
@@ -87,6 +87,48 @@ export async function compressImage(
     // Undecodable in this browser — upload the original rather than failing
     return { blob: file, fileName: file.name, mimeType: file.type }
   }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Image could not be loaded'))
+    img.src = src
+  })
+}
+
+/** A crop rectangle in the source image's natural pixel coordinates. */
+export interface PixelCrop {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * Render a crop region of an image to a fixed output size and return a WebP blob.
+ * Used by the avatar/banner editor to bake the user's chosen zoom+position into
+ * the uploaded file, so it displays identically everywhere without any position
+ * metadata. `imageSrc` is typically an object URL from the selected file.
+ */
+export async function getCroppedBlob(
+  imageSrc: string,
+  crop: PixelCrop,
+  outWidth: number,
+  outHeight: number,
+  quality = 0.7,
+): Promise<Blob> {
+  const img = await loadImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  canvas.width = outWidth
+  canvas.height = outHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Canvas unsupported')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, outWidth, outHeight)
+  return encodeCanvas(canvas, quality)
 }
 
 /** Render a blurhash to a data URL for use as an <img> placeholder. */

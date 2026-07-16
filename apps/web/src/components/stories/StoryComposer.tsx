@@ -9,6 +9,7 @@ import { StoryRefCard } from './StoryRefCard'
 import { useAuth } from '@/hooks/use-auth'
 import { storiesApi, type MusicTrackMeta, type StoryItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
+import { compressImage } from '@/lib/image'
 
 type ComposeMode = 'text' | 'photo' | 'video' | 'share_ref'
 
@@ -121,16 +122,29 @@ export function StoryComposer({ onClose, onPublished, refType, refId }: StoryCom
 
       if ((photoPreview && photoFile) || (videoPreview && videoFile)) {
         const isVideo = mode === 'video' && !!videoFile
-        const file = isVideo ? videoFile! : photoFile!
+        const rawFile = isVideo ? videoFile! : photoFile!
         const supabase = createClient()
         const stamp = Date.now()
-        const ext = (file.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')).toLowerCase()
+
+        // Photos are compressed to a WebP (max edge 1280, q0.70) before upload —
+        // a story photo drops from several MB to well under 200 KB. Videos are
+        // uploaded as-is (client-side transcoding isn't feasible in the browser).
+        let uploadBody: Blob = rawFile
+        let contentType = rawFile.type
+        let ext = (rawFile.name.split('.').pop() || (isVideo ? 'mp4' : 'jpg')).toLowerCase()
+        if (!isVideo) {
+          const compressed = await compressImage(rawFile, 1280, 0.7)
+          uploadBody = compressed.blob
+          contentType = compressed.mimeType
+          ext = compressed.mimeType === 'image/webp' ? 'webp' : ext
+        }
+
         // Own-path in the existing post-media bucket (satisfies owner-path RLS)
         const path = `${profile.id}/stories/${stamp}.${ext}`
 
         const { error: uploadError } = await supabase.storage
           .from('post-media')
-          .upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: true })
+          .upload(path, uploadBody, { contentType, cacheControl: '31536000', upsert: true })
 
         if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 

@@ -5,6 +5,14 @@ import { X, Loader2, Lock, Camera, AtSign, CheckCircle2, XCircle } from 'lucide-
 import { profileApi, ApiError, type Profile } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
+import { ImageCropper } from '@/components/ImageCropper'
+
+// Baked output sizes for the crop editor — kept small for tiny, fast-loading files
+const AVATAR_OUTPUT = 400 // square
+const BANNER_OUTPUT = { width: 1280, height: 320 } // 4:1
+const IMAGE_QUALITY = 0.7 // aggressive WebP compression
+
+type CropTarget = { src: string; kind: 'avatar' | 'banner' }
 
 interface EditProfileModalProps {
   open: boolean
@@ -37,6 +45,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('unchanged')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [cropTarget, setCropTarget] = useState<CropTarget | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bannerInputRef = useRef<HTMLInputElement>(null)
 
@@ -77,104 +86,68 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     return () => { cancelled = true; clearTimeout(timer) }
   }, [username, profile.username])
 
+  // File pickers open the crop editor rather than uploading the raw image. The
+  // input value is cleared so re-selecting the same file still fires onChange.
   function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
       setError('Profile photo must be under 5 MB')
       return
     }
     setError('')
-    setAvatarFile(file)
-    setAvatarPreview(URL.createObjectURL(file))
+    setCropTarget({ src: URL.createObjectURL(file), kind: 'avatar' })
   }
 
   function handleBannerSelect(e: React.ChangeEvent<HTMLInputElement>): void {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
     if (file.size > 5 * 1024 * 1024) {
       setError('Banner image must be under 5 MB')
       return
     }
     setError('')
-    setBannerFile(file)
-    setBannerPreview(URL.createObjectURL(file))
+    setCropTarget({ src: URL.createObjectURL(file), kind: 'banner' })
+  }
+
+  function closeCropper(): void {
+    if (cropTarget) URL.revokeObjectURL(cropTarget.src)
+    setCropTarget(null)
+  }
+
+  // Bake the chosen crop into a File and use it as the pending upload + preview.
+  function handleCropApply(blob: Blob): void {
+    if (!cropTarget) return
+    const kind = cropTarget.kind
+    const file = new File([blob], `${kind}.webp`, { type: 'image/webp' })
+    const previewUrl = URL.createObjectURL(blob)
+    if (kind === 'avatar') {
+      setAvatarFile(file)
+      setAvatarPreview((prev) => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return previewUrl })
+    } else {
+      setBannerFile(file)
+      setBannerPreview((prev) => { if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev); return previewUrl })
+    }
+    closeCropper()
   }
 
   /**
-   * Resize to max 512px WebP before upload — a phone photo shrinks from
-   * multiple MB to ~30KB, so avatars load instantly everywhere.
+   * The crop editor already outputs a small, sized WebP blob (avatar 400², banner
+   * 1280×320 at q0.70), so we upload it directly — no second decode/re-encode pass.
    */
-  async function resizeImage(file: File, maxSize = 512): Promise<Blob> {
-    const bitmap = await createImageBitmap(file)
-    const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height))
-    const width = Math.round(bitmap.width * scale)
-    const height = Math.round(bitmap.height * scale)
-
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.drawImage(bitmap, 0, 0, width, height)
-    bitmap.close()
-
-    return new Promise((resolve) => {
-      canvas.toBlob(
-        (blob) => resolve(blob ?? file),
-        'image/webp',
-        0.85,
-      )
-    })
-  }
-
-  async function uploadAvatar(): Promise<string | null> {
-    if (!avatarFile) return null
+  async function uploadImage(file: File, prefix: 'avatar' | 'banner'): Promise<string> {
     const supabase = createClient()
-
-    let blob: Blob = avatarFile
-    let ext = avatarFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    try {
-      blob = await resizeImage(avatarFile)
-      if (blob.type === 'image/webp') ext = 'webp'
-    } catch {
-      // Resize unsupported (old browser) — upload the original
-    }
-
-    const path = `${profile.id}/avatar-${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
+    const ext = file.type === 'image/webp' ? 'webp' : (file.name.split('.').pop()?.toLowerCase() ?? 'jpg')
+    const path = `${profile.id}/${prefix}-${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
       cacheControl: '31536000',
-      contentType: blob.type || 'image/jpeg',
+      contentType: file.type || 'image/webp',
       upsert: true,
     })
-    if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`)
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    return data.publicUrl
-  }
-
-  /** Banner goes to the same owner-path bucket — resized wider (1600px) since it spans the page. */
-  async function uploadBanner(): Promise<string | null> {
-    if (!bannerFile) return null
-    const supabase = createClient()
-
-    let blob: Blob = bannerFile
-    let ext = bannerFile.name.split('.').pop()?.toLowerCase() ?? 'jpg'
-    try {
-      blob = await resizeImage(bannerFile, 1600)
-      if (blob.type === 'image/webp') ext = 'webp'
-    } catch {
-      // Resize unsupported (old browser) — upload the original
-    }
-
-    const path = `${profile.id}/banner-${Date.now()}.${ext}`
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
-      cacheControl: '31536000',
-      contentType: blob.type || 'image/jpeg',
-      upsert: true,
-    })
-    if (uploadError) throw new Error(`Banner upload failed: ${uploadError.message}`)
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-    return data.publicUrl
+    if (uploadError) throw new Error(`${prefix === 'avatar' ? 'Photo' : 'Banner'} upload failed: ${uploadError.message}`)
+    return supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl
   }
 
   const toast = useToast()
@@ -183,8 +156,8 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
     setSaving(true)
     setError('')
     try {
-      const avatarUrl = await uploadAvatar()
-      const bannerUrl = await uploadBanner()
+      const avatarUrl = avatarFile ? await uploadImage(avatarFile, 'avatar') : null
+      const bannerUrl = bannerFile ? await uploadImage(bannerFile, 'banner') : null
 
       const changedUsername = username.trim().toLowerCase()
       const updated = await profileApi.update({
@@ -210,6 +183,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
   const usernameBlocked = usernameStatus === 'invalid' || usernameStatus === 'taken' || usernameStatus === 'checking'
 
   return (
+   <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
@@ -389,5 +363,20 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
         </div>
       </div>
     </div>
+
+    {cropTarget && (
+      <ImageCropper
+        imageSrc={cropTarget.src}
+        aspect={cropTarget.kind === 'avatar' ? 1 : BANNER_OUTPUT.width / BANNER_OUTPUT.height}
+        cropShape={cropTarget.kind === 'avatar' ? 'round' : 'rect'}
+        outputWidth={cropTarget.kind === 'avatar' ? AVATAR_OUTPUT : BANNER_OUTPUT.width}
+        outputHeight={cropTarget.kind === 'avatar' ? AVATAR_OUTPUT : BANNER_OUTPUT.height}
+        quality={IMAGE_QUALITY}
+        title={cropTarget.kind === 'avatar' ? 'Adjust your photo' : 'Adjust your banner'}
+        onCancel={closeCropper}
+        onApply={handleCropApply}
+      />
+    )}
+   </>
   )
 }
