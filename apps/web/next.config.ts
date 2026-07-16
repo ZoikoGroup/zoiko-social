@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} wss://*.livekit.cloud https://*.r2.cloudflarestorage.com ${r2PublicUrl}`,
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} https://*.livekit.cloud wss://*.livekit.cloud https://*.r2.cloudflarestorage.com ${r2PublicUrl}`,
               `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev ${r2PublicUrl} images.unsplash.com`,
               `media-src 'self' blob: *.mux.com *.r2.dev ${r2PublicUrl}`,
               "style-src 'self' 'unsafe-inline'",
