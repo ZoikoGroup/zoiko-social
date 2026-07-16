@@ -70,8 +70,13 @@ jobs:
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
       # ── 8. Security audit ─────────────────────────────────────────
+      # npm retired the legacy /-/npm/v1/security/audits endpoint (HTTP 410) that
+      # pnpm <10 calls, so this errors regardless of the lockfile. Keep the step
+      # for visibility but don't let dead registry infra block CI. Re-tighten
+      # (remove continue-on-error) once pnpm targets npm's bulk advisory endpoint.
       - name: Security audit
         run: pnpm audit --audit-level=moderate
+        continue-on-error: true
 
       # ── 9. Secret scanning (blocks accidental API key commits) ────
       # Pinned to v3 (stable); fetch-depth:0 above ensures main is locally
