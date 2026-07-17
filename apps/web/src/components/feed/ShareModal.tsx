@@ -11,15 +11,14 @@ interface ShareModalProps {
   open: boolean
   post: PostItem
   onClose: () => void
-  onShareToStory?: () => void
 }
 
-export function ShareModal({ open, post, onClose, onShareToStory }: ShareModalProps): React.JSX.Element | null {
+export function ShareModal({ open, post, onClose }: ShareModalProps): React.JSX.Element | null {
   if (!open) return null
-  return <ShareSheet post={post} onClose={onClose} {...(onShareToStory ? { onShareToStory } : {})} />
+  return <ShareSheet post={post} onClose={onClose} />
 }
 
-function ShareSheet({ post, onClose, onShareToStory }: Omit<ShareModalProps, 'open'>): React.JSX.Element {
+function ShareSheet({ post, onClose }: Omit<ShareModalProps, 'open'>): React.JSX.Element {
   const { user } = useAuth()
   const [people, setPeople] = useState<FollowerItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,27 +84,6 @@ function ShareSheet({ post, onClose, onShareToStory }: Omit<ShareModalProps, 'op
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Share to Story */}
-        {onShareToStory && (
-          <div className="px-4 pt-3">
-            <button
-              onClick={onShareToStory}
-              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-gradient-to-r from-primary/10 via-secondary/10 to-primary/10 border border-primary/20 hover:bg-primary/15 transition-colors cursor-pointer group"
-            >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
-                <Send className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="font-semibold text-label-sm text-on-surface">Share to Story</p>
-                <p className="text-[11px] text-outline">Your story · visible for 24 hours</p>
-              </div>
-              <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-                <Send className="w-3 h-3 text-primary fill-primary" />
-              </div>
-            </button>
-          </div>
-        )}
 
         {/* Search */}
         <div className="px-4 py-3">

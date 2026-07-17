@@ -6,7 +6,6 @@ import { ChevronLeft, Lock, UserX } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { ProfileHeader } from '@/components/ProfileHeader'
 import { ProfileTabs } from '@/components/ProfileTabs'
-import { StoryComposer } from '@/components/stories/StoryComposer'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { profileApi, ApiError, type Profile, type Relationship } from '@/lib/api'
@@ -18,7 +17,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
   const [profile, setProfile] = useState<Profile | null>(null)
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [notFound, setNotFound] = useState(false)
-  const [shareRef, setShareRef] = useState<{ refType: string; refId: string } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -75,7 +73,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
                       profileId={isOwn ? undefined : profile.id}
                       initialProfile={isOwn ? undefined : profile}
                       initialRelationship={isOwn ? undefined : relationship}
-                      {...(!isOwn ? { onShareToStory: (refType: string, refId: string) => setShareRef({ refType, refId }) } : {})}
                     />
                 ) : (
                   <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-6 sm:p-8">
@@ -126,15 +123,6 @@ export default function UserProfilePage({ params }: { params: Promise<{ username
         </div>
       </main>
       <MobileTabs currentPage="profile" />
-
-      {/* Share to Story overlay */}
-      {shareRef && (
-        <StoryComposer
-          onClose={() => setShareRef(null)}
-          refType={shareRef.refType}
-          refId={shareRef.refId}
-        />
-      )}
     </>
   )
 }

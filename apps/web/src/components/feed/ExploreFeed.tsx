@@ -93,6 +93,7 @@ export function ExploreFeed(): React.JSX.Element {
         <PostCard
           key={post.id}
           post={post}
+          surface="explore"
           onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
         />
       ))}

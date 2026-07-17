@@ -35,6 +35,7 @@ import { LivekitModule } from './modules/livekit/livekit.module'
 import { R2Module } from './modules/storage/r2.module'
 import { ModerationOpsModule } from './modules/moderation/moderation.module'
 import { PaymentsModule } from './modules/payments/payments.module'
+import { AnalyticsModule } from './modules/analytics/analytics.module'
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { PaymentsModule } from './modules/payments/payments.module'
     NewsModule,
     ShopModule,
     BreedingModule,
+    AnalyticsModule,
     HealthModule,
     MessagingModule,
     LivekitModule,

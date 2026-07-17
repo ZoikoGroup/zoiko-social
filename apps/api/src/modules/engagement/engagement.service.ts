@@ -4,6 +4,7 @@ import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { PostsService } from '../posts/posts.service'
+import { MessagingService } from '../messaging/messaging.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 
 export interface LikerItem {
@@ -30,6 +31,7 @@ export class EngagementService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
     private readonly postsService: PostsService,
+    private readonly messaging: MessagingService,
   ) {}
 
   // ── LIKE / UNLIKE ─────────────────────────────────────────────────────────
@@ -261,6 +263,9 @@ export class EngagementService {
       select: { sharesCount: true },
     })
 
+    const base = process.env.ALLOWED_ORIGIN ?? 'http://localhost:3000'
+    const postUrl = `${base}/p/${postId}`
+
     // Delivery + cache + author notice all run without blocking the response
     this.effects('share', async () => {
       await this.redis.invalidatePost(postId)
@@ -269,13 +274,27 @@ export class EngagementService {
         select: { username: true, displayName: true },
       })
       for (const targetId of targetIds) {
-        await this.notifications.enqueue({
-          userId: targetId,
-          type: 'shared_with_you',
-          title: 'Shared a Post',
-          body: `${sharer?.displayName ?? 'Someone'} shared a post with you`,
-          data: { postId, username: sharer?.username, actorId: userId },
-        })
+        // Instagram-style: deliver the share as a real DM into a 1:1 conversation.
+        // The post reference travels in the message body as its permalink; the
+        // client renders it as a post preview card (type = 'shared_post').
+        try {
+          const conversation = await this.messaging.getOrCreateConversation(userId, targetId)
+          await this.messaging.sendMessage(userId, conversation.id, {
+            type: 'shared_post',
+            body: postUrl,
+          })
+        } catch {
+          // DM couldn't be created (privacy/follow gate, message-request required,
+          // or messaging offline) — fall back to a notification so the share is
+          // never silently dropped.
+          await this.notifications.enqueue({
+            userId: targetId,
+            type: 'shared_with_you',
+            title: 'Shared a Post',
+            body: `${sharer?.displayName ?? 'Someone'} shared a post with you`,
+            data: { postId, username: sharer?.username, actorId: userId },
+          })
+        }
       }
       if (post.authorId !== userId && type === 'internal') {
         await this.notifications.enqueue({
@@ -288,7 +307,6 @@ export class EngagementService {
       }
     })
 
-    const base = process.env.ALLOWED_ORIGIN ?? 'http://localhost:3000'
-    return { url: `${base}/p/${postId}`, sharesCount: updated.sharesCount, sentTo: targetIds.length }
+    return { url: postUrl, sharesCount: updated.sharesCount, sentTo: targetIds.length }
   }
 }

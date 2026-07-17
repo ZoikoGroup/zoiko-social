@@ -35,9 +35,14 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+// A shared post is delivered as a DM whose body is just the post permalink —
+// show a friendly label in the list instead of a raw URL (Instagram-style).
+const SHARED_POST_URL = /^https?:\/\/\S+\/p\/[0-9a-f-]{16,}\/?$/i
+
 function truncateMessage(body: string | null, senderId: string, currentUserId: string): string {
   if (!body) return 'Sent a message'
   const prefix = senderId === currentUserId ? 'You: ' : ''
+  if (SHARED_POST_URL.test(body.trim())) return `${prefix}Sent a post`
   const cleaned = body.replace(/\n/g, ' ')
   return cleaned.length > 60 ? `${prefix}${cleaned.slice(0, 60)}…` : `${prefix}${cleaned}`
 }
