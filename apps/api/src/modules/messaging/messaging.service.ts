@@ -277,6 +277,66 @@ export class MessagingService {
     return this.mapConversationToResponse(conversation, userId, conversation.members, conversation.messages[0] ?? null, conversation.settings[0] ?? null)
   }
 
+  /**
+   * Assert that `userId` is an active member of `conversationId`, throwing the
+   * same NOT_FOUND used elsewhere otherwise. Returns the membership row.
+   * Centralises the membership guard so read/write paths can't forget it.
+   */
+  private async assertMember(userId: string, conversationId: string) {
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    })
+    if (!member || member.isDeleted) {
+      throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+    }
+    return member
+  }
+
+  /** True when the user is an active member of the conversation (no throw). */
+  async isMember(userId: string, conversationId: string): Promise<boolean> {
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    return !!member && !member.isDeleted
+  }
+
+  /**
+   * Fetch a single conversation by id for a member. Previously the controller
+   * scanned only the caller's first page of conversations, so members of any
+   * conversation beyond that page got `null`.
+   */
+  async getConversationById(userId: string, conversationId: string): Promise<ConversationResponse | null> {
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!member || member.isDeleted) return null
+
+    const conv = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        members: {
+          where: { isDeleted: false },
+          include: {
+            user: {
+              select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+            },
+          },
+        },
+        messages: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+          select: { body: true, senderId: true, createdAt: true, type: true },
+        },
+        settings: { where: { userId }, take: 1 },
+      },
+    })
+    if (!conv || conv.isDeleted) return null
+
+    return this.mapConversationToResponse(conv, userId, conv.members, conv.messages[0] ?? null, conv.settings[0] ?? null)
+  }
+
   // ── MESSAGES ───────────────────────────────────────────────────────────────
 
   /** Compact snippet of a replied-to message, embedded in message payloads (WhatsApp-style quote). */
@@ -485,6 +545,19 @@ export class MessagingService {
     }
   }
 
+  /**
+   * Caller identity (display name + avatar) for call-signaling payloads, resolved
+   * server-side from the authenticated user id. Previously the gateway copied
+   * these straight from the client body, letting a caller spoof their name/avatar.
+   */
+  async getCallIdentity(userId: string): Promise<{ displayName?: string; avatarUrl?: string | null }> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { displayName: true, avatarUrl: true },
+    })
+    return { displayName: profile?.displayName, avatarUrl: profile?.avatarUrl ?? null }
+  }
+
   /** Ids of all active members of a conversation except `excludeUserId` — group-call fan-out. */
   async getOtherMemberIds(conversationId: string, excludeUserId: string): Promise<string[]> {
     const members = await this.prisma.conversationMember.findMany({
@@ -550,7 +623,10 @@ export class MessagingService {
       select: { id: true, conversationId: true, senderId: true },
     })
     if (!message) throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
-    if (message.senderId !== userId && !forEveryone) {
+    // Only the sender may delete their own message — for both "delete for me" and
+    // "delete for everyone". Previously the `&& !forEveryone` guard let ANY user
+    // delete ANY message globally by passing forEveryone=true (IDOR).
+    if (message.senderId !== userId) {
       throw new ForbiddenException({ code: 'NOT_SENDER', message: 'You can only delete your own messages' })
     }
 
@@ -598,6 +674,9 @@ export class MessagingService {
       select: { id: true, conversationId: true },
     })
     if (!message) throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+    // Reacting is a write into the conversation room — the caller must be a member
+    // (otherwise a non-member could react to and broadcast into any conversation).
+    await this.assertMember(userId, message.conversationId)
 
     const existing = await this.prisma.messageReaction.findUnique({
       where: { messageId_userId_emoji: { messageId, userId, emoji } },
@@ -637,6 +716,14 @@ export class MessagingService {
         update: { status: 'read', readAt: now },
       })
     }
+  }
+
+  /** Mark every one of the caller's active conversations as read (bulk "read all"). */
+  async markAllConversationsRead(userId: string): Promise<void> {
+    await this.prisma.conversationMember.updateMany({
+      where: { userId, isDeleted: false },
+      data: { lastReadAt: new Date() },
+    })
   }
 
   // ── SUGGESTIONS ─────────────────────────────────────────────────────────────
@@ -751,6 +838,9 @@ export class MessagingService {
     }
 
     if (conversationId) {
+      // Must be a member of the requested conversation — otherwise supplying an
+      // arbitrary conversationId leaked its messages (read IDOR).
+      await this.assertMember(userId, conversationId)
       where.conversationId = conversationId
     } else {
       // Only search conversations the user is a member of

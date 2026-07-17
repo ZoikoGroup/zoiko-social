@@ -21,7 +21,8 @@ import {
   SendMessageSchema,
   EditMessageSchema,
   ReactToMessageSchema,
-  MarkReadSchema,
+  MarkReadBodySchema,
+  AddGroupMembersSchema,
   CreateGroupSchema,
   SendMessageRequestSchema,
   UpdatePrivacySchema,
@@ -30,7 +31,8 @@ import {
   type SendMessageInput,
   type EditMessageInput,
   type ReactToMessageInput,
-  type MarkReadInput,
+  type MarkReadBodyInput,
+  type AddGroupMembersInput,
   type CreateGroupInput,
   type SendMessageRequestInput,
   type UpdatePrivacyInput,
@@ -79,14 +81,20 @@ export class MessagingController {
     return conv
   }
 
+  // Static path — declared before the `:id` routes so it isn't captured as an id.
+  @Post('conversations/read-all')
+  @HttpCode(HttpStatus.OK)
+  async markAllRead(@CurrentUser() user: AuthenticatedUser) {
+    await this.messagingService.markAllConversationsRead(user.id)
+    return { success: true }
+  }
+
   @Get('conversations/:id')
   async getConversation(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    const convs = await this.messagingService.getConversations(user.id)
-    const conv = convs.data.find((c) => c.id === id)
-    return conv ?? null
+    return this.messagingService.getConversationById(user.id, id)
   }
 
   @Delete('conversations/:id')
@@ -170,7 +178,7 @@ export class MessagingController {
   async markRead(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(MarkReadSchema.optional())) body?: MarkReadInput,
+    @Body(new ZodValidationPipe(MarkReadBodySchema)) body: MarkReadBodyInput,
   ) {
     await this.messagingService.markConversationRead(user.id, id, body?.lastReadMessageId)
     return { success: true }
@@ -417,7 +425,7 @@ export class MessagingController {
   async addMembers(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
-    @Body() body: { userIds: string[] },
+    @Body(new ZodValidationPipe(AddGroupMembersSchema)) body: AddGroupMembersInput,
   ) {
     await this.groupService.addMembers(user.id, id, body.userIds)
     return { success: true }

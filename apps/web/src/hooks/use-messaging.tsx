@@ -133,6 +133,14 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
   const unreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0)
   const { warning: toastWarning, success: toastSuccess } = useToast()
   const wasOfflineRef = useRef(false)
+  // Live mirror of the open conversation for use inside the stable socket
+  // handler below. Previously a plain object was created inside that effect
+  // (deps: [isAuthenticated, ...]), so it froze at the initial value (null) and
+  // the "don't increment the conversation I'm viewing" guard never matched.
+  const activeConvIdRef = useRef<string | null>(activeConversationId)
+  useEffect(() => {
+    activeConvIdRef.current = activeConversationId
+  }, [activeConversationId])
 
   // ── Fetch conversations (defined FIRST so it's available everywhere) ──
 
@@ -177,7 +185,6 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
   useEffect(() => {
     let cancelled = false
-    const activeConvIdRef = { current: activeConversationId }
 
     if (!isAuthenticated) {
       const timer = setTimeout(() => {
@@ -358,7 +365,9 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         headers: { Authorization: `Bearer ${token}` },
       })
       const json = await res.json()
-      return json?.data ?? []
+      // Response is double-wrapped: interceptor {success,data} around the
+      // service's {data,nextCursor,hasMore}. The messages array is data.data.
+      return json?.data?.data ?? []
     } catch {
       return []
     }

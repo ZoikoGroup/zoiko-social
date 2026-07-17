@@ -158,7 +158,12 @@ export function MessageConversation({
                   ...m,
                   reactions: data.removed
                     ? m.reactions.filter((r) => !(r.userId === data.userId && r.emoji === data.emoji))
-                    : [...m.reactions, { emoji: data.emoji, userId: data.userId }],
+                    // Dedup: the sender already added this optimistically, and the
+                    // server echoes the event back into the room — without this guard
+                    // the same reaction is counted twice (pill shows "2" for one user).
+                    : m.reactions.some((r) => r.userId === data.userId && r.emoji === data.emoji)
+                      ? m.reactions
+                      : [...m.reactions, { emoji: data.emoji, userId: data.userId }],
                 }
               : m,
           ),
@@ -245,6 +250,19 @@ export function MessageConversation({
       }
     }
   }, [input, socket, conversationId, editingMessageId])
+
+  // When the open conversation changes (or the component unmounts) while we were
+  // still "typing", tell the OLD conversation to stop — otherwise the other
+  // participant is left with a stuck "typing…" indicator. Keyed only on
+  // conversationId/socket so it doesn't fire on every keystroke.
+  useEffect(() => {
+    return () => {
+      if (wasTypingRef.current) {
+        wasTypingRef.current = false
+        socket?.emit('typing:stop', { conversationId })
+      }
+    }
+  }, [conversationId, socket])
 
   const otherPresence = otherUserId ? getPresence(otherUserId) : null
   const isOnline = otherPresence?.isOnline ?? conversation?.isOnline ?? false
@@ -460,6 +478,15 @@ export function MessageConversation({
         const body = await res.json().catch(() => null)
         throw new Error(body?.error?.message ?? `Server error (${res.status})`)
       }
+      // Apply the edit optimistically (like delete/send/react do). Otherwise the
+      // bubble only updates when the `message:edited` socket echo arrives — so on
+      // a degraded/disconnected socket the user sees "Message edited" but the old
+      // text until a full reload.
+      const newBody = editText.trim()
+      const editedId = editingMessageId
+      setMessages((prev) =>
+        prev.map((m) => (m.id === editedId ? { ...m, body: newBody, editedAt: new Date().toISOString() } : m)),
+      )
       setEditingMessageId(null)
       setEditText('')
       toastSuccess('Message edited')
@@ -569,6 +596,13 @@ export function MessageConversation({
         toastError('Unreadable video', 'Could not verify the video length. Please try a different file.')
         return
       }
+      // Some containers report duration as Infinity or NaN. `Infinity > 300` is
+      // true (rejects valid short clips) and `NaN > 300` is false (lets an
+      // unverifiable file through the cap) — so guard non-finite explicitly.
+      if (!Number.isFinite(videoDuration)) {
+        toastError('Unreadable video', 'Could not verify the video length. Please try a different file.')
+        return
+      }
       if (videoDuration > 300) {
         toastError('Video too long', 'Videos must be under 5 minutes')
         return
@@ -645,6 +679,11 @@ export function MessageConversation({
         }
         setInput('')
         setDisappearMode('none')
+      } else {
+        // The media reached storage but the message create failed — surface it
+        // instead of silently doing nothing (previously there was no else branch).
+        const err = await msgRes.json().catch(() => null)
+        throw new Error(err?.error?.message ?? 'Media uploaded but the message could not be sent')
       }
     } catch (err) {
       toastError('Upload failed', err instanceof Error ? err.message : 'Could not upload file')

@@ -46,6 +46,20 @@ export const MarkReadSchema = z.object({
   lastReadMessageId: z.string().uuid(),
 })
 
+/**
+ * Body for `POST conversations/:id/read` — conversationId comes from the URL, so
+ * the body only carries the optional last-read message id. (The old handler
+ * validated the request body against the full MarkReadSchema, which requires
+ * conversationId, so every call with a body 400'd.)
+ */
+export const MarkReadBodySchema = z.object({
+  lastReadMessageId: z.string().uuid().optional(),
+})
+
+export const AddGroupMembersSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(255),
+})
+
 export const CreateGroupSchema = z.object({
   name: z.string().min(1).max(100),
   participantIds: z.array(z.string().uuid()).min(1).max(255),
@@ -169,6 +183,8 @@ export type EditMessageInput = z.infer<typeof EditMessageSchema>
 export type ReactToMessageInput = z.infer<typeof ReactToMessageSchema>
 export type PaginationInput = z.infer<typeof PaginationSchema>
 export type MarkReadInput = z.infer<typeof MarkReadSchema>
+export type MarkReadBodyInput = z.infer<typeof MarkReadBodySchema>
+export type AddGroupMembersInput = z.infer<typeof AddGroupMembersSchema>
 export type CreateGroupInput = z.infer<typeof CreateGroupSchema>
 export type SendMessageRequestInput = z.infer<typeof SendMessageRequestSchema>
 export type UpdatePrivacyInput = z.infer<typeof UpdatePrivacySchema>

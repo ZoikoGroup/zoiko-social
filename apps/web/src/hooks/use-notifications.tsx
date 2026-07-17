@@ -21,7 +21,7 @@ interface NotificationsContextValue {
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined)
 
 export function NotificationsProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [latest, setLatest] = useState<NotificationItem | null>(null)
 
@@ -61,7 +61,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }): Re
         if (
           typeof document !== 'undefined' &&
           document.hidden &&
-          msg.sender?.id
+          msg.sender?.id &&
+          msg.sender.id !== user?.id
         ) {
           setLatest(null) // Don't set a notification item, just increment count
           setUnreadCount((c) => c + 1)
@@ -89,7 +90,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }): Re
         }
       })
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, user?.id])
 
   const markRead = useCallback(async (id: string) => {
     await notificationsApi.markRead(id)

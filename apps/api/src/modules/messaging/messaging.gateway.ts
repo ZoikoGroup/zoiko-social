@@ -91,16 +91,25 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   async handleDisconnect(client: AuthSocket): Promise<void> {
-    if (client.data.userId) {
-      // Set offline with a small delay to handle reconnections.
-      // MUST catch: a rejection here (e.g. Redis/DB hiccup) is otherwise an
-      // unhandled rejection, which kills the whole process on Node ≥15.
-      setTimeout(() => {
-        this.presenceService.setOffline(client.data.userId!).catch((err: Error) => {
-          this.logger.warn(`setOffline failed for ${client.data.userId}: ${err.message}`)
-        })
-      }, 5_000)
-    }
+    const userId = client.data.userId
+    if (!userId) return
+    // Set offline with a small delay to handle reconnections, but only if the
+    // user has no other live sockets. Without the refcount check, closing one of
+    // several tabs — or a brief network blip that triggers a reconnect — would
+    // flip a still-connected user to "offline" 5s later (presence flapping).
+    // A disconnected socket auto-leaves its rooms, and a reconnect re-joins
+    // `user:{id}` in handleConnection, so the room reflects only live sockets.
+    setTimeout(() => {
+      void (async () => {
+        try {
+          const remaining = await this.server.in(`user:${userId}`).allSockets()
+          if (remaining.size > 0) return
+          await this.presenceService.setOffline(userId)
+        } catch (err) {
+          this.logger.warn(`setOffline failed for ${userId}: ${(err as Error).message}`)
+        }
+      })()
+    }, 5_000)
   }
 
   @SubscribeMessage('conversation:join')
@@ -109,6 +118,12 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() body: { conversationId?: string },
   ): Promise<{ ok: boolean }> {
     if (!client.data.userId || !body?.conversationId) return { ok: false }
+    // Membership gate: without it any authenticated socket could join
+    // `conversation:<any-id>` and receive every message/edit/reaction/typing
+    // event broadcast to that room (cross-conversation data leak).
+    if (!(await this.messagingService.isMember(client.data.userId, body.conversationId))) {
+      return { ok: false }
+    }
     await client.join(`conversation:${body.conversationId}`)
     return { ok: true }
   }
@@ -177,14 +192,20 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   // ring/accept/reject/end. DM signals target one user; group signals fan out
   // to every other conversation member.
 
-  private buildCallPayload(fromUserId: string, body: CallSignal) {
+  private buildCallPayload(
+    fromUserId: string,
+    body: CallSignal,
+    identity: { displayName?: string; avatarUrl?: string | null },
+  ) {
     return {
       conversationId: body.conversationId,
       callType: body.callType ?? 'audio',
       roomName: body.roomName ?? `call:${body.conversationId}`,
       fromUserId,
-      fromDisplayName: body.fromDisplayName,
-      fromAvatarUrl: body.fromAvatarUrl ?? null,
+      // Identity is resolved server-side from the authenticated caller — never
+      // trust body.fromDisplayName/fromAvatarUrl (client-spoofable impersonation).
+      fromDisplayName: identity.displayName,
+      fromAvatarUrl: identity.avatarUrl ?? null,
       reason: body.reason,
       isGroup: body.isGroup ?? false,
       conversationName: body.conversationName,
@@ -198,7 +219,13 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   ): Promise<void> {
     const fromUserId = client.data.userId
     if (!fromUserId || !body?.toUserId || !body?.conversationId) return
-    await this.realtimeService.publishToUser(body.toUserId, event, this.buildCallPayload(fromUserId, body))
+    // Caller must belong to the conversation, and the target must be a co-member —
+    // otherwise anyone could ring an arbitrary user via any conversation id.
+    const memberIds = await this.messagingService.getOtherMemberIds(body.conversationId, fromUserId)
+    if (!(await this.messagingService.isMember(fromUserId, body.conversationId))) return
+    if (!memberIds.includes(body.toUserId)) return
+    const identity = await this.messagingService.getCallIdentity(fromUserId)
+    await this.realtimeService.publishToUser(body.toUserId, event, this.buildCallPayload(fromUserId, body, identity))
   }
 
   /** Fan a group-call signal out to every other active member of the conversation. */
@@ -209,8 +236,10 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   ): Promise<void> {
     const fromUserId = client.data.userId
     if (!fromUserId || !body?.conversationId) return
+    if (!(await this.messagingService.isMember(fromUserId, body.conversationId))) return
     const memberIds = await this.messagingService.getOtherMemberIds(body.conversationId, fromUserId)
-    const payload = this.buildCallPayload(fromUserId, { ...body, isGroup: true })
+    const identity = await this.messagingService.getCallIdentity(fromUserId)
+    const payload = this.buildCallPayload(fromUserId, { ...body, isGroup: true }, identity)
     await Promise.all(memberIds.map((uid) => this.realtimeService.publishToUser(uid, event, payload)))
   }
 

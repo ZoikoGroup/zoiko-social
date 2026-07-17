@@ -84,16 +84,25 @@ export class PresenceService {
       }
     }
 
-    // Fall back to database
+    // Fall back to database. The Redis key (with its TTL) is the freshness
+    // signal; if it has expired we're here. The DB row has no expiry, so on an
+    // API crash/restart a user who never sent setOffline would otherwise appear
+    // "online" forever. Treat a stale `online` row (lastSeen older than the
+    // Redis TTL) as offline.
     const dbPresence = await this.prisma.userPresence.findUnique({
       where: { userId },
       select: { status: true, lastSeen: true },
     })
 
+    const isStale =
+      !dbPresence?.lastSeen ||
+      Date.now() - dbPresence.lastSeen.getTime() > PRESENCE_TTL_SECONDS * 1000
+    const isOnline = dbPresence?.status === 'online' && !isStale
+
     return {
-      status: dbPresence?.status ?? 'offline',
+      status: isOnline ? (dbPresence?.status ?? 'offline') : 'offline',
       lastSeen: dbPresence?.lastSeen?.toISOString() ?? null,
-      isOnline: dbPresence?.status === 'online',
+      isOnline,
     }
   }
 

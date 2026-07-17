@@ -86,8 +86,11 @@ export class MessagingProcessor extends WorkerHost {
 
   private async handleExpireMessageRequest(job: Job): Promise<void> {
     const { requestId } = job.data.data as { requestId: string }
-    await this.prisma.messageRequest.update({
-      where: { id: requestId },
+    // updateMany + status guard: only expire a still-pending request. `update`
+    // would (a) clobber a request the recipient already accepted/rejected back
+    // to "expired", and (b) throw P2025 (failing the job) if the row was deleted.
+    await this.prisma.messageRequest.updateMany({
+      where: { id: requestId, status: 'pending' },
       data: { status: 'expired' },
     })
   }
