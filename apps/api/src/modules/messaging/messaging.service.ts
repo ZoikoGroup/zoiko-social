@@ -479,13 +479,8 @@ export class MessagingService {
       },
     })
 
-    // Update lastMessageAt
-    await this.prisma.conversation.update({
-      where: { id: conversationId },
-      data: { lastMessageAt: message.createdAt },
-    })
-
-    // Broadcast to conversation room
+    // Deliver to the conversation room FIRST so recipients see the message with
+    // minimal latency (emitLocal is synchronous inside publish).
     await this.realtime.publish(`conversation:${conversationId}`, 'message:new', {
       id: message.id,
       conversationId: message.conversationId,
@@ -503,25 +498,15 @@ export class MessagingService {
       createdAt: message.createdAt.toISOString(),
     })
 
-    // Send push notification to other participants
-    const otherMembers = await this.prisma.conversationMember.findMany({
-      where: { conversationId, userId: { not: userId }, isDeleted: false },
-      select: { userId: true },
-    })
-
-    for (const om of otherMembers) {
-      const setting = await this.prisma.conversationSetting.findUnique({
-        where: { conversationId_userId: { conversationId, userId: om.userId } },
-      })
-      if (!setting?.isMuted) {
-        await this.realtime.publishToUser(om.userId, 'notification:new', {
-          type: 'message',
-          title: message.sender.displayName,
-          body: message.body ?? 'Sent a message',
-          data: { conversationId, messageId: message.id },
-        })
-      }
-    }
+    // Everything else — the lastMessageAt bump and per-recipient push
+    // notifications — is off the sender's critical path. It used to run inline and
+    // awaited: one conversation.update, then a sequential N+1 (a
+    // conversationSetting.findUnique AND an awaited publishToUser per member), so
+    // send latency grew with member count. Now fire-and-forget with a single
+    // settings query and parallel publishes.
+    void this.dispatchPostSend(userId, conversationId, message).catch((err: Error) =>
+      this.logger.warn(`post-send tasks failed for ${conversationId}: ${err.message}`),
+    )
 
     return {
       id: message.id,
@@ -543,6 +528,48 @@ export class MessagingService {
       receipt: null,
       createdAt: message.createdAt.toISOString(),
     }
+  }
+
+  /**
+   * Post-send side effects that must NOT block the sender's response: bump the
+   * conversation's lastMessageAt and push a `notification:new` to each non-muted
+   * recipient. Muted state is fetched in ONE query (was an N+1) and publishes run
+   * in parallel.
+   */
+  private async dispatchPostSend(
+    senderId: string,
+    conversationId: string,
+    message: { id: string; body: string | null; createdAt: Date; sender: { displayName: string } },
+  ): Promise<void> {
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { lastMessageAt: message.createdAt },
+    })
+
+    const otherMembers = await this.prisma.conversationMember.findMany({
+      where: { conversationId, userId: { not: senderId }, isDeleted: false },
+      select: { userId: true },
+    })
+    if (otherMembers.length === 0) return
+
+    const settings = await this.prisma.conversationSetting.findMany({
+      where: { conversationId, userId: { in: otherMembers.map((m) => m.userId) } },
+      select: { userId: true, isMuted: true },
+    })
+    const mutedIds = new Set(settings.filter((s) => s.isMuted).map((s) => s.userId))
+
+    await Promise.all(
+      otherMembers
+        .filter((om) => !mutedIds.has(om.userId))
+        .map((om) =>
+          this.realtime.publishToUser(om.userId, 'notification:new', {
+            type: 'message',
+            title: message.sender.displayName,
+            body: message.body ?? 'Sent a message',
+            data: { conversationId, messageId: message.id },
+          }),
+        ),
+    )
   }
 
   /**
