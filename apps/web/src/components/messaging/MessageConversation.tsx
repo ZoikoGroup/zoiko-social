@@ -643,7 +643,15 @@ export function MessageConversation({
         throw new Error(err?.error?.message ?? 'Failed to get upload URL')
       }
 
-      const { url: uploadUrl, viewUrl, key, type } = await urlRes.json() as { url: string; viewUrl: string; key: string; type: string }
+      // The API wraps every response as { success, data: {...} }; the presigned
+      // fields live under .data. Reading them from the top level left uploadUrl
+      // undefined -> PUT to "/undefined" (404), so media upload never worked.
+      const presignedJson = await urlRes.json() as {
+        data?: { url: string; viewUrl: string; key: string; type: string }
+        url?: string; viewUrl?: string; key?: string; type?: string
+      }
+      const { url: uploadUrl, viewUrl, key, type } = presignedJson.data ?? presignedJson
+      if (!uploadUrl) throw new Error('Upload service returned no upload URL')
 
       // Upload the file directly to Supabase Storage via the signed URL
       const uploadRes = await fetch(uploadUrl, {
