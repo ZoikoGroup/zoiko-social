@@ -129,10 +129,13 @@ jobs:
       # Poll the version endpoint until prod serves THIS commit, or fail red.
       - name: Verify production is running this build
         run: |
-          echo "Waiting for api.zoikosocial.com to serve build ${GITHUB_SHA}…"
+          # Probe the Render service directly. The apex custom domain
+          # api.zoikosocial.com is currently suspended (503), so verifying against
+          # it could never pass; zoiko-social-wmjc.onrender.com is the live API.
+          echo "Waiting for zoiko-social-wmjc.onrender.com to serve build ${GITHUB_SHA}…"
           body=""
           for i in $(seq 1 48); do
-            body=$(curl -fsS -m 10 "https://api.zoikosocial.com/api/v1/health/version" 2>/dev/null || true)
+            body=$(curl -fsS -m 10 "https://zoiko-social-wmjc.onrender.com/api/v1/health/version" 2>/dev/null || true)
             if echo "$body" | grep -q "${GITHUB_SHA}"; then
               echo "✅ Production is live on ${GITHUB_SHA}"
               exit 0
