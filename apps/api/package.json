@@ -44,6 +44,7 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
     "stripe": "^22.3.1",
+    "ua-parser-js": "^1.0.40",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -51,6 +52,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.0",
     "@types/node": "^26.0.1",
+    "@types/ua-parser-js": "^0.7.39",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "@typescript-eslint/parser": "^8.14.0",
     "eslint": "^8.57.1",

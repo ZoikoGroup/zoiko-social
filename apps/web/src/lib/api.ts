@@ -854,6 +854,29 @@ export const feedApi = {
     cachedGet<PostPage>(`/me/saved?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, 15_000),
 }
 
+// ── Post analytics (professional accounts) ─────────────────────────────────
+
+export interface PostInsights {
+  postId: string
+  impressions: number
+  views: number
+  profileTaps: number
+  linkTaps: number
+  reach: number
+  reachFollowers: number
+  reachNonFollowers: number
+  engagement: { likes: number; comments: number; saves: number; shares: number }
+  engagementRate: number
+  byDevice: { key: string; count: number }[]
+  bySurface: { key: string; count: number }[]
+  byCountry: { key: string; count: number }[]
+}
+
+export const analyticsApi = {
+  /** Per-post insights — only the post's professional author may read them. */
+  postInsights: (postId: string) => cachedGet<PostInsights>(`/analytics/posts/${postId}`, 30_000),
+}
+
 export const commentsApi = {
   list: (postId: string, cursor?: string | null, limit = 20) =>
     request<CommentPage>(`/posts/${postId}/comments?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),

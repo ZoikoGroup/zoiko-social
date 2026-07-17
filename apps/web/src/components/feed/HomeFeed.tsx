@@ -88,11 +88,7 @@ function FeedSkeleton(): React.JSX.Element {
   )
 }
 
-interface HomeFeedProps {
-  onShareToStory?: (refType: string, refId: string) => void
-}
-
-export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
+export function HomeFeed(): React.JSX.Element {
   const [posts, setPosts] = useState<PostItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -222,7 +218,6 @@ export function HomeFeed({ onShareToStory }: HomeFeedProps): React.JSX.Element {
               key={post.id}
               post={post}
               onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
-              {...(onShareToStory ? { onShareToStory } : {})}
             />
           ))}
           <div ref={sentinelRef} className="h-1" />

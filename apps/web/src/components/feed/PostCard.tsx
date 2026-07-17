@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -13,6 +13,7 @@ import { Img } from '../Img'
 import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
 import { postsApi, moderationApi, type PostItem } from '@/lib/api'
+import { trackPostEvent, type PostEventSurface } from '@/lib/analytics'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 
@@ -76,10 +77,11 @@ function Caption({ text }: { text: string }): React.JSX.Element {
 interface PostCardProps {
   post: PostItem
   onDeleted?: (postId: string) => void
-  onShareToStory?: (refType: string, refId: string) => void
+  /** Which surface this card renders on — drives "reach by source" analytics. */
+  surface?: PostEventSurface
 }
 
-export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): React.JSX.Element {
+export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): React.JSX.Element {
   const router = useRouter()
   const { user } = useAuth()
   const { success: toastSuccess, error: toastError } = useToast()
@@ -94,10 +96,34 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
   const [likersOpen, setLikersOpen] = useState(false)
   const [reported, setReported] = useState(false)
   const lastTap = useRef(0)
+  const cardRef = useRef<HTMLElement>(null)
 
   const isOwn = user?.id === post.author.id
   const badge = verifiedBadge(post.author.isVerified, post.author.professionalCategory)
   const meta = post.metadata
+
+  // Analytics is a professional feature — only track posts by pro accounts,
+  // and never the author's own views.
+  const trackable = post.author.professionalCategory != null && !isOwn
+
+  // Impression when the card is meaningfully on screen; a "view" too on detail.
+  useEffect(() => {
+    if (!trackable) return
+    if (surface === 'detail') trackPostEvent({ postId: post.id, type: 'view', surface })
+    const el = cardRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          trackPostEvent({ postId: post.id, type: 'impression', surface })
+          observer.disconnect() // once per mount; the tracker also de-dupes per session
+        }
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [trackable, post.id, surface])
 
   async function toggleLike(forceLike = false): Promise<void> {
     if (forceLike && liked) return
@@ -167,22 +193,21 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
   const media = post.media
 
   return (
-    <article className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
+    <article ref={cardRef} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
       <ShareModal
         open={shareOpen}
         post={post}
         onClose={() => setShareOpen(false)}
-        {...(onShareToStory ? { onShareToStory: () => { setShareOpen(false); onShareToStory('feed_post', post.id) } } : {})}
       />
       <LikersModal open={likersOpen} postId={post.id} onClose={() => setLikersOpen(false)} />
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/profile/${post.author.username}`}>
+        <Link href={`/profile/${post.author.username}`} onClick={() => { if (trackable) trackPostEvent({ postId: post.id, type: 'profile_tap', surface }) }}>
           <UserAvatar name={post.author.displayName} image={post.author.avatarUrl ?? undefined} size="md" verified={post.author.isVerified} />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <Link href={`/profile/${post.author.username}`} className="font-semibold text-label-md text-on-surface hover:underline truncate">
+            <Link href={`/profile/${post.author.username}`} onClick={() => { if (trackable) trackPostEvent({ postId: post.id, type: 'profile_tap', surface }) }} className="font-semibold text-label-md text-on-surface hover:underline truncate">
               {post.author.displayName}
             </Link>
             {post.author.isVerified && <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" />}
@@ -208,14 +233,6 @@ export function PostCard({ post, onDeleted, onShareToStory }: PostCardProps): Re
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-44 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-10">
-              {onShareToStory && (
-                <button
-                  onClick={() => { setMenuOpen(false); onShareToStory('feed_post', post.id) }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer"
-                >
-                  <Send className="w-4 h-4 text-primary" />Share to Story
-                </button>
-              )}
               <button onClick={copyLink} className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer">
                 <Link2 className="w-4 h-4" />{copied ? 'Copied!' : 'Copy link'}
               </button>

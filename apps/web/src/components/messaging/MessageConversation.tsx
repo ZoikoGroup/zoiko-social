@@ -29,6 +29,7 @@ import { compressImage } from '@/lib/image'
 import { moderationApi } from '@/lib/api'
 import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
+import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
 import { useCall } from '@/hooks/use-call'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
 import type { Socket } from 'socket.io-client'
@@ -1393,7 +1394,10 @@ export function MessageConversation({
                                 {/* Media content */}
                                 {renderMedia(msg, !!msg.parentId)}
 
-                                {msg.body && (
+                                {/* Shared post — Instagram-style preview card */}
+                                {msg.type === 'shared_post' ? (
+                                  <SharedPostPreview url={msg.body} isMine={isMine} />
+                                ) : msg.body && (
                                   <p className="mt-1">{msg.body}</p>
                                 )}
                                 {msg.editedAt && <span className="text-[10px] opacity-60 ml-1">(edited)</span>}

@@ -379,6 +379,10 @@ model Profile {
   mentionsReceived  Mention[] @relation("MentionedUser")
   mentionsMade      Mention[] @relation("MentionActor")
 
+  // ── Post Analytics Relations ──
+  authoredPostEvents PostEvent[] @relation("ProfileAuthoredEvents")
+  viewedPostEvents   PostEvent[] @relation("ProfileViewedEvents")
+
   // ── Communities Module Relations ──
   communitiesCreated Community[]         @relation("CommunityCreator")
   communityMemberships CommunityMember[]
@@ -819,12 +823,43 @@ model Post {
   hashtags  PostHashtag[]
   mentions  Mention[]
   pin       CommunityPostPin?
+  events    PostEvent[]
 
   @@index([authorId, createdAt(sort: Desc)])
   @@index([communityId, createdAt(sort: Desc)])
   @@index([createdAt])
   @@index([visibility])
   @@map("posts")
+}
+
+// ── POST ANALYTICS — EVENT STREAM (Phase 1) ──────────────────────────────────
+// Append-only impression/interaction events for posts by PROFESSIONAL accounts.
+// Source of truth for reach/views + follower-vs-non-follower split; Redis holds
+// fast counters/HLL mirrors when available. See supabase/migrations/027.
+model PostEvent {
+  id               String   @id @default(uuid())
+  postId           String   @map("post_id")
+  authorId         String   @map("author_id")
+  viewerId         String?  @map("viewer_id")
+  type             String   // impression | view | profile_tap | link_tap
+  surface          String?  // feed | explore | hashtag | profile | dm_share | detail
+  viewerIsFollower Boolean  @default(false) @map("viewer_is_follower")
+  deviceType       String?  @map("device_type")
+  os               String?
+  country          String?
+  dwellMs          Int?     @map("dwell_ms")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Profile  @relation("ProfileAuthoredEvents", fields: [authorId], references: [id], onDelete: Cascade)
+  viewer Profile? @relation("ProfileViewedEvents", fields: [viewerId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([postId, type])
+  @@index([postId, viewerId])
+  @@index([createdAt])
+  @@map("post_events")
 }
 
 model PostMedia {

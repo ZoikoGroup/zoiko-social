@@ -417,6 +417,60 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // ── POST ANALYTICS (fast counters + unique-reach HLL) ──────────────────────
+  // Best-effort mirror of the post_events stream (PostgreSQL is source of truth).
+  // Degrades silently when Redis is unavailable/over-quota — the analytics read
+  // path falls back to aggregating post_events directly.
+
+  /** Increment the per-post counter for an event type (impression/view/...). */
+  async postEventIncr(postId: string, type: string): Promise<void> {
+    if (!this.client) return
+    try {
+      const key = `cnt:post:${postId}`
+      await this.client.hincrby(key, type, 1)
+      await this.client.expire(key, 90 * 24 * 3600)
+    } catch (err) {
+      this.logger.warn(`postEventIncr failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Add a viewer to a post's unique-reach HLLs (total + follower/non-follower). */
+  async postReachAdd(postId: string, viewerId: string, isFollower: boolean): Promise<void> {
+    if (!this.client) return
+    try {
+      const seg = isFollower ? 'f' : 'n'
+      const ttl = 90 * 24 * 3600
+      await this.client.pfadd(`reach:post:${postId}`, viewerId)
+      await this.client.pfadd(`reach:post:${postId}:${seg}`, viewerId)
+      await this.client.expire(`reach:post:${postId}`, ttl)
+      await this.client.expire(`reach:post:${postId}:${seg}`, ttl)
+    } catch (err) {
+      this.logger.warn(`postReachAdd failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Fast-path read of a post's counters + unique reach; null if unavailable. */
+  async postStatsGet(
+    postId: string,
+  ): Promise<{ counters: Record<string, number>; reach: number; reachFollowers: number; reachNonFollowers: number } | null> {
+    if (!this.client) return null
+    try {
+      const [raw, total, f, n] = await Promise.all([
+        this.client.hgetall(`cnt:post:${postId}`),
+        this.client.pfcount(`reach:post:${postId}`),
+        this.client.pfcount(`reach:post:${postId}:f`),
+        this.client.pfcount(`reach:post:${postId}:n`),
+      ])
+      const hasCounters = raw && Object.keys(raw).length > 0
+      if (!hasCounters && !total) return null
+      const counters: Record<string, number> = {}
+      for (const [k, v] of Object.entries(raw ?? {})) counters[k] = Number(v)
+      return { counters, reach: total, reachFollowers: f, reachNonFollowers: n }
+    } catch {
+      return null
+    }
+  }
+
   // ── TRENDING HASHTAGS ──────────────────────────────────────────────────────
 
   async trendIncr(tag: string): Promise<void> {

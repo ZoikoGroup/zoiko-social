@@ -62,7 +62,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ postId: s
             </div>
           ) : (
             <div className="space-y-4">
-              <PostCard post={post} onDeleted={() => setNotFound(true)} />
+              <PostCard post={post} surface="detail" onDeleted={() => setNotFound(true)} />
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm max-h-[600px] flex flex-col">
                 <CommentThread post={post} />
               </div>
