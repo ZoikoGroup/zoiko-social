@@ -44,7 +44,10 @@ const nextConfig: NextConfig = {
               `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev ${r2PublicUrl} images.unsplash.com`,
               `media-src 'self' blob: *.mux.com *.r2.dev ${r2PublicUrl}`,
               "style-src 'self' 'unsafe-inline'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+              // storage.googleapis.com: the service worker (public/sw.js) importScripts
+              // Workbox from the Google CDN (workbox-cdn) and it pulls its runtime
+              // modules from the same host; without this the SW fails to register.
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com",
               "font-src 'self'",
               "frame-src 'none'",
               "object-src 'none'",
