@@ -29,7 +29,7 @@ export function ServiceWorkerRegister(): React.JSX.Element {
       navigator.serviceWorker
         .register('/sw.js')
         .then((reg) => {
-          console.log('[ZoikoSocial SW] Registered:', reg.scope)
+          console.warn('[ZoikoSocial SW] Registered:', reg.scope)
 
           // Detect updates and reload the page automatically when a new
           // version is available. This ensures users always run the latest code
@@ -43,7 +43,7 @@ export function ServiceWorkerRegister(): React.JSX.Element {
                 navigator.serviceWorker.controller
               ) {
                 // New version available — reload to activate it
-                console.log('[ZoikoSocial SW] Update available — reloading...')
+                console.warn('[ZoikoSocial SW] Update available — reloading...')
                 window.location.reload()
               }
             })
