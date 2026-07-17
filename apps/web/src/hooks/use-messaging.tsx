@@ -200,38 +200,40 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
       if (cancelled || !s) return
       setSocket(s)
 
-      // Listen for new messages
-      const onNewMessage = (message: MessageData) => {
-        // Play notification sound if tab is not focused and message is from someone else
-        if (
-          typeof document !== 'undefined' &&
-          document.hidden &&
-          message.sender.id !== user?.id
-        ) {
+      // Live conversation-list updates (unread badge + last-message preview).
+      // Driven by `conversation:activity` on the always-joined user room —
+      // `message:new` only reaches the conversation room, which this list
+      // provider never joins, so background chats never updated live before.
+      const onConversationActivity = (data: {
+        conversationId: string
+        senderId: string
+        body: string | null
+        createdAt: string
+      }) => {
+        if (data.senderId === user?.id) return // our own message — the open thread handles it
+        if (typeof document !== 'undefined' && document.hidden) {
           playMessageSound()
         }
 
         setConversations((prev) => {
-          const existing = prev.find((c) => c.id === message.conversationId)
-          if (existing) {
-            return prev.map((c) =>
-              c.id === message.conversationId
-                ? {
-                    ...c,
-                    lastMessage: {
-                      body: message.body,
-                      senderId: message.sender.id,
-                      createdAt: message.createdAt,
-                    },
-                    unreadCount:
-                      message.conversationId === activeConvIdRef.current
-                        ? 0
-                        : c.unreadCount + 1,
-                  }
-                : c,
-            )
-          }
-          return prev
+          const existing = prev.find((c) => c.id === data.conversationId)
+          if (!existing) return prev
+          return prev.map((c) =>
+            c.id === data.conversationId
+              ? {
+                  ...c,
+                  lastMessage: {
+                    body: data.body,
+                    senderId: data.senderId,
+                    createdAt: data.createdAt,
+                  },
+                  unreadCount:
+                    data.conversationId === activeConvIdRef.current
+                      ? 0
+                      : c.unreadCount + 1,
+                }
+              : c,
+          )
         })
       }
 
@@ -253,7 +255,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
       const onNewConversation = () => { void fetchConversations() }
       const onRequestAccepted = () => { void fetchConversations() }
 
-      s.on('message:new', onNewMessage)
+      s.on('conversation:activity', onConversationActivity)
       s.on('disconnect', onDisconnect)
       s.on('connect', onConnect)
       s.on('conversation:new', onNewConversation)
@@ -261,7 +263,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
       // Store off functions for cleanup
       socketCleanups.set(s, () => {
-        s.off('message:new', onNewMessage)
+        s.off('conversation:activity', onConversationActivity)
         s.off('disconnect', onDisconnect)
         s.off('connect', onConnect)
         s.off('conversation:new', onNewConversation)

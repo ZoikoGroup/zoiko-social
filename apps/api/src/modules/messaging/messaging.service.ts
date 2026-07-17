@@ -77,29 +77,16 @@ export class MessagingService {
     const hasMore = memberships.length > take
     const items = hasMore ? memberships.slice(0, take) : memberships
 
+    // One grouped query for all unread counts instead of a COUNT per conversation.
+    const unreadMap = await this.getUnreadCountsMap(userId)
+
     const conversations = await Promise.all(
       items.map(async (m) => {
         const conv = m.conversation
         const lastMsg = conv.messages[0] ?? null
         const setting = conv.settings[0]
 
-        // Count unread messages
-        const unreadCount = m.lastReadAt
-          ? await this.prisma.message.count({
-              where: {
-                conversationId: conv.id,
-                senderId: { not: userId },
-                createdAt: { gt: m.lastReadAt },
-                isDeleted: false,
-              },
-            })
-          : await this.prisma.message.count({
-              where: {
-                conversationId: conv.id,
-                senderId: { not: userId },
-                isDeleted: false,
-              },
-            })
+        const unreadCount = unreadMap.get(conv.id) ?? 0
 
         // If DM, find the other participant's presence
         let isOnline = false
@@ -558,18 +545,34 @@ export class MessagingService {
     })
     const mutedIds = new Set(settings.filter((s) => s.isMuted).map((s) => s.userId))
 
-    await Promise.all(
-      otherMembers
-        .filter((om) => !mutedIds.has(om.userId))
-        .map((om) =>
+    // Lightweight list-refresh event delivered to each recipient's always-joined
+    // user room. The conversation-list provider can't feasibly join every
+    // conversation room, so message:new (which only goes to the conversation
+    // room) never reached background chats — their unread badge / last-message
+    // preview only updated on a manual refetch. This drives that live. Muted
+    // chats still update their unread count; only notification:new is suppressed.
+    const activity = {
+      conversationId,
+      senderId,
+      body: message.body,
+      createdAt: message.createdAt.toISOString(),
+    }
+
+    const publishes: Array<Promise<void>> = []
+    for (const om of otherMembers) {
+      publishes.push(this.realtime.publishToUser(om.userId, 'conversation:activity', activity))
+      if (!mutedIds.has(om.userId)) {
+        publishes.push(
           this.realtime.publishToUser(om.userId, 'notification:new', {
             type: 'message',
             title: message.sender.displayName,
             body: message.body ?? 'Sent a message',
             data: { conversationId, messageId: message.id },
           }),
-        ),
-    )
+        )
+      }
+    }
+    await Promise.all(publishes)
   }
 
   /**
@@ -829,28 +832,39 @@ export class MessagingService {
 
   // ── UNREAD COUNTS ──────────────────────────────────────────────────────────
 
+  /**
+   * Unread counts for ALL of a user's active conversations in ONE query.
+   * Replaces the previous per-conversation `message.count` fan-out (N+1 that
+   * could fire hundreds of concurrent COUNTs and time out). Uses the
+   * `messages(conversation_id, created_at)` index; per-conversation cutoff comes
+   * from the member's `last_read_at` (null = everything from others is unread).
+   */
+  private async getUnreadCountsMap(userId: string): Promise<Map<string, number>> {
+    const rows = await this.prisma.$queryRaw<Array<{ conversationId: string; count: number | bigint }>>`
+      SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS count
+      FROM messages m
+      JOIN conversation_members cm
+        ON cm.conversation_id = m.conversation_id AND cm.user_id = ${userId}
+      WHERE cm.is_deleted = false
+        AND m.sender_id <> ${userId}
+        AND m.is_deleted = false
+        AND (cm.last_read_at IS NULL OR m.created_at > cm.last_read_at)
+      GROUP BY m.conversation_id
+    `
+    return new Map(rows.map((r) => [r.conversationId, Number(r.count)]))
+  }
+
   async getUnreadCounts(userId: string): Promise<UnreadCountResponse> {
     const memberships = await this.prisma.conversationMember.findMany({
       where: { userId, isDeleted: false },
-      select: { conversationId: true, lastReadAt: true },
+      select: { conversationId: true },
     })
 
-    const counts = await Promise.all(
-      memberships.map(async (m) => {
-        const count = m.lastReadAt
-          ? await this.prisma.message.count({
-              where: {
-                conversationId: m.conversationId,
-                senderId: { not: userId },
-                createdAt: { gt: m.lastReadAt },
-                isDeleted: false,
-              },
-            })
-          : 0
-        return { conversationId: m.conversationId, count }
-      }),
-    )
-
+    const unreadMap = await this.getUnreadCountsMap(userId)
+    const counts = memberships.map((m) => ({
+      conversationId: m.conversationId,
+      count: unreadMap.get(m.conversationId) ?? 0,
+    }))
     const total = counts.reduce((sum, c) => sum + c.count, 0)
 
     return { total, conversations: counts }
