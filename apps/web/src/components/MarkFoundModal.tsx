@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, CheckCircle2, MapPin, Send } from 'lucide-react'
+import { LocationInput } from './LocationInput'
 import type { LostPet } from './LostPetCard'
 
 interface MarkFoundModalProps {
@@ -80,9 +81,9 @@ export function MarkFoundModal({ open, onClose, pet, onConfirm }: MarkFoundModal
                 </label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-                  <input
+                  <LocationInput
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={setLocation}
                     placeholder="e.g. Near Central Park, north entrance"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
                   />

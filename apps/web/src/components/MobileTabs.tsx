@@ -18,7 +18,6 @@ interface MobileTabsProps {
 const TABS: { page: string; label: string; Icon: LucideIcon; href: string; accent?: boolean }[] = [
   { page: 'home',     label: 'Home',     Icon: Home,          href: '/'         },
   { page: 'rescue',   label: 'Rescue',   Icon: TriangleAlert, href: '/adoption', accent: true },
-  { page: 'pets',     label: 'Pets',     Icon: Heart,         href: '/pet-care' },
   { page: 'messages', label: 'Messages', Icon: MessageSquare, href: '/messages' },
   { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
 ]

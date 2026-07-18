@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { blurhashToDataURL, getOptimizedUrl, getSrcSet, DEFAULT_SIZES } from '@/lib/image'
 
 /**
@@ -29,9 +30,12 @@ interface ImgProps {
 }
 
 export function Img({ src, alt = '', className = '', blurhash, priority = false, sizes = DEFAULT_SIZES }: ImgProps): React.JSX.Element {
+  // If the optimized (transform) URL fails to load, fall back to the original
+  // src (and drop the responsive srcSet, which points at the same endpoint).
+  const [failed, setFailed] = useState(false)
   const blur = blurhash ? blurhashToDataURL(blurhash) : undefined
-  const optimizedSrc = getOptimizedUrl(src)
-  const srcSet = priority ? undefined : getSrcSet(src)
+  const optimizedSrc = failed ? src : getOptimizedUrl(src)
+  const srcSet = failed || priority ? undefined : getSrcSet(src)
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -41,6 +45,7 @@ export function Img({ src, alt = '', className = '', blurhash, priority = false,
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"
       className={className}
+      onError={() => { if (!failed) setFailed(true) }}
       {...(srcSet ? { srcSet, sizes } : {})}
       style={blur ? { backgroundImage: `url(${blur})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
     />

@@ -858,10 +858,10 @@ export const feedApi = {
 
 export interface PostInsights {
   postId: string
+  /** Count per event type — dynamic; new event kinds appear automatically. */
+  countsByType: Record<string, number>
   impressions: number
   views: number
-  profileTaps: number
-  linkTaps: number
   reach: number
   reachFollowers: number
   reachNonFollowers: number
@@ -870,11 +870,15 @@ export interface PostInsights {
   byDevice: { key: string; count: number }[]
   bySurface: { key: string; count: number }[]
   byCountry: { key: string; count: number }[]
+  /** Breakdown by a requested prop key (null unless `prop` was passed). */
+  byProp: { prop: string; values: { key: string; count: number }[] } | null
 }
 
 export const analyticsApi = {
-  /** Per-post insights — only the post's professional author may read them. */
-  postInsights: (postId: string) => cachedGet<PostInsights>(`/analytics/posts/${postId}`, 30_000),
+  /** Per-post insights — only the post's professional author may read them.
+   *  Pass `prop` to also get a breakdown by that custom prop key. */
+  postInsights: (postId: string, prop?: string) =>
+    cachedGet<PostInsights>(`/analytics/posts/${postId}${prop ? `?prop=${encodeURIComponent(prop)}` : ''}`, 30_000),
 }
 
 export const commentsApi = {

@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
+import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import {
-  ChevronLeft, MapPin, ShieldCheck, BadgeCheck, Dna, Trash2, Loader2, Check, X,
+  ChevronLeft, ShieldCheck, BadgeCheck, Dna, Trash2, Loader2, Check, X,
   Venus, Mars, HeartHandshake, PawPrint,
 } from 'lucide-react'
 import { breedingApi, type BreedingProfile, type BreedingRequest } from '@/lib/api'
@@ -125,7 +126,7 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
 
               <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight">{profile.petName}</h1>
               <p className="text-label-md text-on-surface-variant mt-0.5">{profile.breed}{profile.age ? ` · ${profile.age}` : ''}</p>
-              {profile.location && <p className="flex items-center gap-1.5 text-label-sm text-outline mt-1"><MapPin className="w-4 h-4" />{profile.location}</p>}
+              {profile.location && <LocationLink location={profile.location} iconClassName="w-4 h-4" className="text-label-sm text-outline mt-1" />}
               {profile.fee != null && <p className="text-headline-md font-bold text-secondary mt-2">{money(profile.fee, profile.currency)}</p>}
 
               <div className="flex items-center gap-2.5 mt-4 pt-4 border-t border-outline-variant/20">

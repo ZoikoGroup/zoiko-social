@@ -13,14 +13,20 @@ import { createClient } from '@/lib/supabase/client'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
-export type PostEventType = 'impression' | 'view' | 'profile_tap' | 'link_tap'
-export type PostEventSurface = 'feed' | 'explore' | 'hashtag' | 'profile' | 'dm_share' | 'detail'
+// Free-form, with common values kept for autocomplete. Any string is accepted —
+// new event kinds need no code change (the backend schema is extensible).
+export type PostEventType = 'impression' | 'view' | 'profile_tap' | 'link_tap' | 'video_watch' | (string & {})
+export type PostEventSurface = 'feed' | 'explore' | 'hashtag' | 'profile' | 'dm_share' | 'detail' | (string & {})
+
+type PropValue = string | number | boolean | null
 
 interface QueuedEvent {
   postId: string
   type: PostEventType
   surface?: PostEventSurface
   dwellMs?: number
+  /** Arbitrary event metadata (video %, cta id, variant, referrer, …). */
+  props?: Record<string, PropValue>
 }
 
 const FLUSH_INTERVAL_MS = 5000

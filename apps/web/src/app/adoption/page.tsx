@@ -9,7 +9,9 @@ import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
-import { PawPrint, Search, Plus, MapPin, X, Loader2, Camera, Check } from 'lucide-react'
+import { PawPrint, Search, Plus, X, Loader2, Camera, Check } from 'lucide-react'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import { adoptionApi, type AdoptionListing, type NewListing } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
@@ -140,7 +142,7 @@ export default function AdoptionPage(): React.JSX.Element {
                         {l.fee != null && <span className="text-[11px] text-outline flex-shrink-0">{l.fee === 0 ? 'Free' : `₹${l.fee}`}</span>}
                       </div>
                       <p className="text-[12px] text-on-surface-variant truncate">{l.species}{l.breed ? ` · ${l.breed}` : ''}{l.age ? ` · ${l.age}` : ''}</p>
-                      {l.location && <p className="flex items-center gap-1 text-[11px] text-outline mt-1 truncate"><MapPin className="w-3 h-3 flex-shrink-0" />{l.location}</p>}
+                      {l.location && <LocationLink location={l.location} iconClassName="w-3 h-3" className="text-[11px] text-outline mt-1 max-w-full" />}
                     </div>
                   </Link>
                 ))}
@@ -230,7 +232,7 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
               <option value="">Size</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option>
             </select>
           </div>
-          <input value={form.location ?? ''} onChange={(e) => set('location', e.target.value)} maxLength={200} placeholder="Location" className={input} />
+          <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={200} placeholder="Location" className={input} />
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={3000} rows={3} placeholder="Tell adopters about this pet…" className={`${input} resize-none`} />
           <div className="flex flex-wrap gap-2">
             <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}Vaccinated</button>

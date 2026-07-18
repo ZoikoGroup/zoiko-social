@@ -14,6 +14,7 @@ import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
 import { postsApi, moderationApi, type PostItem } from '@/lib/api'
 import { trackPostEvent, type PostEventSurface } from '@/lib/analytics'
+import { LocationLink } from '@/components/LocationLink'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 
@@ -347,7 +348,13 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             <MapPin className="w-3.5 h-3.5" />Lost Pet Alert
           </div>
           {meta?.petName && <p className="text-label-md font-semibold text-on-surface">{meta.petName}</p>}
-          {meta?.lastSeen && <InfoRow Icon={MapPin} label="Last seen" value={meta.lastSeen} />}
+          {meta?.lastSeen && (
+            <div className="flex items-start gap-2 text-[12px] leading-snug">
+              <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+              <span className="text-outline font-medium flex-shrink-0">Last seen:</span>
+              <LocationLink location={meta.lastSeen} showIcon={false} className="text-on-surface" />
+            </div>
+          )}
           <Link
             href="/lost-found"
             className="block text-center py-2 rounded-lg bg-secondary text-white text-label-sm font-semibold hover:bg-secondary/90 transition-colors"

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
 import { Bell, AtSign, MapPin, TrendingUp, Calendar, ShieldCheck, ChevronRight, AlertTriangle, PawPrint, Info } from 'lucide-react'
+import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from './UserAvatar'
 import { FollowButton, initialFollowState } from './FollowButton'
 import { SkeletonWidget } from './Skeletons'
@@ -107,7 +108,7 @@ export function RightPanel(): React.JSX.Element {
                     <p className="text-label-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
                       {lost ? `${a.petName ?? a.species} Reported Lost` : `${a.petName ?? a.species} Found`}
                     </p>
-                    {a.lastSeenLocation && <p className="text-[11px] text-outline truncate">{a.lastSeenLocation}</p>}
+                    {a.lastSeenLocation && <LocationLink location={a.lastSeenLocation} showIcon={false} className="text-[11px] text-outline max-w-full" />}
                     <p className="text-[11px] text-outline">{alertWhen(a.createdAt)}</p>
                   </div>
                 </Link>

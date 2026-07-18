@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { usePagedList } from '@/hooks/use-cache'
 import type { LucideIcon } from 'lucide-react'
 import { Search, Plus, MapPin, Phone, Globe, X, Loader2, Camera } from 'lucide-react'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import { Header } from './Header'
 import { ProfileCard } from './ProfileCard'
 import { QuickLinksWidget } from './QuickLinksWidget'
@@ -94,7 +96,7 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
               </div>
               <div className="relative sm:w-44">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-                <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location"
+                <LocationInput value={location} onChange={setLocation} placeholder="Location"
                   className="w-full pl-9 pr-4 py-2 bg-surface-container-low rounded-xl text-label-sm border border-transparent focus:border-primary focus:outline-none" />
               </div>
             </div>
@@ -124,7 +126,7 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
                       </div>
                       {p.description && <p className="text-label-sm text-on-surface-variant mt-1 line-clamp-2">{p.description}</p>}
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-outline">
-                        {p.location && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{p.location}</span>}
+                        {p.location && <LocationLink location={p.location} iconClassName="w-3.5 h-3.5" />}
                         {p.phone && <a href={`tel:${p.phone}`} className="flex items-center gap-1 hover:text-primary"><Phone className="w-3.5 h-3.5" />{p.phone}</a>}
                         {p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary"><Globe className="w-3.5 h-3.5" />Website</a>}
                       </div>
@@ -204,7 +206,7 @@ function AddProviderModal({ category, serviceTypes, title, onClose, onAdded }: {
             {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
-          <input value={form.location ?? ''} onChange={(e) => set('location', e.target.value)} maxLength={120} placeholder="Location / city" className={input} />
+          <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={120} placeholder="Location / city" className={input} />
           <input value={form.address ?? ''} onChange={(e) => set('address', e.target.value)} maxLength={300} placeholder="Address (optional)" className={input} />
           <div className="grid grid-cols-2 gap-3">
             <input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} maxLength={40} placeholder="Phone" className={input} />
