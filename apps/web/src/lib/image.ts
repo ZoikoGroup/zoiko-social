@@ -155,6 +155,12 @@ export function blurhashToDataURL(hash: string, width = 32, height = 32): string
 
 const SUPABASE_RENDER_RE = /^https:\/\/[^.]+\.supabase\.co\/storage\/v1\/object\/public\/(.+)$/i
 
+// Supabase's render/image (transform) endpoint is a paid add-on that must be
+// enabled on the project; when it isn't, those URLs 403 and images break.
+// Default OFF so images serve from the always-working /object/public/ URL.
+// Set NEXT_PUBLIC_SUPABASE_IMAGE_TRANSFORM=true once the add-on is enabled.
+const IMG_TRANSFORM_ENABLED = process.env.NEXT_PUBLIC_SUPABASE_IMAGE_TRANSFORM === 'true'
+
 /**
  * Common responsive breakpoints used across the app.
  * These match typical Tailwind container widths the images appear in.
@@ -175,6 +181,8 @@ export const IMG_BREAKPOINTS = [320, 640, 960, 1280] as const
  *   output: https://abc.supabase.co/storage/v1/render/image/public/post-media/photo.webp?format=auto&quality=78
  */
 export function getOptimizedUrl(src: string, width?: number): string {
+  // Transform endpoint not enabled → serve the original (always-available) URL
+  if (!IMG_TRANSFORM_ENABLED) return src
   // Pass through if already has query params (avoids double-? corruption)
   if (src.includes('?')) return src
 
@@ -199,6 +207,7 @@ export function getOptimizedUrl(src: string, width?: number): string {
  * Returns undefined for non-Supabase URLs so the consumer can fall back.
  */
 export function getSrcSet(src: string): string | undefined {
+  if (!IMG_TRANSFORM_ENABLED) return undefined
   if (!SUPABASE_RENDER_RE.test(src)) return undefined
   return IMG_BREAKPOINTS
     .map((w) => `${getOptimizedUrl(src, w)} ${w}w`)

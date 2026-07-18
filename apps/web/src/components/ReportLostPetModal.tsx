@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Upload, Eye, Users, UserCheck, CheckCircle2 } from 'lucide-react'
+import { LocationInput } from './LocationInput'
 import type { Visibility } from './LostPetCard'
 
 interface ReportLostPetModalProps {
@@ -142,7 +143,7 @@ export function ReportLostPetModal({ open, onClose, onSubmit }: ReportLostPetMod
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-label-sm font-semibold text-on-surface block mb-1.5">Last seen location <span className="text-secondary">*</span></label>
-                      <input value={form.lastSeenLocation} onChange={(e) => update('lastSeenLocation', e.target.value)}
+                      <LocationInput value={form.lastSeenLocation} onChange={(v) => update('lastSeenLocation', v)}
                         placeholder="e.g. Riverside Park"
                         className="w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none transition-colors" />
                     </div>

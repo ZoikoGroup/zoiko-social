@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { MapPin, Clock, Eye, Users, UserCheck, CheckCircle2, Share2 } from 'lucide-react'
+import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from './UserAvatar'
 import { MarkFoundModal } from './MarkFoundModal'
 
@@ -102,7 +103,7 @@ export function LostPetCard({ pet, isOwner = false, onStatusChange }: LostPetCar
           <div className="space-y-1.5 text-label-sm text-on-surface-variant">
             <div className="flex items-start gap-2">
               <MapPin className="w-3.5 h-3.5 text-secondary flex-shrink-0 mt-0.5" />
-              <span className="leading-tight">Last seen: <span className="font-semibold text-on-surface">{pet.lastSeenLocation}</span></span>
+              <span className="leading-tight">Last seen: <LocationLink location={pet.lastSeenLocation} showIcon={false} className="font-semibold text-on-surface" /></span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5 text-outline flex-shrink-0" />

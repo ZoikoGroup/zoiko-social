@@ -1,8 +1,12 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { UAParser } from 'ua-parser-js'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import type { IngestEventInput } from './analytics.schemas'
+
+// Event types that represent a real "saw the post" — used for unique reach.
+const REACH_TYPES = ['impression', 'view'] as const
 
 interface IngestContext {
   userAgent?: string | null
@@ -11,10 +15,10 @@ interface IngestContext {
 
 export interface PostInsights {
   postId: string
+  /** Count per event type — dynamic, so new event kinds appear automatically. */
+  countsByType: Record<string, number>
   impressions: number
   views: number
-  profileTaps: number
-  linkTaps: number
   reach: number
   reachFollowers: number
   reachNonFollowers: number
@@ -23,6 +27,8 @@ export interface PostInsights {
   byDevice: { key: string; count: number }[]
   bySurface: { key: string; count: number }[]
   byCountry: { key: string; count: number }[]
+  /** Breakdown by a requested prop key (null unless ?prop= was passed). */
+  byProp: { prop: string; values: { key: string; count: number }[] } | null
 }
 
 @Injectable()
@@ -89,6 +95,7 @@ export class AnalyticsService {
           os,
           country,
           dwellMs: e.dwellMs ?? null,
+          ...(e.props ? { props: e.props as Prisma.InputJsonValue } : {}),
         }
       })
       .filter((r): r is NonNullable<typeof r> => r !== null)
@@ -113,7 +120,7 @@ export class AnalyticsService {
    * Per-post insights. Only the post's own (professional) author may read them.
    * Aggregated from post_events so it is correct even while Redis is degraded.
    */
-  async getPostInsights(requesterId: string, postId: string): Promise<PostInsights> {
+  async getPostInsights(requesterId: string, postId: string, prop?: string): Promise<PostInsights> {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: {
@@ -145,7 +152,7 @@ export class AnalyticsService {
           COUNT(DISTINCT viewer_id) FILTER (WHERE viewer_is_follower)::int AS followers,
           COUNT(DISTINCT viewer_id) FILTER (WHERE NOT viewer_is_follower)::int AS non_followers
         FROM post_events
-        WHERE post_id = ${postId}::uuid AND type IN ('impression', 'view')`,
+        WHERE post_id = ${postId}::uuid AND type IN (${Prisma.join([...REACH_TYPES])})`,
       this.prisma.$queryRaw<{ key: string; count: number }[]>`
         SELECT COALESCE(device_type, 'unknown') AS key, COUNT(*)::int AS count
         FROM post_events WHERE post_id = ${postId}::uuid AND type = 'impression'
@@ -160,16 +167,27 @@ export class AnalyticsService {
         GROUP BY 1 ORDER BY count DESC LIMIT 20`,
     ])
 
-    const countBy = (t: string): number => counts.find((c) => c.type === t)?.c ?? 0
+    const countsByType: Record<string, number> = {}
+    for (const c of counts) countsByType[c.type] = c.c
     const r = reach[0] ?? { reach: 0, followers: 0, non_followers: 0 }
     const engagementTotal = post.likesCount + post.commentsCount + post.savesCount + post.sharesCount
 
+    // Optional breakdown by an arbitrary prop key (validated to a safe charset).
+    let byProp: PostInsights['byProp'] = null
+    if (prop && /^[a-zA-Z0-9_.]{1,40}$/.test(prop)) {
+      const values = await this.prisma.$queryRaw<{ key: string; count: number }[]>`
+        SELECT COALESCE(props ->> ${prop}, '(none)') AS key, COUNT(*)::int AS count
+        FROM post_events
+        WHERE post_id = ${postId}::uuid AND jsonb_exists(props, ${prop})
+        GROUP BY 1 ORDER BY count DESC LIMIT 50`
+      byProp = { prop, values }
+    }
+
     return {
       postId,
-      impressions: countBy('impression'),
-      views: countBy('view'),
-      profileTaps: countBy('profile_tap'),
-      linkTaps: countBy('link_tap'),
+      countsByType,
+      impressions: countsByType.impression ?? 0,
+      views: countsByType.view ?? 0,
       reach: r.reach,
       reachFollowers: r.followers,
       reachNonFollowers: r.non_followers,
@@ -183,6 +201,7 @@ export class AnalyticsService {
       byDevice,
       bySurface,
       byCountry,
+      byProp,
     }
   }
 

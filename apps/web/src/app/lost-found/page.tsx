@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePagedList } from '@/hooks/use-cache'
 import { Img } from '@/components/Img'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
@@ -128,7 +130,7 @@ export default function LostFoundPage(): React.JSX.Element {
                     <div className="p-3">
                       <h3 className="font-bold text-label-md text-on-surface truncate">{r.petName ?? r.species}</h3>
                       <p className="text-[12px] text-on-surface-variant truncate">{r.species}{r.breed ? ` · ${r.breed}` : ''}</p>
-                      {r.lastSeenLocation && <p className="flex items-center gap-1 text-[11px] text-outline mt-1 truncate"><MapPin className="w-3 h-3 flex-shrink-0" />{r.lastSeenLocation}</p>}
+                      {r.lastSeenLocation && <LocationLink location={r.lastSeenLocation} iconClassName="w-3 h-3" className="text-[11px] text-outline mt-1 max-w-full" />}
                       {r.sightingsCount > 0 && <p className="flex items-center gap-1 text-[11px] text-primary mt-1"><Eye className="w-3 h-3" />{r.sightingsCount} sighting{r.sightingsCount > 1 ? 's' : ''}</p>}
                     </div>
                   </Link>
@@ -211,7 +213,7 @@ function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <input value={form.species} onChange={(e) => set('species', e.target.value)} maxLength={40} placeholder="Species" className={input} />
           </div>
           <input value={form.breed ?? ''} onChange={(e) => set('breed', e.target.value)} maxLength={60} placeholder="Breed / colour (optional)" className={input} />
-          <input value={form.lastSeenLocation ?? ''} onChange={(e) => set('lastSeenLocation', e.target.value)} maxLength={200} placeholder="Last seen location" className={input} />
+          <LocationInput value={form.lastSeenLocation ?? ''} onChange={(v) => set('lastSeenLocation', v)} maxLength={200} placeholder="Last seen location" className={input} />
           <label className="text-[11px] text-outline block">Last seen date
             <input type="date" value={form.lastSeenAt ?? ''} onChange={(e) => set('lastSeenAt', e.target.value)} className={`${input} mt-1`} />
           </label>

@@ -841,13 +841,14 @@ model PostEvent {
   postId           String   @map("post_id")
   authorId         String   @map("author_id")
   viewerId         String?  @map("viewer_id")
-  type             String   // impression | view | profile_tap | link_tap
-  surface          String?  // feed | explore | hashtag | profile | dm_share | detail
+  type             String   // free-form: impression | view | profile_tap | link_tap | video_watch | …
+  surface          String?  // free-form: feed | explore | hashtag | profile | dm_share | detail | …
   viewerIsFollower Boolean  @default(false) @map("viewer_is_follower")
   deviceType       String?  @map("device_type")
   os               String?
   country          String?
   dwellMs          Int?     @map("dwell_ms")
+  props            Json?    // extensible metadata bag (jsonb) — any event-specific fields
   createdAt        DateTime @default(now()) @map("created_at")
 
   post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)

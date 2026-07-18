@@ -8,7 +8,7 @@ import {
   PawPrint, Search, Home, Users, MessageSquare, Bell, ChevronDown,
   Newspaper, Calendar, MapPin,
   ShoppingBag, HandHeart, Stethoscope, Dna, LayoutDashboard,
-  User, Settings, LogOut, Loader2, Heart, MoreHorizontal,
+  User, Settings, LogOut, Loader2, MoreHorizontal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
@@ -38,7 +38,6 @@ const MODULE_HREFS = MODULES.map((m) => m.href)
 const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: 'alerts' | 'messages' }[] = [
   { name: 'Home',     Icon: Home,          href: '/',              always: true },
   { name: 'Network',  Icon: Users,         href: '/network'                     },
-  { name: 'Pets',     Icon: Heart,         href: '/pet-care'                    },
   { name: 'Messages', Icon: MessageSquare, href: '/messages',      badge: 'messages' },
   { name: 'Alerts',   Icon: Bell,          href: '/notifications', badge: 'alerts', always: true },
 ]

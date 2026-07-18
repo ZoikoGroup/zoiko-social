@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
+import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import {
-  ChevronLeft, MapPin, PawPrint, Check, X, Loader2, Trash2, ShieldCheck, Heart, Syringe, Baby, Dog, Cat,
+  ChevronLeft, PawPrint, Check, X, Loader2, Trash2, ShieldCheck, Heart, Syringe, Baby, Dog, Cat,
 } from 'lucide-react'
 import { adoptionApi, type AdoptionListing, type AdoptionEnquiryItem } from '@/lib/api'
 import { Img } from '@/components/Img'
@@ -119,7 +120,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
                 <p className="text-label-md text-on-surface-variant mt-0.5">
                   {listing.species}{listing.breed ? ` · ${listing.breed}` : ''}{listing.age ? ` · ${listing.age}` : ''}{listing.sex !== 'unknown' ? ` · ${listing.sex}` : ''}{listing.size ? ` · ${listing.size}` : ''}
                 </p>
-                {listing.location && <p className="flex items-center gap-1 text-label-sm text-outline mt-1"><MapPin className="w-3.5 h-3.5" />{listing.location}</p>}
+                {listing.location && <LocationLink location={listing.location} iconClassName="w-3.5 h-3.5" className="text-label-sm text-outline mt-1" />}
               </div>
               <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide flex-shrink-0 ${listing.status === 'available' ? 'bg-emerald-500/10 text-emerald-600' : listing.status === 'adopted' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>{listing.status}</span>
             </div>

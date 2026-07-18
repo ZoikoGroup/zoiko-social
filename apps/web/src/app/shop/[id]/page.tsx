@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
+import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
 import {
-  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, MapPin, ShoppingBag,
+  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, ShoppingBag,
 } from 'lucide-react'
 import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
@@ -154,7 +155,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               </div>
 
               {product.shipping && <p className="flex items-center gap-1.5 text-label-sm text-primary mt-2"><Truck className="w-4 h-4" />{product.shipping}</p>}
-              {product.location && <p className="flex items-center gap-1.5 text-label-sm text-outline mt-1"><MapPin className="w-4 h-4" />{product.location}</p>}
+              {product.location && <LocationLink location={product.location} iconClassName="w-4 h-4" className="text-label-sm text-outline mt-1" />}
 
               <div className="flex items-center gap-2.5 mt-4 pt-4 border-t border-outline-variant/20">
                 <Link href={`/profile/${product.seller.username}`}><UserAvatar name={product.seller.displayName} image={product.seller.avatarUrl ?? undefined} size="sm" verified={product.seller.isVerified} /></Link>

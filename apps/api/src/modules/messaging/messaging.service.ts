@@ -844,9 +844,9 @@ export class MessagingService {
       SELECT m.conversation_id AS "conversationId", COUNT(*)::int AS count
       FROM messages m
       JOIN conversation_members cm
-        ON cm.conversation_id = m.conversation_id AND cm.user_id = ${userId}
+        ON cm.conversation_id = m.conversation_id AND cm.user_id = ${userId}::uuid
       WHERE cm.is_deleted = false
-        AND m.sender_id <> ${userId}
+        AND m.sender_id <> ${userId}::uuid
         AND m.is_deleted = false
         AND (cm.last_read_at IS NULL OR m.created_at > cm.last_read_at)
       GROUP BY m.conversation_id

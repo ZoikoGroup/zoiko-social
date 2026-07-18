@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift } from 'lucide-react'
 import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/lib/api'
@@ -108,7 +110,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-label-sm text-on-surface-variant">
-              {report.lastSeenLocation && <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-primary" />{report.lastSeenLocation}</span>}
+              {report.lastSeenLocation && <LocationLink location={report.lastSeenLocation} iconClassName="w-3.5 h-3.5" className="text-primary" />}
               {report.lastSeenAt && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" />{fmtDate(report.lastSeenAt)}</span>}
               {report.contact && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-primary" />{report.contact}</span>}
               {report.reward != null && report.reward > 0 && <span className="flex items-center gap-1 text-secondary font-medium"><Gift className="w-3.5 h-3.5" />Reward ₹{report.reward}</span>}
@@ -138,7 +140,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
 
             {!isOwner && (
               <div className="mb-4 space-y-2 pb-4 border-b border-outline-variant/10">
-                <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} placeholder="Where did you see this pet?"
+                <LocationInput value={location} onChange={setLocation} maxLength={200} placeholder="Where did you see this pet?"
                   className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none" />
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} rows={2} placeholder="Add a note (condition, direction, time)…"
                   className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none resize-none" />
@@ -158,7 +160,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                     <Link href={`/profile/${s.reporter.username}`}><UserAvatar name={s.reporter.displayName} image={s.reporter.avatarUrl ?? undefined} size="sm" verified={s.reporter.isVerified} /></Link>
                     <div className="flex-1 min-w-0">
                       <Link href={`/profile/${s.reporter.username}`} className="text-label-sm font-semibold text-on-surface hover:underline">{s.reporter.displayName}</Link>
-                      {s.location && <p className="flex items-center gap-1 text-[12px] text-primary mt-0.5"><MapPin className="w-3 h-3" />{s.location}</p>}
+                      {s.location && <LocationLink location={s.location} iconClassName="w-3 h-3" className="text-[12px] text-primary mt-0.5" />}
                       {s.message && <p className="text-label-sm text-on-surface-variant mt-0.5">{s.message}</p>}
                       <p className="text-[11px] text-outline mt-0.5">{fmtDate(s.createdAt)}</p>
                     </div>

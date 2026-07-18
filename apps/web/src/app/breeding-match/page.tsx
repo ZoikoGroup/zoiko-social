@@ -4,13 +4,15 @@ import { useCallback, useState } from 'react'
 import { usePagedList } from '@/hooks/use-cache'
 import { Img } from '@/components/Img'
 import { Header } from '@/components/Header'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import { ProfileCard } from '@/components/ProfileCard'
 import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  Search, MapPin, ShieldCheck, BadgeCheck, Dna, PawPrint, Plus, Loader2, X, ImagePlus, Venus, Mars,
+  Search, ShieldCheck, BadgeCheck, Dna, PawPrint, Plus, Loader2, X, ImagePlus, Venus, Mars,
 } from 'lucide-react'
 import { breedingApi, type BreedingProfile, type NewBreedingProfile } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
@@ -141,7 +143,7 @@ export default function BreedingMatchPage(): React.JSX.Element {
                           {p.fee != null && <span className="text-label-sm font-bold text-secondary flex-shrink-0">{money(p.fee, p.currency)}</span>}
                         </div>
                         <p className="text-[12px] text-on-surface-variant">{p.breed}{p.age ? ` · ${p.age}` : ''}</p>
-                        {p.location && <p className="flex items-center gap-1 text-[11px] text-outline mt-1"><MapPin className="w-3 h-3" />{p.location}</p>}
+                        {p.location && <LocationLink location={p.location} iconClassName="w-3 h-3" className="text-[11px] text-outline mt-1" />}
                         {p.healthTests.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {p.healthTests.slice(0, 3).map((t) => (
@@ -265,7 +267,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <input value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" placeholder="Stud/fee (optional)"
               className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
           </div>
-          <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={160} placeholder="Location"
+          <LocationInput value={location} onChange={setLocation} maxLength={160} placeholder="Location"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
           <input value={healthTests} onChange={(e) => setHealthTests(e.target.value)} placeholder="Health tests (comma-separated, e.g. OFA Hips, Cardiac)"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />

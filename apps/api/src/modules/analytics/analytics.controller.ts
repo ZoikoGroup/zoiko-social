@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Query, UseGuards } from '@nestjs/common'
 import { AnalyticsService } from './analytics.service'
 import { IngestBatchSchema, type IngestBatchInput } from './analytics.schemas'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
@@ -29,10 +29,15 @@ export class AnalyticsController {
     return { data: result }
   }
 
-  /** Per-post insights — restricted to the post's professional author. */
+  /** Per-post insights — restricted to the post's professional author.
+   *  Optional ?prop=<key> adds a breakdown by that prop key's values. */
   @Get('analytics/posts/:id')
   @UseGuards(JwtAuthGuard)
-  async postInsights(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return { data: await this.analytics.getPostInsights(user.id, id) }
+  async postInsights(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('prop') prop?: string,
+  ) {
+    return { data: await this.analytics.getPostInsights(user.id, id, prop) }
   }
 }

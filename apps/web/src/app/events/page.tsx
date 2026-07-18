@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import { usePagedList } from '@/hooks/use-cache'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
+import { LocationLink } from '@/components/LocationLink'
+import { LocationInput } from '@/components/LocationInput'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
@@ -119,7 +121,7 @@ export default function EventsPage(): React.JSX.Element {
                           <h3 className="text-label-md font-bold text-on-surface">{e.title}</h3>
                           <p className="text-[12px] text-outline mt-0.5">{when(e.startsAt)}</p>
                           <p className="flex items-center gap-1 text-[12px] text-on-surface-variant mt-1">
-                            {e.isOnline ? <><Globe className="w-3.5 h-3.5 text-primary" />Online</> : e.location ? <><MapPin className="w-3.5 h-3.5 text-primary" />{e.location}</> : null}
+                            {e.isOnline ? <><Globe className="w-3.5 h-3.5 text-primary" />Online</> : e.location ? <LocationLink location={e.location} iconClassName="w-3.5 h-3.5" className="text-primary" /> : null}
                           </p>
                           {e.description && <p className="text-label-sm text-on-surface-variant mt-2 line-clamp-2">{e.description}</p>}
                           <div className="flex items-center justify-between mt-3">
@@ -199,7 +201,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
             {isOnline ? <Globe className="w-4 h-4 text-primary" /> : <MapPin className="w-4 h-4" />}{isOnline ? 'Online event' : 'In-person'}
           </button>
           {!isOnline && (
-            <input value={location} onChange={(e) => setLocation(e.target.value)} maxLength={200} placeholder="Location"
+            <LocationInput value={location} onChange={setLocation} maxLength={200} placeholder="Location"
               className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none" />
           )}
           {error && <p className="text-label-sm text-red-500">{error}</p>}
