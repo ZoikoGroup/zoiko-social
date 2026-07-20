@@ -400,12 +400,29 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const toggleCamera = useCallback(() => {
     const room = roomRef.current
     if (!room) return
-    const next = !isCameraOff
+    const next = !isCameraOff // next === true means "turning camera OFF"
     setIsCameraOff(next)
-    void room.localParticipant.setCameraEnabled(!next).then(() => {
-      const pub = room.localParticipant.getTrackPublication(Track.Source.Camera)
-      setLocalVideoTrack((pub?.videoTrack as LocalVideoTrack | undefined) ?? null)
-    })
+    void (async () => {
+      try {
+        const pub = await room.localParticipant.setCameraEnabled(!next)
+        if (next) {
+          // Camera OFF: null out the track so the eventual off→on is a real
+          // null→track reference change. LiveKit can hand back the SAME track
+          // object on re-enable; without this the CallModal attach effect (keyed
+          // on the track reference) never re-fires for the remounted <video>
+          // element and the preview stays blank after toggling off then on.
+          setLocalVideoTrack(null)
+        } else {
+          const track = (pub?.videoTrack
+            ?? room.localParticipant.getTrackPublication(Track.Source.Camera)?.videoTrack) as LocalVideoTrack | undefined
+          setLocalVideoTrack(track ?? null)
+        }
+      } catch {
+        // Enable/disable failed (permission revoked, device busy) — revert so the
+        // button doesn't misreport the real camera state.
+        setIsCameraOff(!next)
+      }
+    })()
   }, [isCameraOff])
 
   // ── Duration ticker ──────────────────────────────────────────────────────────
