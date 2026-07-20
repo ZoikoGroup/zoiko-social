@@ -217,7 +217,13 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
         setConversations((prev) => {
           const existing = prev.find((c) => c.id === data.conversationId)
-          if (!existing) return prev
+          if (!existing) {
+            // First message in a conversation we haven't loaded yet (e.g. someone
+            // messages us in a brand-new thread). Pull it in so the unread badge
+            // updates live instead of only after a page reload.
+            void fetchConversations()
+            return prev
+          }
           return prev.map((c) =>
             c.id === data.conversationId
               ? {
