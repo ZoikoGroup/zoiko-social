@@ -21,7 +21,7 @@ interface NotificationsContextValue {
 const NotificationsContext = createContext<NotificationsContextValue | undefined>(undefined)
 
 export function NotificationsProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated } = useAuth()
   const [unreadCount, setUnreadCount] = useState(0)
   const [latest, setLatest] = useState<NotificationItem | null>(null)
 
@@ -48,34 +48,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }): Re
     void getSocket().then((socket) => {
       if (!socket || cancelled) return
 
-      // Listen for notification-specific events
+      // The alerts bell/feed is for follows, likes, comments, mentions and
+      // system notices only. Direct messages are deliberately excluded — they
+      // have their own unread badge in the Messages tab, so they must not inflate
+      // the notifications bell or show up in the alerts list. (The messaging hook
+      // handles its own message toast/sound off the realtime message events.)
       const onNotification = (notification: NotificationItem): void => {
+        if (notification.type === 'message') return
         setLatest(notification)
         setUnreadCount((c) => c + 1)
       }
 
-      // Listen for new messages from other users — update the notification badge
-      const onNewMessage = (msg: { sender?: { id: string }; conversationId: string }): void => {
-        // Only increment for messages from other people (not the current user)
-        // and when the tab is hidden (not actively viewing)
-        if (
-          typeof document !== 'undefined' &&
-          document.hidden &&
-          msg.sender?.id &&
-          msg.sender.id !== user?.id
-        ) {
-          setLatest(null) // Don't set a notification item, just increment count
-          setUnreadCount((c) => c + 1)
-        }
-      }
-
       socket.on('notification:new', onNotification)
-      socket.on('message:new', onNewMessage)
 
       // Store cleanup
       notifCleanups.set(socket, () => {
         socket.off('notification:new', onNotification)
-        socket.off('message:new', onNewMessage)
       })
     })
 
@@ -90,7 +78,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }): Re
         }
       })
     }
-  }, [isAuthenticated, user?.id])
+  }, [isAuthenticated])
 
   const markRead = useCallback(async (id: string) => {
     await notificationsApi.markRead(id)
