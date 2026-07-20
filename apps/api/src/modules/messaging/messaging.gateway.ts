@@ -50,7 +50,15 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
    */
   private readonly activeCalls = new Map<
     string,
-    { callerId: string; callType: 'audio' | 'video'; acceptedAt: number | null; isGroup: boolean }
+    {
+      callerId: string
+      callType: 'audio' | 'video'
+      acceptedAt: number | null
+      isGroup: boolean
+      // Users who have accepted (started media). A "participant" is the caller or
+      // anyone in this set — only participants may end/record the call.
+      acceptedBy: Set<string>
+    }
   >()
 
   @WebSocketServer()
@@ -249,9 +257,17 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     const call = this.activeCalls.get(conversationId)
     if (!call) return
     this.activeCalls.delete(conversationId)
-    const durationSec = call.acceptedAt ? Math.round((Date.now() - call.acceptedAt) / 1000) : 0
+    // A call closed with call:end that was never accepted is a MISSED call, not a
+    // completed 1-second one (recordCallMessage floors "ended" duration to 0:01).
+    let finalStatus = status
+    let durationSec = 0
+    if (call.acceptedAt) {
+      durationSec = Math.round((Date.now() - call.acceptedAt) / 1000)
+    } else if (status === 'ended') {
+      finalStatus = 'missed'
+    }
     this.messagingService
-      .recordCallMessage(call.callerId, conversationId, { kind: call.callType, status, durationSec })
+      .recordCallMessage(call.callerId, conversationId, { kind: call.callType, status: finalStatus, durationSec })
       .catch((err: Error) => this.logger.warn(`Call record failed: ${err.message}`))
   }
 
@@ -261,54 +277,86 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     if (isGroup) await this.fanOutCall(client, 'call:invite', body)
     else await this.relayCall(client, 'call:invite', body)
 
-    if (client.data.userId && body?.conversationId) {
-      this.activeCalls.set(body.conversationId, {
-        callerId: client.data.userId,
-        callType: body.callType ?? 'audio',
-        acceptedAt: null,
-        isGroup,
-      })
-    }
+    const userId = client.data.userId
+    const conversationId = body?.conversationId
+    if (!userId || !conversationId) return
+    // Never overwrite an in-flight call: a re-dial or a bystander's invite would
+    // reset acceptedAt (→ duration 0) and reassign callerId, corrupting the
+    // record. And only a member may open call state — the relay above already
+    // fails safe for non-members, but the map write did not.
+    if (this.activeCalls.has(conversationId)) return
+    if (!(await this.messagingService.isMember(userId, conversationId))) return
+    this.activeCalls.set(conversationId, {
+      callerId: userId,
+      callType: body.callType ?? 'audio',
+      acceptedAt: null,
+      isGroup,
+      acceptedBy: new Set<string>(),
+    })
   }
 
   @SubscribeMessage('call:accept')
   async onCallAccept(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:accept', body)
-    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
-    if (call && !call.acceptedAt) call.acceptedAt = Date.now()
+    const userId = client.data.userId
+    const conversationId = body?.conversationId
+    const call = conversationId ? this.activeCalls.get(conversationId) : undefined
+    // Only the invited party (a member who isn't the caller) may start the
+    // duration clock — otherwise any socket could forge/inflate call duration by
+    // emitting call:accept.
+    if (!call || !userId || !conversationId || userId === call.callerId) return
+    if (!(await this.messagingService.isMember(userId, conversationId))) return
+    call.acceptedBy.add(userId)
+    if (!call.acceptedAt) call.acceptedAt = Date.now()
   }
 
   @SubscribeMessage('call:reject')
   async onCallReject(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
     await this.relayCall(client, 'call:reject', body)
+    const userId = client.data.userId
+    const conversationId = body?.conversationId
+    const call = conversationId ? this.activeCalls.get(conversationId) : undefined
     // Group calls: one member declining doesn't finish the call — no record.
-    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
-    if (call?.isGroup) return
+    if (!call || call.isGroup || !userId || !conversationId) return
+    // Only a member (the invited callee) may finalize a DM as declined/missed.
+    if (!(await this.messagingService.isMember(userId, conversationId))) return
     // busy = the callee never saw it ring → record as missed, not declined
-    this.recordCall(body?.conversationId, body?.reason === 'busy' ? 'missed' : 'declined')
+    this.recordCall(conversationId, body?.reason === 'busy' ? 'missed' : 'declined')
   }
 
   @SubscribeMessage('call:cancel')
   async onCallCancel(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
-    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    const userId = client.data.userId
+    const conversationId = body?.conversationId
+    const call = conversationId ? this.activeCalls.get(conversationId) : undefined
     // Group: cancel must stop EVERY member's ringing
-    if (call?.isGroup || (!body?.toUserId && body?.conversationId)) {
+    if (call?.isGroup || (!body?.toUserId && conversationId)) {
       await this.fanOutCall(client, 'call:cancel', body)
     } else {
       await this.relayCall(client, 'call:cancel', body)
     }
-    this.recordCall(body?.conversationId, 'missed')
+    // Only the caller can cancel their own ring.
+    if (call && conversationId && userId === call.callerId) {
+      this.recordCall(conversationId, 'missed')
+    }
   }
 
   @SubscribeMessage('call:end')
   async onCallEnd(@ConnectedSocket() client: AuthSocket, @MessageBody() body: CallSignal): Promise<void> {
-    const call = body?.conversationId ? this.activeCalls.get(body.conversationId) : undefined
+    const userId = client.data.userId
+    const conversationId = body?.conversationId
+    const call = conversationId ? this.activeCalls.get(conversationId) : undefined
     // Group: a member hanging up just leaves the room — others keep talking,
     // so the end signal is NOT relayed. The record is written once (first leave,
     // MVP semantics) and the map delete makes later end signals no-ops.
     if (!call?.isGroup) {
       await this.relayCall(client, 'call:end', body)
     }
-    this.recordCall(body?.conversationId, 'ended')
+    // Only a participant (the caller or someone who accepted) may end + record —
+    // otherwise a group member not on the call could terminate it for everyone
+    // and write a bogus record.
+    if (call && conversationId && userId && (userId === call.callerId || call.acceptedBy.has(userId))) {
+      this.recordCall(conversationId, 'ended')
+    }
   }
 }

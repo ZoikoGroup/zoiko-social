@@ -102,6 +102,10 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantState[]>([])
 
   const roomRef = useRef<Room | null>(null)
+  // Monotonic call generation. Bumped on every teardown so an async connect that
+  // was in flight when the call ended can detect it's stale and release its Room
+  // (mic/camera) instead of leaving orphaned hardware live.
+  const callEpochRef = useRef(0)
   const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Prefetched LiveKit token for an incoming call — resolves while the phone
   // "rings", so accepting only has to connect + enable the mic (faster pickup).
@@ -141,6 +145,9 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   }, [])
 
   const teardownRoom = useCallback(() => {
+    // Invalidate any in-flight connectRoom for the call being torn down so it
+    // releases its Room instead of assigning it as the active one.
+    callEpochRef.current++
     const room = roomRef.current
     roomRef.current = null
     if (room) {
@@ -156,6 +163,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     clearRingTimer()
     teardownRoom()
     prefetchedTokenRef.current = null
+    statusRef.current = 'idle' // keep the ref in lockstep so guards don't lag a commit
     setStatus('idle')
     setCallInfo(null)
     setEndReason(null)
@@ -168,8 +176,22 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const finishCall = useCallback((reason: string) => {
     clearRingTimer()
     teardownRoom()
+    statusRef.current = 'ended'
     setEndReason(reason)
     setStatus('ended')
+  }, [clearRingTimer, teardownRoom])
+
+  // Release the Room + media and stop all sounds if the provider unmounts mid-call
+  // (e.g. logout or a navigation that unmounts the call layer). Without this the
+  // LiveKit Room is never disconnected and the camera/mic hardware stays active.
+  useEffect(() => {
+    return () => {
+      clearRingTimer()
+      teardownRoom()
+      ringback.stop()
+      ringtone.stop()
+      stopVibration()
+    }
   }, [clearRingTimer, teardownRoom])
 
   // ── LiveKit connection ───────────────────────────────────────────────────────
@@ -243,18 +265,36 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   }, [])
 
   const connectRoom = useCallback(async (info: CallInfo, prefetched?: Promise<{ token: string; url: string }> | null) => {
+    // Snapshot the call generation. If the call is torn down (cancel/end/unmount)
+    // during any await below, the epoch advances and we abandon the Room we built
+    // instead of connecting/enabling media on a dead call — the bug that left the
+    // mic/camera hardware indicator lit after hang-up.
+    const epoch = callEpochRef.current
+    const isStale = () => callEpochRef.current !== epoch
+
     // A failed prefetch falls back to a fresh mint
     const prefetchedCreds = prefetched ? await prefetched.catch(() => null) : null
     const { token, url } = prefetchedCreds ?? await fetchToken(info.conversationId)
+    if (isStale()) return // call ended during token fetch — nothing built yet
 
     const room = new Room({ adaptiveStream: true, dynacast: true })
+    // Release this Room without disturbing whatever is current (a later call may
+    // already own roomRef after a rapid hang-up→redial).
+    const abandon = () => {
+      room.removeAllListeners()
+      void room.disconnect()
+      if (roomRef.current === room) roomRef.current = null
+    }
     roomRef.current = room
     attachRoomEvents(room)
     await room.connect(url, token)
+    if (isStale()) { abandon(); return }
 
     await room.localParticipant.setMicrophoneEnabled(true)
+    if (isStale()) { abandon(); return }
     if (info.callType === 'video') {
       await room.localParticipant.setCameraEnabled(true)
+      if (isStale()) { abandon(); return }
       const pub = room.localParticipant.getTrackPublication(Track.Source.Camera)
       setLocalVideoTrack((pub?.videoTrack as LocalVideoTrack | undefined) ?? null)
     }
@@ -272,6 +312,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     conversationName?: string
   }) => {
     if (statusRef.current !== 'idle') return
+    statusRef.current = 'outgoing' // synchronous guard — a double-tap in the same frame is a no-op
     const isGroup = args.isGroup === true
     const info: CallInfo = {
       conversationId: args.conversationId,
@@ -311,6 +352,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
   const acceptCall = useCallback(() => {
     const info = infoRef.current
     if (!info || statusRef.current !== 'incoming') return
+    statusRef.current = 'connecting' // synchronous guard against a double-tap accept
     clearRingTimer()
     setStatus('connecting')
     void (async () => {
@@ -400,13 +442,17 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
     let cancelled = false
 
     const onInvite = (data: CallSignal) => {
-      // Ignore if already busy in another call.
-      if (statusRef.current !== 'idle') {
-        void getSocket().then((s) => s?.emit('call:reject', {
+      const current = statusRef.current
+      // Genuinely busy only during an ACTIVE call. Previously any non-idle status
+      // rejected the invite as busy, including the ~2.6s 'ended' summary window —
+      // so a caller dialing right after the callee hung up got a false "busy".
+      if (current === 'outgoing' || current === 'incoming' || current === 'connecting' || current === 'connected') {
+        void getSocket().then((sock) => sock?.emit('call:reject', {
           conversationId: data.conversationId, toUserId: data.fromUserId, reason: 'busy',
         }))
         return
       }
+      if (current === 'ended') reset() // a fresh invite supersedes the lingering summary
       const isGroup = data.isGroup === true
       setCallInfo({
         conversationId: data.conversationId,
@@ -466,7 +512,7 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
         socket?.off('call:end', onCancelOrEnd)
       })
     }
-  }, [isAuthenticated, user?.id, clearRingTimer, finishCall, fetchToken])
+  }, [isAuthenticated, user?.id, clearRingTimer, finishCall, fetchToken, reset])
 
   const value: CallContextValue = {
     status, callInfo, endReason, isMuted, isCameraOff, duration,
