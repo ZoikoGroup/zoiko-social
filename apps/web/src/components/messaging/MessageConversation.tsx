@@ -336,19 +336,44 @@ export function MessageConversation({
     return () => clearTimeout(timer)
   }, [conversationId, loadMessages])
 
-  // Scroll to bottom when new messages arrive
+  // Auto-scroll to the newest message ONLY when one is appended (or on the first
+  // load / conversation switch). Keying on messages.length also fired when older
+  // pages were PREPENDED by infinite scroll, yanking the viewport to the bottom
+  // and making history impossible to read.
+  const lastMessageIdRef = useRef<string | null>(null)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length])
+    const lastId = messages.length > 0 ? messages[messages.length - 1]!.id : null
+    if (lastId === lastMessageIdRef.current) return // prepend, edit, or no change
+    const prevId = lastMessageIdRef.current
+    lastMessageIdRef.current = lastId
+    const container = messagesContainerRef.current
+    // First population / conversation switch (prevId === null): always snap.
+    // Later appends: only follow if the user is already near the bottom, so an
+    // incoming message doesn't interrupt someone reading older history.
+    const nearBottom =
+      !container || container.scrollHeight - container.scrollTop - container.clientHeight < 200
+    if (prevId === null || nearBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: prevId === null ? 'auto' : 'smooth' })
+    }
+  }, [messages])
 
   // Load more messages (infinite scroll)
   const loadMoreMessages = useCallback(async () => {
     if (!conversationId || !nextCursor || loadingMore) return
     setLoadingMore(true)
+    const container = messagesContainerRef.current
+    const prevScrollHeight = container?.scrollHeight ?? 0
+    const prevScrollTop = container?.scrollTop ?? 0
     try {
       const result = await fetchMessages(nextCursor)
       setMessages((prev) => [...result.data, ...prev])
       setNextCursor(result.nextCursor)
+      // Prepending grows the container above the viewport; restore the offset so
+      // the message the user was looking at stays put instead of jumping.
+      requestAnimationFrame(() => {
+        const c = messagesContainerRef.current
+        if (c) c.scrollTop = prevScrollTop + (c.scrollHeight - prevScrollHeight)
+      })
     } catch { /* ignore */ }
     finally { setLoadingMore(false) }
   }, [conversationId, nextCursor, loadingMore, fetchMessages])
@@ -684,7 +709,11 @@ export function MessageConversation({
         const json = await msgRes.json()
         const realMsg = json?.data ?? json
         if (realMsg) {
-          setMessages((prev) => [...prev, realMsg])
+          // Guard against the double-render race: the server broadcasts
+          // message:new to the room, and if that echo lands before this POST
+          // resolves the message is already in state. Without the id check it
+          // would be appended twice (duplicate bubble + duplicate React key).
+          setMessages((prev) => (prev.some((m) => m.id === realMsg.id) ? prev : [...prev, realMsg]))
         }
         setInput('')
         setDisappearMode('none')
@@ -1200,7 +1229,7 @@ export function MessageConversation({
                 className="flex items-center gap-3 px-4 py-3 bg-accent/50 hover:bg-accent transition-colors no-underline"
               >
                 <FileText className="size-5 text-primary flex-shrink-0" />
-                <span className="text-sm font-medium text-foreground truncate">{fileName}</span>
+                <span className="min-w-0 flex-1 text-sm font-medium text-foreground truncate">{fileName}</span>
               </a>
             )
           }

@@ -1189,6 +1189,7 @@ model Message {
   forwardedFrom  String?  @map("forwarded_from")
   isDeleted      Boolean  @default(false) @map("is_deleted")
   deletedForEveryone Boolean @default(false) @map("deleted_for_everyone")
+  deletedFor     String[] @default([]) @map("deleted_for")
   editedAt       DateTime? @map("edited_at")
   createdAt      DateTime @default(now()) @map("created_at")
 

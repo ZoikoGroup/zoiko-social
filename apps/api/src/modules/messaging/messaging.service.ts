@@ -368,6 +368,8 @@ export class MessagingService {
       where: {
         conversationId,
         isDeleted: false,
+        // Hide messages this user deleted "for me" only (see deleteMessage).
+        NOT: { deletedFor: { has: userId } },
         ...(decoded
           ? {
               OR: [
@@ -439,15 +441,44 @@ export class MessagingService {
   async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[] }) {
     const member = await this.prisma.conversationMember.findUnique({
       where: { conversationId_userId: { conversationId, userId } },
+      include: { conversation: { select: { type: true } } },
     })
     if (!member || member.isDeleted) {
       throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+    }
+
+    // Re-check block state on every DM send. Blocks are otherwise only evaluated
+    // when the conversation is first created, so a user blocked AFTER the DM
+    // already exists could keep messaging into it. (Group membership is gated at
+    // add-member time instead.)
+    if (member.conversation.type === 'dm') {
+      const other = await this.prisma.conversationMember.findFirst({
+        where: { conversationId, userId: { not: userId }, isDeleted: false },
+        select: { userId: true },
+      })
+      if (other && (await this.privacy.isBlockedEitherWay(userId, other.userId))) {
+        throw new ForbiddenException({ code: 'BLOCKED', message: 'You can no longer message this user' })
+      }
     }
 
     if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0)) {
       throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content or media' })
     }
     if (input.body) this.profanity.assertClean(input.body, { actorId: userId, entityType: 'message' })
+
+    // A reply's parent MUST live in the same conversation. Without this, a member
+    // of conversation A could set parentId to a message in conversation B and the
+    // parent snippet (body + sender name) would leak into A (cross-conversation
+    // read IDOR).
+    if (input.parentId) {
+      const parent = await this.prisma.message.findUnique({
+        where: { id: input.parentId },
+        select: { conversationId: true },
+      })
+      if (!parent || parent.conversationId !== conversationId) {
+        throw new BadRequestException({ code: 'INVALID_PARENT', message: 'Reply target is not in this conversation' })
+      }
+    }
 
     const message = await this.prisma.message.create({
       data: {
@@ -607,6 +638,12 @@ export class MessagingService {
     conversationId: string,
     call: { kind: 'audio' | 'video'; status: 'ended' | 'missed' | 'declined'; durationSec?: number },
   ): Promise<void> {
+    // The caller must still be an active member of the conversation. The call
+    // gateway gates relays on membership, but the call-record write reached here
+    // unguarded, so a removed member (who still knows the conversationId) could
+    // inject a "📞 Voice call" message into the thread.
+    if (!(await this.isMember(callerId, conversationId))) return
+
     const icon = call.kind === 'video' ? '🎥' : '📞'
     const label = call.kind === 'video' ? 'Video call' : 'Voice call'
     const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
@@ -653,25 +690,41 @@ export class MessagingService {
       select: { id: true, conversationId: true, senderId: true },
     })
     if (!message) throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
-    // Only the sender may delete their own message — for both "delete for me" and
-    // "delete for everyone". Previously the `&& !forEveryone` guard let ANY user
-    // delete ANY message globally by passing forEveryone=true (IDOR).
-    if (message.senderId !== userId) {
-      throw new ForbiddenException({ code: 'NOT_SENDER', message: 'You can only delete your own messages' })
+
+    if (forEveryone) {
+      // "Delete for everyone" destroys the message for all participants — only the
+      // sender may do this. (The previous `&& !forEveryone` guard let ANY user
+      // delete ANY message globally by passing forEveryone=true — an IDOR.)
+      if (message.senderId !== userId) {
+        throw new ForbiddenException({ code: 'NOT_SENDER', message: 'You can only delete your own messages' })
+      }
+      await this.prisma.message.update({
+        where: { id: messageId },
+        data: { isDeleted: true, deletedForEveryone: true },
+      })
+      await this.realtime.publish(`conversation:${message.conversationId}`, 'message:deleted', {
+        messageId,
+        conversationId: message.conversationId,
+        deletedForEveryone: true,
+      })
+      return
     }
 
+    // "Delete for me" hides the message from the caller's view ONLY. Any member of
+    // the conversation may do this to any message (WhatsApp semantics). Previously
+    // this set isDeleted globally and broadcast to the whole room, so "delete for
+    // me" wiped the message for everyone — data loss. Now it appends the caller to
+    // the message's `deletedFor` set (getMessages filters on it) and echoes only to
+    // the caller's own devices.
+    await this.assertMember(userId, message.conversationId)
     await this.prisma.message.update({
       where: { id: messageId },
-      data: {
-        isDeleted: true,
-        ...(forEveryone ? { deletedForEveryone: true } : {}),
-      },
+      data: { deletedFor: { push: userId } },
     })
-
-    await this.realtime.publish(`conversation:${message.conversationId}`, 'message:deleted', {
+    await this.realtime.publishToUser(userId, 'message:deleted', {
       messageId,
       conversationId: message.conversationId,
-      deletedForEveryone: forEveryone,
+      deletedForEveryone: false,
     })
   }
 
@@ -921,6 +974,15 @@ export class MessagingService {
 
   async createMessageRequest(senderId: string, recipientId: string, message?: string): Promise<void> {
     if (senderId === recipientId) return
+
+    // Enforce blocks + the recipient's whoCanSendMessageRequest setting. This
+    // path is reachable directly via POST /requests, which previously skipped the
+    // check entirely — a blocked user (or one whose target set requests to
+    // "nobody") could still create a request and push a realtime notification.
+    const canRequest = await this.privacy.canSendMessageRequest(senderId, recipientId)
+    if (!canRequest.allowed) {
+      throw new ForbiddenException({ code: 'CANNOT_REQUEST', message: `Cannot send message request: ${canRequest.reason}` })
+    }
 
     const existing = await this.prisma.messageRequest.findUnique({
       where: { senderId_recipientId: { senderId, recipientId } },

@@ -37,36 +37,47 @@ export function usePresence() {
     }
 
     let cancelled = false
+    // Keep refs to the exact handlers so cleanup can remove THEM. usePresence is
+    // called per conversation-list row, so without socket.off these accumulate on
+    // the singleton socket on every remount (tab switch, navigation) — an
+    // unbounded listener leak that triggers MaxListenersExceededWarning and fires
+    // a setState storm on every presence/typing event.
+    const onPresence = (data: { userId: string; status: string; lastSeen?: string; isOnline?: boolean }) => {
+      setPresenceMap((prev) => {
+        const next = new Map(prev)
+        next.set(data.userId, {
+          status: data.status as PresenceState['status'],
+          lastSeen: data.lastSeen ?? null,
+          isOnline: data.isOnline ?? data.status !== 'offline',
+        })
+        return next
+      })
+    }
+    const onTyping = (data: { userId: string; conversationId: string; isTyping: boolean }) => {
+      setTypingMap((prev) => {
+        const next = new Map(prev)
+        if (data.isTyping) {
+          next.set(data.userId, data.conversationId)
+        } else {
+          next.delete(data.userId)
+        }
+        return next
+      })
+    }
 
+    let boundSocket: Awaited<ReturnType<typeof getSocket>> | null = null
     getSocket().then((socket) => {
       if (cancelled || !socket) return
-
-      socket.on('presence:update', (data: { userId: string; status: string; lastSeen?: string; isOnline?: boolean }) => {
-        setPresenceMap((prev) => {
-          const next = new Map(prev)
-          next.set(data.userId, {
-            status: data.status as PresenceState['status'],
-            lastSeen: data.lastSeen ?? null,
-            isOnline: data.isOnline ?? data.status !== 'offline',
-          })
-          return next
-        })
-      })
-
-      socket.on('typing:update', (data: { userId: string; conversationId: string; isTyping: boolean }) => {
-        setTypingMap((prev) => {
-          const next = new Map(prev)
-          if (data.isTyping) {
-            next.set(data.userId, data.conversationId)
-          } else {
-            next.delete(data.userId)
-          }
-          return next
-        })
-      })
+      boundSocket = socket
+      socket.on('presence:update', onPresence)
+      socket.on('typing:update', onTyping)
     })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      boundSocket?.off('presence:update', onPresence)
+      boundSocket?.off('typing:update', onTyping)
+    }
   }, [isAuthenticated])
 
   const subscribePresence = useCallback((userId: string) => {

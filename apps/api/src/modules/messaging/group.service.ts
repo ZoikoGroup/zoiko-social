@@ -9,10 +9,33 @@ export class GroupService {
     private readonly realtime: RealtimeService,
   ) {}
 
+  /**
+   * Drop invitees who have blocked the actor (or whom the actor has blocked) and
+   * de-duplicate. Force-adding someone into a group with a user they've blocked is
+   * a harassment vector, so those ids are silently filtered out.
+   */
+  private async allowedInvitees(actorId: string, candidateIds: string[]): Promise<string[]> {
+    const unique = [...new Set(candidateIds)].filter((id) => id !== actorId)
+    if (unique.length === 0) return []
+    const blocks = await this.prisma.blockedUser.findMany({
+      where: {
+        OR: [
+          { blockerId: actorId, blockedId: { in: unique } },
+          { blockedId: actorId, blockerId: { in: unique } },
+        ],
+      },
+      select: { blockerId: true, blockedId: true },
+    })
+    const blockedIds = new Set(blocks.flatMap((b) => [b.blockerId, b.blockedId]))
+    return unique.filter((id) => !blockedIds.has(id))
+  }
+
   async createGroup(ownerId: string, input: { name: string; participantIds: string[]; description?: string; type?: string }) {
     if (input.participantIds.includes(ownerId)) {
       throw new BadRequestException({ code: 'SELF_IN_GROUP', message: 'Owner is automatically added' })
     }
+
+    const inviteeIds = await this.allowedInvitees(ownerId, input.participantIds)
 
     const conversation = await this.prisma.conversation.create({
       data: {
@@ -23,7 +46,7 @@ export class GroupService {
           createMany: {
             data: [
               { userId: ownerId, groupRole: 'owner' },
-              ...input.participantIds.map((pid) => ({ userId: pid, groupRole: 'member' as const })),
+              ...inviteeIds.map((pid) => ({ userId: pid, groupRole: 'member' as const })),
             ],
           },
         },
@@ -51,8 +74,21 @@ export class GroupService {
       },
     })
 
+    // Populate GroupMember rows for the owner + initial members. Group admin ops
+    // (updateGroup/addMembers/removeMember) authorize off group_members, but
+    // createGroup previously only wrote ConversationMember.groupRole — so
+    // group_members stayed empty and every admin op threw NOT_ADMIN, even for the
+    // owner.
+    await this.prisma.groupMember.createMany({
+      data: [
+        { groupId: group.id, userId: ownerId, role: 'owner' as const },
+        ...inviteeIds.map((pid) => ({ groupId: group.id, userId: pid, role: 'member' as const })),
+      ],
+      skipDuplicates: true,
+    })
+
     // Notify all members
-    for (const pid of input.participantIds) {
+    for (const pid of inviteeIds) {
       await this.realtime.publishToUser(pid, 'group:created', {
         groupId: group.id,
         conversationId: conversation.id,
@@ -167,14 +203,20 @@ export class GroupService {
     const group = await this.prisma.group.findUnique({ where: { id: groupId } })
     if (!group) throw new NotFoundException({ code: 'GROUP_NOT_FOUND', message: 'Group not found' })
 
+    // Skip anyone who has blocked the actor (or whom the actor blocked) — a
+    // blocked user must not be force-joined into a group with the person who
+    // blocked them.
+    const inviteeIds = await this.allowedInvitees(userId, userIds)
+    if (inviteeIds.length === 0) return
+
     const currentCount = await this.prisma.groupMember.count({
       where: { groupId },
     })
-    if (currentCount + userIds.length > group.maxMembers) {
+    if (currentCount + inviteeIds.length > group.maxMembers) {
       throw new BadRequestException({ code: 'GROUP_FULL', message: 'Group member limit reached' })
     }
 
-    for (const newUserId of userIds) {
+    for (const newUserId of inviteeIds) {
       try {
         await this.prisma.groupMember.create({
           data: { groupId, userId: newUserId, role: 'member', invitedBy: userId },
@@ -201,6 +243,19 @@ export class GroupService {
     })
     if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
       throw new ForbiddenException({ code: 'NOT_ADMIN', message: 'Only admins can remove members' })
+    }
+
+    // The owner can never be removed, and only the owner may remove another admin
+    // — otherwise an admin could evict the owner (or each other) and seize the
+    // group.
+    const target = await this.prisma.groupMember.findFirst({
+      where: { groupId, userId: targetUserId },
+    })
+    if (target?.role === 'owner') {
+      throw new ForbiddenException({ code: 'CANNOT_REMOVE_OWNER', message: 'The group owner cannot be removed' })
+    }
+    if (target?.role === 'admin' && membership.role !== 'owner') {
+      throw new ForbiddenException({ code: 'CANNOT_REMOVE_ADMIN', message: 'Only the owner can remove an admin' })
     }
 
     await this.prisma.groupMember.deleteMany({

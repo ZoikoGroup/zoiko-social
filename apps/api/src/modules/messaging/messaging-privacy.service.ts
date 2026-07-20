@@ -71,6 +71,20 @@ export class MessagingPrivacyService {
     return { allowed: true }
   }
 
+  /** True if either user has blocked the other (used to re-gate existing DMs). */
+  async isBlockedEitherWay(a: string, b: string): Promise<boolean> {
+    const block = await this.prisma.blockedUser.findFirst({
+      where: {
+        OR: [
+          { blockerId: a, blockedId: b },
+          { blockerId: b, blockedId: a },
+        ],
+      },
+      select: { blockerId: true },
+    })
+    return !!block
+  }
+
   /**
    * Check whether `senderId` can send a message request to `recipientId`.
    * Message requests are for non-following users when the recipient allows them.
