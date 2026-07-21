@@ -1177,8 +1177,14 @@ export function MessageConversation({
       )
     }
 
+    // Documents render as an inset chip within the bubble padding. Images/videos
+    // are full-bleed (negative margins so they reach the bubble edges).
+    const containerClass = isDocument
+      ? cn('mb-1 min-w-0', hasQuote ? 'mt-0' : 'mt-1 first:mt-0')
+      : cn('-mx-4 mb-1', hasQuote ? 'mt-0 mx-0 rounded-lg overflow-hidden' : '-mt-2.5 first:mt-0')
+
     return (
-      <div className={cn('-mx-4 mb-1', hasQuote ? 'mt-0 mx-0 rounded-lg overflow-hidden' : '-mt-2.5 first:mt-0')}>
+      <div className={containerClass}>
         {msg.mediaUrls.map((url, i) => {
           if (isImage) {
             return (
@@ -1219,17 +1225,27 @@ export function MessageConversation({
             )
           }
           if (isDocument) {
-            const fileName = url.split('/').pop() ?? 'Document'
+            // Strip any query string and decode %20 etc. so the label is clean
+            // and its width isn't inflated by a signed-URL token.
+            const raw = url.split('/').pop() ?? 'Document'
+            const base = raw.split('?')[0] ?? raw
+            let fileName = 'Document'
+            try {
+              fileName = decodeURIComponent(base) || 'Document'
+            } catch {
+              fileName = base || 'Document'
+            }
             return (
               <a
                 key={i}
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-3 px-4 py-3 bg-accent/50 hover:bg-accent transition-colors no-underline"
+                title={fileName}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 transition-colors no-underline max-w-full min-w-0"
               >
-                <FileText className="size-5 text-primary flex-shrink-0" />
-                <span className="min-w-0 flex-1 text-sm font-medium text-foreground truncate">{fileName}</span>
+                <FileText className="size-5 flex-shrink-0 opacity-80" />
+                <span className="min-w-0 flex-1 text-sm font-medium truncate">{fileName}</span>
               </a>
             )
           }
