@@ -229,10 +229,15 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     if (!fromUserId || !body?.toUserId || !body?.conversationId) return
     // Caller must belong to the conversation, and the target must be a co-member —
     // otherwise anyone could ring an arbitrary user via any conversation id.
-    const memberIds = await this.messagingService.getOtherMemberIds(body.conversationId, fromUserId)
-    if (!(await this.messagingService.isMember(fromUserId, body.conversationId))) return
+    // These three reads are independent; running them concurrently (rather than
+    // serially) is what keeps the ring from lagging seconds behind the tap.
+    const [memberIds, isMember, identity] = await Promise.all([
+      this.messagingService.getOtherMemberIds(body.conversationId, fromUserId),
+      this.messagingService.isMember(fromUserId, body.conversationId),
+      this.messagingService.getCallIdentity(fromUserId),
+    ])
+    if (!isMember) return
     if (!memberIds.includes(body.toUserId)) return
-    const identity = await this.messagingService.getCallIdentity(fromUserId)
     await this.realtimeService.publishToUser(body.toUserId, event, this.buildCallPayload(fromUserId, body, identity))
   }
 
@@ -244,9 +249,13 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
   ): Promise<void> {
     const fromUserId = client.data.userId
     if (!fromUserId || !body?.conversationId) return
-    if (!(await this.messagingService.isMember(fromUserId, body.conversationId))) return
-    const memberIds = await this.messagingService.getOtherMemberIds(body.conversationId, fromUserId)
-    const identity = await this.messagingService.getCallIdentity(fromUserId)
+    // Independent reads run concurrently so the group ring fans out immediately.
+    const [isMember, memberIds, identity] = await Promise.all([
+      this.messagingService.isMember(fromUserId, body.conversationId),
+      this.messagingService.getOtherMemberIds(body.conversationId, fromUserId),
+      this.messagingService.getCallIdentity(fromUserId),
+    ])
+    if (!isMember) return
     const payload = this.buildCallPayload(fromUserId, { ...body, isGroup: true }, identity)
     await Promise.all(memberIds.map((uid) => this.realtimeService.publishToUser(uid, event, payload)))
   }

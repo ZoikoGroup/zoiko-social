@@ -439,10 +439,41 @@ export class MessagingService {
   }
 
   async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[] }) {
-    const member = await this.prisma.conversationMember.findUnique({
-      where: { conversationId_userId: { conversationId, userId } },
-      include: { conversation: { select: { type: true } } },
-    })
+    // Run EVERY pre-flight read concurrently. These used to be 3–4 sequential
+    // awaits (membership → other member → block check → reply-parent), and
+    // against a distant database each serial round-trip stacked up into seconds
+    // of send latency. They are independent, so one parallel batch + the insert
+    // is all the critical path needs.
+    const [member, myBlocks, parent] = await Promise.all([
+      this.prisma.conversationMember.findUnique({
+        where: { conversationId_userId: { conversationId, userId } },
+        include: {
+          conversation: {
+            select: {
+              type: true,
+              members: {
+                where: { isDeleted: false, userId: { not: userId } },
+                select: { userId: true },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
+      // All blocks involving the sender (either direction). Fetched up front so
+      // the DM block check below is an in-memory lookup, not another round-trip.
+      this.prisma.blockedUser.findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+      }),
+      input.parentId
+        ? this.prisma.message.findUnique({
+            where: { id: input.parentId },
+            select: { conversationId: true },
+          })
+        : Promise.resolve(null),
+    ])
+
     if (!member || member.isDeleted) {
       throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
     }
@@ -452,11 +483,9 @@ export class MessagingService {
     // already exists could keep messaging into it. (Group membership is gated at
     // add-member time instead.)
     if (member.conversation.type === 'dm') {
-      const other = await this.prisma.conversationMember.findFirst({
-        where: { conversationId, userId: { not: userId }, isDeleted: false },
-        select: { userId: true },
-      })
-      if (other && (await this.privacy.isBlockedEitherWay(userId, other.userId))) {
+      const other = member.conversation.members[0]
+      const blockedIds = new Set(myBlocks.flatMap((b) => [b.blockerId, b.blockedId]))
+      if (other && blockedIds.has(other.userId)) {
         throw new ForbiddenException({ code: 'BLOCKED', message: 'You can no longer message this user' })
       }
     }
@@ -470,14 +499,8 @@ export class MessagingService {
     // of conversation A could set parentId to a message in conversation B and the
     // parent snippet (body + sender name) would leak into A (cross-conversation
     // read IDOR).
-    if (input.parentId) {
-      const parent = await this.prisma.message.findUnique({
-        where: { id: input.parentId },
-        select: { conversationId: true },
-      })
-      if (!parent || parent.conversationId !== conversationId) {
-        throw new BadRequestException({ code: 'INVALID_PARENT', message: 'Reply target is not in this conversation' })
-      }
+    if (input.parentId && (!parent || parent.conversationId !== conversationId)) {
+      throw new BadRequestException({ code: 'INVALID_PARENT', message: 'Reply target is not in this conversation' })
     }
 
     const message = await this.prisma.message.create({
