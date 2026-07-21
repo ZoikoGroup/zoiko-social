@@ -18,6 +18,7 @@ import {
 import { SkeletonNotification } from '@/components/Skeletons'
 import { notificationsApi, networkApi, type NotificationItem } from '@/lib/api'
 import { useNotifications } from '@/hooks/use-notifications'
+import { GroupInvitations } from '@/components/messaging/GroupInvitations'
 
 type NotificationTab = 'all' | 'followers' | 'requests' | 'system'
 
@@ -227,6 +228,9 @@ export default function NotificationsPage(): React.JSX.Element {
                 })}
               </div>
             </div>
+
+            {/* Pending group invitations (accept/reject inline) */}
+            <GroupInvitations />
 
             {/* Notification list */}
             {loading ? (

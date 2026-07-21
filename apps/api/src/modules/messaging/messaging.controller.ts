@@ -401,6 +401,31 @@ export class MessagingController {
     return group
   }
 
+  // NOTE: must be registered BEFORE `groups/:id` so ":id" doesn't capture "invites".
+  @Get('groups/invites')
+  async getGroupInvites(@CurrentUser() user: AuthenticatedUser) {
+    return this.groupService.getMyInvites(user.id)
+  }
+
+  @Post('groups/:id/invites/accept')
+  @HttpCode(HttpStatus.OK)
+  async acceptGroupInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.groupService.acceptInvite(user.id, id)
+  }
+
+  @Post('groups/:id/invites/reject')
+  @HttpCode(HttpStatus.OK)
+  async rejectGroupInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    await this.groupService.rejectInvite(user.id, id)
+    return { success: true }
+  }
+
   @Get('groups/:id')
   async getGroup(
     @CurrentUser() user: AuthenticatedUser,

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Search, MessageSquare, Plus, Users, CheckCheck } from 'lucide-react'
 import Link from 'next/link'
 import { UserAvatar } from '@/components/UserAvatar'
+import { GroupInvitations } from '@/components/messaging/GroupInvitations'
 import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
 import { useAuth } from '@/hooks/use-auth'
@@ -151,6 +152,10 @@ export function ConnectedConversationList({
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
+        {/* Pending group invitations (accept/reject inline) */}
+        <div className="pt-2">
+          <GroupInvitations variant="compact" />
+        </div>
         {isLoadingConversations ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (

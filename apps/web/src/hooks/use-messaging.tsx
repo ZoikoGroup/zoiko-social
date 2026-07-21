@@ -89,6 +89,16 @@ export interface Suggestion {
   lastSeen: string | null
 }
 
+export interface GroupInvite {
+  groupId: string
+  conversationId: string
+  name: string | null
+  description: string | null
+  memberCount: number
+  invitedBy: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+  createdAt: string
+}
+
 // ── Context ─────────────────────────────────────────────────────────────────
 
 interface MessagingContextValue {
@@ -99,6 +109,15 @@ interface MessagingContextValue {
   retryFetchConversations: () => Promise<void>
   /** Open or create a conversation with a user — returns the conversation ID */
   openConversation: (userId: string, initialMessage?: string) => Promise<string | null>
+  /** Create a group conversation — returns the new conversation ID (null on failure) */
+  createGroup: (input: { name: string; participantIds: string[]; description?: string }) => Promise<string | null>
+  /** Pending group invitations addressed to the current user */
+  groupInvites: GroupInvite[]
+  refreshGroupInvites: () => Promise<void>
+  /** Accept a group invite — returns the conversation ID to open (null on failure) */
+  acceptGroupInvite: (groupId: string) => Promise<string | null>
+  /** Decline a group invite */
+  rejectGroupInvite: (groupId: string) => Promise<void>
   /** Set active conversation ID */
   activeConversationId: string | null
   setActiveConversationId: (id: string | null) => void
@@ -127,6 +146,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
   const [socket, setSocket] = useState<Socket | null>(null)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [groupInvites, setGroupInvites] = useState<GroupInvite[]>([])
   const [isLoadingConversations, setIsLoadingConversations] = useState(false)
   const [conversationsError, setConversationsError] = useState<string | null>(null)
 
@@ -141,6 +161,9 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
   useEffect(() => {
     activeConvIdRef.current = activeConversationId
   }, [activeConversationId])
+  // Stable handle to the latest group-invites fetcher, so the long-lived socket
+  // effect can trigger a refresh without re-subscribing on every render.
+  const fetchGroupInvitesRef = useRef<(() => Promise<void>) | null>(null)
 
   // ── Fetch conversations (defined FIRST so it's available everywhere) ──
 
@@ -260,12 +283,24 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
       const onNewConversation = () => { void fetchConversations() }
       const onRequestAccepted = () => { void fetchConversations() }
+      // A group we were added to (as owner on create, or invitee) — pull it into
+      // the list live instead of only on next reload.
+      const onGroupEvent = () => { void fetchConversations() }
+      // A pending group invitation arrived — refresh the invites list live and
+      // let the user know (they act on it from the alerts / Messages surfaces).
+      const onGroupInvited = (data: { groupName?: string | null }) => {
+        void fetchGroupInvitesRef.current?.()
+        toastSuccess('Group invitation', data?.groupName ? `You were invited to "${data.groupName}"` : 'You have a new group invitation')
+      }
 
       s.on('conversation:activity', onConversationActivity)
       s.on('disconnect', onDisconnect)
       s.on('connect', onConnect)
       s.on('conversation:new', onNewConversation)
       s.on('message_request:accepted', onRequestAccepted)
+      s.on('group:created', onGroupEvent)
+      s.on('group:added', onGroupEvent)
+      s.on('group:invited', onGroupInvited)
 
       // Store off functions for cleanup
       socketCleanups.set(s, () => {
@@ -274,6 +309,9 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         s.off('connect', onConnect)
         s.off('conversation:new', onNewConversation)
         s.off('message_request:accepted', onRequestAccepted)
+        s.off('group:created', onGroupEvent)
+        s.off('group:added', onGroupEvent)
+        s.off('group:invited', onGroupInvited)
       })
     })
 
@@ -350,6 +388,93 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
     }
   }, [fetchConversations, toastWarning])
 
+  const createGroup = useCallback(async (input: { name: string; participantIds: string[]; description?: string }): Promise<string | null> => {
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_URL}/api/v1/messaging/groups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(input),
+      })
+      const json = await res.json().catch(() => null)
+      if (res.ok) {
+        const data = json?.data ?? json
+        const convId = data?.conversationId ?? null
+        const invited = Number(data?.invitedCount ?? 0)
+        void fetchConversations()
+        if (convId) setActiveConversationId(convId)
+        if (invited > 0) {
+          toastSuccess(
+            'Group created',
+            `${invited} invitation${invited === 1 ? '' : 's'} sent — they'll join once they accept.`,
+          )
+        }
+        return convId
+      }
+      const msg = json?.error?.message ?? json?.message ?? `Server error (${res.status})`
+      toastWarning('Could not create group', msg)
+      return null
+    } catch {
+      toastWarning('Could not create group', 'Network error — please try again')
+      return null
+    }
+  }, [fetchConversations, toastWarning, toastSuccess])
+
+  const refreshGroupInvites = useCallback(async () => {
+    if (!isAuthenticated) return
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_URL}/api/v1/messaging/groups/invites`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setGroupInvites(json?.data ?? json ?? [])
+      }
+    } catch { /* ignore */ }
+  }, [isAuthenticated])
+
+  const acceptGroupInvite = useCallback(async (groupId: string): Promise<string | null> => {
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_URL}/api/v1/messaging/groups/${groupId}/invites/accept`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const json = await res.json().catch(() => null)
+      if (res.ok) {
+        setGroupInvites((prev) => prev.filter((i) => i.groupId !== groupId))
+        void fetchConversations()
+        const convId = json?.data?.conversationId ?? json?.conversationId ?? null
+        return convId
+      }
+      toastWarning('Could not join group', json?.error?.message ?? json?.message ?? 'Please try again')
+      return null
+    } catch {
+      toastWarning('Could not join group', 'Network error — please try again')
+      return null
+    }
+  }, [fetchConversations, toastWarning])
+
+  const rejectGroupInvite = useCallback(async (groupId: string): Promise<void> => {
+    // Optimistically remove; restore on failure.
+    const prev = groupInvites
+    setGroupInvites((cur) => cur.filter((i) => i.groupId !== groupId))
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_URL}/api/v1/messaging/groups/${groupId}/invites/reject`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) setGroupInvites(prev)
+    } catch {
+      setGroupInvites(prev)
+    }
+  }, [groupInvites])
+
   const sendMessageFn = useCallback(async (body: string) => {
     if (!activeConversationId || !body.trim()) return
     try {
@@ -416,6 +541,14 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
     } catch { /* ignore — local state already cleared */ }
   }, [])
 
+  // Keep the socket-effect's ref pointing at the latest fetcher, and pull the
+  // pending invites once on auth.
+  useEffect(() => {
+    fetchGroupInvitesRef.current = refreshGroupInvites
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isAuthenticated) void refreshGroupInvites()
+  }, [isAuthenticated, refreshGroupInvites])
+
   return (
     <MessagingContext.Provider
       value={{
@@ -425,6 +558,11 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         conversationsError,
         retryFetchConversations: fetchConversations,
         openConversation,
+        createGroup,
+        groupInvites,
+        refreshGroupInvites,
+        acceptGroupInvite,
+        rejectGroupInvite,
         activeConversationId,
         setActiveConversationId,
         sendMessage: sendMessageFn,
