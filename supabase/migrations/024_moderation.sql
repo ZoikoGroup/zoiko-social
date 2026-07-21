@@ -1,4 +1,4 @@
--- ── PLATFORM-WIDE MODERATION REPORTS ─────────────────────────────────────────
+-- ── PLATFORM-WIDE MODERATION REPORTS ────────────────────────────────────────
 -- Separate from `community_reports` (010_communities.sql), which stays scoped
 -- to in-community moderation (post/comment/member reports reviewed by a
 -- community's own moderators). `reports` is the platform-wide Trust & Safety
