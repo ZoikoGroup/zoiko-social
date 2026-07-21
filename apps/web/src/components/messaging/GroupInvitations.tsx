@@ -12,7 +12,8 @@ interface GroupInvitationsProps {
 
 export function GroupInvitations({ variant = 'full' }: GroupInvitationsProps): React.JSX.Element | null {
   const router = useRouter()
-  const { groupInvites, acceptGroupInvite, rejectGroupInvite } = useMessaging()
+  const { groupInvites: rawInvites, acceptGroupInvite, rejectGroupInvite } = useMessaging()
+  const groupInvites = rawInvites ?? []
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
 
   async function respond(groupId: string, action: 'accept' | 'reject'): Promise<void> {

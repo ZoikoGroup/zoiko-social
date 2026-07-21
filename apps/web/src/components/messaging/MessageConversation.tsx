@@ -86,7 +86,7 @@ export function MessageConversation({
   const wasTypingRef = useRef(false)
 
   const isDM = conversation?.type === 'dm'
-  const otherParticipant = isDM ? conversation?.participants.find((p) => p.id !== user?.id) : null
+  const otherParticipant = isDM ? conversation?.participants?.find((p) => p.id !== user?.id) : null
   const displayName = conversation?.name ?? otherParticipant?.displayName ?? ''
   const avatarUrl = conversation?.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false

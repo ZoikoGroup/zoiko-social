@@ -79,7 +79,7 @@ export function ConnectedConversationList({
       list = list.filter(
         (c) =>
           c.name?.toLowerCase().includes(q) ||
-          c.participants.some((p) => p.displayName.toLowerCase().includes(q) || p.username.toLowerCase().includes(q)),
+          (c.participants ?? []).some((p) => p.displayName.toLowerCase().includes(q) || p.username.toLowerCase().includes(q)),
       )
     }
 
@@ -275,14 +275,14 @@ function ConversationItem({
 
   useEffect(() => {
     if (conv.type !== 'dm') return
-    const other = conv.participants.find((p) => p.id !== currentUserId)
+    const other = conv.participants?.find((p) => p.id !== currentUserId)
     if (!other) return
     subscribePresence(other.id)
     return () => unsubscribePresence(other.id)
   }, [conv.type, conv.participants, currentUserId, subscribePresence, unsubscribePresence])
 
   const isDM = conv.type === 'dm'
-  const otherParticipant = isDM ? conv.participants.find((p) => p.id !== currentUserId) : null
+  const otherParticipant = isDM ? conv.participants?.find((p) => p.id !== currentUserId) : null
   const otherUserId = otherParticipant?.id
   const presence = otherUserId ? getPresence(otherUserId) : null
   const isOnline = presence?.isOnline ?? conv.isOnline

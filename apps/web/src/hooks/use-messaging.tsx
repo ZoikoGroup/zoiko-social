@@ -182,7 +182,15 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
       })
       if (res.ok) {
         const json = await res.json()
-        setConversations(json?.data?.data ?? json?.data ?? [])
+        const raw = json?.data?.data ?? json?.data ?? []
+        // Normalize at the boundary: a conversation must always carry an array of
+        // participants, otherwise list rendering (search filter, avatar/name
+        // derivation) hits `.some`/`.find` on undefined and the whole Messages
+        // view crashes. Belt-and-suspenders against any partial API payload.
+        const list = Array.isArray(raw)
+          ? raw.map((c: Conversation) => ({ ...c, participants: Array.isArray(c.participants) ? c.participants : [] }))
+          : []
+        setConversations(list)
         setConversationsError(null)
       } else {
         const body = await res.json().catch(() => null)
@@ -500,7 +508,17 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
       const json = await res.json()
       // Response is double-wrapped: interceptor {success,data} around the
       // service's {data,nextCursor,hasMore}. The messages array is data.data.
-      return json?.data?.data ?? []
+      const list = json?.data?.data ?? []
+      // Guarantee array fields exist — realtime reaction handlers do
+      // `m.reactions.some(...)` unguarded, so a message without `reactions`
+      // would crash the thread on the next reaction event.
+      return Array.isArray(list)
+        ? list.map((m: MessageData) => ({
+            ...m,
+            reactions: Array.isArray(m.reactions) ? m.reactions : [],
+            mediaUrls: Array.isArray(m.mediaUrls) ? m.mediaUrls : [],
+          }))
+        : []
     } catch {
       return []
     }
