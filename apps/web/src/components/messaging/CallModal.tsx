@@ -204,7 +204,7 @@ export function CallModal(): React.JSX.Element | null {
 
       {/* Connected video: remote participant grid */}
       {showVideoGrid && (
-        <div className={`absolute inset-0 grid ${gridClass(remoteParticipants.length)} gap-2 bg-black p-2`}>
+        <div className={`absolute inset-0 grid ${gridClass(remoteParticipants.length)} gap-2 bg-black p-2 pb-28`}>
           {remoteParticipants.map((p) => <VideoTile key={p.id} participant={p} />)}
         </div>
       )}

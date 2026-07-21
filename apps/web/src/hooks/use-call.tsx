@@ -207,8 +207,14 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
         p.trackPublications.forEach((pub) => {
           const t = pub.track
           if (!t) return
-          if (t.kind === Track.Kind.Video) videoTrack = t as RemoteVideoTrack
-          else if (t.kind === Track.Kind.Audio) audioTrack = t as RemoteAudioTrack
+          // A muted camera still keeps its (frozen) track around; treating it as
+          // live video renders a blank/white tile. Skip muted video so the tile
+          // falls back to the participant's avatar placeholder instead.
+          if (t.kind === Track.Kind.Video) {
+            if (!pub.isMuted) videoTrack = t as RemoteVideoTrack
+          } else if (t.kind === Track.Kind.Audio) {
+            audioTrack = t as RemoteAudioTrack
+          }
         })
         list.push({ id: p.identity, name: p.name || p.identity, videoTrack, audioTrack })
       })
