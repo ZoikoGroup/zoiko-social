@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Heart, MessageCircle, Send, Bookmark, MoreHorizontal, ChevronLeft, ChevronRight,
-  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird, Flag,
+  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird, Flag, BarChart3,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
@@ -15,6 +15,7 @@ import { LikersModal } from './LikersModal'
 import { postsApi, moderationApi, type PostItem } from '@/lib/api'
 import { trackPostEvent, type PostEventSurface } from '@/lib/analytics'
 import { LocationLink } from '@/components/LocationLink'
+import { PostInsightsModal } from '@/components/analytics/PostInsightsModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 
@@ -84,7 +85,7 @@ interface PostCardProps {
 
 export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): React.JSX.Element {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const { success: toastSuccess, error: toastError } = useToast()
   const [liked, setLiked] = useState(post.viewerLiked)
   const [saved, setSaved] = useState(post.viewerSaved)
@@ -94,12 +95,14 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
   const [menuOpen, setMenuOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  const [insightsOpen, setInsightsOpen] = useState(false)
   const [likersOpen, setLikersOpen] = useState(false)
   const [reported, setReported] = useState(false)
   const lastTap = useRef(0)
   const cardRef = useRef<HTMLElement>(null)
 
   const isOwn = user?.id === post.author.id
+  const isPro = profile?.verificationTier === 'professional'
   const badge = verifiedBadge(post.author.isVerified, post.author.professionalCategory)
   const meta = post.metadata
 
@@ -201,6 +204,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
         onClose={() => setShareOpen(false)}
       />
       <LikersModal open={likersOpen} postId={post.id} onClose={() => setLikersOpen(false)} />
+      {insightsOpen && <PostInsightsModal postId={post.id} onClose={() => setInsightsOpen(false)} />}
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3">
         <Link href={`/profile/${post.author.username}`} onClick={() => { if (trackable) trackPostEvent({ postId: post.id, type: 'profile_tap', surface }) }}>
@@ -234,6 +238,11 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-full mt-1 w-44 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-10">
+              {isOwn && isPro && (
+                <button onClick={() => { setMenuOpen(false); setInsightsOpen(true) }} className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer">
+                  <BarChart3 className="w-4 h-4 text-primary" />View insights
+                </button>
+              )}
               <button onClick={copyLink} className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer">
                 <Link2 className="w-4 h-4" />{copied ? 'Copied!' : 'Copy link'}
               </button>

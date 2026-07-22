@@ -82,7 +82,7 @@ export function clearApiCache(): void {
  * GET with cache: fresh → instant, stale (<5m) → instant + background refresh,
  * expired/missing → network. Concurrent callers share one in-flight request.
  */
-async function cachedGet<T>(path: string, ttlMs = DEFAULT_TTL_MS): Promise<T> {
+export async function cachedGet<T>(path: string, ttlMs = DEFAULT_TTL_MS): Promise<T> {
   const entry = getCache.get(path)
   const age = entry ? Date.now() - entry.ts : Infinity
 
@@ -114,13 +114,13 @@ async function cachedGet<T>(path: string, ttlMs = DEFAULT_TTL_MS): Promise<T> {
 }
 
 /** Wrap a mutation: on success, all cached GETs are invalidated. */
-async function mutate<T>(path: string, options: RequestInit): Promise<T> {
+export async function mutate<T>(path: string, options: RequestInit): Promise<T> {
   const result = await request<T>(path, options)
   clearApiCache()
   return result
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -467,14 +467,50 @@ export const petsApi = {
 }
 
 // ── Events ────────────────────────────────────────────────────────────────
+export const EVENT_CATEGORIES = [
+  'adoption_drive', 'vet_camp', 'workshop', 'meetup', 'fundraiser', 'competition', 'awareness',
+  'birthday', 'wedding', 'naming_ceremony', 'gotcha_day', 'funeral', 'farewell', 'playdate',
+  'other',
+] as const
+export type EventCategory = (typeof EVENT_CATEGORIES)[number]
+export const EVENT_CATEGORY_LABELS: Record<string, string> = {
+  adoption_drive: 'Adoption Drive',
+  vet_camp: 'Vet Camp',
+  workshop: 'Workshop',
+  meetup: 'Meetup',
+  fundraiser: 'Fundraiser',
+  competition: 'Competition / Show',
+  awareness: 'Awareness',
+  birthday: 'Pet Birthday',
+  wedding: 'Animal Wedding',
+  naming_ceremony: 'Naming Ceremony',
+  gotcha_day: 'Gotcha Day',
+  funeral: 'Funeral / Memorial',
+  farewell: 'Farewell',
+  playdate: 'Playdate',
+  other: 'Other',
+}
+
 export interface EventItem {
   id: string
   host: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   title: string
   description: string | null
   location: string | null
+  venueName: string | null
+  visibility: string
   isOnline: boolean
   coverUrl: string | null
+  videoUrl: string | null
+  category: string | null
+  isFree: boolean
+  price: string | null
+  bookingUrl: string | null
+  capacity: number | null
+  seatsLeft: number | null
+  latitude: number | null
+  longitude: number | null
+  distanceKm: number | null
   startsAt: string
   endsAt: string | null
   goingCount: number
@@ -482,14 +518,38 @@ export interface EventItem {
 }
 export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
 
+export interface EventFilters { category?: string; free?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number }
+export interface EventAttendee { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+export type EventInput = {
+  title?: string; description?: string | null; location?: string | null; venueName?: string | null
+  isOnline?: boolean; visibility?: 'public' | 'followers'
+  coverUrl?: string | null; videoUrl?: string | null; category?: string | null; isFree?: boolean; price?: string | null
+  bookingUrl?: string | null; capacity?: number | null; latitude?: number | null; longitude?: number | null
+  startsAt?: string; endsAt?: string | null
+}
+
+function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): string {
+  const p = new URLSearchParams()
+  p.set('limit', String(limit))
+  if (cursor) p.set('cursor', cursor)
+  if (f.category) p.set('category', f.category)
+  if (f.free) p.set('free', '1')
+  if (f.q) p.set('q', f.q)
+  if (f.mine) p.set('mine', '1')
+  if (f.past) p.set('past', '1')
+  if (f.nearLat !== undefined && f.nearLng !== undefined) { p.set('nearLat', String(f.nearLat)); p.set('nearLng', String(f.nearLng)) }
+  return p.toString()
+}
+
 export const eventsApi = {
-  upcoming: (cursor?: string | null, limit = 15) =>
-    request<EventPage>(`/events?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  upcoming: (cursor?: string | null, limit = 15, filters: EventFilters = {}) =>
+    request<EventPage>(`/events?${eventQuery(cursor, limit, filters)}`),
   get: (id: string) => cachedGet<EventItem>(`/events/${id}`, 30_000),
-  create: (input: {
-    title: string; description?: string; location?: string; isOnline?: boolean
-    coverUrl?: string; startsAt: string; endsAt?: string
-  }) => mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
+  attendees: (id: string) => cachedGet<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees`, 15_000),
+  create: (input: EventInput & { title: string; startsAt: string }) =>
+    mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
+  update: (id: string, input: EventInput) =>
+    mutate<EventItem>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   rsvp: (id: string, status: 'going' | 'interested' = 'going') =>
     mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
   cancelRsvp: (id: string) =>
@@ -509,11 +569,17 @@ export interface AdoptionListing {
   size: string | null
   description: string | null
   location: string | null
+  latitude: number | null
+  longitude: number | null
+  distanceKm: number | null
   coverUrl: string | null
   photos: string[]
   vaccinated: boolean
   neutered: boolean
   goodWith: string[]
+  listingType: string
+  price: number | null
+  negotiable: boolean
   fee: number | null
   status: string
   enquiriesCount: number
@@ -527,22 +593,30 @@ export interface AdoptionEnquiryItem {
   createdAt: string
   applicant: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 }
+export interface AdoptionMessage {
+  id: string; body: string; flagged: boolean; createdAt: string; mine: boolean
+  sender: { id: string; username: string; displayName: string; avatarUrl: string | null }
+}
 export interface AdoptionPage { data: AdoptionListing[]; nextCursor: string | null; hasMore: boolean }
+export interface AdoptionFilters { species?: string; status?: string; q?: string; type?: string; nearLat?: number; nearLng?: number }
 
 export interface NewListing {
   name: string; species: string; breed?: string; age?: string
   sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
-  description?: string; location?: string; coverUrl?: string; photos?: string[]
-  vaccinated?: boolean; neutered?: boolean; goodWith?: string[]; fee?: number
+  description?: string; location?: string; latitude?: number; longitude?: number; coverUrl?: string; photos?: string[]
+  vaccinated?: boolean; neutered?: boolean; goodWith?: string[]
+  listingType?: 'adopt' | 'sale'; price?: number; negotiable?: boolean; fee?: number
 }
 
 export const adoptionApi = {
-  browse: (filters: { species?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+  browse: (filters: AdoptionFilters, cursor?: string | null, limit = 15) => {
     const qs = new URLSearchParams()
     qs.set('limit', String(limit))
     if (filters.species) qs.set('species', filters.species)
     if (filters.status) qs.set('status', filters.status)
     if (filters.q) qs.set('q', filters.q)
+    if (filters.type) qs.set('type', filters.type)
+    if (filters.nearLat !== undefined && filters.nearLng !== undefined) { qs.set('nearLat', String(filters.nearLat)); qs.set('nearLng', String(filters.nearLng)) }
     if (cursor) qs.set('cursor', cursor)
     return request<AdoptionPage>(`/adoption?${qs.toString()}`)
   },
@@ -552,10 +626,13 @@ export const adoptionApi = {
     mutate<AdoptionListing>(`/adoption/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/adoption/${id}`, { method: 'DELETE' }),
   enquire: (id: string, message?: string) =>
-    mutate<{ status: string }>(`/adoption/${id}/enquiries`, { method: 'POST', body: JSON.stringify({ ...(message ? { message } : {}) }) }),
+    mutate<{ id: string; status: string }>(`/adoption/${id}/enquiries`, { method: 'POST', body: JSON.stringify({ ...(message ? { message } : {}) }) }),
   enquiries: (id: string) => request<AdoptionEnquiryItem[]>(`/adoption/${id}/enquiries`),
   respond: (id: string, enquiryId: string, status: 'accepted' | 'rejected') =>
     mutate<{ status: string }>(`/adoption/${id}/enquiries/${enquiryId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  messages: (enquiryId: string) => request<AdoptionMessage[]>(`/adoption/enquiries/${enquiryId}/messages`),
+  sendMessage: (enquiryId: string, body: string) =>
+    mutate<{ id: string; flagged: boolean; reasons: string[] }>(`/adoption/enquiries/${enquiryId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
 }
 
 // ── Service providers (Vet Finder + Pet Care) ────────────────────────────────
@@ -570,6 +647,11 @@ export interface Provider {
   phone: string | null
   website: string | null
   coverUrl: string | null
+  latitude: number | null
+  longitude: number | null
+  rating: number
+  reviewCount: number
+  availableForBooking: boolean
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }
@@ -603,10 +685,22 @@ export interface LostFoundReport {
   petName: string | null
   species: string
   breed: string | null
+  age: string | null
+  color: string | null
+  sex: string | null
+  size: string | null
+  microchipId: string | null
+  collar: string | null
+  neutered: boolean | null
+  vaccinated: boolean | null
   description: string | null
   lastSeenLocation: string | null
   lastSeenAt: string | null
   photoUrl: string | null
+  photoUrls: string[]
+  latitude: number | null
+  longitude: number | null
+  distanceKm: number | null
   contact: string | null
   reward: number | null
   status: string
@@ -623,21 +717,30 @@ export interface LostFoundSighting {
 }
 export interface LostFoundPage { data: LostFoundReport[]; nextCursor: string | null; hasMore: boolean }
 export interface NewReport {
-  kind: 'lost' | 'found'; petName?: string; species: string; breed?: string; description?: string
-  lastSeenLocation?: string; lastSeenAt?: string; photoUrl?: string; contact?: string; reward?: number
+  kind: 'lost' | 'found'; petName?: string; species: string; breed?: string
+  age?: string; color?: string; sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
+  microchipId?: string; collar?: string; neutered?: boolean; vaccinated?: boolean
+  description?: string; lastSeenLocation?: string; lastSeenAt?: string
+  photoUrl?: string; photoUrls?: string[]; latitude?: number; longitude?: number
+  contact?: string; reward?: number
 }
+export interface LostFoundFilters { kind?: string; status?: string; q?: string; species?: string; reward?: boolean; nearLat?: number; nearLng?: number }
 
 export const lostFoundApi = {
-  browse: (filters: { kind?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+  browse: (filters: LostFoundFilters, cursor?: string | null, limit = 15) => {
     const qs = new URLSearchParams()
     qs.set('limit', String(limit))
     if (filters.kind) qs.set('kind', filters.kind)
     if (filters.status) qs.set('status', filters.status)
     if (filters.q) qs.set('q', filters.q)
+    if (filters.species) qs.set('species', filters.species)
+    if (filters.reward) qs.set('reward', '1')
+    if (filters.nearLat !== undefined && filters.nearLng !== undefined) { qs.set('nearLat', String(filters.nearLat)); qs.set('nearLng', String(filters.nearLng)) }
     if (cursor) qs.set('cursor', cursor)
     return request<LostFoundPage>(`/lost-found?${qs.toString()}`)
   },
   get: (id: string) => cachedGet<LostFoundReport>(`/lost-found/${id}`, 15_000),
+  matches: (id: string) => cachedGet<LostFoundReport[]>(`/lost-found/${id}/matches`, 30_000),
   create: (input: NewReport) => mutate<LostFoundReport>('/lost-found', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: string, input: Partial<Omit<NewReport, 'kind'>> & { status?: string }) =>
     mutate<LostFoundReport>(`/lost-found/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
@@ -874,11 +977,26 @@ export interface PostInsights {
   byProp: { prop: string; values: { key: string; count: number }[] } | null
 }
 
+export interface AccountInsights {
+  impressions: number
+  views: number
+  reach: number
+  reachFollowers: number
+  reachNonFollowers: number
+  followersCount: number
+  postsCount: number
+  byDevice: { key: string; count: number }[]
+  byCountry: { key: string; count: number }[]
+  topPosts: { postId: string; caption: string | null; coverUrl: string | null; impressions: number; reach: number }[]
+}
+
 export const analyticsApi = {
   /** Per-post insights — only the post's professional author may read them.
    *  Pass `prop` to also get a breakdown by that custom prop key. */
   postInsights: (postId: string, prop?: string) =>
     cachedGet<PostInsights>(`/analytics/posts/${postId}${prop ? `?prop=${encodeURIComponent(prop)}` : ''}`, 30_000),
+  /** Account-wide analytics for the signed-in professional account. */
+  accountInsights: () => cachedGet<AccountInsights>('/analytics/account', 30_000),
 }
 
 export const commentsApi = {

@@ -31,6 +31,19 @@ export interface PostInsights {
   byProp: { prop: string; values: { key: string; count: number }[] } | null
 }
 
+export interface AccountInsights {
+  impressions: number
+  views: number
+  reach: number
+  reachFollowers: number
+  reachNonFollowers: number
+  followersCount: number
+  postsCount: number
+  byDevice: { key: string; count: number }[]
+  byCountry: { key: string; count: number }[]
+  topPosts: { postId: string; caption: string | null; coverUrl: string | null; impressions: number; reach: number }[]
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name)
@@ -202,6 +215,73 @@ export class AnalyticsService {
       bySurface,
       byCountry,
       byProp,
+    }
+  }
+
+  /** Account-wide analytics across all of a professional account's posts. */
+  async getAccountInsights(userId: string): Promise<AccountInsights> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: {
+        followersCount: true, postsCount: true,
+        professionalProfile: { select: { deletedAt: true } },
+      },
+    })
+    if (!profile) throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+    if (!profile.professionalProfile || profile.professionalProfile.deletedAt) {
+      throw new ForbiddenException({ code: 'ANALYTICS_FORBIDDEN', message: 'Account analytics are available to professional accounts' })
+    }
+
+    const [totals, byDevice, byCountry, top] = await Promise.all([
+      this.prisma.$queryRaw<{ impressions: number; views: number; reach: number; followers: number; non_followers: number }[]>`
+        SELECT
+          COUNT(*) FILTER (WHERE type = 'impression')::int AS impressions,
+          COUNT(*) FILTER (WHERE type = 'view')::int AS views,
+          COUNT(DISTINCT viewer_id) FILTER (WHERE type IN ('impression','view'))::int AS reach,
+          COUNT(DISTINCT viewer_id) FILTER (WHERE type IN ('impression','view') AND viewer_is_follower)::int AS followers,
+          COUNT(DISTINCT viewer_id) FILTER (WHERE type IN ('impression','view') AND NOT viewer_is_follower)::int AS non_followers
+        FROM post_events WHERE author_id = ${userId}::uuid`,
+      this.prisma.$queryRaw<{ key: string; count: number }[]>`
+        SELECT COALESCE(device_type,'unknown') AS key, COUNT(*)::int AS count
+        FROM post_events WHERE author_id = ${userId}::uuid AND type='impression' GROUP BY 1 ORDER BY count DESC`,
+      this.prisma.$queryRaw<{ key: string; count: number }[]>`
+        SELECT COALESCE(country,'unknown') AS key, COUNT(*)::int AS count
+        FROM post_events WHERE author_id = ${userId}::uuid AND type='impression' GROUP BY 1 ORDER BY count DESC LIMIT 20`,
+      this.prisma.$queryRaw<{ post_id: string; impressions: number; reach: number }[]>`
+        SELECT post_id, COUNT(*) FILTER (WHERE type='impression')::int AS impressions,
+               COUNT(DISTINCT viewer_id)::int AS reach
+        FROM post_events WHERE author_id = ${userId}::uuid GROUP BY post_id ORDER BY impressions DESC LIMIT 5`,
+    ])
+
+    const t = totals[0] ?? { impressions: 0, views: 0, reach: 0, followers: 0, non_followers: 0 }
+    const posts = top.length
+      ? await this.prisma.post.findMany({
+          where: { id: { in: top.map((p) => p.post_id) } },
+          select: { id: true, body: true, media: { take: 1, orderBy: { position: 'asc' }, select: { url: true, thumbnailUrl: true } } },
+        })
+      : []
+    const postMap = new Map(posts.map((p) => [p.id, p]))
+
+    return {
+      impressions: t.impressions,
+      views: t.views,
+      reach: t.reach,
+      reachFollowers: t.followers,
+      reachNonFollowers: t.non_followers,
+      followersCount: profile.followersCount,
+      postsCount: profile.postsCount,
+      byDevice,
+      byCountry,
+      topPosts: top.map((p) => {
+        const post = postMap.get(p.post_id)
+        return {
+          postId: p.post_id,
+          caption: post?.body ?? null,
+          coverUrl: post?.media[0]?.thumbnailUrl ?? post?.media[0]?.url ?? null,
+          impressions: p.impressions,
+          reach: p.reach,
+        }
+      }),
     }
   }
 

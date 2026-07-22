@@ -9,6 +9,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
+import { AccountAnalyticsSection } from '@/components/analytics/AccountAnalyticsSection'
 import {
   LayoutDashboard, ShoppingBag, Newspaper, Stethoscope, HandHeart, ShieldCheck, BadgeCheck,
   Plus, Heart, Bookmark, MessageCircle, Package, MailOpen, PawPrint, ChevronRight, Pencil, MapPin,
@@ -271,13 +272,13 @@ function PetCareDashboard(): React.JSX.Element {
         <StatTile label="Trust score" value={profile?.trustScore ?? 0} Icon={ShieldCheck} tint="bg-emerald-500/10 text-emerald-600" />
       </div>
 
-      <Card title="My Service Listings" action={<Link href="/pet-care" className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-[12px] font-semibold hover:bg-primary/90"><Plus className="w-3.5 h-3.5" />Add</Link>}>
+      <Card title="My Service Listings" action={<Link href="/pet-care/dashboard" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-[12px] font-semibold hover:bg-primary/90"><LayoutDashboard className="w-3.5 h-3.5" />Dashboard</Link>}>
         {loading ? <Skeleton rows={2} /> : listings.length === 0 ? (
-          <Empty text="You have no pet-care service listings yet." cta={{ href: '/pet-care', label: 'Add a service' }} />
+          <Empty text="You have no pet-care service listings yet." cta={{ href: '/pet-care/dashboard', label: 'Open Dashboard' }} />
         ) : (
           <div className="divide-y divide-outline-variant/10">
             {listings.map((l) => (
-              <Link key={l.id} href="/pet-care" className="flex items-center gap-3 py-2.5 group">
+              <Link key={l.id} href="/pet-care/dashboard" className="flex items-center gap-3 py-2.5 group">
                 <div className="w-11 h-11 rounded-lg bg-surface-container overflow-hidden flex-shrink-0 flex items-center justify-center">
                   <Thumb url={l.coverUrl} className="w-full h-full object-cover" fallback={<HandHeart className="w-5 h-5 text-primary" />} />
                 </div>
@@ -360,6 +361,8 @@ export default function DashboardPage(): React.JSX.Element {
                 </div>
               </div>
             </div>
+
+            {meta && <AccountAnalyticsSection />}
 
             {meta ? (
               meta.render()

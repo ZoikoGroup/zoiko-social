@@ -150,7 +150,7 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
   )
 }
 
-function AddProviderModal({ category, serviceTypes, title, onClose, onAdded }: {
+export function AddProviderModal({ category, serviceTypes, title, onClose, onAdded }: {
   category: 'vet' | 'pet_care'; serviceTypes: string[]; title: string
   onClose: () => void; onAdded: (p: Provider) => void
 }): React.JSX.Element {

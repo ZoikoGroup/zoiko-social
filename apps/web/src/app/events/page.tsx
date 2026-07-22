@@ -1,17 +1,19 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { usePagedList } from '@/hooks/use-cache'
 import { Header } from '@/components/Header'
+import { Img } from '@/components/Img'
 import { ProfileCard } from '@/components/ProfileCard'
 import { LocationLink } from '@/components/LocationLink'
-import { LocationInput } from '@/components/LocationInput'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
-import { Calendar, MapPin, Globe, Plus, X, Users, Check, Loader2 } from 'lucide-react'
-import { eventsApi, type EventItem } from '@/lib/api'
+import { EventFormModal } from '@/components/events/EventFormModal'
+import { Calendar, Globe, Plus, Users, Check, Search, Film, Ticket, Navigation } from 'lucide-react'
+import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventFilters } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 
 function dateBadge(iso: string): { mon: string; day: string } {
@@ -25,11 +27,37 @@ function when(iso: string): string {
 export default function EventsPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [createOpen, setCreateOpen] = useState(false)
+  const [tab, setTab] = useState<'upcoming' | 'hosting' | 'past'>('upcoming')
+  const [category, setCategory] = useState('')
+  const [free, setFree] = useState(false)
+  const [search, setSearch] = useState('')
+  const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  const useNear = near && tab === 'upcoming'
+  const filters: EventFilters = {
+    ...(tab === 'hosting' ? { mine: true } : {}),
+    ...(tab === 'past' ? { past: true } : {}),
+    ...(category ? { category } : {}),
+    ...(free ? { free: true } : {}),
+    ...(search.trim() ? { q: search.trim() } : {}),
+    ...(useNear ? { nearLat: near.lat, nearLng: near.lng } : {}),
+  }
+  const listKey = `events:${tab}:${category}:${free ? 1 : 0}:${search.trim()}:${useNear ? 'near' : ''}`
+
+  function toggleNear(): void {
+    if (near) { setNear(null); return }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setNear({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+    )
+  }
 
   const {
     items: events, isLoading: loading, isRefreshing, hasMore, loadMore, patch: patchEvents,
-  } = usePagedList<EventItem>('events', (cursor) => eventsApi.upcoming(cursor))
+  } = usePagedList<EventItem>(listKey, (cursor) => eventsApi.upcoming(cursor, 15, filters))
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
@@ -98,6 +126,41 @@ export default function EventsPage(): React.JSX.Element {
               </button>
             </div>
 
+            {/* Tabs + filters */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                {(['upcoming', 'hosting', 'past'] as const).map((t) => (
+                  <button key={t} onClick={() => setTab(t)}
+                    className={`px-3.5 py-1.5 rounded-full text-label-sm font-semibold capitalize cursor-pointer transition-colors ${tab === t ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                  <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events"
+                    className="w-full pl-9 pr-3 py-2 bg-surface-container-lowest rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+                </div>
+                <button onClick={() => setFree((v) => !v)}
+                  className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold cursor-pointer border transition-colors ${free ? 'bg-primary text-white border-primary' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary/30'}`}>Free</button>
+                {tab === 'upcoming' && (
+                  <button onClick={toggleNear} title="Sort by distance"
+                    className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold cursor-pointer border transition-colors flex items-center gap-1.5 ${near ? 'bg-primary text-white border-primary' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary/30'}`}>
+                    <Navigation className="w-3.5 h-3.5" />Near me
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <button onClick={() => setCategory('')}
+                  className={`px-3 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer flex-shrink-0 ${category === '' ? 'bg-primary/10 text-primary' : 'bg-surface-container-lowest text-outline border border-outline-variant/30'}`}>All</button>
+                {EVENT_CATEGORIES.map((c) => (
+                  <button key={c} onClick={() => setCategory(category === c ? '' : c)}
+                    className={`px-3 py-1 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer flex-shrink-0 ${category === c ? 'bg-primary/10 text-primary' : 'bg-surface-container-lowest text-outline border border-outline-variant/30'}`}>{EVENT_CATEGORY_LABELS[c]}</button>
+                ))}
+              </div>
+            </div>
+
             {loading ? (
               <div className="space-y-4">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
             ) : events.length === 0 ? (
@@ -110,27 +173,44 @@ export default function EventsPage(): React.JSX.Element {
               <div className="space-y-3">
                 {events.map((e) => {
                   const b = dateBadge(e.startsAt)
+                  const category = e.category ? (EVENT_CATEGORY_LABELS[e.category] ?? e.category) : null
                   return (
-                    <div key={e.id} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-4">
-                      <div className="flex gap-4">
-                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-primary/10 flex-shrink-0">
-                          <span className="text-[10px] font-bold text-primary leading-none">{b.mon}</span>
-                          <span className="text-headline-md font-bold text-primary leading-tight">{b.day}</span>
-                        </div>
+                    <div key={e.id} className="relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden hover:border-primary/40 transition-colors">
+                      <Link href={`/events/${e.id}`} aria-label={e.title} className="absolute inset-0 z-0" />
+                      <div className="flex gap-4 p-4">
+                        {e.coverUrl ? (
+                          <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-container relative">
+                            <Img src={e.coverUrl} alt="" className="w-full h-full object-cover" />
+                            {e.videoUrl && <span className="absolute bottom-1 right-1 bg-black/60 rounded-full p-1"><Film className="w-3 h-3 text-white" /></span>}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center w-16 h-16 rounded-xl bg-primary/10 flex-shrink-0">
+                            <span className="text-[10px] font-bold text-primary leading-none">{b.mon}</span>
+                            <span className="text-headline-md font-bold text-primary leading-tight">{b.day}</span>
+                          </div>
+                        )}
                         <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                            {category && <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wide">{category}</span>}
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 ${e.isFree ? 'bg-emerald-500/10 text-emerald-600' : 'bg-secondary/10 text-secondary'}`}>
+                              <Ticket className="w-2.5 h-2.5" />{e.isFree ? 'FREE' : (e.price || 'PAID')}
+                            </span>
+                            {e.seatsLeft !== null && <span className={`text-[10px] font-semibold ${e.seatsLeft === 0 ? 'text-red-500' : 'text-outline'}`}>{e.seatsLeft === 0 ? 'Sold out' : `${e.seatsLeft} left`}</span>}
+                            {e.visibility === 'followers' && <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-bold flex items-center gap-1"><Users className="w-2.5 h-2.5" />FOLLOWERS</span>}
+                            {e.distanceKm != null && <span className="text-[10px] font-semibold text-primary flex items-center gap-0.5"><Navigation className="w-2.5 h-2.5" />{e.distanceKm} km</span>}
+                          </div>
                           <h3 className="text-label-md font-bold text-on-surface">{e.title}</h3>
                           <p className="text-[12px] text-outline mt-0.5">{when(e.startsAt)}</p>
                           <p className="flex items-center gap-1 text-[12px] text-on-surface-variant mt-1">
                             {e.isOnline ? <><Globe className="w-3.5 h-3.5 text-primary" />Online</> : e.location ? <LocationLink location={e.location} iconClassName="w-3.5 h-3.5" className="text-primary" /> : null}
                           </p>
-                          {e.description && <p className="text-label-sm text-on-surface-variant mt-2 line-clamp-2">{e.description}</p>}
                           <div className="flex items-center justify-between mt-3">
                             <div className="flex items-center gap-2 text-[12px] text-outline">
                               <UserAvatar name={e.host.displayName} image={e.host.avatarUrl ?? undefined} size="xs" verified={e.host.isVerified} />
                               <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{e.goingCount} going</span>
                             </div>
                             <button onClick={() => toggleRsvp(e)}
-                              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-label-sm font-semibold transition-colors cursor-pointer ${e.viewerGoing ? 'bg-primary/10 text-primary' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                              className={`relative z-20 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-label-sm font-semibold transition-colors cursor-pointer ${e.viewerGoing ? 'bg-primary/10 text-primary' : 'bg-primary text-white hover:bg-primary/90'}`}>
                               {e.viewerGoing ? <><Check className="w-3.5 h-3.5" />Going</> : 'RSVP'}
                             </button>
                           </div>
@@ -151,69 +231,7 @@ export default function EventsPage(): React.JSX.Element {
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {createOpen && <CreateEventModal onClose={() => setCreateOpen(false)} onCreated={(ev) => patchEvents((prev) => [ev, ...prev])} />}
+      {createOpen && <EventFormModal onClose={() => setCreateOpen(false)} onSaved={(ev) => patchEvents((prev) => [ev, ...prev])} />}
     </>
-  )
-}
-
-function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: (e: EventItem) => void }): React.JSX.Element {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [location, setLocation] = useState('')
-  const [isOnline, setIsOnline] = useState(false)
-  const [startsAt, setStartsAt] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  async function submit(): Promise<void> {
-    if (saving || !title.trim() || !startsAt) return
-    setSaving(true); setError('')
-    try {
-      const ev = await eventsApi.create({
-        title: title.trim(),
-        startsAt: new Date(startsAt).toISOString(),
-        isOnline,
-        ...(description.trim() ? { description: description.trim() } : {}),
-        ...(!isOnline && location.trim() ? { location: location.trim() } : {}),
-      })
-      onCreated(ev); onClose()
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create event') } finally { setSaving(false) }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-outline-variant/20">
-          <h2 className="font-headline text-headline-md text-on-surface">Create event</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="p-5 space-y-3">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} autoFocus placeholder="Event title"
-            className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} placeholder="Description (optional)"
-            className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none resize-none" />
-          <label className="text-[11px] text-outline block">Starts at
-            <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
-              className="w-full mt-1 px-3 py-2 rounded-lg border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none" />
-          </label>
-          <button onClick={() => setIsOnline((v) => !v)} className="flex items-center gap-2 text-label-sm text-on-surface-variant cursor-pointer">
-            {isOnline ? <Globe className="w-4 h-4 text-primary" /> : <MapPin className="w-4 h-4" />}{isOnline ? 'Online event' : 'In-person'}
-          </button>
-          {!isOnline && (
-            <LocationInput value={location} onChange={setLocation} maxLength={200} placeholder="Location"
-              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none" />
-          )}
-          {error && <p className="text-label-sm text-red-500">{error}</p>}
-        </div>
-        <div className="p-5 pt-0 flex gap-3">
-          <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
-          <button onClick={submit} disabled={saving || !title.trim() || !startsAt}
-            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}Create event
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }

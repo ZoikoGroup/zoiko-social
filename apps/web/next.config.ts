@@ -50,6 +50,8 @@ const nextConfig: NextConfig = {
               // modules from the same host; without this the SW fails to register.
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com",
               "font-src 'self'",
+              // openstreetmap.org: keyless embedded map (event location pin)
+              "frame-src 'self' https://www.openstreetmap.org",
               "frame-src 'none'",
               "object-src 'none'",
               "base-uri 'self'",
