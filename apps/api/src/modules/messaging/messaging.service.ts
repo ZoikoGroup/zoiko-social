@@ -784,13 +784,23 @@ export class MessagingService {
     // (otherwise a non-member could react to and broadcast into any conversation).
     await this.assertMember(userId, message.conversationId)
 
-    const existing = await this.prisma.messageReaction.findUnique({
-      where: { messageId_userId_emoji: { messageId, userId, emoji } },
+    // Instagram-style: one reaction per user per message. Re-tapping the same
+    // emoji removes it (toggle off); tapping a different emoji replaces the old.
+    const existing = await this.prisma.messageReaction.findFirst({
+      where: { messageId, userId },
     })
 
-    if (existing) {
-      // Remove reaction (toggle)
+    let removed = false
+    if (existing && existing.emoji === emoji) {
+      // Same emoji → toggle off
       await this.prisma.messageReaction.delete({ where: { id: existing.id } })
+      removed = true
+    } else if (existing) {
+      // Different emoji → replace the user's single reaction in place
+      await this.prisma.messageReaction.update({
+        where: { id: existing.id },
+        data: { emoji },
+      })
     } else {
       await this.prisma.messageReaction.create({
         data: { messageId, userId, emoji },
@@ -802,7 +812,7 @@ export class MessagingService {
       conversationId: message.conversationId,
       userId,
       emoji,
-      removed: !!existing,
+      removed,
     })
   }
 

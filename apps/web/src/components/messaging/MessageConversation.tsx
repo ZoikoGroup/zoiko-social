@@ -157,14 +157,16 @@ export function MessageConversation({
             m.id === data.messageId
               ? {
                   ...m,
+                  // One reaction per user (Instagram-style). Always drop any
+                  // existing reaction from this user first: on removal that
+                  // clears it, and on add/replace it both dedups the sender's
+                  // own optimistic echo and swaps out their previous emoji.
                   reactions: data.removed
-                    ? m.reactions.filter((r) => !(r.userId === data.userId && r.emoji === data.emoji))
-                    // Dedup: the sender already added this optimistically, and the
-                    // server echoes the event back into the room — without this guard
-                    // the same reaction is counted twice (pill shows "2" for one user).
-                    : m.reactions.some((r) => r.userId === data.userId && r.emoji === data.emoji)
-                      ? m.reactions
-                      : [...m.reactions, { emoji: data.emoji, userId: data.userId }],
+                    ? m.reactions.filter((r) => r.userId !== data.userId)
+                    : [
+                        ...m.reactions.filter((r) => r.userId !== data.userId),
+                        { emoji: data.emoji, userId: data.userId },
+                      ],
                 }
               : m,
           ),
@@ -563,11 +565,15 @@ export function MessageConversation({
       prev.map((m) => {
         if (m.id === messageId) {
           prevReactions = [...m.reactions]
+          const mineSameEmoji = m.reactions.some((r) => r.userId === user?.id && r.emoji === emoji)
+          // Strip any prior reaction from this user, then (unless we're toggling
+          // the same emoji off) add the new one — one reaction per user.
+          const withoutMine = m.reactions.filter((r) => r.userId !== user?.id)
           return {
             ...m,
-            reactions: m.reactions.some((r) => r.userId === user?.id && r.emoji === emoji)
-              ? m.reactions.filter((r) => !(r.userId === user?.id && r.emoji === emoji))
-              : [...m.reactions, { emoji, userId: user?.id ?? '' }],
+            reactions: mineSameEmoji
+              ? withoutMine
+              : [...withoutMine, { emoji, userId: user?.id ?? '' }],
           }
         }
         return m
