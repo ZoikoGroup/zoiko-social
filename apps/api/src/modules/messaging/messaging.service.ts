@@ -105,6 +105,7 @@ export class MessagingService {
           type: conv.type,
           name: conv.name,
           avatarUrl: conv.avatarUrl,
+          theme: conv.theme ?? null,
           lastMessage: lastMsg
             ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
             : null,
@@ -816,6 +817,31 @@ export class MessagingService {
     })
   }
 
+  // ── CHAT THEME ──────────────────────────────────────────────────────────────
+
+  /**
+   * Set the shared chat theme for a conversation (Instagram-style: the theme is
+   * stored on the conversation and applies to every member). Broadcasts a
+   * `conversation:theme` event so both participants update in real time.
+   * A null theme resets to the default.
+   */
+  async setConversationTheme(userId: string, conversationId: string, theme: string | null): Promise<void> {
+    // Only a member may change the conversation's theme.
+    await this.assertMember(userId, conversationId)
+
+    const normalized = theme && theme !== 'default' ? theme : null
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: { theme: normalized },
+    })
+
+    await this.realtime.publish(`conversation:${conversationId}`, 'conversation:theme', {
+      conversationId,
+      theme: normalized,
+      byUserId: userId,
+    })
+  }
+
   // ── MARK AS READ ───────────────────────────────────────────────────────────
 
   async markConversationRead(userId: string, conversationId: string, lastReadMessageId?: string): Promise<void> {
@@ -1267,6 +1293,7 @@ export class MessagingService {
       type: string
       name: string | null
       avatarUrl: string | null
+      theme: string | null
       createdAt: Date
       updatedAt: Date
     },
@@ -1299,6 +1326,7 @@ export class MessagingService {
       type: conv.type,
       name: conv.name,
       avatarUrl: conv.avatarUrl,
+      theme: conv.theme ?? null,
       lastMessage: lastMsg
         ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
         : null,

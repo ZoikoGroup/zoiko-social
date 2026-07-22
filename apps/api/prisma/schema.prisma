@@ -1120,6 +1120,7 @@ model Conversation {
   type           String   // 'dm' | 'group' | 'community'
   name           String?
   avatarUrl      String?  @map("avatar_url")
+  theme          String?  // shared chat theme id (see web chat-themes.ts); null = default
   createdBy      String?  @map("created_by")
   lastMessageAt  DateTime? @map("last_message_at")
   isDeleted      Boolean  @default(false) @map("is_deleted")

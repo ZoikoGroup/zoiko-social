@@ -21,6 +21,7 @@ import {
   SendMessageSchema,
   EditMessageSchema,
   ReactToMessageSchema,
+  SetConversationThemeSchema,
   MarkReadBodySchema,
   AddGroupMembersSchema,
   CreateGroupSchema,
@@ -31,6 +32,7 @@ import {
   type SendMessageInput,
   type EditMessageInput,
   type ReactToMessageInput,
+  type SetConversationThemeInput,
   type MarkReadBodyInput,
   type AddGroupMembersInput,
   type CreateGroupInput,
@@ -170,6 +172,17 @@ export class MessagingController {
     @Body(new ZodValidationPipe(ReactToMessageSchema)) body: ReactToMessageInput,
   ) {
     await this.messagingService.reactToMessage(user.id, id, body.emoji)
+    return { success: true }
+  }
+
+  @Patch('conversations/:id/theme')
+  @HttpCode(HttpStatus.OK)
+  async setConversationTheme(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(SetConversationThemeSchema)) body: SetConversationThemeInput,
+  ) {
+    await this.messagingService.setConversationTheme(user.id, id, body.theme)
     return { success: true }
   }
 

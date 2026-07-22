@@ -36,6 +36,11 @@ export const ReactToMessageSchema = z.object({
   emoji: z.string().min(1).max(10),
 })
 
+export const SetConversationThemeSchema = z.object({
+  // Theme id (see web chat-themes.ts). null / 'default' resets to the default theme.
+  theme: z.string().max(40).nullable(),
+})
+
 export const TypingSchema = z.object({
   conversationId: z.string().uuid(),
   isTyping: z.boolean(),
@@ -100,6 +105,7 @@ export interface ConversationResponse {
   type: string
   name: string | null
   avatarUrl: string | null
+  theme: string | null
   lastMessage: {
     body: string | null
     senderId: string
@@ -181,6 +187,7 @@ export type CreateConversationInput = z.infer<typeof CreateConversationSchema>
 export type SendMessageInput = z.infer<typeof SendMessageSchema>
 export type EditMessageInput = z.infer<typeof EditMessageSchema>
 export type ReactToMessageInput = z.infer<typeof ReactToMessageSchema>
+export type SetConversationThemeInput = z.infer<typeof SetConversationThemeSchema>
 export type PaginationInput = z.infer<typeof PaginationSchema>
 export type MarkReadInput = z.infer<typeof MarkReadSchema>
 export type MarkReadBodyInput = z.infer<typeof MarkReadBodySchema>

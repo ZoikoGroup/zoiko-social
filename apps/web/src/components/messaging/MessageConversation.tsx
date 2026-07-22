@@ -6,7 +6,7 @@ import {
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2,
-  FileText, EyeOff,
+  FileText, EyeOff, Palette,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
 import { useCall } from '@/hooks/use-call'
+import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
 import type { Socket } from 'socket.io-client'
 
@@ -74,6 +75,8 @@ export function MessageConversation({
   const [reactionPickerMsg, setReactionPickerMsg] = useState<{ messageId: string; x: number; y: number } | null>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
   const [disappearMode, setDisappearMode] = useState<'none' | 'view_once' | 'view_twice'>('none')
+  const [themeId, setThemeId] = useState<string | null>(conversation?.theme ?? null)
+  const [showThemePicker, setShowThemePicker] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -91,8 +94,39 @@ export function MessageConversation({
   const avatarUrl = conversation?.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const otherUserId = otherParticipant?.id ?? null
+  const activeTheme = getChatTheme(themeId)
   const { success: toastSuccess, error: toastError } = useToast()
   const { startCall } = useCall()
+
+  // Keep local theme in sync with the conversation (initial load + switching chats).
+  useEffect(() => {
+    setThemeId(conversation?.theme ?? null)
+  }, [conversation?.theme, conversationId])
+
+  // Set the shared chat theme (optimistic; the server echoes `conversation:theme`
+  // back to both participants over the socket).
+  const setChatTheme = useCallback(async (nextThemeId: string | null) => {
+    if (!conversationId) return
+    const normalized = nextThemeId && nextThemeId !== 'default' ? nextThemeId : null
+    const prev = themeId
+    setThemeId(normalized)
+    setShowThemePicker(false)
+    try {
+      const token = await getAuthToken()
+      const res = await fetch(`${API_URL}/api/v1/messaging/conversations/${conversationId}/theme`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ theme: normalized }),
+      })
+      if (!res.ok) throw new Error('API error')
+    } catch {
+      setThemeId(prev)
+      toastError('Theme not changed', 'Could not update the chat theme. Please try again.')
+    }
+  }, [conversationId, themeId, toastError])
 
   const handleStartCall = useCallback((callType: 'audio' | 'video') => {
     if (!conversationId) return
@@ -186,11 +220,19 @@ export function MessageConversation({
       }
     }
 
+    // Shared chat theme changed by either participant — apply it live.
+    const handleThemeChange = (data: { conversationId: string; theme: string | null }) => {
+      if (data.conversationId === conversationId) {
+        setThemeId(data.theme)
+      }
+    }
+
     socket.on('message:new', handleNewMessage)
     socket.on('message:edited', handleEditedMessage)
     socket.on('message:deleted', handleDeletedMessage)
     socket.on('message:reaction', handleReaction)
     socket.on('message:expired', handleMessageExpired)
+    socket.on('conversation:theme', handleThemeChange)
 
     // Join conversation room
     socket.emit('conversation:join', { conversationId })
@@ -201,6 +243,7 @@ export function MessageConversation({
       socket.off('message:deleted', handleDeletedMessage)
       socket.off('message:reaction', handleReaction)
       socket.off('message:expired', handleMessageExpired)
+      socket.off('conversation:theme', handleThemeChange)
       socket.emit('conversation:leave', { conversationId })
     }
   }, [socket, conversationId, markRead])
@@ -858,6 +901,16 @@ export function MessageConversation({
           >
             <div className="flex flex-col gap-1">
               <Button
+                className="w-full justify-start gap-2 rounded bg-transparent hover:bg-accent"
+                size="sm"
+                type="button"
+                variant="ghost"
+                onClick={() => setShowThemePicker(true)}
+              >
+                <Palette className="size-4" />
+                <span className="font-medium text-xs">Theme</span>
+              </Button>
+              <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
                 size="sm"
                 type="button"
@@ -1273,6 +1326,7 @@ export function MessageConversation({
             ref={messagesContainerRef}
             onScroll={handleScroll}
             className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-5 space-y-1 bg-surface-container-low/60"
+            style={activeTheme.wallpaper ? { backgroundImage: activeTheme.wallpaper } : undefined}
           >
             {loadingMore && (
               <div className="flex justify-center py-2">
@@ -1420,6 +1474,11 @@ export function MessageConversation({
                                     : 'bg-primary text-primary-foreground rounded-br-md shadow-sm'
                                   : 'bg-background text-foreground rounded-bl-md border border-outline-variant/25 shadow-sm',
                             )}
+                            style={
+                              isMine && msg.type !== 'call' && editingMessageId !== msg.id && activeTheme.sentBubble
+                                ? { background: activeTheme.sentBubble, color: activeTheme.sentText }
+                                : undefined
+                            }
                           >
                             {editingMessageId === msg.id ? (
                               <div className="flex gap-2 items-center">
@@ -1747,6 +1806,71 @@ export function MessageConversation({
                 {label}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Chat theme picker */}
+      {showThemePicker && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 animate-in fade-in duration-150"
+          onClick={() => setShowThemePicker(false)}
+        >
+          <div
+            className="w-full sm:max-w-md bg-surface-container-lowest rounded-t-2xl sm:rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20">
+              <div className="flex items-center gap-2">
+                <Palette className="size-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Chat theme</h3>
+              </div>
+              <button
+                onClick={() => setShowThemePicker(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface-container transition-colors cursor-pointer"
+                aria-label="Close theme picker"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="px-4 pt-3 text-[11.5px] text-muted-foreground">
+              Themes apply to this chat for both of you.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 p-4 max-h-[50vh] overflow-y-auto">
+              {CHAT_THEMES.map((t) => {
+                const selected = (themeId ?? 'default') === t.id
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => void setChatTheme(t.id)}
+                    className={cn(
+                      'group flex flex-col items-center gap-1.5 rounded-xl p-2 transition-colors cursor-pointer',
+                      selected ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-surface-container',
+                    )}
+                    aria-pressed={selected}
+                  >
+                    <span
+                      className="relative size-14 rounded-full border border-outline-variant/30 shadow-inner flex items-end justify-end p-1 overflow-hidden"
+                      style={{
+                        background:
+                          t.sentBubble ??
+                          'linear-gradient(135deg, var(--color-primary, #066879), var(--color-primary, #066879))',
+                      }}
+                    >
+                      <span className="text-sm leading-none drop-shadow" aria-hidden>{t.emoji}</span>
+                      {selected && (
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <Check className="size-5 text-white drop-shadow" />
+                        </span>
+                      )}
+                    </span>
+                    <span className={cn('text-[11px] font-medium', selected ? 'text-primary' : 'text-foreground')}>
+                      {t.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}

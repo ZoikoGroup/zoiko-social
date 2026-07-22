@@ -32,6 +32,8 @@ export interface Conversation {
   type: string
   name: string | null
   avatarUrl: string | null
+  /** Shared chat theme id (see lib/chat-themes.ts); null = default. */
+  theme?: string | null
   lastMessage: LastMessage | null
   unreadCount: number
   isOnline: boolean
