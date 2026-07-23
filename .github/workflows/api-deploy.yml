@@ -120,8 +120,16 @@ jobs:
       # (public repo → public ghcr.io package — no auth needed)
       - name: Trigger Render deploy
         run: |
-          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-          echo "Render deploy triggered"
+          # A 409 means Render already has a deploy in progress for this
+          # service (e.g. its own auto-deploy on push fired first). That is not
+          # a failure — a deploy of this commit is already happening — so treat
+          # it as success. The Verify step below is the real gate.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "Render deploy hook responded: $code"
+          case "$code" in
+            200|201|409) echo "Deploy triggered (409 = one already in progress — fine)";;
+            *) echo "Unexpected response from Render deploy hook: $code"; exit 1;;
+          esac
 
       # ── 7. Verify production actually went live ────────────────────────────
       # Render rolls back silently when a deploy fails (and a stale Image URL
