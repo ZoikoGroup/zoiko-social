@@ -100,7 +100,8 @@ export function MessageConversation({
 
   // Keep local theme in sync with the conversation (initial load + switching chats).
   useEffect(() => {
-    setThemeId(conversation?.theme ?? null)
+    const t = setTimeout(() => setThemeId(conversation?.theme ?? null), 0)
+    return () => clearTimeout(t)
   }, [conversation?.theme, conversationId])
 
   // Set the shared chat theme (optimistic; the server echoes `conversation:theme`

@@ -8,7 +8,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { LocationLink } from '@/components/LocationLink'
 import { LocationInput } from '@/components/LocationInput'
 import { UserAvatar } from '@/components/UserAvatar'
-import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift } from 'lucide-react'
+import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift, Navigation, Sparkles } from 'lucide-react'
 import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
@@ -27,12 +27,16 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
   const [message, setMessage] = useState('')
   const [location, setLocation] = useState('')
   const [posting, setPosting] = useState(false)
+  const [activePhoto, setActivePhoto] = useState(0)
+  const [matches, setMatches] = useState<LostFoundReport[]>([])
 
   const isOwner = !!user && !!report && user.id === report.reporter.id
+  const photos = report ? (report.photoUrls.length ? report.photoUrls : report.photoUrl ? [report.photoUrl] : []) : []
 
   useEffect(() => {
     let cancelled = false
     lostFoundApi.get(id).then((r) => { if (!cancelled) setReport(r) }).catch(() => { if (!cancelled) setNotFound(true) })
+    lostFoundApi.matches(id).then((m) => { if (!cancelled) setMatches(m) }).catch(() => {})
     return () => { cancelled = true }
   }, [id])
 
@@ -91,9 +95,28 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
         <div className="max-w-2xl mx-auto px-2 md:px-5 py-4 pb-24 space-y-4">
           <Link href="/lost-found" className="inline-flex items-center gap-1 text-label-sm text-on-surface-variant hover:text-primary"><ChevronLeft className="w-4 h-4" />Lost &amp; Found</Link>
 
-          {report.photoUrl && (
-            <div className="rounded-2xl overflow-hidden bg-surface-container aspect-[16/10]">
-              <Img src={report.photoUrl} alt="" priority className="w-full h-full object-cover" />
+          {report.status === 'reunited' && (
+            <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 flex items-center gap-2.5 text-primary">
+              <Sparkles className="w-5 h-5 flex-shrink-0" />
+              <p className="font-semibold text-label-md">Reunited with their family! 🎉</p>
+            </div>
+          )}
+
+          {photos.length > 0 && (
+            <div className="space-y-2">
+              <div className="rounded-2xl overflow-hidden bg-surface-container aspect-[16/10]">
+                <Img src={photos[activePhoto] ?? photos[0]!} alt="" priority className="w-full h-full object-cover" />
+              </div>
+              {photos.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {photos.map((p, i) => (
+                    <button key={p} onClick={() => setActivePhoto(i)}
+                      className={`w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 cursor-pointer ${i === activePhoto ? 'border-primary' : 'border-transparent'}`}>
+                      <Img src={p} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -118,6 +141,48 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
 
             {report.description && <p className="text-label-md text-on-surface-variant mt-4 whitespace-pre-line leading-relaxed">{report.description}</p>}
 
+            {/* Pet attributes */}
+            {(report.age || report.color || report.sex || report.size || report.microchipId || report.collar || report.neutered != null || report.vaccinated != null) && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 mt-4 pt-4 border-t border-outline-variant/20">
+                {([
+                  ['Age', report.age],
+                  ['Colour', report.color],
+                  ['Sex', report.sex],
+                  ['Size', report.size],
+                  ['Microchip', report.microchipId],
+                  ['Collar / tag', report.collar],
+                  ['Spayed / neutered', report.neutered == null ? null : report.neutered ? 'Yes' : 'No'],
+                  ['Vaccinated', report.vaccinated == null ? null : report.vaccinated ? 'Yes' : 'No'],
+                ] as const).filter(([, v]) => v).map(([k, v]) => (
+                  <div key={k}>
+                    <p className="text-[10px] uppercase tracking-wide text-outline">{k}</p>
+                    <p className="text-label-sm text-on-surface capitalize">{v}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Map pin */}
+            {report.latitude != null && report.longitude != null && (
+              <iframe
+                title="Last-seen location map"
+                loading="lazy"
+                className="w-full h-52 rounded-xl mt-4 border border-outline-variant/30"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${report.longitude - 0.008}%2C${report.latitude - 0.006}%2C${report.longitude + 0.008}%2C${report.latitude + 0.006}&layer=mapnik&marker=${report.latitude}%2C${report.longitude}`}
+              />
+            )}
+
+            {/* CTAs for non-owners */}
+            {!isOwner && report.status !== 'reunited' && (
+              <div className="flex gap-2 mt-4">
+                <a href="#sighting" className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold text-center cursor-pointer flex items-center justify-center gap-1.5"><Eye className="w-4 h-4" />I&apos;ve seen this pet</a>
+                {report.contact && (
+                  <a href={report.contact.includes('@') ? `mailto:${report.contact}` : `tel:${report.contact.replace(/[^\d+]/g, '')}`}
+                    className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface text-label-sm font-semibold text-center flex items-center justify-center gap-1.5 no-underline"><Phone className="w-4 h-4" />Contact</a>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2.5 mt-4 pt-4 border-t border-outline-variant/20">
               <Link href={`/profile/${report.reporter.username}`}><UserAvatar name={report.reporter.displayName} image={report.reporter.avatarUrl ?? undefined} size="sm" verified={report.reporter.isVerified} /></Link>
               <div>
@@ -134,8 +199,30 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
             )}
           </div>
 
+          {/* Possible matches */}
+          {matches.length > 0 && (
+            <div className="bg-surface-container-lowest rounded-xl border border-primary/30 p-5">
+              <h2 className="flex items-center gap-1.5 text-label-md font-bold text-on-surface mb-1"><Sparkles className="w-4 h-4 text-primary" />Possible matches</h2>
+              <p className="text-[12px] text-outline mb-3">{report.kind === 'lost' ? 'Found' : 'Lost'} {report.species.toLowerCase()} reports that might be your match.</p>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar">
+                {matches.map((m) => (
+                  <Link key={m.id} href={`/lost-found/${m.id}`} className="w-32 flex-shrink-0 rounded-xl border border-outline-variant/30 overflow-hidden hover:border-primary/50 transition-colors">
+                    <div className="aspect-square bg-surface-container relative">
+                      {m.photoUrl ? <Img src={m.photoUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-6 h-6 text-outline/40" /></div>}
+                      {m.distanceKm != null && <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-black/50 text-white flex items-center gap-0.5"><Navigation className="w-2 h-2" />{m.distanceKm} km</span>}
+                    </div>
+                    <div className="p-2">
+                      <p className="text-[12px] font-semibold text-on-surface truncate">{m.petName ?? m.species}</p>
+                      {m.lastSeenLocation && <p className="text-[10px] text-outline truncate">{m.lastSeenLocation}</p>}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Sightings */}
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5">
+          <div id="sighting" className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 scroll-mt-20">
             <h2 className="flex items-center gap-1.5 text-label-md font-bold text-on-surface mb-3"><Eye className="w-4 h-4 text-primary" />Sightings ({report.sightingsCount})</h2>
 
             {!isOwner && (

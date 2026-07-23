@@ -9,7 +9,7 @@ import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
-import { PawPrint, Search, Plus, X, Loader2, Camera, Check } from 'lucide-react'
+import { PawPrint, Search, Plus, X, Loader2, Camera, Check, Navigation, Tag, Gift } from 'lucide-react'
 import { LocationLink } from '@/components/LocationLink'
 import { LocationInput } from '@/components/LocationInput'
 import { adoptionApi, type AdoptionListing, type NewListing } from '@/lib/api'
@@ -32,6 +32,8 @@ export default function AdoptionPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [species, setSpecies] = useState('All')
   const [query, setQuery] = useState('')
+  const [type, setType] = useState<'' | 'adopt' | 'sale'>('')
+  const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -39,14 +41,29 @@ export default function AdoptionPage(): React.JSX.Element {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  const listKey = `adoption:${species}:${query.trim()}`
+  const listKey = `adoption:${species}:${query.trim()}:${type}:${near ? 'near' : ''}`
   const {
     items: listings, isLoading: loading, isRefreshing, hasMore, loadMore, patch: patchListings,
   } = usePagedList<AdoptionListing>(
     listKey,
-    (cursor) => adoptionApi.browse({ ...(species !== 'All' ? { species } : {}), ...(query.trim() ? { q: query.trim() } : {}) }, cursor),
+    (cursor) => adoptionApi.browse({
+      ...(species !== 'All' ? { species } : {}),
+      ...(query.trim() ? { q: query.trim() } : {}),
+      ...(type ? { type } : {}),
+      ...(near ? { nearLat: near.lat, nearLng: near.lng } : {}),
+    }, cursor),
     query ? 300 : 0,
   )
+
+  function toggleNear(): void {
+    if (near) { setNear(null); return }
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setNear({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
+    )
+  }
 
   useEffect(() => {
     const s = sentinelRef.current
@@ -113,6 +130,16 @@ export default function AdoptionPage(): React.JSX.Element {
                   </button>
                 ))}
               </div>
+              <div className="flex gap-2">
+                {([['', 'All'], ['adopt', 'Adopt'], ['sale', 'For sale']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setType(v)}
+                    className={`px-3 py-1.5 rounded-full text-label-sm cursor-pointer transition-colors ${type === v ? 'bg-secondary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary'}`}>
+                    {label}
+                  </button>
+                ))}
+                <span className="flex-1" />
+                <button onClick={toggleNear} title="Near me" className={`px-3 py-1.5 rounded-full text-label-sm cursor-pointer transition-colors flex items-center gap-1 ${near ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary'}`}><Navigation className="w-3.5 h-3.5" />Near</button>
+              </div>
             </div>
 
             {/* Listings */}
@@ -135,11 +162,19 @@ export default function AdoptionPage(): React.JSX.Element {
                         <div className="w-full h-full flex items-center justify-center"><PawPrint className="w-10 h-10 text-outline/40" /></div>
                       )}
                       <div className="absolute top-2 right-2"><StatusChip status={l.status} /></div>
+                      <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase flex items-center gap-1 ${l.listingType === 'sale' ? 'bg-secondary text-white' : 'bg-primary/90 text-white'}`}>
+                        {l.listingType === 'sale' ? <><Tag className="w-2.5 h-2.5" />Sale</> : <><Gift className="w-2.5 h-2.5" />Adopt</>}
+                      </span>
+                      {l.distanceKm != null && <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/50 text-white flex items-center gap-1"><Navigation className="w-2.5 h-2.5" />{l.distanceKm} km</span>}
                     </div>
                     <div className="p-3">
                       <div className="flex items-center justify-between gap-1">
                         <h3 className="font-bold text-label-md text-on-surface truncate">{l.name}</h3>
-                        {l.fee != null && <span className="text-[11px] text-outline flex-shrink-0">{l.fee === 0 ? 'Free' : `₹${l.fee}`}</span>}
+                        <span className="text-label-sm font-bold text-on-surface flex-shrink-0">
+                          {l.listingType === 'sale'
+                            ? (l.price != null ? `₹${l.price.toLocaleString()}` : '—')
+                            : (l.fee != null && l.fee > 0 ? `₹${l.fee}` : 'Free')}
+                        </span>
                       </div>
                       <p className="text-[12px] text-on-surface-variant truncate">{l.species}{l.breed ? ` · ${l.breed}` : ''}{l.age ? ` · ${l.age}` : ''}</p>
                       {l.location && <LocationLink location={l.location} iconClassName="w-3 h-3" className="text-[11px] text-outline mt-1 max-w-full" />}
@@ -165,7 +200,8 @@ export default function AdoptionPage(): React.JSX.Element {
 
 function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: (l: AdoptionListing) => void }): React.JSX.Element {
   const { profile } = useAuth()
-  const [form, setForm] = useState<NewListing>({ name: '', species: 'Dog', sex: 'unknown' })
+  const [form, setForm] = useState<NewListing>({ name: '', species: 'Dog', sex: 'unknown', listingType: 'adopt' })
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -190,7 +226,7 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     if (saving || !form.name.trim() || !form.species.trim()) return
     setSaving(true); setError('')
     try {
-      const listing = await adoptionApi.create({ ...form, name: form.name.trim(), ...(coverUrl ? { coverUrl } : {}) })
+      const listing = await adoptionApi.create({ ...form, name: form.name.trim(), ...(coverUrl ? { coverUrl } : {}), ...(coords ? { latitude: coords.lat, longitude: coords.lng } : {}) })
       onCreated(listing); onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create listing') } finally { setSaving(false) }
   }
@@ -202,7 +238,7 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
-          <h2 className="font-headline text-headline-md text-on-surface">List a pet for adoption</h2>
+          <h2 className="font-headline text-headline-md text-on-surface">List a pet</h2>
           <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto flex-1">
@@ -232,8 +268,23 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
               <option value="">Size</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option>
             </select>
           </div>
-          <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={200} placeholder="Location" className={input} />
-          <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={3000} rows={3} placeholder="Tell adopters about this pet…" className={`${input} resize-none`} />
+          <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} onSelectCoords={setCoords} maxLength={200} placeholder="Location" className={input} />
+
+          {/* Adopt vs sell */}
+          <div className="flex rounded-xl border border-outline-variant/40 overflow-hidden text-label-sm font-semibold">
+            <button onClick={() => set('listingType', 'adopt')} className={`flex-1 py-2 cursor-pointer ${form.listingType !== 'sale' ? 'bg-primary text-white' : 'text-on-surface-variant'}`}>For adoption</button>
+            <button onClick={() => set('listingType', 'sale')} className={`flex-1 py-2 cursor-pointer ${form.listingType === 'sale' ? 'bg-primary text-white' : 'text-on-surface-variant'}`}>For sale</button>
+          </div>
+          {form.listingType === 'sale' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <input type="number" min={0} value={form.price ?? ''} onChange={(e) => set('price', e.target.value ? Number(e.target.value) : undefined)} placeholder="Price ₹" className={input} />
+              <button onClick={() => set('negotiable', !form.negotiable)} className={`rounded-xl text-label-sm font-semibold cursor-pointer border ${form.negotiable ? 'bg-primary text-white border-primary' : 'border-outline-variant text-on-surface-variant'}`}>Negotiable</button>
+            </div>
+          ) : (
+            <input type="number" min={0} value={form.fee ?? ''} onChange={(e) => set('fee', e.target.value ? Number(e.target.value) : undefined)} placeholder="Adoption fee ₹ (0 = free)" className={input} />
+          )}
+
+          <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={3000} rows={3} placeholder="Tell adopters / buyers about this pet…" className={`${input} resize-none`} />
           <div className="flex flex-wrap gap-2">
             <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}Vaccinated</button>
             <button onClick={() => set('neutered', !form.neutered)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.neutered ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.neutered && <Check className="w-3.5 h-3.5" />}Neutered</button>

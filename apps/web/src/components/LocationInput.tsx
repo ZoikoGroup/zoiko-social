@@ -18,6 +18,8 @@ import { MapPin, Loader2, LocateFixed } from 'lucide-react'
 interface LocationInputProps {
   value: string
   onChange: (value: string) => void
+  /** Called with the picked place's coordinates, or null when the text is edited manually. */
+  onSelectCoords?: (coords: { lat: number; lng: number } | null) => void
   placeholder?: string
   className?: string
   wrapperClassName?: string
@@ -51,6 +53,8 @@ interface Suggestion {
   secondary: string
   full: string
   distanceKm: number | null
+  lat: number | null
+  lng: number | null
 }
 
 interface Coords { lat: number; lon: number }
@@ -103,14 +107,17 @@ function buildSuggestion(f: PhotonFeature, origin: Coords | null): Suggestion | 
     .join(', ')
 
   const coords = f.geometry?.coordinates
-  const distanceKm = origin && coords ? haversineKm(origin, { lon: coords[0], lat: coords[1] }) : null
+  const lng = coords ? coords[0] : null
+  const lat = coords ? coords[1] : null
+  const distanceKm = origin && lat !== null && lng !== null ? haversineKm(origin, { lon: lng, lat }) : null
 
-  return { primary, secondary, full: [primary, secondary].filter(Boolean).join(', '), distanceKm }
+  return { primary, secondary, full: [primary, secondary].filter(Boolean).join(', '), distanceKm, lat, lng }
 }
 
 export function LocationInput({
   value,
   onChange,
+  onSelectCoords,
   placeholder,
   className = '',
   wrapperClassName = 'relative',
@@ -179,6 +186,7 @@ export function LocationInput({
   const select = (s: Suggestion): void => {
     skipNextFetch.current = true
     onChange(s.full)
+    onSelectCoords?.(s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null)
     setOpen(false)
     setSuggestions([])
   }
@@ -196,7 +204,7 @@ export function LocationInput({
           .then((data) => {
             const first = data.features?.[0]
             const s = first ? buildSuggestion(first, here) : null
-            if (s) { skipNextFetch.current = true; onChange(s.full) }
+            if (s) { skipNextFetch.current = true; onChange(s.full); onSelectCoords?.({ lat: here.lat, lng: here.lon }) }
           })
           .catch(() => { /* ignore */ })
           .finally(() => { setLocating(false); setOpen(false) })
@@ -212,7 +220,7 @@ export function LocationInput({
     <div ref={boxRef} className={wrapperClassName}>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { onChange(e.target.value); onSelectCoords?.(null) }}
         onFocus={() => { requestGeo(); setOpen(true) }}
         onKeyDown={(e) => {
           if (!open || suggestions.length === 0) return

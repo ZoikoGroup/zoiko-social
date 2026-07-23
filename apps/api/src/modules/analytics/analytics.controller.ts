@@ -29,6 +29,13 @@ export class AnalyticsController {
     return { data: result }
   }
 
+  /** Account-wide analytics for the signed-in professional account. */
+  @Get('analytics/account')
+  @UseGuards(JwtAuthGuard)
+  async accountInsights(@CurrentUser() user: AuthenticatedUser) {
+    return { data: await this.analytics.getAccountInsights(user.id) }
+  }
+
   /** Per-post insights — restricted to the post's professional author.
    *  Optional ?prop=<key> adds a breakdown by that prop key's values. */
   @Get('analytics/posts/:id')

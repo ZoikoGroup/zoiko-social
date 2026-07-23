@@ -3,8 +3,8 @@ import {
 } from '@nestjs/common'
 import { AdoptionService } from './adoption.service'
 import {
-  CreateListingSchema, UpdateListingSchema, EnquirySchema, RespondEnquirySchema,
-  type CreateListingInput, type UpdateListingInput, type EnquiryInput, type RespondEnquiryInput,
+  CreateListingSchema, UpdateListingSchema, EnquirySchema, EnquiryMessageSchema, RespondEnquirySchema,
+  type CreateListingInput, type UpdateListingInput, type EnquiryInput, type EnquiryMessageInput, type RespondEnquiryInput,
 } from './adoption.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
@@ -21,16 +21,36 @@ export class AdoptionController {
     @Query('species') species?: string,
     @Query('status') status?: string,
     @Query('q') q?: string,
+    @Query('type') type?: string,
+    @Query('nearLat') nearLat?: string,
+    @Query('nearLng') nearLng?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    const lat = nearLat !== undefined ? Number(nearLat) : NaN
+    const lng = nearLng !== undefined ? Number(nearLng) : NaN
     const filters = {
       ...(species ? { species } : {}),
       ...(status ? { status } : {}),
       ...(q ? { q } : {}),
+      ...(type === 'adopt' || type === 'sale' ? { listingType: type } : {}),
+      ...(Number.isFinite(lat) && Number.isFinite(lng) ? { nearLat: lat, nearLng: lng } : {}),
     }
     return { data: await this.adoption.browse(user?.id, filters, cursor ?? null, limit ? parseInt(limit, 10) : 15) }
+  }
+
+  // ── Listing chat (private per-enquiry thread) ──
+  @Get('enquiries/:enquiryId/messages')
+  @UseGuards(JwtAuthGuard)
+  async messages(@CurrentUser() user: AuthenticatedUser, @Param('enquiryId') enquiryId: string) {
+    return { data: await this.adoption.listMessages(enquiryId, user.id) }
+  }
+
+  @Post('enquiries/:enquiryId/messages')
+  @UseGuards(JwtAuthGuard)
+  async sendMessage(@CurrentUser() user: AuthenticatedUser, @Param('enquiryId') enquiryId: string, @Body() body: EnquiryMessageInput) {
+    return { data: await this.adoption.sendMessage(enquiryId, user.id, EnquiryMessageSchema.parse(body)) }
   }
 
   @Get(':id')

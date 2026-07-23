@@ -15,10 +15,22 @@ export interface ReportResponse {
   petName: string | null
   species: string
   breed: string | null
+  age: string | null
+  color: string | null
+  sex: string | null
+  size: string | null
+  microchipId: string | null
+  collar: string | null
+  neutered: boolean | null
+  vaccinated: boolean | null
   description: string | null
   lastSeenLocation: string | null
   lastSeenAt: string | null
   photoUrl: string | null
+  photoUrls: string[]
+  latitude: number | null
+  longitude: number | null
+  distanceKm: number | null
   contact: string | null
   reward: number | null
   status: string
@@ -42,12 +54,15 @@ export class LostFoundService {
     return { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
   }
 
-  private map(r: Row): ReportResponse {
+  private map(r: Row, distanceKm: number | null = null): ReportResponse {
     return {
       id: r.id, kind: r.kind, petName: r.petName, species: r.species, breed: r.breed,
+      age: r.age, color: r.color, sex: r.sex, size: r.size, microchipId: r.microchipId,
+      collar: r.collar, neutered: r.neutered, vaccinated: r.vaccinated,
       description: r.description, lastSeenLocation: r.lastSeenLocation,
       lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString().slice(0, 10) : null,
-      photoUrl: r.photoUrl, contact: r.contact, reward: r.reward, status: r.status, sightingsCount: r.sightingsCount,
+      photoUrl: r.photoUrl, photoUrls: r.photoUrls, latitude: r.latitude, longitude: r.longitude, distanceKm,
+      contact: r.contact, reward: r.reward, status: r.status, sightingsCount: r.sightingsCount,
       reporter: {
         id: r.reporter.id, username: r.reporter.username, displayName: r.reporter.displayName,
         avatarUrl: r.reporter.avatarUrl, isVerified: r.reporter.verificationTier === 'professional',
@@ -56,18 +71,31 @@ export class LostFoundService {
     }
   }
 
+  private static haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
+    const R = 6371
+    const dLat = ((bLat - aLat) * Math.PI) / 180
+    const dLng = ((bLng - aLng) * Math.PI) / 180
+    const s = Math.sin(dLat / 2) ** 2 + Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+    return 2 * R * Math.asin(Math.sqrt(s))
+  }
+
   async browse(
-    filters: { kind?: string; status?: string; q?: string },
+    filters: { kind?: string; status?: string; q?: string; species?: string; hasReward?: boolean; nearLat?: number; nearLng?: number },
     cursor: string | null,
     limit = 15,
   ): Promise<ReportPage> {
     const take = Math.min(limit, MAX)
+    if (filters.nearLat !== undefined && filters.nearLng !== undefined) {
+      return this.browseNearby(filters, cursor, take, filters.nearLat, filters.nearLng)
+    }
     const decoded = cursor ? decodeCursor(cursor) : null
     const rows = await this.prisma.lostFoundPost.findMany({
       where: {
         isDeleted: false,
         ...(filters.kind ? { kind: filters.kind } : {}),
         ...(filters.status ? { status: filters.status } : { status: 'active' }),
+        ...(filters.species ? { species: filters.species } : {}),
+        ...(filters.hasReward ? { reward: { gt: 0 } } : {}),
         ...(filters.q
           ? { OR: [
               { petName: { contains: filters.q, mode: 'insensitive' } },
@@ -96,6 +124,88 @@ export class LostFoundService {
     }
   }
 
+  /** Reports with coordinates, sorted by distance from the viewer. */
+  private async browseNearby(
+    filters: { kind?: string; status?: string; q?: string; species?: string; hasReward?: boolean },
+    cursor: string | null,
+    take: number,
+    lat: number,
+    lng: number,
+  ): Promise<ReportPage> {
+    const offset = cursor ? Math.max(0, parseInt(Buffer.from(cursor, 'base64').toString('utf8'), 10) || 0) : 0
+    const pool = await this.prisma.lostFoundPost.findMany({
+      where: {
+        isDeleted: false,
+        latitude: { not: null },
+        longitude: { not: null },
+        ...(filters.kind ? { kind: filters.kind } : {}),
+        ...(filters.status ? { status: filters.status } : { status: 'active' }),
+        ...(filters.species ? { species: filters.species } : {}),
+        ...(filters.hasReward ? { reward: { gt: 0 } } : {}),
+        ...(filters.q ? { OR: [
+          { petName: { contains: filters.q, mode: 'insensitive' } },
+          { breed: { contains: filters.q, mode: 'insensitive' } },
+          { lastSeenLocation: { contains: filters.q, mode: 'insensitive' } },
+        ] } : {}),
+      },
+      take: 200,
+      orderBy: [{ createdAt: 'desc' }],
+      include: this.include(),
+    })
+    const withDist = pool
+      .map((r) => ({ r, d: LostFoundService.haversineKm(lat, lng, r.latitude!, r.longitude!) }))
+      .sort((a, b) => a.d - b.d)
+    const slice = withDist.slice(offset, offset + take)
+    const hasMore = offset + take < withDist.length
+    return {
+      data: slice.map((s) => this.map(s.r, Math.round(s.d * 10) / 10)),
+      nextCursor: hasMore ? Buffer.from(String(offset + take)).toString('base64') : null,
+      hasMore,
+    }
+  }
+
+  /**
+   * Possible matches for a report: opposite kind, same species, still active,
+   * reported in the last 120 days. If the report has coordinates, results are
+   * sorted by proximity and annotated with distance; otherwise most-recent.
+   */
+  async getMatches(id: string): Promise<ReportResponse[]> {
+    const report = await this.prisma.lostFoundPost.findUnique({
+      where: { id },
+      select: { id: true, kind: true, species: true, latitude: true, longitude: true, isDeleted: true },
+    })
+    if (!report || report.isDeleted) throw new NotFoundException({ code: 'REPORT_NOT_FOUND', message: 'Report not found' })
+
+    const since = new Date(Date.now() - 120 * 24 * 3_600_000)
+    const candidates = await this.prisma.lostFoundPost.findMany({
+      where: {
+        isDeleted: false,
+        status: 'active',
+        id: { not: id },
+        kind: report.kind === 'lost' ? 'found' : 'lost',
+        species: report.species,
+        createdAt: { gte: since },
+      },
+      take: 50,
+      orderBy: [{ createdAt: 'desc' }],
+      include: this.include(),
+    })
+
+    if (report.latitude !== null && report.longitude !== null) {
+      return candidates
+        .map((r) => ({
+          r,
+          d: r.latitude !== null && r.longitude !== null
+            ? LostFoundService.haversineKm(report.latitude!, report.longitude!, r.latitude, r.longitude)
+            : Number.POSITIVE_INFINITY,
+        }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 8)
+        .map((s) => this.map(s.r, Number.isFinite(s.d) ? Math.round(s.d * 10) / 10 : null))
+    }
+    return candidates.slice(0, 8).map((r) => this.map(r))
+  }
+
   async get(id: string): Promise<ReportResponse> {
     const r = await this.prisma.lostFoundPost.findUnique({ where: { id }, include: this.include() })
     if (!r || r.isDeleted) throw new NotFoundException({ code: 'REPORT_NOT_FOUND', message: 'Report not found' })
@@ -108,10 +218,21 @@ export class LostFoundService {
         reporterId, kind: input.kind, species: input.species,
         ...(input.petName ? { petName: input.petName } : {}),
         ...(input.breed ? { breed: input.breed } : {}),
+        ...(input.age ? { age: input.age } : {}),
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.sex ? { sex: input.sex } : {}),
+        ...(input.size ? { size: input.size } : {}),
+        ...(input.microchipId ? { microchipId: input.microchipId } : {}),
+        ...(input.collar ? { collar: input.collar } : {}),
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.vaccinated !== undefined ? { vaccinated: input.vaccinated } : {}),
         ...(input.description ? { description: input.description } : {}),
         ...(input.lastSeenLocation ? { lastSeenLocation: input.lastSeenLocation } : {}),
         ...(input.lastSeenAt ? { lastSeenAt: new Date(input.lastSeenAt) } : {}),
         ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
+        ...(input.photoUrls ? { photoUrls: input.photoUrls } : {}),
+        ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+        ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
         ...(input.contact ? { contact: input.contact } : {}),
         ...(input.reward !== undefined ? { reward: input.reward } : {}),
       },
@@ -128,10 +249,21 @@ export class LostFoundService {
         ...(input.petName !== undefined ? { petName: input.petName || null } : {}),
         ...(input.species !== undefined ? { species: input.species } : {}),
         ...(input.breed !== undefined ? { breed: input.breed || null } : {}),
+        ...(input.age !== undefined ? { age: input.age || null } : {}),
+        ...(input.color !== undefined ? { color: input.color || null } : {}),
+        ...(input.sex !== undefined ? { sex: input.sex ?? null } : {}),
+        ...(input.size !== undefined ? { size: input.size ?? null } : {}),
+        ...(input.microchipId !== undefined ? { microchipId: input.microchipId || null } : {}),
+        ...(input.collar !== undefined ? { collar: input.collar || null } : {}),
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.vaccinated !== undefined ? { vaccinated: input.vaccinated } : {}),
         ...(input.description !== undefined ? { description: input.description || null } : {}),
         ...(input.lastSeenLocation !== undefined ? { lastSeenLocation: input.lastSeenLocation || null } : {}),
         ...(input.lastSeenAt !== undefined ? { lastSeenAt: input.lastSeenAt ? new Date(input.lastSeenAt) : null } : {}),
         ...(input.photoUrl !== undefined ? { photoUrl: input.photoUrl || null } : {}),
+        ...(input.photoUrls !== undefined ? { photoUrls: input.photoUrls ?? [] } : {}),
+        ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+        ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
         ...(input.contact !== undefined ? { contact: input.contact || null } : {}),
         ...(input.reward !== undefined ? { reward: input.reward } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),

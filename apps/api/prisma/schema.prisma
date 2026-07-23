@@ -355,7 +355,13 @@ model Profile {
   eventRsvps      EventRsvp[]
   adoptionPosts     AdoptionPost[]
   adoptionEnquiries AdoptionEnquiry[]
+  adoptionEnquiryMessages AdoptionEnquiryMessage[]
   serviceProviders  ServiceProvider[]
+  providerServices  PetCareService[]
+  providerAvailabilitySlots ProviderAvailability[]
+  petCareBookings   PetCareBooking[] @relation("BookingSeeker")
+  reviewsGiven      ProviderReview[] @relation("ReviewAuthor")
+  reviewsReceived   ProviderReview[] @relation("ReviewTarget")
   lostFoundPosts    LostFoundPost[]
   lostFoundSightings LostFoundSighting[]
   newsArticles      NewsArticle[]
@@ -481,7 +487,17 @@ model Event {
   description String?
   location    String?
   isOnline    Boolean     @default(false) @map("is_online")
+  visibility  String      @default("public")   // public | followers
   coverUrl    String?     @map("cover_url")
+  videoUrl    String?     @map("video_url")
+  category    String?
+  venueName   String?     @map("venue_name")
+  isFree      Boolean     @default(true) @map("is_free")
+  price       String?
+  bookingUrl  String?     @map("booking_url")
+  capacity    Int?
+  latitude    Float?
+  longitude   Float?
   startsAt    DateTime    @map("starts_at")
   endsAt      DateTime?   @map("ends_at")
   goingCount  Int         @default(0) @map("going_count")
@@ -522,11 +538,16 @@ model AdoptionPost {
   size           String?                         // small | medium | large
   description    String?
   location       String?
+  latitude       Float?
+  longitude      Float?
   coverUrl       String?  @map("cover_url")
   photos         String[] @default([])
   vaccinated     Boolean  @default(false)
   neutered       Boolean  @default(false)
   goodWith       String[] @default([]) @map("good_with")
+  listingType    String   @default("adopt") @map("listing_type")  // adopt | sale
+  price          Int?
+  negotiable     Boolean  @default(false)
   fee            Int?
   status         String   @default("available")  // available | pending | adopted | withdrawn
   enquiriesCount Int      @default(0) @map("enquiries_count")
@@ -544,25 +565,42 @@ model AdoptionPost {
 }
 
 model AdoptionEnquiry {
-  id          String   @id @default(uuid())
-  listingId   String   @map("listing_id")
-  applicantId String   @map("applicant_id")
-  message     String?
-  status      String   @default("pending")   // pending | accepted | rejected | withdrawn
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String    @id @default(uuid())
+  listingId     String    @map("listing_id")
+  applicantId   String    @map("applicant_id")
+  message       String?
+  status        String    @default("pending")   // pending | accepted | rejected | withdrawn
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
-  listing   AdoptionPost @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  applicant Profile      @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  listing   AdoptionPost             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  applicant Profile                  @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  messages  AdoptionEnquiryMessage[]
 
   @@unique([listingId, applicantId])
   @@index([listingId, createdAt(sort: Desc)])
   @@map("adoption_enquiries")
 }
 
+model AdoptionEnquiryMessage {
+  id        String   @id @default(uuid())
+  enquiryId String   @map("enquiry_id")
+  senderId  String   @map("sender_id")
+  body      String
+  flagged   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  enquiry AdoptionEnquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  sender  Profile         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, createdAt])
+  @@map("adoption_enquiry_messages")
+}
+
 model ServiceProvider {
   id          String   @id @default(uuid())
   addedBy     String   @map("added_by")
-  category    String                          // vet | pet_care
+  category    String                                   // vet | pet_care
   name        String
   serviceType String?  @map("service_type")
   description String?
@@ -571,16 +609,147 @@ model ServiceProvider {
   phone       String?
   website     String?
   coverUrl    String?  @map("cover_url")
+  latitude    Float?
+  longitude   Float?
+  rating      Float    @default(0)
+  reviewCount Int      @default(0) @map("review_count")
+  availableForBooking Boolean @default(true) @map("available_for_booking")
   isDeleted   Boolean  @default(false) @map("is_deleted")
   hiddenAt    DateTime? @map("hidden_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  addedByUser Profile @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+  addedByUser  Profile              @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+  services     PetCareService[]
+  availability ProviderAvailability[]
+  reviews      ProviderReview[]
+  bookings     PetCareBooking[]
 
+  @@index([category, rating(sort: Desc)])
   @@index([category, createdAt(sort: Desc)])
   @@index([addedBy])
   @@map("service_providers")
+}
+
+// ── PET CARE SERVICES ────────────────────────────────────────────────────────
+// Individual services offered by a pet care provider, each with its own pricing.
+// A provider can list multiple services (e.g. Full Grooming $45, Nail Trim $15).
+
+model PetCareService {
+  id              String   @id @default(uuid())
+  providerId      String   @map("provider_id")
+  createdBy       String   @map("created_by")
+  name            String
+  description     String?
+  priceCents      Int      @map("price_cents")
+  durationMinutes Int?     @map("duration_minutes")
+  category        String   @default("other")  // grooming | boarding | walking | training | sitting | daycare | vet_escort | other
+  isActive        Boolean  @default(true) @map("is_active")
+  isDeleted       Boolean  @default(false) @map("is_deleted")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  creator  Profile         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  bookings PetCareBooking[]
+
+  @@index([providerId, isActive])
+  @@index([category])
+  @@map("pet_care_services")
+}
+
+// ── PET CARE BOOKINGS ────────────────────────────────────────────────────────
+// Full booking system: seeker books a service, provider manages it.
+// payment_method: pay_at_visit | pay_now (extensible for future payment gateways)
+// status: pending | confirmed | in_progress | completed | cancelled | no_show
+// payment_status: unpaid | paid | refund_pending | refunded
+
+model PetCareBooking {
+  id              String   @id @default(uuid())
+  serviceId       String   @map("service_id")
+  providerId      String   @map("provider_id")
+  seekerId        String   @map("seeker_id")
+  scheduledAt     DateTime @map("scheduled_at")
+  endAt           DateTime? @map("end_at")
+  location        String?
+  latitude        Float?
+  longitude       Float?
+  petName         String?  @map("pet_name")
+  petSpecies      String?  @map("pet_species")
+  petBreed        String?  @map("pet_breed")
+  petWeightKg     Float?   @map("pet_weight_kg")
+  notes           String?
+  priceCents      Int      @map("price_cents")
+  paymentMethod   String   @default("pay_at_visit") @map("payment_method")  // pay_at_visit | pay_now
+  paymentStatus   String   @default("unpaid") @map("payment_status")       // unpaid | paid | refund_pending | refunded
+  status          String   @default("pending")     // pending | confirmed | in_progress | completed | cancelled | no_show
+  cancelledBy     String?  @map("cancelled_by")    // seeker | provider | system
+  cancelReason    String?  @map("cancel_reason")
+  isDeleted       Boolean  @default(false) @map("is_deleted")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  service  PetCareService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  seeker   Profile         @relation("BookingSeeker", fields: [seekerId], references: [id], onDelete: Cascade)
+
+  review   ProviderReview?
+
+  @@index([seekerId, createdAt(sort: Desc)])
+  @@index([providerId, createdAt(sort: Desc)])
+  @@index([providerId, status])
+  @@index([scheduledAt])
+  @@map("pet_care_bookings")
+}
+
+// ── PROVIDER AVAILABILITY ────────────────────────────────────────────────────
+// Weekly recurring availability slots + date-specific overrides.
+// day_of_week: 0=Sunday … 6=Saturday (null for date-specific overrides)
+// kind: weekly | override | unavailable
+
+model ProviderAvailability {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  addedBy     String   @map("added_by")
+  dayOfWeek   Int?     @map("day_of_week")  // null when date is set (overrides)
+  date        DateTime? @map("date")        // for date-specific overrides / unavailable days
+  startTime   String   @map("start_time")   // HH:mm (24h)
+  endTime     String   @map("end_time")     // HH:mm (24h)
+  kind        String   @default("weekly")   // weekly | override | unavailable
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  addedByUser Profile      @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+
+  @@index([providerId, kind])
+  @@map("provider_availability")
+}
+
+// ── PROVIDER REVIEWS ─────────────────────────────────────────────────────────
+// Reviews left by seekers after a booking is completed.
+
+model ProviderReview {
+  id          String   @id @default(uuid())
+  providerId  String   @map("provider_id")
+  bookingId   String   @unique @map("booking_id")
+  authorId    String   @map("author_id")
+  targetId    String   @map("target_id")
+  rating      Int      // 1-5
+  body        String?
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  booking  PetCareBooking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  author   Profile         @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  target   Profile         @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, authorId])
+  @@index([providerId, createdAt(sort: Desc)])
+  @@map("provider_reviews")
 }
 
 model LostFoundPost {
@@ -590,10 +759,21 @@ model LostFoundPost {
   petName          String?   @map("pet_name")
   species          String
   breed            String?
+  age              String?
+  color            String?
+  sex              String?
+  size             String?
+  microchipId      String?   @map("microchip_id")
+  collar           String?
+  neutered         Boolean?
+  vaccinated       Boolean?
   description      String?
   lastSeenLocation String?   @map("last_seen_location")
   lastSeenAt       DateTime? @map("last_seen_at") @db.Date
   photoUrl         String?   @map("photo_url")
+  photoUrls        String[]  @default([]) @map("photo_urls")
+  latitude         Float?
+  longitude        Float?
   contact          String?
   reward           Int?
   status           String    @default("active")        // active | reunited | closed

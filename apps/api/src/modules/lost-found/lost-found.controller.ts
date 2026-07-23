@@ -19,13 +19,22 @@ export class LostFoundController {
     @Query('kind') kind?: string,
     @Query('status') status?: string,
     @Query('q') q?: string,
+    @Query('species') species?: string,
+    @Query('reward') reward?: string,
+    @Query('nearLat') nearLat?: string,
+    @Query('nearLng') nearLng?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
+    const lat = nearLat !== undefined ? Number(nearLat) : NaN
+    const lng = nearLng !== undefined ? Number(nearLng) : NaN
     const filters = {
       ...(kind === 'lost' || kind === 'found' ? { kind } : {}),
       ...(status ? { status } : {}),
       ...(q ? { q } : {}),
+      ...(species && species.trim() ? { species: species.trim() } : {}),
+      ...(reward === '1' || reward === 'true' ? { hasReward: true } : {}),
+      ...(Number.isFinite(lat) && Number.isFinite(lng) ? { nearLat: lat, nearLng: lng } : {}),
     }
     return { data: await this.lostFound.browse(filters, cursor ?? null, limit ? parseInt(limit, 10) : 15) }
   }
@@ -33,6 +42,11 @@ export class LostFoundController {
   @Get(':id')
   async get(@Param('id') id: string) {
     return { data: await this.lostFound.get(id) }
+  }
+
+  @Get(':id/matches')
+  async matches(@Param('id') id: string) {
+    return { data: await this.lostFound.getMatches(id) }
   }
 
   @Post()
