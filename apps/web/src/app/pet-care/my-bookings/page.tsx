@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Calendar, Clock, MapPin, ChevronDown, Loader2, X, Check, AlertCircle,
-  PawPrint, CreditCard, ArrowLeft, Star, MoreHorizontal, Ban, User,
+  Calendar, Clock, MapPin, Loader2, X, Check, AlertCircle,
+  PawPrint, Star, MoreHorizontal, Ban, User,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { Header } from '@/components/Header'
@@ -12,16 +12,15 @@ import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
-import { UserAvatar } from '@/components/UserAvatar'
 import {
-  petCareApi, type PetCareBooking, type ProviderReview,
+  petCareApi, type PetCareBooking,
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
 } from '@/lib/pet-care-api'
 
 export default function MyBookingsPage(): React.JSX.Element {
   const router = useRouter()
-  const { profile, loading: authLoading, isAuthenticated } = useAuth()
+  const { loading: authLoading, isAuthenticated } = useAuth()
   const [role, setRole] = useState<'seeker' | 'provider'>('seeker')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [bookings, setBookings] = useState<PetCareBooking[]>([])
@@ -39,13 +38,16 @@ export default function MyBookingsPage(): React.JSX.Element {
   }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
-    if (authLoading || !isAuthenticated) return
-    setLoading(true)
-    setError('')
-    petCareApi.listBookings(role, statusFilter || undefined)
-      .then((page) => setBookings(page.data))
-      .catch((e) => setError(e.message || 'Failed to load bookings'))
-      .finally(() => setLoading(false))
+    if (authLoading || !isAuthenticated) return undefined
+    const t = setTimeout(() => {
+      setLoading(true)
+      setError('')
+      petCareApi.listBookings(role, statusFilter || undefined)
+        .then((page) => setBookings(page.data))
+        .catch((e) => setError(e.message || 'Failed to load bookings'))
+        .finally(() => setLoading(false))
+    }, 0)
+    return () => clearTimeout(t)
   }, [authLoading, isAuthenticated, role, statusFilter, refreshKey])
 
   async function handleCancel(bookingId: string): Promise<void> {
@@ -233,7 +235,6 @@ function BookingCard({
   }, [menuOpen])
 
   const datetime = new Date(booking.scheduledAt)
-  const isPast = datetime < new Date()
 
   const providerActions: Record<string, string[]> = {
     pending: ['confirmed', 'cancelled'],

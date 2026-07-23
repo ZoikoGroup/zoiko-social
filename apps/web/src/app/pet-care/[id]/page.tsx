@@ -13,7 +13,7 @@ import { useCachedValue } from '@/hooks/use-cache'
 import { providersApi, type Provider } from '@/lib/api'
 import {
   petCareApi, type PetCareService, type PetCareBooking, type ProviderReview,
-  type AvailabilitySlot, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
+  type AvailabilitySlot, type ServiceCategory, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, PAYMENT_METHOD_LABELS, DAY_LABELS,
 } from '@/lib/pet-care-api'
 import { Header } from '@/components/Header'
@@ -35,7 +35,7 @@ export default function ProviderDetailPage(): React.JSX.Element {
   const [addServiceOpen, setAddServiceOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [servicesKey, setServicesKey] = useState(0)
-  const [reviewsKey, setReviewsKey] = useState(0)
+  const [reviewsKey] = useState(0)
   const [availabilityKey, setAvailabilityKey] = useState(0)
   const [profileKey, setProfileKey] = useState(0)
 
@@ -573,8 +573,10 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   useEffect(() => {
     if (!petName && profile?.displayName) {
       const firstName = profile.displayName.split(' ')[0]
-      setPetName(`${firstName}'s pet`)
+      const t = setTimeout(() => setPetName(`${firstName}'s pet`), 0)
+      return () => clearTimeout(t)
     }
+    return undefined
   }, [profile, petName])
 
   async function submit(): Promise<void> {
@@ -944,7 +946,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
         ...(description.trim() ? { description: description.trim() } : {}),
         priceCents,
         ...(durationMinutes ? { durationMinutes } : {}),
-        category: category as any,
+        category: category as ServiceCategory,
       })
       onAdded(); onClose()
     } catch (e) {

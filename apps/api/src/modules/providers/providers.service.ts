@@ -40,7 +40,7 @@ export interface ProviderPage { data: ProviderResponse[]; nextCursor: string | n
 
 // ── Service types ────────────────────────────────────────────────────────────
 
-type ServiceRow = Prisma.PetCareServiceGetPayload<{}>
+type ServiceRow = Prisma.PetCareServiceGetPayload<Record<string, never>>
 
 export interface ServiceResponse {
   id: string
@@ -529,7 +529,7 @@ export class ProvidersService {
   // AVAILABILITY
   // ════════════════════════════════════════════════════════════════════════════
 
-  private mapAvailability(a: Prisma.ProviderAvailabilityGetPayload<{}>): AvailabilityResponse {
+  private mapAvailability(a: Prisma.ProviderAvailabilityGetPayload<Record<string, never>>): AvailabilityResponse {
     return {
       id: a.id, providerId: a.providerId,
       dayOfWeek: a.dayOfWeek, date: a.date?.toISOString() ?? null,

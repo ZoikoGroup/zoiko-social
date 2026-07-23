@@ -37,7 +37,7 @@ const TAB_META: Record<DashboardTab, { label: string; Icon: typeof LayoutDashboa
 
 export default function ProviderDashboardPage(): React.JSX.Element {
   const router = useRouter()
-  const { profile, loading: authLoading, isAuthenticated } = useAuth()
+  const { loading: authLoading, isAuthenticated } = useAuth()
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview')
 
@@ -47,8 +47,10 @@ export default function ProviderDashboardPage(): React.JSX.Element {
     const tab = params.get('tab')
     const validTabs: string[] = ['overview','services','bookings','availability','reviews']
     if (tab && validTabs.includes(tab)) {
-      setActiveTab(tab as DashboardTab)
+      const t = setTimeout(() => setActiveTab(tab as DashboardTab), 0)
+      return () => clearTimeout(t)
     }
+    return undefined
   }, [])
 
   const { data: allProviders, isLoading: providersLoading } = useCachedValue<Provider[]>('dash:my-providers', () =>
@@ -301,7 +303,7 @@ function StatTile({ label, value, Icon, tint }: {
   )
 }
 
-function OverviewTab({ provider, services, bookings, reviews }: {
+function OverviewTab({ services, bookings, reviews }: {
   provider: Provider
   services: PetCareService[]
   bookings: PetCareBooking[]
@@ -638,7 +640,7 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
 
 const BOOKING_FILTERS = ['all', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'] as const
 
-function BookingsTab({ providerId, bookings, onRefresh }: {
+function BookingsTab({ bookings, onRefresh }: {
   providerId: string
   bookings: PetCareBooking[]
   onRefresh: () => void
@@ -968,7 +970,7 @@ function SaveIcon({ className }: { className?: string }): React.JSX.Element {
 // Reviews Tab
 // ═════════════════════════════════════════════════════════════════════════════
 
-function ReviewsTab({ providerId, reviews, onRefresh }: {
+function ReviewsTab({ reviews }: {
   providerId: string
   reviews: ProviderReview[]
   onRefresh: () => void
@@ -1018,7 +1020,7 @@ function ReviewsTab({ providerId, reviews, onRefresh }: {
         <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center">
           <MessageSquare className="w-10 h-10 text-outline/40 mx-auto mb-2" />
           <p className="text-label-md font-semibold text-on-surface">No reviews yet</p>
-          <p className="text-label-sm text-outline mt-1">When clients review your services, they'll appear here.</p>
+          <p className="text-label-sm text-outline mt-1">When clients review your services, they&apos;ll appear here.</p>
         </div>
       ) : (
         reviews.map((review) => (
@@ -1088,7 +1090,7 @@ function EmptyDashboard(): React.JSX.Element {
           </div>
           <h1 className="font-headline text-headline-lg font-bold text-on-surface mb-2">Provider Dashboard</h1>
           <p className="text-label-md text-outline max-w-md mx-auto mb-6">
-            You don't have any pet care provider listings yet. Create one to start managing services, bookings, and reviews.
+            You don&apos;t have any pet care provider listings yet. Create one to start managing services, bookings, and reviews.
           </p>
           <Link
             href="/pet-care"

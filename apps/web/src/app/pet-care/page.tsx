@@ -4,26 +4,21 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  HeartHandshake, Search, Plus, MapPin, Star, Clock, Loader2, Calendar,
-  ArrowUpRight, PawPrint, Scissors as ScissorsIcon, Home, Dog, Target,
-  Trees, Ambulance as AmbulanceIcon, Users, CreditCard, Check,
+  HeartHandshake, Search, Plus, MapPin, Star, Calendar, ArrowUpRight,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { usePagedList } from '@/hooks/use-cache'
-import { providersApi, type Provider, type ProviderPage } from '@/lib/api'
+import { providersApi, type Provider } from '@/lib/api'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { LocationInput } from '@/components/LocationInput'
-import { LocationLink } from '@/components/LocationLink'
-import { UserAvatar } from '@/components/UserAvatar'
 import { AddProviderModal } from '@/components/ServiceDirectory'
 
 export default function PetCarePage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const router = useRouter()
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
   const [addOpen, setAddOpen] = useState(false)
