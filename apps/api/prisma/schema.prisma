@@ -463,6 +463,8 @@ model PetDiaryEntry {
   title     String?
   body      String?
   photoUrl  String?  @map("photo_url")
+  photoUrls String[] @default([]) @map("photo_urls")
+  tags      String[] @default([])
   entryDate DateTime @default(now()) @map("entry_date") @db.Date
   createdAt DateTime @default(now()) @map("created_at")
 
