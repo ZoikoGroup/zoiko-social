@@ -49,7 +49,7 @@ export interface NewService {
   description?: string
   priceCents: number
   durationMinutes?: number
-  category?: ServiceCategory
+  category?: ServiceCategory | string  // pet-care categories or vet categories (see lib/vet)
 }
 
 export interface UpdateServiceInput {
@@ -57,7 +57,7 @@ export interface UpdateServiceInput {
   description?: string
   priceCents?: number
   durationMinutes?: number
-  category?: ServiceCategory
+  category?: ServiceCategory | string
   isActive?: boolean
 }
 
@@ -69,6 +69,8 @@ export interface PetCareBooking {
   service: { id: string; name: string; category: string; durationMinutes: number | null }
   provider: { id: string; name: string; location: string | null; coverUrl: string | null }
   seeker: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  petId: string | null
+  pet: { id: string; name: string; species: string; breed: string | null; avatarUrl: string | null } | null
   scheduledAt: string
   endAt: string | null
   location: string | null
@@ -78,6 +80,11 @@ export interface PetCareBooking {
   petSpecies: string | null
   petBreed: string | null
   petWeightKg: number | null
+  consultMode: string | null
+  reason: string | null
+  visitSummary: string | null
+  prescription: string | null
+  followUpAt: string | null
   notes: string | null
   priceCents: number
   priceDisplay: string
@@ -99,12 +106,23 @@ export interface NewBooking {
   location?: string
   latitude?: number
   longitude?: number
+  petId?: string
   petName?: string
   petSpecies?: string
   petBreed?: string
   petWeightKg?: number
+  consultMode?: 'in_clinic' | 'home_visit' | 'video'
+  reason?: string
   notes?: string
   paymentMethod?: 'pay_at_visit' | 'pay_now'
+}
+
+export interface VisitSummaryInput {
+  visitSummary?: string
+  prescription?: string
+  followUpAt?: string
+  addToHealthPassport?: boolean
+  recordType?: 'vet_visit' | 'vaccination' | 'medication' | 'note'
 }
 
 export const BOOKING_STATUS_LABELS: Record<string, string> = {
@@ -228,6 +246,13 @@ export const petCareApi = {
     mutate<PetCareBooking>(`/providers/bookings/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }),
+    }),
+
+  /** Vet adds a post-visit summary (optionally pushed to the pet's Health Passport) */
+  addVisitSummary: (id: string, input: VisitSummaryInput) =>
+    mutate<PetCareBooking>(`/providers/bookings/${id}/visit-summary`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
     }),
 
   // ── Availability ────────────────────────────────────────────────────────────

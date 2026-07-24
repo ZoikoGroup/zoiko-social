@@ -407,6 +407,7 @@ export interface Pet {
   name: string
   species: string
   breed: string | null
+  sex: string | null
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
@@ -418,6 +419,7 @@ export interface NewPet {
   name: string
   species: string
   breed?: string
+  sex?: 'male' | 'female' | 'unknown'
   avatarUrl?: string
   bio?: string
   birthdate?: string
@@ -636,6 +638,7 @@ export const adoptionApi = {
 }
 
 // ── Service providers (Vet Finder + Pet Care) ────────────────────────────────
+export interface HoursEntry { day: number; open: string; close: string; closed?: boolean }
 export interface Provider {
   id: string
   category: string
@@ -647,6 +650,21 @@ export interface Provider {
   phone: string | null
   website: string | null
   coverUrl: string | null
+  logoUrl: string | null
+  photoUrls: string[]
+  specialties: string[]
+  species: string[]
+  facilities: string[]
+  consultModes: string[]
+  languages: string[]
+  emergencyAvailable: boolean
+  is24x7: boolean
+  acceptsWalkins: boolean
+  hours: HoursEntry[] | null
+  licenseNo: string | null
+  isVerified: boolean
+  openNow: boolean | null
+  distanceKm: number | null
   latitude: number | null
   longitude: number | null
   rating: number
@@ -656,17 +674,35 @@ export interface Provider {
   createdAt: string
 }
 export interface ProviderPage { data: Provider[]; nextCursor: string | null; hasMore: boolean }
+export interface TeamMember {
+  id: string; providerId: string; name: string; role: string | null
+  licenseNo: string | null; photoUrl: string | null; createdAt: string
+}
 export interface NewProvider {
   category: 'vet' | 'pet_care'; name: string; serviceType?: string; description?: string
   location?: string; address?: string; phone?: string; website?: string; coverUrl?: string
+  latitude?: number; longitude?: number
+  logoUrl?: string; photoUrls?: string[]; specialties?: string[]; species?: string[]
+  facilities?: string[]; consultModes?: string[]; languages?: string[]
+  emergencyAvailable?: boolean; is24x7?: boolean; acceptsWalkins?: boolean
+  hours?: HoursEntry[]; licenseNo?: string
+}
+export interface ProviderFilters {
+  q?: string; location?: string; emergency?: boolean; openNow?: boolean
+  species?: string; specialty?: string; near?: { lat: number; lng: number }
 }
 
 export const providersApi = {
-  browse: (category: 'vet' | 'pet_care', filters: { q?: string; location?: string }, cursor?: string | null, limit = 15) => {
+  browse: (category: 'vet' | 'pet_care', filters: ProviderFilters, cursor?: string | null, limit = 15) => {
     const qs = new URLSearchParams()
     qs.set('category', category); qs.set('limit', String(limit))
     if (filters.q) qs.set('q', filters.q)
     if (filters.location) qs.set('location', filters.location)
+    if (filters.emergency) qs.set('emergency', 'true')
+    if (filters.openNow) qs.set('openNow', 'true')
+    if (filters.species) qs.set('species', filters.species)
+    if (filters.specialty) qs.set('specialty', filters.specialty)
+    if (filters.near) { qs.set('nearLat', String(filters.near.lat)); qs.set('nearLng', String(filters.near.lng)) }
     if (cursor) qs.set('cursor', cursor)
     return request<ProviderPage>(`/providers?${qs.toString()}`)
   },
@@ -676,6 +712,12 @@ export const providersApi = {
   update: (id: string, input: Partial<Omit<NewProvider, 'category'>>) =>
     mutate<Provider>(`/providers/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/providers/${id}`, { method: 'DELETE' }),
+  // Team members
+  team: (id: string) => cachedGet<TeamMember[]>(`/providers/${id}/team`, 30_000),
+  addTeamMember: (id: string, input: { name: string; role?: string; licenseNo?: string; photoUrl?: string }) =>
+    mutate<TeamMember>(`/providers/${id}/team`, { method: 'POST', body: JSON.stringify(input) }),
+  removeTeamMember: (id: string, memberId: string) =>
+    mutate<{ success: boolean }>(`/providers/${id}/team/${memberId}`, { method: 'DELETE' }),
 }
 
 // ── Lost & Found ─────────────────────────────────────────────────────────────
@@ -893,15 +935,35 @@ export const orderApi = {
 export interface BreedingProfile {
   id: string
   owner: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  petId: string | null
   petName: string
   species: string
   breed: string
   sex: string
   age: string | null
   location: string | null
+  latitude: number | null
+  longitude: number | null
+  distanceKm: number | null
   about: string | null
+  temperament: string[]
   healthTests: string[]
   certifications: string[]
+  registered: boolean
+  willingToTravel: boolean
+  vaccinated: boolean
+  dnaResults: DnaResult[]
+  ageMonths: number | null
+  littersCount: number
+  lastLitterAt: string | null
+  documents: string[]
+  heatStatus: string | null
+  nextHeatAt: string | null
+  availableNow: boolean
+  verifiedBy: { id: string; name: string } | null
+  verifiedAt: string | null
+  rating: number
+  reviewCount: number
   coverUrl: string | null
   photos: string[]
   fee: number | null
@@ -910,35 +972,96 @@ export interface BreedingProfile {
   requestsCount: number
   createdAt: string
   viewerRequested: boolean
+  viewerRequestId: string | null
+  matchScore: number | null
+  matchWarnings: string[]
+}
+export interface DnaResult { condition: string; status: 'clear' | 'carrier' | 'affected' }
+export interface BreedingReview {
+  id: string; rating: number; body: string | null; createdAt: string
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+}
+export interface BreedingAlert {
+  id: string; species: string | null; breed: string | null; sex: string | null
+  nearLat: number | null; nearLng: number | null; radiusKm: number; createdAt: string
+}
+export interface NewBreedingAlert {
+  species?: string; breed?: string; sex?: string; nearLat?: number; nearLng?: number; radiusKm?: number
+}
+export interface BreedingLitter {
+  id: string; requestId: string; petName: string; withName: string
+  species: string | null; breed: string | null
+  matedAt: string | null; expectedAt: string | null; bornAt: string | null
+  count: number | null; notes: string | null; status: string; listedCount: number
+  canManage: boolean; createdAt: string
+}
+export interface NewBreedingLitter {
+  requestId: string; matedAt?: string; expectedAt?: string; bornAt?: string; count?: number; notes?: string
 }
 export interface BreedingPage { data: BreedingProfile[]; nextCursor: string | null; hasMore: boolean }
 export interface BreedingRequest {
   id: string; message: string | null; status: string; createdAt: string
   requester: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 }
+export interface BreedingMessage {
+  id: string; body: string; flagged: boolean; createdAt: string; mine: boolean
+  sender: { id: string; username: string; displayName: string; avatarUrl: string | null }
+}
 export interface NewBreedingProfile {
-  petName: string; species?: string; breed: string; sex?: string; age?: string; location?: string; about?: string
-  healthTests?: string[]; certifications?: string[]; coverUrl?: string; photos?: string[]; fee?: number; currency?: string
+  petId?: string; petName: string; species?: string; breed: string; sex?: string; age?: string
+  location?: string; latitude?: number; longitude?: number; about?: string
+  temperament?: string[]; healthTests?: string[]; certifications?: string[]
+  registered?: boolean; willingToTravel?: boolean
+  dnaResults?: DnaResult[]; ageMonths?: number; littersCount?: number; lastLitterAt?: string
+  documents?: string[]; heatStatus?: string; nextHeatAt?: string; availableNow?: boolean
+  coverUrl?: string; photos?: string[]; fee?: number; currency?: string
+}
+export interface BreedingFilters {
+  species?: string; sex?: string; status?: string; q?: string; breed?: string
+  registered?: boolean; healthTested?: boolean; availableNow?: boolean; near?: { lat: number; lng: number }
 }
 
 export const breedingApi = {
-  browse: (filters: { species?: string; sex?: string; status?: string; q?: string }, cursor?: string | null, limit = 15) => {
+  browse: (filters: BreedingFilters, cursor?: string | null, limit = 15) => {
     const qs = new URLSearchParams()
     qs.set('limit', String(limit))
     if (filters.species) qs.set('species', filters.species)
     if (filters.sex) qs.set('sex', filters.sex)
     if (filters.status) qs.set('status', filters.status)
     if (filters.q) qs.set('q', filters.q)
+    if (filters.breed) qs.set('breed', filters.breed)
+    if (filters.registered) qs.set('registered', 'true')
+    if (filters.healthTested) qs.set('healthTested', 'true')
+    if (filters.availableNow) qs.set('availableNow', 'true')
+    if (filters.near) { qs.set('nearLat', String(filters.near.lat)); qs.set('nearLng', String(filters.near.lng)) }
     if (cursor) qs.set('cursor', cursor)
     return request<BreedingPage>(`/breeding?${qs.toString()}`)
   },
   get: (id: string) => cachedGet<BreedingProfile>(`/breeding/${id}`, 15_000),
+  mine: () => request<BreedingProfile[]>('/breeding/mine'),
+  matches: (petId: string) => request<BreedingProfile[]>(`/breeding/matches?petId=${petId}`),
   create: (input: NewBreedingProfile) => mutate<BreedingProfile>('/breeding', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: string, input: Partial<NewBreedingProfile> & { status?: string }) => mutate<BreedingProfile>(`/breeding/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/breeding/${id}`, { method: 'DELETE' }),
-  request: (id: string, input: { message?: string }) => mutate<{ status: string }>(`/breeding/${id}/requests`, { method: 'POST', body: JSON.stringify(input) }),
+  request: (id: string, input: { message?: string }) => mutate<{ id: string; status: string }>(`/breeding/${id}/requests`, { method: 'POST', body: JSON.stringify(input) }),
   requests: (id: string) => request<BreedingRequest[]>(`/breeding/${id}/requests`),
   respond: (id: string, requestId: string, status: 'accepted' | 'declined') => mutate<{ status: string }>(`/breeding/${id}/requests/${requestId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  messages: (requestId: string) => request<BreedingMessage[]>(`/breeding/requests/${requestId}/messages`),
+  sendMessage: (requestId: string, body: string) => mutate<{ id: string; flagged: boolean; reasons: string[] }>(`/breeding/requests/${requestId}/messages`, { method: 'POST', body: JSON.stringify({ body }) }),
+  // Vet verification
+  verify: (id: string, providerId: string) => mutate<BreedingProfile>(`/breeding/${id}/verify`, { method: 'POST', body: JSON.stringify({ providerId }) }),
+  // Reviews & reputation
+  reviews: (id: string) => request<BreedingReview[]>(`/breeding/${id}/reviews`),
+  createReview: (requestId: string, rating: number, body?: string) => mutate<BreedingReview>('/breeding/reviews', { method: 'POST', body: JSON.stringify({ requestId, rating, ...(body ? { body } : {}) }) }),
+  // Saved-search alerts
+  alerts: () => request<BreedingAlert[]>('/breeding/alerts'),
+  createAlert: (input: NewBreedingAlert) => mutate<BreedingAlert>('/breeding/alerts', { method: 'POST', body: JSON.stringify(input) }),
+  removeAlert: (id: string) => mutate<{ success: boolean }>(`/breeding/alerts/${id}`, { method: 'DELETE' }),
+  // Litters (Litter -> Adoption pipeline)
+  litters: () => request<BreedingLitter[]>('/breeding/litters'),
+  createLitter: (input: NewBreedingLitter) => mutate<BreedingLitter>('/breeding/litters', { method: 'POST', body: JSON.stringify(input) }),
+  updateLitter: (id: string, input: Partial<Omit<NewBreedingLitter, 'requestId'>> & { status?: string }) => mutate<BreedingLitter>(`/breeding/litters/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  markLitterListed: (id: string) => mutate<{ listedCount: number }>(`/breeding/litters/${id}/listed`, { method: 'POST' }),
 }
 
 export const feedApi = {

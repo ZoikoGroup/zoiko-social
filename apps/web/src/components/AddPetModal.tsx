@@ -11,11 +11,15 @@ interface AddPetModalProps {
 }
 
 const SPECIES = ['Dog', 'Cat', 'Bird', 'Parrot', 'Rabbit', 'Fish', 'Reptile', 'Horse', 'Other']
+const SEXES: { value: 'male' | 'female' | 'unknown'; label: string }[] = [
+  { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'unknown', label: 'Unknown' },
+]
 
 export function AddPetModal({ open, onClose, onAdded }: AddPetModalProps): React.JSX.Element | null {
   const [name, setName] = useState('')
   const [species, setSpecies] = useState('Dog')
   const [breed, setBreed] = useState('')
+  const [sex, setSex] = useState<'male' | 'female' | 'unknown'>('unknown')
   const [isPublic, setIsPublic] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -31,11 +35,12 @@ export function AddPetModal({ open, onClose, onAdded }: AddPetModalProps): React
         name: name.trim(),
         species,
         ...(breed.trim() ? { breed: breed.trim() } : {}),
+        ...(sex !== 'unknown' ? { sex } : {}),
         isPublic,
       })
       onAdded(pet)
       onClose()
-      setName(''); setBreed(''); setSpecies('Dog'); setIsPublic(true)
+      setName(''); setBreed(''); setSpecies('Dog'); setSex('unknown'); setIsPublic(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add pet')
     } finally {
@@ -87,6 +92,22 @@ export function AddPetModal({ open, onClose, onAdded }: AddPetModalProps): React
               placeholder="e.g. Domestic Shorthair"
               className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="text-label-sm font-semibold text-on-surface block mb-1.5">Sex <span className="text-outline font-normal">(for breeding match)</span></label>
+            <div className="flex gap-2">
+              {SEXES.map((s) => (
+                <button
+                  key={s.value} onClick={() => setSex(s.value)}
+                  className={`px-3 py-1.5 rounded-full text-label-sm transition-colors cursor-pointer ${
+                    sex === s.value ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant hover:border-primary'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button

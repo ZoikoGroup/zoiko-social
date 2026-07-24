@@ -8,6 +8,7 @@ import type {
   CreateServiceInput, UpdateServiceInput,
   CreateBookingInput, UpdateBookingStatusInput,
   CreateAvailabilityInput, CreateReviewInput,
+  VisitSummaryInput, CreateTeamMemberInput,
 } from './providers.schemas'
 
 // ── Provider types ───────────────────────────────────────────────────────────
@@ -15,6 +16,8 @@ import type {
 type ProviderRow = Prisma.ServiceProviderGetPayload<{
   include: { addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
 }>
+
+export interface HoursEntry { day: number; open: string; close: string; closed?: boolean }
 
 export interface ProviderResponse {
   id: string
@@ -27,6 +30,21 @@ export interface ProviderResponse {
   phone: string | null
   website: string | null
   coverUrl: string | null
+  logoUrl: string | null
+  photoUrls: string[]
+  specialties: string[]
+  species: string[]
+  facilities: string[]
+  consultModes: string[]
+  languages: string[]
+  emergencyAvailable: boolean
+  is24x7: boolean
+  acceptsWalkins: boolean
+  hours: HoursEntry[] | null
+  licenseNo: string | null
+  isVerified: boolean
+  openNow: boolean | null
+  distanceKm: number | null
   latitude: number | null
   longitude: number | null
   rating: number
@@ -37,6 +55,18 @@ export interface ProviderResponse {
 }
 
 export interface ProviderPage { data: ProviderResponse[]; nextCursor: string | null; hasMore: boolean }
+
+// ── Team member types ──────────────────────────────────────────────────────────
+
+export interface TeamMemberResponse {
+  id: string
+  providerId: string
+  name: string
+  role: string | null
+  licenseNo: string | null
+  photoUrl: string | null
+  createdAt: string
+}
 
 // ── Service types ────────────────────────────────────────────────────────────
 
@@ -62,6 +92,7 @@ type BookingRow = Prisma.PetCareBookingGetPayload<{
     service: { select: { id: true; name: true; category: true; durationMinutes: true } }
     provider: { select: { id: true; name: true; location: true; coverUrl: true } }
     seeker: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    pet: { select: { id: true; name: true; species: true; breed: true; avatarUrl: true } }
   }
 }>
 
@@ -71,6 +102,8 @@ export interface BookingResponse {
   service: { id: string; name: string; category: string; durationMinutes: number | null }
   provider: { id: string; name: string; location: string | null; coverUrl: string | null }
   seeker: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  petId: string | null
+  pet: { id: string; name: string; species: string; breed: string | null; avatarUrl: string | null } | null
   scheduledAt: string
   endAt: string | null
   location: string | null
@@ -80,6 +113,11 @@ export interface BookingResponse {
   petSpecies: string | null
   petBreed: string | null
   petWeightKg: number | null
+  consultMode: string | null
+  reason: string | null
+  visitSummary: string | null
+  prescription: string | null
+  followUpAt: string | null
   notes: string | null
   priceCents: number
   priceDisplay: string
@@ -140,11 +178,54 @@ export class ProvidersService {
     return { addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
   }
 
-  private mapProvider(p: ProviderRow): ProviderResponse {
+  private parseHours(raw: unknown): HoursEntry[] | null {
+    if (!Array.isArray(raw)) return null
+    const out: HoursEntry[] = []
+    for (const e of raw) {
+      if (e && typeof e === 'object' && typeof (e as { day?: unknown }).day === 'number') {
+        const h = e as { day: number; open?: string; close?: string; closed?: boolean }
+        out.push({ day: h.day, open: h.open ?? '', close: h.close ?? '', closed: h.closed ?? false })
+      }
+    }
+    return out.length ? out : null
+  }
+
+  /** Is the clinic open right now, given weekly hours? null when hours unknown. */
+  private computeOpenNow(hours: HoursEntry[] | null, is24x7: boolean): boolean | null {
+    if (is24x7) return true
+    if (!hours || !hours.length) return null
+    const now = new Date()
+    const today = hours.find((h) => h.day === now.getDay())
+    if (!today || today.closed || !today.open || !today.close) return false
+    const mins = now.getHours() * 60 + now.getMinutes()
+    const toMin = (t: string): number => {
+      const [h, m] = t.split(':').map(Number)
+      return (h ?? 0) * 60 + (m ?? 0)
+    }
+    return mins >= toMin(today.open) && mins <= toMin(today.close)
+  }
+
+  /** Haversine distance in km between two lat/lng points. */
+  static haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371
+    const dLat = ((lat2 - lat1) * Math.PI) / 180
+    const dLng = ((lng2 - lng1) * Math.PI) / 180
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10
+  }
+
+  private mapProvider(p: ProviderRow, distanceKm: number | null = null): ProviderResponse {
+    const hours = this.parseHours(p.hours)
     return {
       id: p.id, category: p.category, name: p.name, serviceType: p.serviceType,
       description: p.description, location: p.location, address: p.address, phone: p.phone,
       website: p.website, coverUrl: p.coverUrl,
+      logoUrl: p.logoUrl, photoUrls: p.photoUrls, specialties: p.specialties, species: p.species,
+      facilities: p.facilities, consultModes: p.consultModes, languages: p.languages,
+      emergencyAvailable: p.emergencyAvailable, is24x7: p.is24x7, acceptsWalkins: p.acceptsWalkins,
+      hours, licenseNo: p.licenseNo, isVerified: p.isVerified,
+      openNow: this.computeOpenNow(hours, p.is24x7), distanceKm,
       latitude: p.latitude, longitude: p.longitude,
       rating: p.rating, reviewCount: p.reviewCount, availableForBooking: p.availableForBooking,
       addedBy: {
@@ -157,25 +238,62 @@ export class ProvidersService {
 
   async browse(
     category: string,
-    filters: { q?: string; location?: string },
+    filters: {
+      q?: string; location?: string; emergency?: boolean; openNow?: boolean
+      species?: string; specialty?: string; near?: { lat: number; lng: number }
+    },
     cursor: string | null,
     limit = 15,
   ): Promise<ProviderPage> {
     const take = Math.min(limit, MAX)
+    const baseWhere: Prisma.ServiceProviderWhereInput = {
+      isDeleted: false,
+      hiddenAt: null,
+      category,
+      ...(filters.location ? { location: { contains: filters.location, mode: 'insensitive' } } : {}),
+      ...(filters.q
+        ? { OR: [
+            { name: { contains: filters.q, mode: 'insensitive' } },
+            { serviceType: { contains: filters.q, mode: 'insensitive' } },
+            { description: { contains: filters.q, mode: 'insensitive' } },
+          ] }
+        : {}),
+      ...(filters.emergency ? { emergencyAvailable: true } : {}),
+      ...(filters.species ? { species: { has: filters.species } } : {}),
+      ...(filters.specialty ? { specialties: { has: filters.specialty } } : {}),
+    }
+
+    // Near-me distance sort or Open-now filter → bounded in-memory pool + offset pagination.
+    if (filters.near || filters.openNow) {
+      const offset = cursor ? parseInt(Buffer.from(cursor, 'base64').toString(), 10) || 0 : 0
+      const pool = await this.prisma.serviceProvider.findMany({
+        where: { ...baseWhere, ...(filters.near ? { latitude: { not: null }, longitude: { not: null } } : {}) },
+        take: 200,
+        orderBy: [{ rating: 'desc' }, { createdAt: 'desc' }],
+        include: this.providerInclude(),
+      })
+      let mapped = pool.map((r) => this.mapProvider(
+        r,
+        filters.near && r.latitude != null && r.longitude != null
+          ? ProvidersService.haversineKm(filters.near.lat, filters.near.lng, r.latitude, r.longitude)
+          : null,
+      ))
+      if (filters.openNow) mapped = mapped.filter((m) => m.openNow === true)
+      if (filters.near) mapped.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity))
+      const pageItems = mapped.slice(offset, offset + take)
+      const hasMore = mapped.length > offset + take
+      return {
+        data: pageItems,
+        nextCursor: hasMore ? Buffer.from(String(offset + take)).toString('base64') : null,
+        hasMore,
+      }
+    }
+
+    // Default: cursor pagination, newest first.
     const decoded = cursor ? decodeCursor(cursor) : null
     const rows = await this.prisma.serviceProvider.findMany({
       where: {
-        isDeleted: false,
-        hiddenAt: null,
-        category,
-        ...(filters.location ? { location: { contains: filters.location, mode: 'insensitive' } } : {}),
-        ...(filters.q
-          ? { OR: [
-              { name: { contains: filters.q, mode: 'insensitive' } },
-              { serviceType: { contains: filters.q, mode: 'insensitive' } },
-              { description: { contains: filters.q, mode: 'insensitive' } },
-            ] }
-          : {}),
+        ...baseWhere,
         ...(decoded
           ? { OR: [
               { createdAt: { lt: new Date(decoded.createdAt) } },
@@ -225,6 +343,18 @@ export class ProvidersService {
         ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
         ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
         ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
+        ...(input.logoUrl ? { logoUrl: input.logoUrl } : {}),
+        ...(input.photoUrls ? { photoUrls: input.photoUrls } : {}),
+        ...(input.specialties ? { specialties: input.specialties } : {}),
+        ...(input.species ? { species: input.species } : {}),
+        ...(input.facilities ? { facilities: input.facilities } : {}),
+        ...(input.consultModes ? { consultModes: input.consultModes } : {}),
+        ...(input.languages ? { languages: input.languages } : {}),
+        ...(input.emergencyAvailable !== undefined ? { emergencyAvailable: input.emergencyAvailable } : {}),
+        ...(input.is24x7 !== undefined ? { is24x7: input.is24x7 } : {}),
+        ...(input.acceptsWalkins !== undefined ? { acceptsWalkins: input.acceptsWalkins } : {}),
+        ...(input.hours ? { hours: input.hours } : {}),
+        ...(input.licenseNo ? { licenseNo: input.licenseNo } : {}),
       },
       include: this.providerInclude(),
     })
@@ -246,6 +376,18 @@ export class ProvidersService {
         ...(input.coverUrl !== undefined ? { coverUrl: input.coverUrl || null } : {}),
         ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
         ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
+        ...(input.logoUrl !== undefined ? { logoUrl: input.logoUrl || null } : {}),
+        ...(input.photoUrls !== undefined ? { photoUrls: input.photoUrls } : {}),
+        ...(input.specialties !== undefined ? { specialties: input.specialties } : {}),
+        ...(input.species !== undefined ? { species: input.species } : {}),
+        ...(input.facilities !== undefined ? { facilities: input.facilities } : {}),
+        ...(input.consultModes !== undefined ? { consultModes: input.consultModes } : {}),
+        ...(input.languages !== undefined ? { languages: input.languages } : {}),
+        ...(input.emergencyAvailable !== undefined ? { emergencyAvailable: input.emergencyAvailable } : {}),
+        ...(input.is24x7 !== undefined ? { is24x7: input.is24x7 } : {}),
+        ...(input.acceptsWalkins !== undefined ? { acceptsWalkins: input.acceptsWalkins } : {}),
+        ...(input.hours !== undefined ? { hours: input.hours } : {}),
+        ...(input.licenseNo !== undefined ? { licenseNo: input.licenseNo || null } : {}),
       },
       include: this.providerInclude(),
     })
@@ -345,9 +487,14 @@ export class ProvidersService {
         id: b.seeker.id, username: b.seeker.username, displayName: b.seeker.displayName,
         avatarUrl: b.seeker.avatarUrl, isVerified: b.seeker.verificationTier === 'professional',
       },
+      petId: b.petId,
+      pet: b.pet ? { id: b.pet.id, name: b.pet.name, species: b.pet.species, breed: b.pet.breed, avatarUrl: b.pet.avatarUrl } : null,
       scheduledAt: b.scheduledAt.toISOString(), endAt: b.endAt?.toISOString() ?? null,
       location: b.location, latitude: b.latitude, longitude: b.longitude,
       petName: b.petName, petSpecies: b.petSpecies, petBreed: b.petBreed, petWeightKg: b.petWeightKg,
+      consultMode: b.consultMode, reason: b.reason,
+      visitSummary: b.visitSummary, prescription: b.prescription,
+      followUpAt: b.followUpAt ? b.followUpAt.toISOString().slice(0, 10) : null,
       notes: b.notes, priceCents: b.priceCents, priceDisplay: this.centsToDollars(b.priceCents),
       paymentMethod: b.paymentMethod, paymentStatus: b.paymentStatus,
       status: b.status, cancelledBy: b.cancelledBy, cancelReason: b.cancelReason,
@@ -360,6 +507,7 @@ export class ProvidersService {
       service: { select: { id: true, name: true, category: true, durationMinutes: true } },
       provider: { select: { id: true, name: true, location: true, coverUrl: true } },
       seeker: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      pet: { select: { id: true, name: true, species: true, breed: true, avatarUrl: true } },
     }
   }
 
@@ -436,13 +584,30 @@ export class ProvidersService {
     const scheduledAt = new Date(input.scheduledAt)
     const endAt = input.endAt ? new Date(input.endAt) : null
 
+    // If a Health Passport pet is attached, verify ownership and snapshot its details.
+    let petId: string | null = null
+    let petName = input.petName ?? null
+    let petSpecies = input.petSpecies ?? null
+    let petBreed = input.petBreed ?? null
+    if (input.petId) {
+      const pet = await this.prisma.pet.findUnique({
+        where: { id: input.petId },
+        select: { id: true, ownerId: true, name: true, species: true, breed: true },
+      })
+      if (!pet || pet.ownerId !== userId) throw new BadRequestException({ code: 'PET_NOT_FOUND', message: 'Pet not found' })
+      petId = pet.id
+      petName = pet.name
+      petSpecies = pet.species
+      petBreed = pet.breed
+    }
+
     const b = await this.prisma.petCareBooking.create({
       data: {
         serviceId: input.serviceId, providerId: input.providerId, seekerId: userId,
         scheduledAt, endAt,
         location: input.location ?? null, latitude: input.latitude ?? null, longitude: input.longitude ?? null,
-        petName: input.petName ?? null, petSpecies: input.petSpecies ?? null,
-        petBreed: input.petBreed ?? null, petWeightKg: input.petWeightKg ?? null,
+        petId, petName, petSpecies, petBreed, petWeightKg: input.petWeightKg ?? null,
+        consultMode: input.consultMode ?? null, reason: input.reason ?? null,
         notes: input.notes ?? null, priceCents: service.priceCents,
         paymentMethod: input.paymentMethod ?? 'pay_at_visit',
       },
@@ -650,5 +815,96 @@ export class ProvidersService {
       where: { id: r.providerId },
       data: { rating: agg._avg.rating ?? 0, reviewCount: agg._count },
     })
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // VISIT SUMMARY (vet → Health Passport)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /** The clinic records a post-visit summary; optionally pushes it into the pet's Health Passport. */
+  async addVisitSummary(bookingId: string, userId: string, input: VisitSummaryInput): Promise<BookingResponse> {
+    const b = await this.prisma.petCareBooking.findUnique({
+      where: { id: bookingId },
+      include: this.bookingInclude(),
+    })
+    if (!b || b.isDeleted) throw new NotFoundException({ code: 'BOOKING_NOT_FOUND', message: 'Booking not found' })
+
+    const provider = await this.prisma.serviceProvider.findUnique({ where: { id: b.providerId }, select: { addedBy: true, name: true } })
+    if (provider?.addedBy !== userId) throw new ForbiddenException({ code: 'ACCESS_DENIED', message: 'Only the clinic can add a visit summary' })
+
+    const followUpAt = input.followUpAt ? new Date(input.followUpAt) : null
+
+    const updated = await this.prisma.petCareBooking.update({
+      where: { id: bookingId },
+      data: {
+        ...(input.visitSummary !== undefined ? { visitSummary: input.visitSummary || null } : {}),
+        ...(input.prescription !== undefined ? { prescription: input.prescription || null } : {}),
+        ...(input.followUpAt !== undefined ? { followUpAt } : {}),
+      },
+      include: this.bookingInclude(),
+    })
+
+    // Push into the pet owner's Health Passport when requested and a pet is linked.
+    if (input.addToHealthPassport && b.petId) {
+      const notes = [input.visitSummary, input.prescription ? `Rx: ${input.prescription}` : null]
+        .filter(Boolean).join('\n\n') || null
+      await this.prisma.petHealthRecord.create({
+        data: {
+          petId: b.petId,
+          ownerId: b.seekerId,
+          type: input.recordType ?? 'vet_visit',
+          title: `${b.service.name} — ${provider?.name ?? 'Vet visit'}`,
+          notes,
+          recordDate: new Date(),
+          nextDue: followUpAt,
+        },
+      })
+      void this.notifications.enqueue({
+        userId: b.seekerId,
+        type: 'vet_visit_summary',
+        title: 'Visit summary added',
+        body: `${provider?.name ?? 'Your vet'} added a summary to ${b.pet?.name ?? 'your pet'}'s Health Passport`,
+        data: { bookingId, petId: b.petId },
+      })
+    }
+
+    return this.mapBooking(updated)
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TEAM MEMBERS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  private mapTeamMember(t: Prisma.ProviderTeamMemberGetPayload<Record<string, never>>): TeamMemberResponse {
+    return {
+      id: t.id, providerId: t.providerId, name: t.name, role: t.role,
+      licenseNo: t.licenseNo, photoUrl: t.photoUrl, createdAt: t.createdAt.toISOString(),
+    }
+  }
+
+  async listTeam(providerId: string): Promise<TeamMemberResponse[]> {
+    const rows = await this.prisma.providerTeamMember.findMany({
+      where: { providerId, isDeleted: false },
+      orderBy: { createdAt: 'asc' },
+    })
+    return rows.map((r) => this.mapTeamMember(r))
+  }
+
+  async addTeamMember(userId: string, input: CreateTeamMemberInput): Promise<TeamMemberResponse> {
+    await this.assertOwner(input.providerId, userId)
+    const t = await this.prisma.providerTeamMember.create({
+      data: {
+        providerId: input.providerId, addedBy: userId, name: input.name,
+        role: input.role ?? null, licenseNo: input.licenseNo ?? null, photoUrl: input.photoUrl ?? null,
+      },
+    })
+    return this.mapTeamMember(t)
+  }
+
+  async removeTeamMember(memberId: string, userId: string): Promise<void> {
+    const t = await this.prisma.providerTeamMember.findUnique({ where: { id: memberId }, select: { addedBy: true } })
+    if (!t) throw new NotFoundException({ code: 'TEAM_MEMBER_NOT_FOUND' })
+    if (t.addedBy !== userId) throw new ForbiddenException({ code: 'NOT_OWNER' })
+    await this.prisma.providerTeamMember.update({ where: { id: memberId }, data: { isDeleted: true } })
   }
 }
