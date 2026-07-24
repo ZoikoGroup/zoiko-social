@@ -4,6 +4,7 @@ export const CreatePetSchema = z.object({
   name: z.string().trim().min(1).max(60),
   species: z.string().trim().min(1).max(40),
   breed: z.string().trim().max(60).optional(),
+  sex: z.enum(['male', 'female', 'unknown']).optional(),
   avatarUrl: z.string().url().max(600).optional(),
   bio: z.string().trim().max(500).optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD').optional(),

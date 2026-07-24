@@ -33,6 +33,7 @@ export interface PetResponse {
   name: string
   species: string
   breed: string | null
+  sex: string | null
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
@@ -71,6 +72,7 @@ export class PetsService {
         name: input.name,
         species: input.species,
         ...(input.breed ? { breed: input.breed } : {}),
+        ...(input.sex ? { sex: input.sex } : {}),
         ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
         ...(input.bio ? { bio: input.bio } : {}),
         ...(input.birthdate ? { birthdate: new Date(input.birthdate) } : {}),
@@ -88,6 +90,7 @@ export class PetsService {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.species !== undefined ? { species: input.species } : {}),
         ...(input.breed !== undefined ? { breed: input.breed || null } : {}),
+        ...(input.sex !== undefined ? { sex: input.sex } : {}),
         ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl || null } : {}),
         ...(input.bio !== undefined ? { bio: input.bio || null } : {}),
         ...(input.birthdate !== undefined ? { birthdate: input.birthdate ? new Date(input.birthdate) : null } : {}),
@@ -192,6 +195,7 @@ export class PetsService {
       name: p.name,
       species: p.species,
       breed: p.breed,
+      sex: p.sex,
       avatarUrl: p.avatarUrl,
       bio: p.bio,
       birthdate: p.birthdate ? p.birthdate.toISOString().slice(0, 10) : null,

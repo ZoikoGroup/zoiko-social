@@ -8,6 +8,8 @@ import {
   CreateBookingSchema, UpdateBookingStatusSchema, type CreateBookingInput, type UpdateBookingStatusInput,
   CreateAvailabilitySchema, type CreateAvailabilityInput,
   CreateReviewSchema, type CreateReviewInput,
+  VisitSummarySchema, type VisitSummaryInput,
+  CreateTeamMemberSchema, type CreateTeamMemberInput,
 } from './providers.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
@@ -27,13 +29,29 @@ export class ProvidersController {
     @Query('category') category?: string,
     @Query('q') q?: string,
     @Query('location') location?: string,
+    @Query('emergency') emergency?: string,
+    @Query('openNow') openNow?: string,
+    @Query('species') species?: string,
+    @Query('specialty') specialty?: string,
+    @Query('nearLat') nearLat?: string,
+    @Query('nearLng') nearLng?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
     if (category !== 'vet' && category !== 'pet_care') {
       throw new BadRequestException({ code: 'INVALID_CATEGORY', message: 'category must be vet or pet_care' })
     }
-    const filters = { ...(q ? { q } : {}), ...(location ? { location } : {}) }
+    const lat = nearLat ? parseFloat(nearLat) : NaN
+    const lng = nearLng ? parseFloat(nearLng) : NaN
+    const filters = {
+      ...(q ? { q } : {}),
+      ...(location ? { location } : {}),
+      ...(emergency === 'true' ? { emergency: true } : {}),
+      ...(openNow === 'true' ? { openNow: true } : {}),
+      ...(species ? { species } : {}),
+      ...(specialty ? { specialty } : {}),
+      ...(Number.isFinite(lat) && Number.isFinite(lng) ? { near: { lat, lng } } : {}),
+    }
     return { data: await this.providers.browse(category, filters, cursor ?? null, limit ? parseInt(limit, 10) : 15) }
   }
 
@@ -148,6 +166,16 @@ export class ProvidersController {
     return { data: await this.providers.updateBookingStatus(id, user.id, UpdateBookingStatusSchema.parse(body)) }
   }
 
+  @Patch('bookings/:id/visit-summary')
+  @UseGuards(JwtAuthGuard)
+  async addVisitSummary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() body: VisitSummaryInput,
+  ) {
+    return { data: await this.providers.addVisitSummary(id, user.id, VisitSummarySchema.parse(body)) }
+  }
+
   // ════════════════════════════════════════════════════════════════════════════
   // AVAILABILITY
   // ════════════════════════════════════════════════════════════════════════════
@@ -193,6 +221,30 @@ export class ProvidersController {
   @HttpCode(HttpStatus.OK)
   async deleteReview(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     await this.providers.deleteReview(id, user.id)
+    return { data: { success: true } }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TEAM MEMBERS
+  // ════════════════════════════════════════════════════════════════════════════
+
+  @Get(':id/team')
+  @UseGuards(OptionalAuthGuard)
+  async listTeam(@Param('id') id: string) {
+    return { data: await this.providers.listTeam(id) }
+  }
+
+  @Post(':id/team')
+  @UseGuards(JwtAuthGuard)
+  async addTeamMember(@CurrentUser() user: AuthenticatedUser, @Param('id') providerId: string, @Body() body: CreateTeamMemberInput) {
+    return { data: await this.providers.addTeamMember(user.id, CreateTeamMemberSchema.parse({ ...body, providerId })) }
+  }
+
+  @Delete(':providerId/team/:memberId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async removeTeamMember(@CurrentUser() user: AuthenticatedUser, @Param('memberId') memberId: string) {
+    await this.providers.removeTeamMember(memberId, user.id)
     return { data: { success: true } }
   }
 }

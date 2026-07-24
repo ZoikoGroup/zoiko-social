@@ -358,6 +358,7 @@ model Profile {
   adoptionEnquiryMessages AdoptionEnquiryMessage[]
   serviceProviders  ServiceProvider[]
   providerServices  PetCareService[]
+  providerTeamMembers ProviderTeamMember[]
   providerAvailabilitySlots ProviderAvailability[]
   petCareBookings   PetCareBooking[] @relation("BookingSeeker")
   reviewsGiven      ProviderReview[] @relation("ReviewAuthor")
@@ -373,6 +374,11 @@ model Profile {
   productEnquiries  ProductEnquiry[]
   breedingProfiles  BreedingProfile[]
   breedingRequests  BreedingRequest[]
+  breedingRequestMessages BreedingRequestMessage[]
+  breedingReviewsAuthored BreedingReview[] @relation("BreedingReviewAuthor")
+  breedingReviewsReceived BreedingReview[] @relation("BreedingReviewTarget")
+  breedingAlerts    BreedingAlert[]
+  breedingLitters   BreedingLitter[]
   notifications   Notification[]
   userRoles       UserRoleAssignment[]
   auditLogs       AuditLog[]
@@ -431,6 +437,7 @@ model Pet {
   name      String
   species   String
   breed     String?
+  sex       String?                       // male | female | unknown
   avatarUrl String?   @map("avatar_url")
   bio       String?
   birthdate DateTime? @db.Date
@@ -441,6 +448,8 @@ model Pet {
   owner        Profile           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   diaryEntries PetDiaryEntry[]
   healthRecords PetHealthRecord[]
+  vetBookings  PetCareBooking[]
+  breedingProfiles BreedingProfile[]
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@map("pets")
@@ -614,6 +623,20 @@ model ServiceProvider {
   rating      Float    @default(0)
   reviewCount Int      @default(0) @map("review_count")
   availableForBooking Boolean @default(true) @map("available_for_booking")
+  // ── Vet-clinic profile fields (Vet Finder) ──
+  logoUrl            String?  @map("logo_url")
+  photoUrls          String[] @default([]) @map("photo_urls")
+  specialties        String[] @default([])
+  species            String[] @default([])
+  facilities         String[] @default([])
+  consultModes       String[] @default([]) @map("consult_modes")  // in_clinic | home_visit | video
+  languages          String[] @default([])
+  emergencyAvailable Boolean  @default(false) @map("emergency_available")
+  is24x7             Boolean  @default(false) @map("is_24x7")
+  acceptsWalkins     Boolean  @default(false) @map("accepts_walkins")
+  hours              Json?
+  licenseNo          String?  @map("license_no")
+  isVerified         Boolean  @default(false) @map("is_verified")
   isDeleted   Boolean  @default(false) @map("is_deleted")
   hiddenAt    DateTime? @map("hidden_at")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -624,11 +647,35 @@ model ServiceProvider {
   availability ProviderAvailability[]
   reviews      ProviderReview[]
   bookings     PetCareBooking[]
+  teamMembers  ProviderTeamMember[]
+  verifiedBreedingProfiles BreedingProfile[]
 
   @@index([category, rating(sort: Desc)])
   @@index([category, createdAt(sort: Desc)])
   @@index([addedBy])
   @@map("service_providers")
+}
+
+// ── PROVIDER TEAM MEMBERS ────────────────────────────────────────────────────
+// Vets / staff listed on a clinic profile.
+
+model ProviderTeamMember {
+  id         String   @id @default(uuid())
+  providerId String   @map("provider_id")
+  addedBy    String   @map("added_by")
+  name       String
+  role       String?                          // specialty / title
+  licenseNo  String?  @map("license_no")
+  photoUrl   String?  @map("photo_url")
+  isDeleted  Boolean  @default(false) @map("is_deleted")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  provider    ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  addedByUser Profile         @relation(fields: [addedBy], references: [id], onDelete: Cascade)
+
+  @@index([providerId])
+  @@map("provider_team_members")
 }
 
 // ── PET CARE SERVICES ────────────────────────────────────────────────────────
@@ -674,11 +721,18 @@ model PetCareBooking {
   location        String?
   latitude        Float?
   longitude       Float?
+  petId           String?  @map("pet_id")
   petName         String?  @map("pet_name")
   petSpecies      String?  @map("pet_species")
   petBreed        String?  @map("pet_breed")
   petWeightKg     Float?   @map("pet_weight_kg")
   notes           String?
+  // ── Vet appointment fields ──
+  consultMode     String?  @map("consult_mode")   // in_clinic | home_visit | video
+  reason          String?
+  visitSummary    String?  @map("visit_summary")
+  prescription    String?
+  followUpAt      DateTime? @map("follow_up_at") @db.Date
   priceCents      Int      @map("price_cents")
   paymentMethod   String   @default("pay_at_visit") @map("payment_method")  // pay_at_visit | pay_now
   paymentStatus   String   @default("unpaid") @map("payment_status")       // unpaid | paid | refund_pending | refunded
@@ -692,6 +746,7 @@ model PetCareBooking {
   service  PetCareService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
   seeker   Profile         @relation("BookingSeeker", fields: [seekerId], references: [id], onDelete: Cascade)
+  pet      Pet?            @relation(fields: [petId], references: [id], onDelete: SetNull)
 
   review   ProviderReview?
 
@@ -2294,17 +2349,102 @@ model BreedingProfile {
   currency       String   @default("USD")
   status         String   @default("available")  // available | paused | unavailable
   requestsCount  Int      @default(0) @map("requests_count")
+  // ── Ecosystem links & richer fields ──
+  petId          String?  @map("pet_id")
+  latitude       Float?
+  longitude      Float?
+  temperament    String[] @default([])
+  registered     Boolean  @default(false)
+  willingToTravel Boolean @default(false) @map("willing_to_travel")
+  // ── Advanced: genetic safety, welfare, cycle, media, verification, reputation ──
+  dnaResults     Json?    @map("dna_results")     // [{condition, status: clear|carrier|affected}]
+  ageMonths      Int?     @map("age_months")
+  littersCount   Int      @default(0) @map("litters_count")
+  lastLitterAt   DateTime? @map("last_litter_at") @db.Date
+  documents      String[] @default([])            // pedigree / DNA report URLs
+  heatStatus     String?  @map("heat_status")     // unknown | in_season | due_soon | resting
+  nextHeatAt     DateTime? @map("next_heat_at") @db.Date
+  availableNow   Boolean  @default(true) @map("available_now")
+  verifiedByProviderId String? @map("verified_by_provider_id")
+  verifiedAt     DateTime? @map("verified_at")
+  rating         Float    @default(0)
+  reviewCount    Int      @default(0) @map("review_count")
   isDeleted      Boolean  @default(false) @map("is_deleted")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   owner    Profile           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  pet      Pet?              @relation(fields: [petId], references: [id], onDelete: SetNull)
+  verifiedByProvider ServiceProvider? @relation(fields: [verifiedByProviderId], references: [id], onDelete: SetNull)
   requests BreedingRequest[]
+  reviews  BreedingReview[]
 
   @@index([status, createdAt(sort: Desc)])
   @@index([species, createdAt(sort: Desc)])
   @@index([ownerId, createdAt(sort: Desc)])
   @@map("breeding_profiles")
+}
+
+model BreedingReview {
+  id         String   @id @default(uuid())
+  profileId  String   @map("profile_id")
+  requestId  String   @map("request_id")
+  authorId   String   @map("author_id")
+  targetId   String   @map("target_id")
+  rating     Int
+  body       String?
+  isDeleted  Boolean  @default(false) @map("is_deleted")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  profile BreedingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  request BreedingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  Profile         @relation("BreedingReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  target  Profile         @relation("BreedingReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, authorId])
+  @@index([profileId, createdAt(sort: Desc)])
+  @@map("breeding_reviews")
+}
+
+model BreedingLitter {
+  id          String   @id @default(uuid())
+  requestId   String   @map("request_id")
+  recordedBy  String   @map("recorded_by")
+  species     String?
+  breed       String?
+  matedAt     DateTime? @map("mated_at") @db.Date
+  expectedAt  DateTime? @map("expected_at") @db.Date
+  bornAt      DateTime? @map("born_at") @db.Date
+  count       Int?
+  notes       String?
+  status      String   @default("expecting")   // expecting | born
+  listedCount Int      @default(0) @map("listed_count")
+  isDeleted   Boolean  @default(false) @map("is_deleted")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  request  BreedingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  recorder Profile         @relation(fields: [recordedBy], references: [id], onDelete: Cascade)
+
+  @@index([recordedBy, createdAt(sort: Desc)])
+  @@map("breeding_litters")
+}
+
+model BreedingAlert {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  species   String?
+  breed     String?
+  sex       String?
+  nearLat   Float?   @map("near_lat")
+  nearLng   Float?   @map("near_lng")
+  radiusKm  Int      @default(25) @map("radius_km")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("breeding_alerts")
 }
 
 model BreedingRequest {
@@ -2313,12 +2453,31 @@ model BreedingRequest {
   requesterId String   @map("requester_id")
   message     String?
   status      String   @default("pending")   // pending | accepted | declined
+  lastMessageAt DateTime? @map("last_message_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   profile   BreedingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
   requester Profile         @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  messages  BreedingRequestMessage[]
+  reviews   BreedingReview[]
+  litters   BreedingLitter[]
 
   @@unique([profileId, requesterId])
   @@index([profileId, createdAt(sort: Desc)])
   @@map("breeding_requests")
+}
+
+model BreedingRequestMessage {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  senderId  String   @map("sender_id")
+  body      String
+  flagged   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request BreedingRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  sender  Profile         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("breeding_request_messages")
 }
