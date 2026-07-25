@@ -118,7 +118,7 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
         ...form, petName: form.petName.trim(), breed: form.breed.trim(),
         dnaResults: (form.dnaResults ?? []).filter((d) => d.condition.trim()),
       }
-      const p = editing ? await breedingApi.update(profile!.id, payload) : await breedingApi.create(payload)
+      const p = editing ? await breedingApi.update(profile!.id, payload) : await breedingApi.create({ ...payload, currency: 'INR' })
       onSaved(p); onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to save profile') } finally { setSaving(false) }
   }
