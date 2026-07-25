@@ -16,18 +16,17 @@ import { breedingApi, providersApi, type BreedingProfile, type BreedingRequest, 
 import { BreedingChat } from '@/components/breeding/BreedingChat'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const HEAT_LABELS: Record<string, string> = { in_season: 'In season now', due_soon: 'Heat due soon', resting: 'Resting' }
 const DNA_TONE: Record<string, string> = { clear: 'bg-emerald-500/10 text-emerald-600', carrier: 'bg-amber-500/10 text-amber-600', affected: 'bg-red-500/10 text-red-600' }
 
-function money(amount: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  return sym ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()} ${currency}`
-}
+// currency formatting via useCurrency()
 
 export default function BreedingDetailPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
   const { id } = use(params)
   const { user } = useAuth()
+  const { format } = useCurrency()
   const router = useRouter()
   const [profile, setProfile] = useState<BreedingProfile | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -130,7 +129,7 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
                 {profile.location && <LocationLink location={profile.location} iconClassName="w-4 h-4" />}
                 {profile.distanceKm != null && <span className="flex items-center gap-0.5"><Navigation className="w-3.5 h-3.5" />{profile.distanceKm} km</span>}
               </div>
-              {profile.fee != null && profile.fee > 0 && <p className="text-headline-md font-bold text-secondary mt-2">{money(profile.fee, profile.currency)}</p>}
+              {profile.fee != null && profile.fee > 0 && <p className="text-headline-md font-bold text-secondary mt-2">{format(profile.fee, profile.currency)}</p>}
 
               {/* Trust badges */}
               <div className="flex flex-wrap gap-1.5 mt-3">

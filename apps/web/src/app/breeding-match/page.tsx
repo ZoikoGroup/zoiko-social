@@ -18,14 +18,12 @@ import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const SPECIES = ['dog', 'cat', 'bird', 'rabbit', 'other']
 type Tab = 'discover' | 'matches' | 'mine' | 'litters'
 
-function money(amount: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  return sym ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()} ${currency}`
-}
+// currency formatting via useCurrency()
 
 function SexBadge({ sex }: { sex: string }): React.JSX.Element {
   const female = sex === 'female'
@@ -422,6 +420,7 @@ function OffspringModal({ litter, onClose, onListed }: { litter: BreedingLitter;
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 function BreedingCard({ p, onOpen }: { p: BreedingProfile; onOpen: () => void }): React.JSX.Element {
+  const { format } = useCurrency()
   return (
     <div onClick={onOpen} className="group bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer">
       <div className="relative h-40 bg-surface-container overflow-hidden">
@@ -434,7 +433,7 @@ function BreedingCard({ p, onOpen }: { p: BreedingProfile; onOpen: () => void })
           <h3 className="text-label-md font-bold text-on-surface group-hover:text-primary transition-colors truncate flex items-center gap-1">{p.petName}{p.verifiedBy && <ShieldCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />}</h3>
           {p.matchScore != null
             ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary text-white flex-shrink-0">{p.matchScore}% match</span>
-            : p.fee != null && p.fee > 0 ? <span className="text-label-sm font-bold text-secondary flex-shrink-0">{money(p.fee, p.currency)}</span> : null}
+            : p.fee != null && p.fee > 0 ? <span className="text-label-sm font-bold text-secondary flex-shrink-0">{format(p.fee, p.currency)}</span> : null}
         </div>
         <p className="text-[12px] text-on-surface-variant capitalize">{p.breed}{p.age ? ` · ${p.age}` : ''}</p>
 

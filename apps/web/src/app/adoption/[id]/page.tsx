@@ -15,12 +15,14 @@ import { adoptionApi, type AdoptionListing, type AdoptionEnquiryItem } from '@/l
 import { AdoptionChat } from '@/components/adoption/AdoptionChat'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const GOOD_ICON: Record<string, typeof Baby> = { kids: Baby, dogs: Dog, cats: Cat }
 
 export default function AdoptionDetailPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
   const { id } = use(params)
   const { user } = useAuth()
+  const { format } = useCurrency()
   const router = useRouter()
   const [listing, setListing] = useState<AdoptionListing | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -134,8 +136,8 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
                 )}
                 <p className="text-headline-md font-bold text-on-surface mt-2">
                   {listing.listingType === 'sale'
-                    ? (listing.price != null ? `₹${listing.price.toLocaleString()}` : 'Price on request')
-                    : (listing.fee != null && listing.fee > 0 ? `Adoption fee ₹${listing.fee}` : 'Free to adopt')}
+                    ? (listing.price != null ? format(listing.price) : 'Price on request')
+                    : (listing.fee != null && listing.fee > 0 ? `Adoption fee ${format(listing.fee)}` : 'Free to adopt')}
                   {listing.listingType === 'sale' && listing.negotiable && <span className="text-label-sm font-medium text-outline"> · Negotiable</span>}
                 </p>
               </div>

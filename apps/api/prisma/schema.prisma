@@ -330,6 +330,7 @@ model Profile {
   followingCount    Int              @default(0) @map("following_count")
   postsCount        Int              @default(0) @map("posts_count")
   trustScore        Int              @default(100) @map("trust_score")
+  currency          String?
   usernameChangedAt DateTime?        @map("username_changed_at")
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
@@ -442,6 +443,7 @@ model Pet {
   bio       String?
   birthdate DateTime? @db.Date
   isPublic  Boolean   @default(true) @map("is_public")
+  healthShareToken String? @unique @map("health_share_token")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
@@ -481,6 +483,7 @@ model PetHealthRecord {
   type       String                          // vaccination | vet_visit | medication | allergy | weight | note
   title      String
   notes      String?
+  attachments String[] @default([])
   recordDate DateTime? @map("record_date") @db.Date
   nextDue    DateTime? @map("next_due") @db.Date
   createdAt  DateTime  @default(now()) @map("created_at")

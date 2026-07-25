@@ -12,12 +12,14 @@ import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift
 import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
 }
 
 export default function LostFoundDetailPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { format } = useCurrency()
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
@@ -136,7 +138,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
               {report.lastSeenLocation && <LocationLink location={report.lastSeenLocation} iconClassName="w-3.5 h-3.5" className="text-primary" />}
               {report.lastSeenAt && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" />{fmtDate(report.lastSeenAt)}</span>}
               {report.contact && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-primary" />{report.contact}</span>}
-              {report.reward != null && report.reward > 0 && <span className="flex items-center gap-1 text-secondary font-medium"><Gift className="w-3.5 h-3.5" />Reward ₹{report.reward}</span>}
+              {report.reward != null && report.reward > 0 && <span className="flex items-center gap-1 text-secondary font-medium"><Gift className="w-3.5 h-3.5" />Reward {format(report.reward)}</span>}
             </div>
 
             {report.description && <p className="text-label-md text-on-surface-variant mt-4 whitespace-pre-line leading-relaxed">{report.description}</p>}

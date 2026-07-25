@@ -6,6 +6,7 @@ import { AuthProvider } from '@/hooks/use-auth'
 import { NotificationsProvider } from '@/hooks/use-notifications'
 import { MessagingProvider } from '@/hooks/use-messaging'
 import { ToastProvider } from '@/hooks/use-toast'
+import { CurrencyProvider } from '@/hooks/use-currency'
 import { ToastContainer } from '@/components/ToastContainer'
 import { GlobalErrorBoundary } from '@/components/GlobalErrorBoundary'
 import { LazyCallLayer } from '@/components/messaging/LazyCallLayer'
@@ -28,13 +29,15 @@ export function Providers({ children }: { children: ReactNode }): React.JSX.Elem
     <GlobalErrorBoundary>
       <ToastProvider>
         <AuthProvider>
-          <NotificationsProvider>
-            <MessagingProvider>
-              <LazyCallLayer>
-                {children}
-              </LazyCallLayer>
-            </MessagingProvider>
-          </NotificationsProvider>
+          <CurrencyProvider>
+            <NotificationsProvider>
+              <MessagingProvider>
+                <LazyCallLayer>
+                  {children}
+                </LazyCallLayer>
+              </MessagingProvider>
+            </NotificationsProvider>
+          </CurrencyProvider>
         </AuthProvider>
         <ToastContainer />
       </ToastProvider>

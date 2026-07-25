@@ -5,6 +5,7 @@ import { X, Loader2, Calendar, PawPrint, ShieldCheck } from 'lucide-react'
 import { petsApi, type Pet, type Provider } from '@/lib/api'
 import { petCareApi, type PetCareService } from '@/lib/pet-care-api'
 import { CONSULT_MODE_LABELS, todayHoursLabel } from '@/lib/vet'
+import { useCurrency } from '@/hooks/use-currency'
 
 /**
  * Book a vet appointment: pick a service, consult mode, date/time, and the pet
@@ -16,6 +17,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
   onClose: () => void
   onBooked: () => void
 }): React.JSX.Element {
+  const { format } = useCurrency()
   const bookable = services.filter((s) => s.isActive)
   const [serviceId, setServiceId] = useState(bookable[0]?.id ?? '')
   const [mode, setMode] = useState(provider.consultModes[0] ?? 'in_clinic')
@@ -81,7 +83,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
               <div>
                 <label className="text-[12px] font-semibold text-outline">Service</label>
                 <select value={serviceId} onChange={(e) => setServiceId(e.target.value)} className={input}>
-                  {bookable.map((s) => <option key={s.id} value={s.id}>{s.name} — {s.priceDisplay}</option>)}
+                  {bookable.map((s) => <option key={s.id} value={s.id}>{s.name} — {format(s.priceCents / 100)}</option>)}
                 </select>
               </div>
 
@@ -130,7 +132,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
               {selected && (
                 <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-container-low">
                   <span className="text-label-sm text-on-surface-variant">{selected.name}</span>
-                  <span className="text-label-md font-bold text-on-surface">{selected.priceDisplay}</span>
+                  <span className="text-label-md font-bold text-on-surface">{format(selected.priceCents / 100)}</span>
                 </div>
               )}
               <p className="flex items-start gap-1.5 text-[11px] text-outline"><ShieldCheck className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />Pay at the clinic. Your contact details are shared with the clinic only after they confirm.</p>

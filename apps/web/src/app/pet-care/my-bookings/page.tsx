@@ -7,6 +7,7 @@ import {
   PawPrint, Star, MoreHorizontal, Ban, User,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 import { Header } from '@/components/Header'
 import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
@@ -223,6 +224,7 @@ function BookingCard({
   actionLoading: boolean
   onReview?: () => void
 }): React.JSX.Element {
+  const { format } = useCurrency()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -292,7 +294,7 @@ function BookingCard({
         </div>
 
         <div className="text-right flex-shrink-0">
-          <div className="text-lg font-bold text-primary">{booking.priceDisplay}</div>
+          <div className="text-lg font-bold text-primary">{format(booking.priceCents / 100)}</div>
           <div className="text-[10px] text-outline mt-0.5">{PAYMENT_METHOD_LABELS[booking.paymentMethod] ?? booking.paymentMethod}</div>
 
           {/* Actions */}

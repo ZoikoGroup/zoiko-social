@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
+import { CURRENCIES } from '@/lib/currency'
 
 type SettingsTab =
   | 'account'
@@ -350,6 +352,7 @@ const emptySubscribe = (): (() => void) => () => {}
 
 function PreferencesSettings(): React.JSX.Element {
   const { theme, setTheme } = useTheme()
+  const { currency, setCurrency, ratesLive, ratesUpdatedAt } = useCurrency()
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
   const [prefs, setPrefs] = useState({ reducedMotion: false, compactView: false })
   const [language, setLanguage] = useState(() => {
@@ -432,6 +435,29 @@ function PreferencesSettings(): React.JSX.Element {
           <option value="de">Deutsch</option>
           <option value="pt">Português</option>
         </select>
+      </div>
+
+      <hr className="border-outline-variant/30" />
+
+      {/* Currency */}
+      <div>
+        <h4 className="text-label-md font-semibold text-on-surface mb-3 flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-primary" />
+          Currency
+        </h4>
+        <p className="text-[11px] text-outline mb-3">Prices across ZoikoSocial (adoption, breeding, vet & pet care) display in this currency. Converted amounts are approximate.</p>
+        <select
+          value={mounted ? currency : 'INR'}
+          onChange={(e) => setCurrency(e.target.value)}
+          className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all appearance-none cursor-pointer"
+        >
+          {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.symbol} {c.name} ({c.code})</option>)}
+        </select>
+        <p className="text-[11px] text-outline mt-2">
+          {mounted && ratesLive && ratesUpdatedAt
+            ? `Live exchange rates · updated ${new Date(ratesUpdatedAt).toLocaleString()}`
+            : 'Using approximate exchange rates (offline or unavailable).'}
+        </p>
       </div>
 
       <hr className="border-outline-variant/30" />

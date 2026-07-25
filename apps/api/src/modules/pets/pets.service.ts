@@ -1,8 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
+import { nanoid } from 'nanoid'
 import { PrismaService } from '../prisma/prisma.service'
 import type {
-  CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput, CreateHealthRecordInput,
+  CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput,
+  CreateHealthRecordInput, UpdateHealthRecordInput,
 } from './pets.schemas'
 
 export interface DiaryEntryResponse {
@@ -24,6 +26,7 @@ export interface HealthRecordResponse {
   type: string
   title: string
   notes: string | null
+  attachments: string[]
   recordDate: string | null
   nextDue: string | null
   createdAt: string
@@ -41,6 +44,19 @@ export interface PetResponse {
   birthdate: string | null
   isPublic: boolean
   createdAt: string
+}
+
+export interface PublicPassportResponse {
+  pet: {
+    name: string
+    species: string
+    breed: string | null
+    sex: string | null
+    avatarUrl: string | null
+    birthdate: string | null
+    ownerName: string | null
+  }
+  records: HealthRecordResponse[]
 }
 
 type PetRow = Prisma.PetGetPayload<Record<string, never>>
@@ -192,8 +208,27 @@ export class PetsService {
       data: {
         petId, ownerId, type: input.type, title: input.title,
         ...(input.notes ? { notes: input.notes } : {}),
+        ...(input.attachments ? { attachments: input.attachments } : {}),
         ...(input.recordDate ? { recordDate: new Date(input.recordDate) } : {}),
         ...(input.nextDue ? { nextDue: new Date(input.nextDue) } : {}),
+      },
+    })
+    return this.mapHealth(r)
+  }
+
+  async updateHealth(petId: string, recordId: string, ownerId: string, input: UpdateHealthRecordInput): Promise<HealthRecordResponse> {
+    await this.assertOwner(petId, ownerId)
+    const existing = await this.prisma.petHealthRecord.findFirst({ where: { id: recordId, petId, ownerId }, select: { id: true } })
+    if (!existing) throw new NotFoundException({ code: 'HEALTH_RECORD_NOT_FOUND', message: 'Health record not found' })
+    const r = await this.prisma.petHealthRecord.update({
+      where: { id: recordId },
+      data: {
+        ...(input.type !== undefined ? { type: input.type } : {}),
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
+        ...(input.attachments !== undefined ? { attachments: input.attachments } : {}),
+        ...(input.recordDate !== undefined ? { recordDate: input.recordDate ? new Date(input.recordDate) : null } : {}),
+        ...(input.nextDue !== undefined ? { nextDue: input.nextDue ? new Date(input.nextDue) : null } : {}),
       },
     })
     return this.mapHealth(r)
@@ -206,10 +241,52 @@ export class PetsService {
 
   private mapHealth(r: Prisma.PetHealthRecordGetPayload<Record<string, never>>): HealthRecordResponse {
     return {
-      id: r.id, petId: r.petId, type: r.type, title: r.title, notes: r.notes,
+      id: r.id, petId: r.petId, type: r.type, title: r.title, notes: r.notes, attachments: r.attachments,
       recordDate: r.recordDate ? r.recordDate.toISOString().slice(0, 10) : null,
       nextDue: r.nextDue ? r.nextDue.toISOString().slice(0, 10) : null,
       createdAt: r.createdAt.toISOString(),
+    }
+  }
+
+  // ── PUBLIC SHARE (vet card) ─────────────────────────────────────────────────
+
+  /** Enables (or returns the existing) revocable public share token for a pet. */
+  async enableHealthShare(petId: string, ownerId: string): Promise<{ token: string }> {
+    await this.assertOwner(petId, ownerId)
+    const pet = await this.prisma.pet.findUnique({ where: { id: petId }, select: { healthShareToken: true } })
+    if (pet?.healthShareToken) return { token: pet.healthShareToken }
+    const token = nanoid(24)
+    await this.prisma.pet.update({ where: { id: petId }, data: { healthShareToken: token } })
+    return { token }
+  }
+
+  async disableHealthShare(petId: string, ownerId: string): Promise<void> {
+    await this.assertOwner(petId, ownerId)
+    await this.prisma.pet.update({ where: { id: petId }, data: { healthShareToken: null } })
+  }
+
+  /** Public, unauthenticated read of a shared pet's health card. */
+  async publicPassport(token: string): Promise<PublicPassportResponse> {
+    const pet = await this.prisma.pet.findFirst({
+      where: { healthShareToken: token },
+      select: {
+        id: true, name: true, species: true, breed: true, sex: true, avatarUrl: true, birthdate: true,
+        owner: { select: { displayName: true } },
+      },
+    })
+    if (!pet) throw new NotFoundException({ code: 'PASSPORT_NOT_FOUND', message: 'This share link is invalid or has been revoked' })
+    const records = await this.prisma.petHealthRecord.findMany({
+      where: { petId: pet.id },
+      orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+    })
+    return {
+      pet: {
+        name: pet.name, species: pet.species, breed: pet.breed, sex: pet.sex,
+        avatarUrl: pet.avatarUrl,
+        birthdate: pet.birthdate ? pet.birthdate.toISOString().slice(0, 10) : null,
+        ownerName: pet.owner?.displayName ?? null,
+      },
+      records: records.map((r) => this.mapHealth(r)),
     }
   }
 

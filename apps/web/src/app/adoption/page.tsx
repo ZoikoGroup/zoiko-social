@@ -15,6 +15,7 @@ import { LocationInput } from '@/components/LocationInput'
 import { adoptionApi, type AdoptionListing, type NewListing } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const SPECIES = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
 
@@ -30,6 +31,7 @@ function StatusChip({ status }: { status: string }): React.JSX.Element {
 
 export default function AdoptionPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
+  const { format } = useCurrency()
   const [species, setSpecies] = useState('All')
   const [query, setQuery] = useState('')
   const [type, setType] = useState<'' | 'adopt' | 'sale'>('')
@@ -172,8 +174,8 @@ export default function AdoptionPage(): React.JSX.Element {
                         <h3 className="font-bold text-label-md text-on-surface truncate">{l.name}</h3>
                         <span className="text-label-sm font-bold text-on-surface flex-shrink-0">
                           {l.listingType === 'sale'
-                            ? (l.price != null ? `₹${l.price.toLocaleString()}` : '—')
-                            : (l.fee != null && l.fee > 0 ? `₹${l.fee}` : 'Free')}
+                            ? (l.price != null ? format(l.price) : '—')
+                            : (l.fee != null && l.fee > 0 ? format(l.fee) : 'Free')}
                         </span>
                       </div>
                       <p className="text-[12px] text-on-surface-variant truncate">{l.species}{l.breed ? ` · ${l.breed}` : ''}{l.age ? ` · ${l.age}` : ''}</p>

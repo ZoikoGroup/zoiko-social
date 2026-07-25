@@ -7,6 +7,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { ChevronLeft, Package, Loader2 } from 'lucide-react'
 import { orderApi, type Order } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const STATUS_STYLE: Record<string, string> = {
   pending: 'bg-secondary/10 text-secondary',
@@ -16,13 +17,8 @@ const STATUS_STYLE: Record<string, string> = {
   refunded: 'bg-red-500/10 text-red-600',
 }
 
-function money(amountCents: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  const n = (amountCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return sym ? `${sym}${n}` : `${n} ${currency}`
-}
-
 export default function MyOrdersPage(): React.JSX.Element {
+  const { format } = useCurrency()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,7 +56,7 @@ export default function MyOrdersPage(): React.JSX.Element {
               {orders.map((o) => (
                 <div key={o.id} className="border border-outline-variant rounded-xl p-4 bg-surface flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-label-md">{money(o.amountCents, o.currency)} · Qty {o.quantity}</p>
+                    <p className="font-semibold text-label-md">{format(o.amountCents / 100, o.currency)} · Qty {o.quantity}</p>
                     <p className="text-[11px] text-outline">{new Date(o.createdAt).toLocaleString()}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${STATUS_STYLE[o.status] ?? STATUS_STYLE.cancelled}`}>

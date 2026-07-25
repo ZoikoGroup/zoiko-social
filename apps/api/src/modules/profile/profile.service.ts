@@ -25,6 +25,7 @@ export const UpdateProfileSchema = z.object({
   bannerUrl: z.string().url().max(500).optional().nullable(),
   isPrivate: z.boolean().optional(),
   username: z.string().min(3).max(30).optional(),
+  currency: z.string().trim().min(2).max(8).optional(),
 })
 
 export const SwitchProfessionalSchema = z.object({
@@ -100,6 +101,7 @@ export interface ProfileResponse {
   followingCount: number
   postsCount: number
   trustScore: number
+  currency: string | null
   usernameChangedAt: string | null
   createdAt: string
   updatedAt: string
@@ -874,6 +876,7 @@ export class ProfileService {
       followingCount: profile.followingCount,
       postsCount: profile.postsCount,
       trustScore: profile.trustScore,
+      currency: profile.currency ?? null,
       usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),

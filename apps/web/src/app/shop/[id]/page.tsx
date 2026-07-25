@@ -13,14 +13,10 @@ import {
 } from 'lucide-react'
 import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
-
-function money(amount: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  const n = amount.toLocaleString(undefined, { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
-  return sym ? `${sym}${n}` : `${n} ${currency}`
-}
+import { useCurrency } from '@/hooks/use-currency'
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { format } = useCurrency()
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
@@ -150,8 +146,8 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
               <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight text-balance">{product.title}</h1>
 
               <div className="flex items-center gap-2 mt-3">
-                <span className="text-headline-md font-bold text-on-surface">{money(product.price, product.currency)}</span>
-                {onSale && <span className="text-label-md text-outline line-through">{money(product.compareAt!, product.currency)}</span>}
+                <span className="text-headline-md font-bold text-on-surface">{format(product.price, product.currency)}</span>
+                {onSale && <span className="text-label-md text-outline line-through">{format(product.compareAt!, product.currency)}</span>}
               </div>
 
               {product.shipping && <p className="flex items-center gap-1.5 text-label-sm text-primary mt-2"><Truck className="w-4 h-4" />{product.shipping}</p>}

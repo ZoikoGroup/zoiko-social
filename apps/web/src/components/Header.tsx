@@ -13,6 +13,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
+import { CurrencySwitcher } from '@/components/CurrencySwitcher'
 import { useMessaging } from '@/hooks/use-messaging'
 import { UserAvatar } from './UserAvatar'
 
@@ -205,6 +206,9 @@ export function Header(): React.JSX.Element {
 
         {/* Right: Rescue + alerts (mobile) / avatar menu (desktop) */}
         <div className="flex items-center gap-2 justify-end flex-shrink-0 relative" ref={profileMenuRef}>
+          {/* Display currency switcher */}
+          <CurrencySwitcher />
+
           {/* Emergency rescue CTA */}
           <Link
             href="/adoption"
