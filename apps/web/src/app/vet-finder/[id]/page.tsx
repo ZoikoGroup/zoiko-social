@@ -15,6 +15,7 @@ import { LocationLink } from '@/components/LocationLink'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const MODE_ICON: Record<string, typeof Video> = { in_clinic: Building2, home_visit: Home, video: Video }
 
@@ -22,6 +23,7 @@ export default function VetClinicDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { profile } = useAuth()
+  const { format } = useCurrency()
   const [clinic, setClinic] = useState<Provider | null>(null)
   const [services, setServices] = useState<PetCareService[]>([])
   const [reviews, setReviews] = useState<ProviderReview[]>([])
@@ -139,7 +141,7 @@ export default function VetClinicDetailPage(): React.JSX.Element {
                       <p className="text-label-md font-semibold text-on-surface">{s.name}</p>
                       <p className="text-[11px] text-outline">{VET_SERVICE_CATEGORY_LABELS[s.category] ?? s.category}{s.durationMinutes ? ` · ${s.durationMinutes} min` : ''}</p>
                     </div>
-                    <span className="text-label-md font-bold text-on-surface flex-shrink-0">{s.priceDisplay}</span>
+                    <span className="text-label-md font-bold text-on-surface flex-shrink-0">{format(s.priceCents / 100)}</span>
                   </div>
                 ))}
               </div>

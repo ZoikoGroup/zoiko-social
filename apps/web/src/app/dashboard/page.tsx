@@ -16,16 +16,14 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 import {
   shopApi, newsApi, providersApi, feedApi,
   type Product, type ProductEnquiryInbox, type NewsArticle, type Provider, type PostItem,
   PROFESSIONAL_CATEGORY_LABELS,
 } from '@/lib/api'
 
-function money(amount: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  return sym ? `${sym}${amount.toLocaleString()}` : `${amount.toLocaleString()} ${currency}`
-}
+// currency formatting now via useCurrency()
 function timeAgo(iso: string): string {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
   if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m`
@@ -70,6 +68,7 @@ function StatusPill({ status }: { status: string }): React.JSX.Element {
 
 // ── Product Seller ───────────────────────────────────────────────────────────
 function SellerDashboard(): React.JSX.Element {
+  const { format } = useCurrency()
   const { data, isLoading: loading } = useCachedValue<{ products: Product[]; inbox: ProductEnquiryInbox[] }>('dash:seller', async () => {
     const [m, i] = await Promise.allSettled([shopApi.mine(), shopApi.enquiryInbox()])
     return {
@@ -105,7 +104,7 @@ function SellerDashboard(): React.JSX.Element {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{p.title}</p>
-                  <p className="text-[11px] text-outline">{money(p.price, p.currency)} · {p.stock} in stock</p>
+                  <p className="text-[11px] text-outline">{format(p.price, p.currency)} · {p.stock} in stock</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="flex items-center gap-0.5 text-[11px] text-outline"><Heart className="w-3 h-3" />{p.savesCount}</span>

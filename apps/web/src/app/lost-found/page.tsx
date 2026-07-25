@@ -15,6 +15,7 @@ import { MapPin, Search, Plus, X, Loader2, Camera, Eye, Navigation, Gift } from 
 import { lostFoundApi, type LostFoundReport, type NewReport } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 const TABS = [{ v: '', label: 'All' }, { v: 'lost', label: 'Lost' }, { v: 'found', label: 'Found' }]
 
@@ -23,6 +24,7 @@ function kindChip(kind: string): string {
 }
 
 export default function LostFoundPage(): React.JSX.Element {
+  const { format } = useCurrency()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [kind, setKind] = useState('')
   const [query, setQuery] = useState('')
@@ -154,7 +156,7 @@ export default function LostFoundPage(): React.JSX.Element {
                       ) : <div className="w-full h-full flex items-center justify-center"><MapPin className="w-10 h-10 text-outline/40" /></div>}
                       <span className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kindChip(r.kind)}`}>{r.kind}</span>
                       {r.status === 'reunited' && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-primary/10 text-primary">Reunited</span>}
-                      {r.reward != null && r.reward > 0 && <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary text-white flex items-center gap-1"><Gift className="w-2.5 h-2.5" />₹{r.reward}</span>}
+                      {r.reward != null && r.reward > 0 && <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary text-white flex items-center gap-1"><Gift className="w-2.5 h-2.5" />{format(r.reward)}</span>}
                       {r.distanceKm != null && <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/50 text-white flex items-center gap-1"><Navigation className="w-2.5 h-2.5" />{r.distanceKm} km</span>}
                     </div>
                     <div className="p-3">

@@ -180,6 +180,7 @@ export interface Profile {
   followingCount: number
   postsCount: number
   trustScore: number
+  currency: string | null
   usernameChangedAt: string | null
   createdAt: string
   updatedAt: string
@@ -267,6 +268,7 @@ export const profileApi = {
     bannerUrl?: string | null
     isPrivate?: boolean
     username?: string
+    currency?: string
   }) => mutate<Profile>('/profiles/me', { method: 'PUT', body: JSON.stringify(input) }),
   switchToProfessional: (input: { category: string; businessName?: string; description?: string }) =>
     mutate<ProfessionalProfile>('/profiles/me/professional', { method: 'POST', body: JSON.stringify(input) }),
@@ -445,6 +447,7 @@ export interface HealthRecord {
   type: string
   title: string
   notes: string | null
+  attachments: string[]
   recordDate: string | null
   nextDue: string | null
   createdAt: string
@@ -466,10 +469,24 @@ export const petsApi = {
     mutate<{ success: boolean }>(`/pets/${petId}/diary/${entryId}`, { method: 'DELETE' }),
   // Health
   health: (petId: string) => cachedGet<HealthRecord[]>(`/pets/${petId}/health`, 15_000),
-  addHealth: (petId: string, input: { type: string; title: string; notes?: string; recordDate?: string; nextDue?: string }) =>
+  addHealth: (petId: string, input: { type: string; title: string; notes?: string; attachments?: string[]; recordDate?: string; nextDue?: string }) =>
     mutate<HealthRecord>(`/pets/${petId}/health`, { method: 'POST', body: JSON.stringify(input) }),
+  updateHealth: (petId: string, recordId: string, input: { type?: string; title?: string; notes?: string; attachments?: string[]; recordDate?: string; nextDue?: string }) =>
+    mutate<HealthRecord>(`/pets/${petId}/health/${recordId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   removeHealth: (petId: string, recordId: string) =>
     mutate<{ success: boolean }>(`/pets/${petId}/health/${recordId}`, { method: 'DELETE' }),
+  // Public share (vet card)
+  enableHealthShare: (petId: string) =>
+    mutate<{ token: string }>(`/pets/${petId}/health/share`, { method: 'POST' }),
+  disableHealthShare: (petId: string) =>
+    mutate<{ success: boolean }>(`/pets/${petId}/health/share`, { method: 'DELETE' }),
+  publicPassport: (token: string) =>
+    request<PublicPassport>(`/public/pet-passport/${token}`),
+}
+
+export interface PublicPassport {
+  pet: { name: string; species: string; breed: string | null; sex: string | null; avatarUrl: string | null; birthdate: string | null; ownerName: string | null }
+  records: HealthRecord[]
 }
 
 // ── Events ────────────────────────────────────────────────────────────────

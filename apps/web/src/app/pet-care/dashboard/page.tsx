@@ -9,6 +9,7 @@ import {
   Pause, Play, Phone, MapPin, Globe, Building2, MessageSquare, Eye,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 import { useCachedValue } from '@/hooks/use-cache'
 import { providersApi, type Provider } from '@/lib/api'
 import {
@@ -416,6 +417,7 @@ function ServicesTab({ providerId, services, onRefresh }: {
   services: PetCareService[]
   onRefresh: () => void
 }): React.JSX.Element {
+  const { format } = useCurrency()
   const [addOpen, setAddOpen] = useState(false)
   const [editingService, setEditingService] = useState<PetCareService | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -500,7 +502,7 @@ function ServicesTab({ providerId, services, onRefresh }: {
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-lg font-bold text-primary">{service.priceDisplay}</div>
+                <div className="text-lg font-bold text-primary">{format(service.priceCents / 100)}</div>
                 <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                   service.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
                 }`}>
@@ -698,6 +700,7 @@ function BookingCard({ booking, onRefresh }: {
   booking: PetCareBooking
   onRefresh: () => void
 }): React.JSX.Element {
+  const { format } = useCurrency()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showCancelReason, setShowCancelReason] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -752,7 +755,7 @@ function BookingCard({ booking, onRefresh }: {
               <p className="text-label-sm text-red-500 mt-1">Reason: {booking.cancelReason}</p>
             )}
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-label-sm font-semibold text-primary">{booking.priceDisplay}</span>
+              <span className="text-label-sm font-semibold text-primary">{format(booking.priceCents / 100)}</span>
               <span className="text-[11px] text-outline">· {PAYMENT_METHOD_LABELS[booking.paymentMethod] ?? booking.paymentMethod}</span>
               {booking.paymentStatus === 'paid' && (
                 <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Paid</span>

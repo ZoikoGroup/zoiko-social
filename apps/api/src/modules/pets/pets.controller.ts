@@ -3,8 +3,8 @@ import {
 } from '@nestjs/common'
 import { PetsService } from './pets.service'
 import {
-  CreatePetSchema, UpdatePetSchema, CreateDiaryEntrySchema, UpdateDiaryEntrySchema, CreateHealthRecordSchema,
-  type CreatePetInput, type UpdatePetInput, type CreateDiaryEntryInput, type UpdateDiaryEntryInput, type CreateHealthRecordInput,
+  CreatePetSchema, UpdatePetSchema, CreateDiaryEntrySchema, UpdateDiaryEntrySchema, CreateHealthRecordSchema, UpdateHealthRecordSchema,
+  type CreatePetInput, type UpdatePetInput, type CreateDiaryEntryInput, type UpdateDiaryEntryInput, type CreateHealthRecordInput, type UpdateHealthRecordInput,
 } from './pets.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
@@ -90,12 +90,45 @@ export class PetsController {
     return { data: await this.petsService.addHealth(petId, user.id, input) }
   }
 
+  @Patch(':petId/health/:recordId')
+  @UseGuards(JwtAuthGuard)
+  async updateHealth(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string, @Param('recordId') recordId: string, @Body() body: UpdateHealthRecordInput) {
+    const input = UpdateHealthRecordSchema.parse(body)
+    return { data: await this.petsService.updateHealth(petId, recordId, user.id, input) }
+  }
+
   @Delete(':petId/health/:recordId')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async removeHealth(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string, @Param('recordId') recordId: string) {
     await this.petsService.removeHealth(petId, recordId, user.id)
     return { data: { success: true } }
+  }
+
+  // ── Public share (vet card) ──
+  @Post(':petId/health/share')
+  @UseGuards(JwtAuthGuard)
+  async enableShare(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string) {
+    return { data: await this.petsService.enableHealthShare(petId, user.id) }
+  }
+
+  @Delete(':petId/health/share')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async disableShare(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string) {
+    await this.petsService.disableHealthShare(petId, user.id)
+    return { data: { success: true } }
+  }
+}
+
+/** Public, unauthenticated read-only pet health card via a share token. */
+@Controller('public/pet-passport')
+export class PublicPetPassportController {
+  constructor(private readonly petsService: PetsService) {}
+
+  @Get(':token')
+  async passport(@Param('token') token: string) {
+    return { data: await this.petsService.publicPassport(token) }
   }
 }
 

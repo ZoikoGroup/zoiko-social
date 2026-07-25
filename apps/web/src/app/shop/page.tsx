@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { shopApi, type Product, type NewProduct } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 
@@ -35,12 +36,6 @@ const SORTS: { id: string; label: string }[] = [
   { id: 'price-high', label: 'Price: High to Low' },
 ]
 
-function money(amount: number, currency: string): string {
-  const sym = currency === 'USD' ? '$' : currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''
-  const n = amount.toLocaleString(undefined, { minimumFractionDigits: amount % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
-  return sym ? `${sym}${n}` : `${n} ${currency}`
-}
-
 function SaveButton({ product }: { product: Product }): React.JSX.Element {
   const [saved, setSaved] = useState(product.viewerSaved)
   // Re-sync when the server truth for this product changes (e.g. after a filter refetch).
@@ -61,6 +56,7 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 }
 
 export default function ShopPage(): React.JSX.Element {
+  const { format } = useCurrency()
   const { isAuthenticated } = useAuth()
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState('newest')
@@ -163,8 +159,8 @@ export default function ShopPage(): React.JSX.Element {
                       <div className="p-3">
                         <h3 className="text-label-sm font-semibold text-on-surface leading-snug line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5em]">{p.title}</h3>
                         <div className="flex items-center gap-1.5 mt-1.5">
-                          <span className="text-label-md font-bold text-on-surface">{money(p.price, p.currency)}</span>
-                          {p.compareAt && p.compareAt > p.price && <span className="text-[11px] text-outline line-through">{money(p.compareAt, p.currency)}</span>}
+                          <span className="text-label-md font-bold text-on-surface">{format(p.price, p.currency)}</span>
+                          {p.compareAt && p.compareAt > p.price && <span className="text-[11px] text-outline line-through">{format(p.compareAt, p.currency)}</span>}
                         </div>
                         <div className="flex items-center gap-1 mt-2 text-[11px] text-outline min-w-0">
                           <UserAvatar name={p.seller.displayName} image={p.seller.avatarUrl ?? undefined} size="xs" />

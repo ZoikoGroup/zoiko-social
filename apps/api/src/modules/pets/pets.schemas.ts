@@ -44,6 +44,16 @@ export const CreateHealthRecordSchema = z.object({
   type: z.enum(['vaccination', 'vet_visit', 'medication', 'allergy', 'weight', 'note']),
   title: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(2000).optional(),
+  attachments: z.array(z.string().url().max(600)).max(10).optional(),
+  recordDate: DATE.optional(),
+  nextDue: DATE.optional(),
+})
+
+export const UpdateHealthRecordSchema = z.object({
+  type: z.enum(['vaccination', 'vet_visit', 'medication', 'allergy', 'weight', 'note']).optional(),
+  title: z.string().trim().min(1).max(120).optional(),
+  notes: z.string().trim().max(2000).optional(),
+  attachments: z.array(z.string().url().max(600)).max(10).optional(),
   recordDate: DATE.optional(),
   nextDue: DATE.optional(),
 })
@@ -53,3 +63,4 @@ export type UpdatePetInput = z.infer<typeof UpdatePetSchema>
 export type CreateDiaryEntryInput = z.infer<typeof CreateDiaryEntrySchema>
 export type UpdateDiaryEntryInput = z.infer<typeof UpdateDiaryEntrySchema>
 export type CreateHealthRecordInput = z.infer<typeof CreateHealthRecordSchema>
+export type UpdateHealthRecordInput = z.infer<typeof UpdateHealthRecordSchema>

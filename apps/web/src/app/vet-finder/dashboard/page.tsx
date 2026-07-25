@@ -16,6 +16,7 @@ import { VetClinicFormModal } from '@/components/vet/VetClinicFormModal'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
+import { useCurrency } from '@/hooks/use-currency'
 
 type Tab = 'today' | 'appointments' | 'services' | 'team' | 'reviews'
 const TABS: { id: Tab; label: string }[] = [
@@ -187,6 +188,7 @@ function AppointmentsTab({ appointments, onChanged }: { appointments: PetCareBoo
 }
 
 function AppointmentRow({ a, onChanged, onSummary, compact }: { a: PetCareBooking; onChanged?: () => void; onSummary?: () => void; compact?: boolean }): React.JSX.Element {
+  const { format } = useCurrency()
   const [busy, setBusy] = useState(false)
   const dt = new Date(a.scheduledAt)
   async function move(status: string): Promise<void> {
@@ -216,7 +218,7 @@ function AppointmentRow({ a, onChanged, onSummary, compact }: { a: PetCareBookin
           {a.reason && <p className="text-[12px] text-on-surface-variant mt-1 italic">“{a.reason}”</p>}
           {a.visitSummary && <p className="text-[12px] text-green-700 mt-1 flex items-center gap-1"><FileText className="w-3 h-3" />Visit summary added</p>}
         </div>
-        <span className="text-label-md font-bold text-on-surface flex-shrink-0">{a.priceDisplay}</span>
+        <span className="text-label-md font-bold text-on-surface flex-shrink-0">{format(a.priceCents / 100)}</span>
       </div>
       {!compact && (
         <div className="flex flex-wrap gap-2 mt-2.5">
@@ -234,6 +236,7 @@ function AppointmentRow({ a, onChanged, onSummary, compact }: { a: PetCareBookin
 
 // ── Services ────────────────────────────────────────────────────────────────
 function ServicesTab({ providerId, services, onChanged }: { providerId: string; services: PetCareService[]; onChanged: () => void }): React.JSX.Element {
+  const { format } = useCurrency()
   const [open, setOpen] = useState(false)
   const [edit, setEdit] = useState<PetCareService | null>(null)
   async function del(s: PetCareService): Promise<void> {
@@ -248,7 +251,7 @@ function ServicesTab({ providerId, services, onChanged }: { providerId: string; 
             <div key={s.id} className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-label-md font-semibold text-on-surface">{s.name} {!s.isActive && <span className="text-[10px] text-outline">(hidden)</span>}</p>
-                <p className="text-[11px] text-outline">{VET_SERVICE_CATEGORY_LABELS[s.category] ?? s.category}{s.durationMinutes ? ` · ${s.durationMinutes} min` : ''} · {s.priceDisplay}</p>
+                <p className="text-[11px] text-outline">{VET_SERVICE_CATEGORY_LABELS[s.category] ?? s.category}{s.durationMinutes ? ` · ${s.durationMinutes} min` : ''} · {format(s.priceCents / 100)}</p>
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button onClick={() => { setEdit(s); setOpen(true) }} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Pencil className="w-4 h-4" /></button>
