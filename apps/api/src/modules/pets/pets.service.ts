@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type {
-  CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, CreateHealthRecordInput,
+  CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput, CreateHealthRecordInput,
 } from './pets.schemas'
 
 export interface DiaryEntryResponse {
@@ -12,6 +12,8 @@ export interface DiaryEntryResponse {
   title: string | null
   body: string | null
   photoUrl: string | null
+  photoUrls: string[]
+  tags: string[]
   entryDate: string
   createdAt: string
 }
@@ -115,16 +117,21 @@ export class PetsService {
 
   // ── DIARY ─────────────────────────────────────────────────────────────────
 
+  private mapDiary(e: Prisma.PetDiaryEntryGetPayload<Record<string, never>>): DiaryEntryResponse {
+    return {
+      id: e.id, petId: e.petId, kind: e.kind, title: e.title, body: e.body,
+      photoUrl: e.photoUrl, photoUrls: e.photoUrls, tags: e.tags,
+      entryDate: e.entryDate.toISOString().slice(0, 10), createdAt: e.createdAt.toISOString(),
+    }
+  }
+
   async listDiary(petId: string, ownerId: string): Promise<DiaryEntryResponse[]> {
     await this.assertOwner(petId, ownerId)
     const entries = await this.prisma.petDiaryEntry.findMany({
       where: { petId },
       orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
     })
-    return entries.map((e) => ({
-      id: e.id, petId: e.petId, kind: e.kind, title: e.title, body: e.body,
-      photoUrl: e.photoUrl, entryDate: e.entryDate.toISOString().slice(0, 10), createdAt: e.createdAt.toISOString(),
-    }))
+    return entries.map((e) => this.mapDiary(e))
   }
 
   async addDiary(petId: string, ownerId: string, input: CreateDiaryEntryInput): Promise<DiaryEntryResponse> {
@@ -136,13 +143,31 @@ export class PetsService {
         ...(input.title ? { title: input.title } : {}),
         ...(input.body ? { body: input.body } : {}),
         ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
+        ...(input.photoUrls ? { photoUrls: input.photoUrls } : {}),
+        ...(input.tags ? { tags: input.tags } : {}),
         ...(input.entryDate ? { entryDate: new Date(input.entryDate) } : {}),
       },
     })
-    return {
-      id: e.id, petId: e.petId, kind: e.kind, title: e.title, body: e.body,
-      photoUrl: e.photoUrl, entryDate: e.entryDate.toISOString().slice(0, 10), createdAt: e.createdAt.toISOString(),
-    }
+    return this.mapDiary(e)
+  }
+
+  async updateDiary(petId: string, entryId: string, ownerId: string, input: UpdateDiaryEntryInput): Promise<DiaryEntryResponse> {
+    await this.assertOwner(petId, ownerId)
+    const existing = await this.prisma.petDiaryEntry.findFirst({ where: { id: entryId, petId, ownerId }, select: { id: true } })
+    if (!existing) throw new NotFoundException({ code: 'DIARY_ENTRY_NOT_FOUND', message: 'Diary entry not found' })
+    const e = await this.prisma.petDiaryEntry.update({
+      where: { id: entryId },
+      data: {
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(input.title !== undefined ? { title: input.title || null } : {}),
+        ...(input.body !== undefined ? { body: input.body || null } : {}),
+        ...(input.photoUrl !== undefined ? { photoUrl: input.photoUrl || null } : {}),
+        ...(input.photoUrls !== undefined ? { photoUrls: input.photoUrls } : {}),
+        ...(input.tags !== undefined ? { tags: input.tags } : {}),
+        ...(input.entryDate !== undefined ? { entryDate: new Date(input.entryDate) } : {}),
+      },
+    })
+    return this.mapDiary(e)
   }
 
   async removeDiary(petId: string, entryId: string, ownerId: string): Promise<void> {

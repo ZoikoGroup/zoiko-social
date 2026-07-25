@@ -3,8 +3,8 @@ import {
 } from '@nestjs/common'
 import { PetsService } from './pets.service'
 import {
-  CreatePetSchema, UpdatePetSchema, CreateDiaryEntrySchema, CreateHealthRecordSchema,
-  type CreatePetInput, type UpdatePetInput, type CreateDiaryEntryInput, type CreateHealthRecordInput,
+  CreatePetSchema, UpdatePetSchema, CreateDiaryEntrySchema, UpdateDiaryEntrySchema, CreateHealthRecordSchema,
+  type CreatePetInput, type UpdatePetInput, type CreateDiaryEntryInput, type UpdateDiaryEntryInput, type CreateHealthRecordInput,
 } from './pets.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
@@ -59,6 +59,13 @@ export class PetsController {
   async addDiary(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string, @Body() body: CreateDiaryEntryInput) {
     const input = CreateDiaryEntrySchema.parse(body)
     return { data: await this.petsService.addDiary(petId, user.id, input) }
+  }
+
+  @Patch(':petId/diary/:entryId')
+  @UseGuards(JwtAuthGuard)
+  async updateDiary(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string, @Param('entryId') entryId: string, @Body() body: UpdateDiaryEntryInput) {
+    const input = UpdateDiaryEntrySchema.parse(body)
+    return { data: await this.petsService.updateDiary(petId, entryId, user.id, input) }
   }
 
   @Delete(':petId/diary/:entryId')

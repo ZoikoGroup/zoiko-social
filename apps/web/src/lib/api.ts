@@ -433,6 +433,8 @@ export interface DiaryEntry {
   title: string | null
   body: string | null
   photoUrl: string | null
+  photoUrls: string[]
+  tags: string[]
   entryDate: string
   createdAt: string
 }
@@ -456,8 +458,10 @@ export const petsApi = {
   remove: (id: string) => mutate<{ success: boolean }>(`/pets/${id}`, { method: 'DELETE' }),
   // Diary
   diary: (petId: string) => cachedGet<DiaryEntry[]>(`/pets/${petId}/diary`, 15_000),
-  addDiary: (petId: string, input: { kind?: string; title?: string; body?: string; photoUrl?: string; entryDate?: string }) =>
+  addDiary: (petId: string, input: { kind?: string; title?: string; body?: string; photoUrl?: string; photoUrls?: string[]; tags?: string[]; entryDate?: string }) =>
     mutate<DiaryEntry>(`/pets/${petId}/diary`, { method: 'POST', body: JSON.stringify(input) }),
+  updateDiary: (petId: string, entryId: string, input: { kind?: string; title?: string; body?: string; photoUrl?: string; photoUrls?: string[]; tags?: string[]; entryDate?: string }) =>
+    mutate<DiaryEntry>(`/pets/${petId}/diary/${entryId}`, { method: 'PATCH', body: JSON.stringify(input) }),
   removeDiary: (petId: string, entryId: string) =>
     mutate<{ success: boolean }>(`/pets/${petId}/diary/${entryId}`, { method: 'DELETE' }),
   // Health

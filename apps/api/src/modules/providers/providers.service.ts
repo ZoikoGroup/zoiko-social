@@ -409,15 +409,15 @@ export class ProvidersService {
   // PET CARE SERVICES
   // ════════════════════════════════════════════════════════════════════════════
 
-  private centsToDollars(cents: number): string {
-    return `$${(cents / 100).toFixed(2)}`
+  private formatPrice(cents: number): string {
+    return `₹${(cents / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
   }
 
   private mapService(s: ServiceRow): ServiceResponse {
     return {
       id: s.id, providerId: s.providerId, name: s.name,
       description: s.description, priceCents: s.priceCents,
-      priceDisplay: this.centsToDollars(s.priceCents),
+      priceDisplay: this.formatPrice(s.priceCents),
       durationMinutes: s.durationMinutes, category: s.category,
       isActive: s.isActive, createdAt: s.createdAt.toISOString(),
     }
@@ -495,7 +495,7 @@ export class ProvidersService {
       consultMode: b.consultMode, reason: b.reason,
       visitSummary: b.visitSummary, prescription: b.prescription,
       followUpAt: b.followUpAt ? b.followUpAt.toISOString().slice(0, 10) : null,
-      notes: b.notes, priceCents: b.priceCents, priceDisplay: this.centsToDollars(b.priceCents),
+      notes: b.notes, priceCents: b.priceCents, priceDisplay: this.formatPrice(b.priceCents),
       paymentMethod: b.paymentMethod, paymentStatus: b.paymentStatus,
       status: b.status, cancelledBy: b.cancelledBy, cancelReason: b.cancelReason,
       createdAt: b.createdAt.toISOString(),
