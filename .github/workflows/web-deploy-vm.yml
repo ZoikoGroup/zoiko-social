@@ -1,0 +1,33 @@
+name: Deploy Web to VM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/web-deploy-vm.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy frontend over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_SSH_HOST }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/zoiko-social-frontend
+            git pull origin main
+            pnpm install
+            pnpm turbo build --filter=@zoiko/web
+            pm2 restart zoiko-web || pm2 start npm --name zoiko-web -- start --cwd ~/zoiko-social-frontend/apps/web
+            pm2 save
+            sleep 3
+            curl -sf -o /dev/null http://127.0.0.1:3000 || exit 1
+            echo "Frontend deploy successful"
+            pm2 status zoiko-web
