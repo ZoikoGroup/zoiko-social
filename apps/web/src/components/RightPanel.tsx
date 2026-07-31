@@ -5,6 +5,7 @@ import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
 import { Bell, AtSign, MapPin, TrendingUp, Calendar, ShieldCheck, ChevronRight, AlertTriangle, PawPrint, Info } from 'lucide-react'
 import { LocationLink } from '@/components/LocationLink'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { UserAvatar } from './UserAvatar'
 import { FollowButton, initialFollowState } from './FollowButton'
 import { SkeletonWidget } from './Skeletons'
@@ -245,6 +246,7 @@ export function RightPanel(): React.JSX.Element {
                   <p className="text-[11px] text-on-surface-variant mt-1">
                     Verify your profile to show credibility and unlock exclusive features.
                   </p>
+                  <DocsHelpLink href="/docs/profile-and-pets#professional-verification" label="Learn more" className="mt-1" />
                 </div>
               </div>
               <Link
@@ -261,12 +263,12 @@ export function RightPanel(): React.JSX.Element {
 
       {/* Footer */}
       <footer className="flex flex-wrap gap-x-3 gap-y-1.5 px-2 text-[11px] text-outline">
-        <Link href="/settings" className="hover:text-primary hover:underline">About</Link>
+        <Link href="/docs/getting-started" className="hover:text-primary hover:underline">About</Link>
         <Link href="/settings" className="hover:text-primary hover:underline">Accessibility</Link>
-        <Link href="/settings" className="hover:text-primary hover:underline">Help Center</Link>
+        <Link href="/docs" className="hover:text-primary hover:underline">Help Center</Link>
         <Link href="/settings" className="hover:text-primary hover:underline">Privacy &amp; Terms</Link>
         <Link href="/settings" className="hover:text-primary hover:underline">Ad Choices</Link>
-        <Link href="/settings" className="hover:text-primary hover:underline">Community Guidelines</Link>
+        <Link href="/docs/safety-and-trust" className="hover:text-primary hover:underline">Community Guidelines</Link>
         <p className="mt-1.5 w-full">&copy; 2026 ZoikoSocial. All rights reserved.</p>
       </footer>
     </div>

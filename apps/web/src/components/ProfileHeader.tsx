@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2 } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
 import { MessageButton } from './MessageButton'
+import { ReportContentModal } from './ReportContentModal'
+import { ConfirmDialog } from './ConfirmDialog'
 import { profileApi, networkApi, type Profile, type Relationship, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
@@ -62,6 +64,11 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
   const [requested, setRequested] = useState(initialRelationship?.requested ?? false)
   const [followedBy, setFollowedBy] = useState(initialRelationship?.followedBy ?? false)
   const [followBusy, setFollowBusy] = useState(false)
+  const [muted, setMuted] = useState(initialRelationship?.muted ?? false)
+  const [blocked, setBlocked] = useState(initialRelationship?.blocked ?? false)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
   const [error, setError] = useState('')
   const toast = useToast()
 
@@ -84,6 +91,8 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
           setFollowing(data.viewer.following)
           setRequested(data.viewer.requested)
           setFollowedBy(data.viewer.followedBy)
+          setMuted(data.viewer.muted)
+          setBlocked(data.viewer.blocked)
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load profile')
@@ -127,6 +136,45 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
     } finally {
       setFollowBusy(false)
     }
+  }
+
+  async function handleToggleMute(): Promise<void> {
+    if (!profile) return
+    setActionsOpen(false)
+    try {
+      if (muted) {
+        await networkApi.unmute(profile.id)
+        setMuted(false)
+        toast.success('Unmuted', `You'll see posts from ${profile.displayName} again.`)
+      } else {
+        await networkApi.mute(profile.id)
+        setMuted(true)
+        toast.success('Muted', `You won't see posts from ${profile.displayName} in your feed.`)
+      }
+    } catch (e) {
+      toast.error('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  async function handleUnblock(): Promise<void> {
+    if (!profile) return
+    setActionsOpen(false)
+    try {
+      await networkApi.unblock(profile.id)
+      setBlocked(false)
+      toast.success('Unblocked', `${profile.displayName} can now see your profile and message you again.`)
+    } catch (e) {
+      toast.error('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  async function handleBlock(): Promise<void> {
+    if (!profile) return
+    await networkApi.block(profile.id)
+    setBlocked(true)
+    setFollowing(false)
+    setFollowedBy(false)
+    toast.success('Blocked', `${profile.displayName} can no longer see your profile or message you.`)
   }
 
   async function handleRevertToPersonal(): Promise<void> {
@@ -335,23 +383,79 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
               </>
             ) : (
               <>
-                <button
-                  onClick={handleFollowToggle}
-                  disabled={followBusy}
-                  className={`flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-7 inline-flex items-center justify-center whitespace-nowrap rounded-full text-[13px] font-semibold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 ${
-                    following || requested
-                      ? 'border border-outline-variant/60 text-on-surface hover:bg-surface-container'
-                      : 'bg-primary text-white hover:bg-primary/90'
-                  }`}
-                >
-                  {requested ? 'Requested' : following ? 'Following' : followedBy ? 'Follow Back' : 'Follow'}
-                </button>
-                <MessageButton userId={profile.id} size="md" />
+                {blocked ? (
+                  <span className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-outline-variant/40 text-outline text-[13px] font-semibold">
+                    Blocked
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleFollowToggle}
+                      disabled={followBusy}
+                      className={`flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-7 inline-flex items-center justify-center whitespace-nowrap rounded-full text-[13px] font-semibold transition-all active:scale-[0.98] cursor-pointer disabled:opacity-60 ${
+                        following || requested
+                          ? 'border border-outline-variant/60 text-on-surface hover:bg-surface-container'
+                          : 'bg-primary text-white hover:bg-primary/90'
+                      }`}
+                    >
+                      {requested ? 'Requested' : following ? 'Following' : followedBy ? 'Follow Back' : 'Follow'}
+                    </button>
+                    <MessageButton userId={profile.id} size="md" />
+                  </>
+                )}
+                <div className="relative">
+                  <button
+                    onClick={() => setActionsOpen((o) => !o)}
+                    className="flex items-center justify-center size-10 rounded-full border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+                    aria-label="More actions"
+                    aria-expanded={actionsOpen}
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </button>
+                  {actionsOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-20">
+                      <button
+                        onClick={() => void handleToggleMute()}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer"
+                      >
+                        {muted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                        {muted ? 'Unmute' : 'Mute'} @{profile.username}
+                      </button>
+                      <button
+                        onClick={() => (blocked ? void handleUnblock() : (setActionsOpen(false), setConfirmBlockOpen(true)))}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-red-500 hover:bg-red-50 cursor-pointer"
+                      >
+                        {blocked ? <UserCheck2 className="w-4 h-4" /> : <UserMinus2 className="w-4 h-4" />}
+                        {blocked ? 'Unblock' : 'Block'} @{profile.username}
+                      </button>
+                      <button
+                        onClick={() => { setActionsOpen(false); setReportOpen(true) }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-yellow-600 hover:bg-yellow-50 cursor-pointer"
+                      >
+                        <Flag className="w-4 h-4" />
+                        Report @{profile.username}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
         </div>
       </section>
+
+      {reportOpen && (
+        <ReportContentModal targetType="user" targetId={profile.id} onClose={() => setReportOpen(false)} />
+      )}
+      {confirmBlockOpen && (
+        <ConfirmDialog
+          title={`Block @${profile.username}?`}
+          body="They won't be able to see your profile, follow you, or message you. Existing follows between you will be removed. You can unblock them anytime."
+          confirmLabel="Block"
+          onConfirm={handleBlock}
+          onClose={() => setConfirmBlockOpen(false)}
+        />
+      )}
     </>
   )
 }

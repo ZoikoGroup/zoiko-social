@@ -6,6 +6,7 @@ import { petsApi, type Pet, type Provider } from '@/lib/api'
 import { petCareApi, type PetCareService } from '@/lib/pet-care-api'
 import { CONSULT_MODE_LABELS, todayHoursLabel } from '@/lib/vet'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 /**
  * Book a vet appointment: pick a service, consult mode, date/time, and the pet
@@ -62,7 +63,10 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">Book appointment</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/marketplace-and-services#booking-a-provider" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         {done ? (

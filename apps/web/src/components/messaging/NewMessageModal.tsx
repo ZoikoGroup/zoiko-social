@@ -7,6 +7,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { useAuth } from '@/hooks/use-auth'
 import { useMessaging } from '@/hooks/use-messaging'
 import { getAuthToken } from '@/lib/auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface NewMessageModalProps {
   open: boolean
@@ -179,12 +180,15 @@ export function NewMessageModal({ open, onClose }: NewMessageModalProps): React.
           <h2 className="text-headline-sm font-bold text-on-surface">
             {mode === 'group' ? 'New Group' : 'New Message'}
           </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/messaging-and-calls#starting-a-conversation" />
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Mode toggle */}

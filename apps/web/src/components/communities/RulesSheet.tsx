@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, ScrollText } from 'lucide-react'
 import type { Community } from '@/lib/api'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface RulesSheetProps {
   open: boolean
@@ -24,9 +25,12 @@ export function RulesSheet({ open, community, onClose, onAccept }: RulesSheetPro
             <ScrollText className="w-5 h-5 text-primary" />
             {community.name} · Rules
           </h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/safety-and-trust#profanity-free-standard" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">

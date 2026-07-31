@@ -8,5 +8,6 @@ import { AuthModule } from '../auth/auth.module'
   imports: [PostsModule, AuthModule],
   controllers: [HashtagsController],
   providers: [HashtagsService],
+  exports: [HashtagsService],
 })
 export class HashtagsModule {}

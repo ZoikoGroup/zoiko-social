@@ -19,6 +19,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const SPECIES = ['dog', 'cat', 'bird', 'rabbit', 'other']
 type Tab = 'discover' | 'matches' | 'mine' | 'litters'
@@ -67,6 +68,7 @@ export default function BreedingMatchPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Find the right, health-checked mate for your pet</p>
                 </div>
               </div>
+              <DocsHelpLink href="/docs/marketplace-and-services#breeding-match" />
               <button onClick={() => { setEdit(null); setFormOpen(true) }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                 <Plus className="w-4 h-4" /><span className="hidden sm:inline">List your pet</span>
               </button>
@@ -397,7 +399,10 @@ function OffspringModal({ litter, onClose, onListed }: { litter: BreedingLitter;
       <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-label-md font-bold text-on-surface">List a pup for adoption</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/adoption-and-lost-found#listing-a-pet-for-adoption" />
+            <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <p className="text-label-sm text-outline mb-3">Creates an Adoption listing pre-filled from this litter ({litter.breed ?? cap(litter.species)}). You can add photos and details on the listing.</p>
         <div className="space-y-3">

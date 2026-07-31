@@ -12,11 +12,13 @@ import { ProfessionalMessagingService } from './professional-messaging.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
 import { AuthModule } from '../auth/auth.module'
 import { SupabaseStorageModule } from '../storage/supabase-storage.module'
+import { AiAssistantModule } from '../ai-assistant/ai-assistant.module'
 
 @Module({
   imports: [
     AuthModule,
     SupabaseStorageModule,
+    AiAssistantModule,
     MessagingQueueModule.forRoot(),
   ],
   controllers: [MessagingController],

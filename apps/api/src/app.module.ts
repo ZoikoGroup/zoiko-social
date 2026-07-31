@@ -36,6 +36,9 @@ import { R2Module } from './modules/storage/r2.module'
 import { ModerationOpsModule } from './modules/moderation/moderation.module'
 import { PaymentsModule } from './modules/payments/payments.module'
 import { AnalyticsModule } from './modules/analytics/analytics.module'
+import { SearchModule } from './modules/search/search.module'
+import { SafetyModule } from './modules/safety/safety.module'
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
 
 @Module({
   imports: [
@@ -74,6 +77,9 @@ import { AnalyticsModule } from './modules/analytics/analytics.module'
     R2Module,
     ModerationOpsModule,
     PaymentsModule,
+    SearchModule,
+    SafetyModule,
+    AiAssistantModule,
   ],
   controllers: [AppController],
   providers: [AppService],

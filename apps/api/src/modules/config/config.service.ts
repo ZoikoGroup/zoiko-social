@@ -14,6 +14,8 @@ const envSchema = z.object({
   REDIS_URL: z.string().optional(),
   ENABLE_WORKERS: z.string().optional().transform((v) => v === undefined ? undefined : v === 'true'),
   NOTIFICATION_RETENTION_DAYS: z.coerce.number().int().positive().default(90).optional(),
+  // Days a member has to sign back in and cancel a pending account deletion.
+  ACCOUNT_DELETION_GRACE_DAYS: z.coerce.number().int().positive().max(365).default(30).optional(),
   SENTRY_DSN: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -30,7 +32,18 @@ const envSchema = z.object({
   // Stripe (Shop checkout). When both are set, checkout is enabled.
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Groq (ZoikoSocial AI assistant chat). When the key is set, the assistant replies.
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().optional(),
 })
+
+/**
+ * Chosen by comparing candidates on this project's own prompt and questions:
+ * gpt-oss-120b gave noticeably more specific, accurate answers than
+ * llama-3.3-70b-versatile, and used the tool-calling API reliably instead of
+ * occasionally narrating a tool call as text. Override with GROQ_MODEL.
+ */
+const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b'
 
 export type Env = z.infer<typeof envSchema>
 
@@ -153,5 +166,18 @@ export class ConfigService {
   /** True when Stripe credentials are configured — Shop checkout is then enabled. */
   get stripeEnabled(): boolean {
     return !!(this.env.STRIPE_SECRET_KEY && this.env.STRIPE_WEBHOOK_SECRET)
+  }
+
+  get groqApiKey(): string | undefined {
+    return this.env.GROQ_API_KEY
+  }
+
+  get groqModel(): string {
+    return this.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL
+  }
+
+  /** True when a Groq key is configured — the AI assistant then generates replies. */
+  get groqEnabled(): boolean {
+    return !!this.env.GROQ_API_KEY
   }
 }

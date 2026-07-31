@@ -7,6 +7,7 @@ import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 export default function ProfilePage(): React.JSX.Element {
   return (
@@ -24,14 +25,17 @@ export default function ProfilePage(): React.JSX.Element {
             >
               <ChevronLeft className="w-5 h-5" />
             </Link>
-            <Link
-              href="/settings"
-              className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings className="w-5 h-5" />
-            </Link>
+            <div className="flex items-center gap-1">
+              <DocsHelpLink href="/docs/profile-and-pets#your-profile" />
+              <Link
+                href="/settings"
+                className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
+            </div>
           </div>
 
           {/* Full-width profile header */}

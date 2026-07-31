@@ -19,6 +19,7 @@ import { SkeletonNotification } from '@/components/Skeletons'
 import { notificationsApi, networkApi, type NotificationItem } from '@/lib/api'
 import { useNotifications } from '@/hooks/use-notifications'
 import { GroupInvitations } from '@/components/messaging/GroupInvitations'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 type NotificationTab = 'all' | 'followers' | 'requests' | 'system'
 
@@ -185,6 +186,7 @@ export default function NotificationsPage(): React.JSX.Element {
                   {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'No new notifications'}
                 </p>
               </div>
+              <DocsHelpLink href="/docs/notifications-and-settings#notification-center" />
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}

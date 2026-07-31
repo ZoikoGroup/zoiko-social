@@ -18,6 +18,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const MODE_ICON: Record<string, typeof Video> = { in_clinic: Building2, home_visit: Home, video: Video }
 
@@ -105,9 +106,12 @@ export default function VetFinderPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Trusted vets & clinics near you</p>
                 </div>
               </div>
-              <Link href="/vet-finder/dashboard" className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors">
-                <Plus className="w-4 h-4" />List your clinic
-              </Link>
+              <div className="flex items-center gap-3">
+                <DocsHelpLink href="/docs/marketplace-and-services#finding-a-provider" />
+                <Link href="/vet-finder/dashboard" className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors">
+                  <Plus className="w-4 h-4" />List your clinic
+                </Link>
+              </div>
             </div>
 
             {/* Emergency banner */}

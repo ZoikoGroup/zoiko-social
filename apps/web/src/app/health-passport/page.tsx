@@ -13,9 +13,14 @@ import {
   Share2, Copy, Check, Link2, CalendarPlus, TrendingUp, TrendingDown, Minus, Target, Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { petsApi, type Pet, type HealthRecord } from '@/lib/api'
+import { petsApi, type HealthRecord } from '@/lib/api'
+import { PetAbout } from '@/components/PetAbout'
+import { AddPetModal } from '@/components/AddPetModal'
+import { ageOf } from '@/lib/pet'
+import { usePets } from '@/hooks/use-pets'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface TypeMeta { value: string; label: string; Icon: LucideIcon; node: string; tint: string }
 const TYPES: TypeMeta[] = [
@@ -31,12 +36,6 @@ const VACCINE_TEMPLATES = ['Rabies', 'DHPP', 'Distemper', 'Parvovirus', 'Leptosp
 
 function initials(n: string): string { return n.slice(0, 2).toUpperCase() }
 function fmtDate(iso: string | null): string { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
-function ageOf(birthdate: string | null): string | null {
-  if (!birthdate) return null
-  const months = Math.max(0, Math.floor((Date.now() - new Date(birthdate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
-  if (months < 12) return `${months} mo`
-  const y = Math.floor(months / 12); return `${y} yr${y > 1 ? 's' : ''}`
-}
 function daysUntil(iso: string): number { return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) }
 function yearOf(iso: string | null): string { return iso ? new Date(iso).getFullYear().toString() : 'Undated' }
 const targetKey = (petId: string): string => `zoiko-pet-target-${petId}`
@@ -63,15 +62,15 @@ type View = 'records' | 'weight'
 
 export default function HealthPassportPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [pets, setPets] = useState<Pet[]>([])
-  const [activePet, setActivePet] = useState<string | null>(null)
+  const { pets, loading: loadingPets, patchPet } = usePets()
+  const [selectedPet, setSelectedPet] = useState<string | null>(null)
   const [records, setRecords] = useState<HealthRecord[]>([])
-  const [loadingPets, setLoadingPets] = useState(true)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<View>('records')
   const [filter, setFilter] = useState('all')
   const [modal, setModal] = useState<{ record: HealthRecord | null } | null>(null)
   const [logWeight, setLogWeight] = useState(false)
+  const [editPet, setEditPet] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [household, setHousehold] = useState<{ id: string; name: string; overdue: number; next: { title: string; date: string } | null }[]>([])
 
@@ -79,14 +78,10 @@ export default function HealthPassportPage(): React.JSX.Element {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  useEffect(() => {
-    let cancelled = false
-    petsApi.mine()
-      .then((data) => { if (cancelled) return; setPets(data); setActivePet((prev) => prev ?? data[0]?.id ?? null) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingPets(false) })
-    return () => { cancelled = true }
-  }, [])
+  // Derived rather than synced through an effect: the selection stays valid for
+  // free as the list loads or changes underneath us (the assistant can add or
+  // edit a pet from the chat thread), with no cascading render.
+  const activePet = selectedPet && pets.some((p) => p.id === selectedPet) ? selectedPet : (pets[0]?.id ?? null)
 
   const load = useCallback((petId: string) => {
     setLoading(true)
@@ -184,13 +179,16 @@ export default function HealthPassportPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Vaccinations, visits &amp; medical records</p>
                 </div>
               </div>
-              {pet && (
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => setShowShare(true)} title="Share vet card" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Share2 className="w-4 h-4" /></button>
-                  <button onClick={() => window.print()} title="Print / Save as PDF" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Printer className="w-4 h-4" /></button>
-                  <button onClick={() => setModal({ record: null })} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90"><Plus className="w-4 h-4" />Add record</button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <DocsHelpLink href="/docs/profile-and-pets#health-passport" />
+                {pet && (
+                  <>
+                    <button onClick={() => setShowShare(true)} title="Share vet card" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Share2 className="w-4 h-4" /></button>
+                    <button onClick={() => window.print()} title="Print / Save as PDF" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Printer className="w-4 h-4" /></button>
+                    <button onClick={() => setModal({ record: null })} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90"><Plus className="w-4 h-4" />Add record</button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Pet selector */}
@@ -205,7 +203,7 @@ export default function HealthPassportPage(): React.JSX.Element {
             ) : (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 flex items-center gap-2 overflow-x-auto no-scrollbar no-print">
                 {pets.map((p) => (
-                  <button key={p.id} onClick={() => setActivePet(p.id)}
+                  <button key={p.id} onClick={() => setSelectedPet(p.id)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0 transition-colors cursor-pointer ${activePet === p.id ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}>
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold overflow-hidden ${activePet === p.id ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
                       {p.avatarUrl ? (
@@ -225,7 +223,7 @@ export default function HealthPassportPage(): React.JSX.Element {
                 <h3 className="flex items-center gap-1.5 text-label-sm font-bold text-on-surface mb-2"><Users className="w-4 h-4 text-primary" />Household care</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {household.filter((h) => h.overdue > 0 || h.next).map((h) => (
-                    <button key={h.id} onClick={() => setActivePet(h.id)} className={`text-left px-3 py-2 rounded-lg border transition-colors cursor-pointer ${activePet === h.id ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/50'}`}>
+                    <button key={h.id} onClick={() => setSelectedPet(h.id)} className={`text-left px-3 py-2 rounded-lg border transition-colors cursor-pointer ${activePet === h.id ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/50'}`}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-label-sm font-semibold text-on-surface truncate">{h.name}</span>
                         {h.overdue > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 flex-shrink-0">{h.overdue} overdue</span>}
@@ -261,6 +259,13 @@ export default function HealthPassportPage(): React.JSX.Element {
                     <Stat label="Next due" value={stats.nextDue} />
                   </div>
                 </div>
+
+                {/* About */}
+                <PetAbout
+                  pet={pet}
+                  latestWeightKg={weights.length > 0 ? weights[weights.length - 1]!.value : undefined}
+                  onEdit={() => setEditPet(true)}
+                />
 
                 {/* Allergies (critical) */}
                 {allergies.length > 0 && (
@@ -350,6 +355,13 @@ export default function HealthPassportPage(): React.JSX.Element {
 
       {modal && activePet && <RecordModal petId={activePet} record={modal.record} onClose={() => setModal(null)} onSaved={onSaved} />}
       {logWeight && activePet && <RecordModal petId={activePet} record={null} initialType="weight" onClose={() => setLogWeight(false)} onSaved={(r, e) => { onSaved(r, e); setLogWeight(false) }} />}
+      <AddPetModal
+        open={editPet && !!pet}
+        pet={pet ?? null}
+        onClose={() => setEditPet(false)}
+        onAdded={patchPet}
+      />
+
       {showShare && pet && <ShareModal petId={pet.id} petName={pet.name} onClose={() => setShowShare(false)} />}
     </>
   )

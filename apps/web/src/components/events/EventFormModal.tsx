@@ -7,6 +7,7 @@ import { LocationInput } from '@/components/LocationInput'
 import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventInput } from '@/lib/api'
 import { uploadCommunityImage, uploadEventVideo } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 /** datetime-local value (local tz) from an ISO string. */
 function toLocalInput(iso: string | null): string {
@@ -99,7 +100,10 @@ export function EventFormModal({ event, onClose, onSaved }: {
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">{editing ? 'Edit event' : 'Create event'}</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/community-and-events#events" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto">
           <div className="flex gap-2">

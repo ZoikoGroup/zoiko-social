@@ -226,6 +226,23 @@ export interface Relationship {
   muted: boolean
 }
 
+export interface BlockedUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  reason: string | null
+  blockedAt: string
+}
+
+export interface MutedUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  mutedAt: string
+}
+
 export interface FollowerItem {
   id: string
   username: string
@@ -273,7 +290,53 @@ export const profileApi = {
   switchToProfessional: (input: { category: string; businessName?: string; description?: string }) =>
     mutate<ProfessionalProfile>('/profiles/me/professional', { method: 'POST', body: JSON.stringify(input) }),
   revertToPersonal: () => mutate<{ message: string }>('/profiles/me/professional', { method: 'DELETE' }),
+  /** Temporarily hides the account. Signing in again restores it. */
+  deactivate: () => mutate<{ state: string; message: string }>('/profiles/me/deactivate', { method: 'POST' }),
+  /**
+   * Schedules deletion after a grace period rather than deleting immediately —
+   * signing in before `scheduledFor` cancels it.
+   */
+  deleteAccount: () =>
+    mutate<{ scheduledFor: string; graceDays: number; message: string }>('/profiles/me', { method: 'DELETE' }),
   getRelationship: (id: string) => request<Relationship>(`/profiles/${id}/relationship`),
+}
+
+// ── User Settings API ─────────────────────────────────────────────────────────
+
+export interface UserSettings {
+  id: string
+  userId: string
+  // Privacy toggles
+  showLastActive: boolean
+  showEmail: boolean
+  allowTagging: boolean
+  showLocation: boolean
+  allowMessaging: 'everyone' | 'connections' | 'none'
+  // Notification preferences
+  notifLikes: boolean
+  notifComments: boolean
+  notifFollows: boolean
+  notifMentions: boolean
+  notifEvents: boolean
+  notifCommunities: boolean
+  notifNews: boolean
+  notifPromotions: boolean
+  emailDigest: boolean
+  emailMarketing: boolean
+  pushEnabled: boolean
+  // Display preferences
+  reducedMotion: boolean
+  compactView: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateSettingsInput = Partial<Omit<UserSettings, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
+
+export const settingsApi = {
+  get: () => request<UserSettings>('/profiles/settings/me'),
+  update: (input: UpdateSettingsInput) =>
+    mutate<UserSettings>('/profiles/settings/me', { method: 'PUT', body: JSON.stringify(input) }),
 }
 
 // ── Posts / Feed / Comments Types ───────────────────────────────────────────
@@ -413,6 +476,11 @@ export interface Pet {
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
+  color: string | null
+  microchipId: string | null
+  /** null = not specified, distinct from a known false. */
+  neutered: boolean | null
+  adoptionDate: string | null
   isPublic: boolean
   createdAt: string
 }
@@ -425,7 +493,19 @@ export interface NewPet {
   avatarUrl?: string
   bio?: string
   birthdate?: string
+  color?: string
+  microchipId?: string
+  neutered?: boolean
+  adoptionDate?: string
   isPublic?: boolean
+}
+
+/**
+ * Update accepts explicit "clear this" values that create cannot: '' for dates
+ * and null for neutered. Omitting a key still means "leave unchanged".
+ */
+export type UpdatePet = Partial<Omit<NewPet, 'neutered'>> & {
+  neutered?: boolean | null
 }
 
 export interface DiaryEntry {
@@ -457,7 +537,7 @@ export const petsApi = {
   mine: () => cachedGet<Pet[]>('/pets', 15_000),
   byProfile: (profileId: string) => cachedGet<Pet[]>(`/profiles/${profileId}/pets`, 30_000),
   create: (input: NewPet) => mutate<Pet>('/pets', { method: 'POST', body: JSON.stringify(input) }),
-  update: (id: string, input: Partial<NewPet>) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  update: (id: string, input: UpdatePet) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/pets/${id}`, { method: 'DELETE' }),
   // Diary
   diary: (petId: string) => cachedGet<DiaryEntry[]>(`/pets/${petId}/diary`, 15_000),
@@ -485,7 +565,12 @@ export const petsApi = {
 }
 
 export interface PublicPassport {
-  pet: { name: string; species: string; breed: string | null; sex: string | null; avatarUrl: string | null; birthdate: string | null; ownerName: string | null }
+  pet: {
+    name: string; species: string; breed: string | null; sex: string | null
+    avatarUrl: string | null; birthdate: string | null
+    color: string | null; microchipId: string | null; neutered: boolean | null
+    ownerName: string | null
+  }
   records: HealthRecord[]
 }
 
@@ -1814,6 +1899,77 @@ export const networkApi = {
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/followers/${userId}?page=${page}&limit=${limit}`),
   getFollowing: (userId: string, page = 1, limit = 20) =>
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/following/${userId}?page=${page}&limit=${limit}`),
+  block: (userId: string, reason?: string) =>
+    mutate<{ success: boolean }>(`/network/block/${userId}`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  unblock: (userId: string) => mutate<{ success: boolean }>(`/network/block/${userId}`, { method: 'DELETE' }),
+  getBlocked: () => request<BlockedUserItem[]>('/network/blocked'),
+  mute: (userId: string) => mutate<{ success: boolean }>(`/network/mute/${userId}`, { method: 'POST' }),
+  unmute: (userId: string) => mutate<{ success: boolean }>(`/network/mute/${userId}`, { method: 'DELETE' }),
+  getMuted: () => request<MutedUserItem[]>('/network/muted'),
+}
+
+// ── Safety advisories (location-based pet welfare) ──────────────────────────
+
+export type AdvisorySeverity = 'info' | 'warning' | 'severe'
+
+export type AdvisoryKind =
+  | 'extreme_heat' | 'heat' | 'thunderstorm' | 'extreme_cold' | 'cold'
+  | 'snow_ice' | 'heavy_rain' | 'high_uv' | 'poor_air' | 'high_wind' | 'fog'
+
+export interface Advisory {
+  kind: AdvisoryKind
+  severity: AdvisorySeverity
+  title: string
+  message: string
+  docsPath: string
+}
+
+export interface AdvisoryResult {
+  /** Most serious first. Empty is normal — it means conditions are fine. */
+  advisories: Advisory[]
+  conditions: {
+    temperatureC: number
+    apparentTemperatureC: number
+    humidityPct: number
+    windSpeedKph: number
+    uvIndex: number
+    usAqi: number | null
+    observedAt: string
+  } | null
+}
+
+export const safetyApi = {
+  /** Cached for 15 minutes client-side; the server caches per ~11km grid square. */
+  advisories: (lat: number, lon: number) =>
+    cachedGet<AdvisoryResult>(`/safety/advisories?lat=${lat}&lon=${lon}`, 15 * 60_000),
+}
+
+// ── Unified search API ──────────────────────────────────────────────────────
+
+export interface SearchAllResult {
+  query: string
+  people: FollowSuggestion[]
+  hashtags: { tag: string; postsCount: number }[]
+  posts: PostItem[]
+  communities: CommunityCard[]
+  news: NewsArticle[]
+  products: Product[]
+}
+
+export const searchApi = {
+  all: (q: string) => cachedGet<SearchAllResult>(`/search?q=${encodeURIComponent(q)}`, 15_000),
+  people: (q: string, limit = 20) =>
+    cachedGet<FollowSuggestion[]>(`/search/people?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  hashtags: (q: string, limit = 20) =>
+    cachedGet<{ tag: string; postsCount: number }[]>(`/search/hashtags?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  posts: (q: string, limit = 20) =>
+    cachedGet<PostItem[]>(`/search/posts?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  communities: (q: string, limit = 20) =>
+    cachedGet<CommunityCard[]>(`/search/communities?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  news: (q: string, limit = 20) =>
+    cachedGet<NewsArticle[]>(`/search/news?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  products: (q: string, limit = 20) =>
+    cachedGet<Product[]>(`/search/products?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
 }
 
 // ── Verification review API (admin) ─────────────────────────────────────────

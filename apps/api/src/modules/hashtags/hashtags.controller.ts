@@ -15,8 +15,8 @@ export class HashtagsController {
   }
 
   @Get('search')
-  async search(@Query('q') q?: string) {
-    const result = await this.hashtagsService.search(q ?? '')
+  async search(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const result = await this.hashtagsService.search(q ?? '', limit ? parseInt(limit, 10) : 15)
     return { data: result }
   }
 

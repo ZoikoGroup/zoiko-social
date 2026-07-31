@@ -6,16 +6,20 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   PawPrint, Search, Home, Users, MessageSquare, Bell, ChevronDown,
-  Newspaper, Calendar, MapPin,
+  Newspaper, Calendar, MapPin, Hash, FileText,
   ShoppingBag, HandHeart, Stethoscope, Dna, LayoutDashboard,
-  User, Settings, LogOut, Loader2, MoreHorizontal,
+  User, Settings, LogOut, Loader2, MoreHorizontal, HelpCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
+import { useCurrency } from '@/hooks/use-currency'
 import { CurrencySwitcher } from '@/components/CurrencySwitcher'
 import { useMessaging } from '@/hooks/use-messaging'
+import { searchApi, type SearchAllResult } from '@/lib/api'
 import { UserAvatar } from './UserAvatar'
+
+const DROPDOWN_PREVIEW = 3
 
 const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
   { name: 'Dashboard',         Icon: LayoutDashboard, color: 'text-primary', href: '/dashboard'    },
@@ -31,6 +35,7 @@ const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[]
   { name: 'Pet Diary',         Icon: PawPrint,    color: 'text-primary',   href: '/pet-diary'      },
   { name: 'Health Passport',   Icon: HandHeart,   color: 'text-secondary', href: '/health-passport'},
   { name: 'Settings',          Icon: PawPrint,    color: 'text-tertiary',  href: '/settings'       },
+  { name: 'Help Center',       Icon: HelpCircle,  color: 'text-tertiary',  href: '/docs'           },
 ]
 
 const MODULE_HREFS = MODULES.map((m) => m.href)
@@ -54,7 +59,13 @@ export function Header(): React.JSX.Element {
   const { profile, signOut } = useAuth()
   const { unreadCount: notifUnreadCount } = useNotifications()
   const { unreadCount: msgUnreadCount } = useMessaging()
+  const { format: formatMoney } = useCurrency()
   const [searchTerm, setSearchTerm] = useState('')
+  const [searchDismissed, setSearchDismissed] = useState(false)
+  const [searchResults, setSearchResults] = useState<SearchAllResult | null>(null)
+  const [searching, setSearching] = useState(false)
+  const searchBoxRef = useRef<HTMLDivElement>(null)
+  const dropdownOpen = !searchDismissed && searchTerm.trim().length >= 2
 
   const isActive = (href: string): boolean => {
     if (href === '/') return pathname === '/'
@@ -83,6 +94,47 @@ export function Header(): React.JSX.Element {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [profileMenuOpen])
 
+  // Live typeahead preview — debounced fetch across every search category.
+  useEffect(() => {
+    let cancelled = false
+    const q = searchTerm.trim()
+
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      if (q.length < 2) {
+        setSearchResults(null)
+        setSearching(false)
+        return
+      }
+      setSearching(true)
+      searchApi.all(q)
+        .then((data) => { if (!cancelled) setSearchResults(data) })
+        .catch(() => { if (!cancelled) setSearchResults(null) })
+        .finally(() => { if (!cancelled) setSearching(false) })
+    }, 300)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [searchTerm])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent): void {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSearchDismissed(true)
+      }
+    }
+    function handleKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') setSearchDismissed(true)
+    }
+    if (dropdownOpen) {
+      document.addEventListener('mousedown', handleClick)
+      document.addEventListener('keydown', handleKey)
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [dropdownOpen])
+
   const handleSignOut = async (): Promise<void> => {
     if (signingOut) return
     setSigningOut(true)
@@ -105,7 +157,7 @@ export function Header(): React.JSX.Element {
               Animal Welfare Network
             </span>
           </Link>
-          <div className="flex relative flex-1 max-w-xl">
+          <div className="flex relative flex-1 max-w-xl" ref={searchBoxRef}>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
               className="pl-11 pr-4 py-2.5 w-full bg-surface-container border border-transparent focus:border-primary/40 focus:bg-surface-container-lowest focus:shadow-sm focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70 placeholder:font-normal"
@@ -113,13 +165,144 @@ export function Header(): React.JSX.Element {
               type="text"
               aria-label="Search"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setSearchDismissed(false) }}
+              onFocus={() => setSearchDismissed(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && searchTerm.trim().length >= 2) {
-                  router.push(`/network?q=${encodeURIComponent(searchTerm.trim())}`)
+                  setSearchDismissed(true)
+                  router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`)
                 }
               }}
             />
+
+            {dropdownOpen && (
+              <div className="absolute top-[calc(100%+8px)] left-0 right-0 max-h-[70vh] overflow-y-auto bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl z-50">
+                {searching && !searchResults ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 text-outline animate-spin" />
+                  </div>
+                ) : !searchResults || (
+                  searchResults.people.length === 0 && searchResults.hashtags.length === 0 &&
+                  searchResults.posts.length === 0 && searchResults.communities.length === 0 &&
+                  searchResults.news.length === 0 && searchResults.products.length === 0
+                ) ? (
+                  <p className="px-4 py-6 text-center text-label-sm text-outline">
+                    No results for &ldquo;{searchTerm.trim()}&rdquo;
+                  </p>
+                ) : (
+                  <div className="py-2">
+                    {searchResults.people.length > 0 && (
+                      <DropdownSection label="People">
+                        {searchResults.people.slice(0, DROPDOWN_PREVIEW).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/profile/${p.username}`}
+                            onClick={() => setSearchDismissed(true)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-surface-container transition-colors"
+                          >
+                            <UserAvatar name={p.displayName} image={p.avatarUrl ?? undefined} size="xs" verified={p.isVerified} />
+                            <div className="min-w-0">
+                              <p className="text-label-sm font-semibold text-on-surface truncate">{p.displayName}</p>
+                              <p className="text-[11px] text-outline truncate">@{p.username}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </DropdownSection>
+                    )}
+
+                    {searchResults.hashtags.length > 0 && (
+                      <DropdownSection label="Hashtags">
+                        <div className="flex flex-wrap gap-1.5 px-4 py-1.5">
+                          {searchResults.hashtags.slice(0, DROPDOWN_PREVIEW).map((h) => (
+                            <Link
+                              key={h.tag}
+                              href={`/explore/tags/${encodeURIComponent(h.tag)}`}
+                              onClick={() => setSearchDismissed(true)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container text-label-sm text-on-surface hover:text-primary transition-colors"
+                            >
+                              <Hash className="w-3 h-3 text-primary" />{h.tag}
+                            </Link>
+                          ))}
+                        </div>
+                      </DropdownSection>
+                    )}
+
+                    {searchResults.posts.length > 0 && (
+                      <DropdownSection label="Posts">
+                        {searchResults.posts.slice(0, DROPDOWN_PREVIEW).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/p/${p.id}`}
+                            onClick={() => setSearchDismissed(true)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-surface-container transition-colors"
+                          >
+                            <FileText className="w-4 h-4 text-outline flex-shrink-0" />
+                            <p className="text-label-sm text-on-surface truncate">{p.caption ?? '(no caption)'}</p>
+                          </Link>
+                        ))}
+                      </DropdownSection>
+                    )}
+
+                    {searchResults.communities.length > 0 && (
+                      <DropdownSection label="Communities">
+                        {searchResults.communities.slice(0, DROPDOWN_PREVIEW).map((c) => (
+                          <Link
+                            key={c.id}
+                            href={`/c/${c.slug}`}
+                            onClick={() => setSearchDismissed(true)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-surface-container transition-colors"
+                          >
+                            <Users className="w-4 h-4 text-outline flex-shrink-0" />
+                            <p className="text-label-sm font-semibold text-on-surface truncate">{c.name}</p>
+                          </Link>
+                        ))}
+                      </DropdownSection>
+                    )}
+
+                    {searchResults.news.length > 0 && (
+                      <DropdownSection label="News">
+                        {searchResults.news.slice(0, DROPDOWN_PREVIEW).map((a) => (
+                          <Link
+                            key={a.id}
+                            href={`/news/${a.id}`}
+                            onClick={() => setSearchDismissed(true)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-surface-container transition-colors"
+                          >
+                            <Newspaper className="w-4 h-4 text-outline flex-shrink-0" />
+                            <p className="text-label-sm text-on-surface truncate">{a.title}</p>
+                          </Link>
+                        ))}
+                      </DropdownSection>
+                    )}
+
+                    {searchResults.products.length > 0 && (
+                      <DropdownSection label="Products">
+                        {searchResults.products.slice(0, DROPDOWN_PREVIEW).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/shop/${p.id}`}
+                            onClick={() => setSearchDismissed(true)}
+                            className="flex items-center gap-2.5 px-4 py-2 hover:bg-surface-container transition-colors"
+                          >
+                            <ShoppingBag className="w-4 h-4 text-outline flex-shrink-0" />
+                            <p className="text-label-sm text-on-surface truncate flex-1">{p.title}</p>
+                            <span className="text-label-sm font-semibold text-on-surface flex-shrink-0">{formatMoney(p.price, p.currency)}</span>
+                          </Link>
+                        ))}
+                      </DropdownSection>
+                    )}
+
+                    <Link
+                      href={`/search?q=${encodeURIComponent(searchTerm.trim())}`}
+                      onClick={() => setSearchDismissed(true)}
+                      className="block px-4 py-2.5 mt-1 border-t border-outline-variant/20 text-label-sm font-semibold text-primary hover:bg-surface-container transition-colors"
+                    >
+                      See all results for &ldquo;{searchTerm.trim()}&rdquo;
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -286,5 +469,14 @@ export function Header(): React.JSX.Element {
         </div>
       </div>
     </header>
+  )
+}
+
+function DropdownSection({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="py-1">
+      <p className="px-4 pt-1 pb-0.5 text-[10.5px] font-bold uppercase tracking-wider text-outline">{label}</p>
+      {children}
+    </div>
   )
 }

@@ -15,6 +15,7 @@ import { EventFormModal } from '@/components/events/EventFormModal'
 import { Calendar, Globe, Plus, Users, Check, Search, Film, Ticket, Navigation } from 'lucide-react'
 import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventFilters } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 function dateBadge(iso: string): { mon: string; day: string } {
   const d = new Date(iso)
@@ -121,9 +122,12 @@ export default function EventsPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Adoption days, workshops & meetups</p>
                 </div>
               </div>
-              <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
-                <Plus className="w-4 h-4" />Create
-              </button>
+              <div className="flex items-center gap-3">
+                <DocsHelpLink href="/docs/community-and-events#events" />
+                <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                  <Plus className="w-4 h-4" />Create
+                </button>
+              </div>
             </div>
 
             {/* Tabs + filters */}

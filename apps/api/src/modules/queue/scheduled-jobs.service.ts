@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { ConfigService } from '../config/config.service'
 import { LOW_CHURN_WORKER_OPTS } from './worker-options'
+import { ProfileService } from '../profile/profile.service'
 
 /**
  * ScheduledJobsService — repeatable BullMQ jobs for counter reconciliation
@@ -25,6 +26,7 @@ import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 
 export const COUNTER_RECONCILE_QUEUE = 'counter-reconcile'
 export const NOTIFICATION_CLEANUP_QUEUE = 'notification-cleanup'
+export const ACCOUNT_PURGE_QUEUE = 'account-purge'
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
@@ -36,6 +38,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly config: ConfigService,
+    private readonly profiles: ProfileService,
   ) {}
 
   onModuleInit(): void {
@@ -49,14 +52,16 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     // Each queue and worker gets its own Redis connection to avoid blocking
     const reconcileConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const cleanupConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const purgeConn = this.redis.createConnection({ maxRetriesPerRequest: null })
 
-    if (!reconcileConn || !cleanupConn) {
+    if (!reconcileConn || !cleanupConn || !purgeConn) {
       this.logger.warn('Redis unavailable — scheduled jobs disabled')
       return
     }
 
     this.setupCounterReconciliation(reconcileConn)
     this.setupNotificationCleanup(cleanupConn)
+    this.setupAccountPurge(purgeConn)
 
     this.logger.log('Scheduled jobs initialised')
   }
@@ -265,5 +270,85 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     })
 
     this.logger.log(`Notification cleanup complete: deleted ${result.count} notifications`)
+  }
+  /**
+   * Permanently deletes accounts whose deletion grace period has run out.
+   *
+   * Note this is not the only path: an account past its deadline is also purged
+   * the moment it tries to sign in (AuthService.resolveAccountStateOnLogin). That
+   * matters because this job needs Redis, and data must not linger indefinitely
+   * just because a queue was unavailable.
+   */
+  private setupAccountPurge(connection: Redis): void {
+    const queue = new Queue(ACCOUNT_PURGE_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    queue.add(
+      'account.purge',
+      {},
+      {
+        repeat: { pattern: '30 3 * * *' }, // Daily at 03:30, after notification cleanup
+        jobId: 'account-purge',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register account purge repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      ACCOUNT_PURGE_QUEUE,
+      async () => {
+        await this.runAccountPurge()
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+
+    worker.on('completed', (job) => {
+      this.logger.log(`Account purge completed (job ${job.id})`)
+    })
+    worker.on('failed', (job, err) => {
+      this.logger.error(`Account purge failed (job ${job?.id}): ${err.message}`)
+    })
+
+    this.queues.set(ACCOUNT_PURGE_QUEUE, queue)
+    this.workers.set(ACCOUNT_PURGE_QUEUE, worker)
+  }
+
+  /**
+   * One member per iteration with its own try/catch: a single failure (a Supabase
+   * hiccup on one account) must not abandon the rest of the batch.
+   */
+  private async runAccountPurge(): Promise<void> {
+    const graceDays = this.config.env.ACCOUNT_DELETION_GRACE_DAYS ?? 30
+    const cutoff = new Date(Date.now() - graceDays * 24 * 60 * 60 * 1000)
+
+    const due = await this.prisma.profile.findMany({
+      where: { state: 'pending_deletion', deletionRequestedAt: { lt: cutoff } },
+      select: { id: true, username: true },
+      take: 200,
+    })
+
+    if (due.length === 0) {
+      this.logger.log('Account purge: nothing past its grace period')
+      return
+    }
+
+    this.logger.log(`Account purge: ${due.length} account(s) requested deletion before ${cutoff.toISOString()}`)
+
+    let purged = 0
+    for (const profile of due) {
+      try {
+        await this.profiles.purgeAccount(profile.id, 'grace_period_expired')
+        purged++
+      } catch (err) {
+        this.logger.error(`Could not purge ${profile.username} (${profile.id}): ${(err as Error).message}`)
+      }
+    }
+
+    this.logger.log(`Account purge complete: ${purged}/${due.length} deleted`)
   }
 }

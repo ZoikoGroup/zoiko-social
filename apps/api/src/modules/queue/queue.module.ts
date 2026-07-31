@@ -12,10 +12,13 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { RealtimeModule } from '../realtime/realtime.module'
 import { ConfigModule } from '../config/config.module'
 import { ConfigService } from '../config/config.service'
+import { ProfileModule } from '../profile/profile.module'
 
 @Global()
 @Module({
-  imports: [PrismaModule, RealtimeModule, ConfigModule],
+  // ProfileModule for the nightly account purge. No cycle: ProfileModule only
+  // imports AuthModule, and this module is @Global so nothing imports it back.
+  imports: [PrismaModule, RealtimeModule, ConfigModule, ProfileModule],
   providers: [
     NotificationQueueService,
     NotificationWriterService,
