@@ -7,7 +7,9 @@ import { AiRateLimiter } from './rate-limiter'
 import { retrieveKnowledge, formatKnowledgeContext } from './retrieve'
 import { detectOffLimits, deflectionFor, containsTechLeak, looksHealthUrgent } from './guardrails'
 import { PET_TOOLS } from './pet-tools'
+import { DISCOVERY_TOOLS, DISCOVERY_TOOL_NAMES } from './discovery-tools'
 import { PetToolExecutor } from './pet-tool-executor.service'
+import { DiscoveryToolExecutor } from './discovery-tool-executor.service'
 import { cleanReply } from './reply-format'
 import {
   buildSystemPrompt,
@@ -46,6 +48,8 @@ const MAX_INPUT_CHARS = 2_000
  * that recovery plus the real work. The cap still stops a confused model looping.
  */
 const MAX_TOOL_ROUNDS = 5
+/** Both tool sets are offered on every turn; the model picks. */
+const ASSISTANT_TOOLS = [...PET_TOOLS, ...DISCOVERY_TOOLS]
 /** Tool calls per round — a single instruction should never fan out wider than this. */
 const MAX_CALLS_PER_ROUND = 4
 
@@ -60,6 +64,7 @@ export class AiAssistantService implements OnModuleInit {
     private readonly groq: GroqClient,
     private readonly rateLimiter: AiRateLimiter,
     private readonly petTools: PetToolExecutor,
+    private readonly discoveryTools: DiscoveryToolExecutor,
     @Inject(SUPABASE_ADMIN_CLIENT) private readonly supabase: SupabaseAdminClient,
   ) {}
 
@@ -224,7 +229,7 @@ export class AiAssistantService implements OnModuleInit {
     const thread = [...messages]
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const result = await this.groq.completeWithTools(thread, PET_TOOLS)
+      const result = await this.groq.completeWithTools(thread, ASSISTANT_TOOLS)
       if (!result) return null
 
       if (result.toolCalls.length === 0) return result.content
@@ -249,7 +254,9 @@ export class AiAssistantService implements OnModuleInit {
       })
 
       for (const call of calls) {
-        const outcome = await this.petTools.run(userId, call.name, call.arguments)
+        // Discovery tools only read; pet tools write and carry the ownership checks.
+        const executor = DISCOVERY_TOOL_NAMES.has(call.name) ? this.discoveryTools : this.petTools
+        const outcome = await executor.run(userId, call.name, call.arguments)
         thread.push({ role: 'tool', tool_call_id: call.id, content: outcome.result })
       }
     }

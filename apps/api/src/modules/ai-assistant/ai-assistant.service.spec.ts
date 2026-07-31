@@ -13,6 +13,7 @@ import type { ProfanityService } from '../common/moderation/profanity.service'
 import type { GroqClient } from './groq.client'
 import type { AiRateLimiter } from './rate-limiter'
 import type { PetToolExecutor } from './pet-tool-executor.service'
+import type { DiscoveryToolExecutor } from './discovery-tool-executor.service'
 import type { SupabaseAdminClient } from '../database/database.providers'
 
 const AI_ID = 'ai-profile-id'
@@ -52,6 +53,9 @@ function buildService(overrides: {
   const petTools = {
     run: jest.fn().mockResolvedValue({ result: 'Updated Luna.', changed: true }),
   }
+  const discoveryTools = {
+    run: jest.fn().mockResolvedValue({ result: 'Found 1: A Vet · Bangalore', changed: false }),
+  }
   const supabase = {
     auth: { admin: { createUser: jest.fn(), listUsers: jest.fn() } },
   }
@@ -62,10 +66,11 @@ function buildService(overrides: {
     groq as unknown as GroqClient,
     rateLimiter as unknown as AiRateLimiter,
     petTools as unknown as PetToolExecutor,
+    discoveryTools as unknown as DiscoveryToolExecutor,
     supabase as unknown as SupabaseAdminClient,
   )
 
-  return { service, prisma, profanity, groq, rateLimiter, petTools, supabase }
+  return { service, prisma, profanity, groq, rateLimiter, petTools, discoveryTools, supabase }
 }
 
 /** Puts the service into the state it has after successful provisioning. */

@@ -3,7 +3,12 @@ import { AiAssistantService } from './ai-assistant.service'
 import { GroqClient } from './groq.client'
 import { AiRateLimiter } from './rate-limiter'
 import { PetToolExecutor } from './pet-tool-executor.service'
+import { DiscoveryToolExecutor } from './discovery-tool-executor.service'
 import { PetsModule } from '../pets/pets.module'
+import { ProvidersModule } from '../providers/providers.module'
+import { AdoptionModule } from '../adoption/adoption.module'
+import { EventsModule } from '../events/events.module'
+import { LostFoundModule } from '../lost-found/lost-found.module'
 
 /**
  * No controllers: the assistant has no HTTP surface of its own. Members reach it
@@ -17,8 +22,8 @@ import { PetsModule } from '../pets/pets.module'
  * animals.
  */
 @Module({
-  imports: [PetsModule],
-  providers: [AiAssistantService, GroqClient, AiRateLimiter, PetToolExecutor],
+  imports: [PetsModule, ProvidersModule, AdoptionModule, EventsModule, LostFoundModule],
+  providers: [AiAssistantService, GroqClient, AiRateLimiter, PetToolExecutor, DiscoveryToolExecutor],
   exports: [AiAssistantService],
 })
 export class AiAssistantModule {}
