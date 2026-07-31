@@ -20,6 +20,10 @@ enum UserState {
   suspended
   banned
   deleted
+  /// Temporarily hidden by the member. Signing back in restores it.
+  deactivated
+  /// Scheduled for permanent deletion; signing in during the grace period cancels it.
+  pending_deletion
 
   @@map("user_state")
 }
@@ -323,6 +327,8 @@ model Profile {
   bannerUrl         String?          @map("banner_url")
   websiteUrl        String?          @map("website_url")
   state             UserState        @default(active)
+  deactivatedAt     DateTime?        @map("deactivated_at")
+  deletionRequestedAt DateTime?      @map("deletion_requested_at")
   role              UserRole         @default(user)
   verificationTier  VerificationTier @default(none) @map("verification_tier")
   isPrivate         Boolean          @default(false) @map("is_private")
@@ -428,6 +434,7 @@ model Profile {
   userPresence               UserPresence?
   userPrivacy                UserPrivacy?
   professionalMessaging      ProfessionalMessagingSetting?
+  userSettings               UserSettings?
 
   @@map("profiles")
 }
@@ -442,6 +449,12 @@ model Pet {
   avatarUrl String?   @map("avatar_url")
   bio       String?
   birthdate DateTime? @db.Date
+  // About details. Weight is deliberately absent — it lives in PetHealthRecord
+  // as type 'weight' so the growth chart stays the single source of truth.
+  color        String?
+  microchipId  String?   @map("microchip_id")
+  neutered     Boolean?                   // null = not specified
+  adoptionDate DateTime? @map("adoption_date") @db.Date
   isPublic  Boolean   @default(true) @map("is_public")
   healthShareToken String? @unique @map("health_share_token")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -1368,7 +1381,9 @@ model Conversation {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  creator        Profile?         @relation("ConversationCreator", fields: [createdBy], references: [id])
+  // SetNull so deleting the creator does not delete a conversation others are
+  // still in (see migration 049).
+  creator        Profile?         @relation("ConversationCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   members        ConversationMember[]
   messages       Message[]
   settings       ConversationSetting[]
@@ -1703,6 +1718,46 @@ model UserPrivacy {
   @@map("user_privacy")
 }
 
+// ── USER SETTINGS (privacy toggles, notification prefs, display prefs) ──────
+// One row per user — created on first settings API call. Defaults match the
+// settings page initial state so the app works before any explicit save.
+
+model UserSettings {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+
+  // Privacy toggles
+  showLastActive Boolean  @default(true) @map("show_last_active")
+  showEmail      Boolean  @default(false) @map("show_email")
+  allowTagging   Boolean  @default(true) @map("allow_tagging")
+  showLocation   Boolean  @default(false) @map("show_location")
+  allowMessaging String   @default("everyone") @map("allow_messaging")  // everyone | connections | none
+
+  // Notification preferences
+  notifLikes       Boolean @default(true) @map("notif_likes")
+  notifComments    Boolean @default(true) @map("notif_comments")
+  notifFollows     Boolean @default(true) @map("notif_follows")
+  notifMentions    Boolean @default(true) @map("notif_mentions")
+  notifEvents      Boolean @default(true) @map("notif_events")
+  notifCommunities Boolean @default(true) @map("notif_communities")
+  notifNews        Boolean @default(true) @map("notif_news")
+  notifPromotions  Boolean @default(false) @map("notif_promotions")
+  emailDigest      Boolean @default(true) @map("email_digest")
+  emailMarketing   Boolean @default(false) @map("email_marketing")
+  pushEnabled      Boolean @default(true) @map("push_enabled")
+
+  // Display preferences
+  reducedMotion Boolean @default(false) @map("reduced_motion")
+  compactView   Boolean @default(false) @map("compact_view")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
 // ── PROFESSIONAL MESSAGING SETTINGS ───────────────────────────────────────────
 
 model ProfessionalMessagingSetting {
@@ -1756,7 +1811,9 @@ model AuditLog {
   userAgent  String?  @map("user_agent")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  actor Profile? @relation(fields: [actorId], references: [id])
+  // SetNull, not Cascade: an audit entry must outlive the account it refers to
+  // (see migration 049). Without this, prisma migrate would revert the FK.
+  actor Profile? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([actorId])
   @@index([entityType, entityId])

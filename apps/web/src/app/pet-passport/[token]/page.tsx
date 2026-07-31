@@ -6,6 +6,8 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { petsApi, type PublicPassport } from '@/lib/api'
+import { PetAbout } from '@/components/PetAbout'
+import { ageOf } from '@/lib/pet'
 
 const META: Record<string, { label: string; Icon: LucideIcon; node: string; tint: string }> = {
   vaccination: { label: 'Vaccination', Icon: Syringe, node: 'bg-primary text-white', tint: 'bg-primary/10 text-primary' },
@@ -17,12 +19,6 @@ const META: Record<string, { label: string; Icon: LucideIcon; node: string; tint
 }
 const meta = (t: string) => META[t] ?? META.note!
 function fmtDate(iso: string | null): string { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Undated' }
-function ageOf(birthdate: string | null): string | null {
-  if (!birthdate) return null
-  const months = Math.max(0, Math.floor((Date.now() - new Date(birthdate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
-  if (months < 12) return `${months} mo`
-  const y = Math.floor(months / 12); return `${y} yr${y > 1 ? 's' : ''}`
-}
 
 export default function PublicPassportPage({ params }: { params: Promise<{ token: string }> }): React.JSX.Element {
   const { token } = use(params)
@@ -40,6 +36,10 @@ export default function PublicPassportPage({ params }: { params: Promise<{ token
   }, [token])
 
   const allergies = data?.records.filter((r) => r.type === 'allergy') ?? []
+  // Weight lives in health records, so the newest dated one is the current weight.
+  const weightRecords = (data?.records ?? []).filter((r) => r.type === 'weight')
+  const latestWeight = weightRecords.length > 0 ? parseFloat(weightRecords[0]!.title) : NaN
+  const latestWeightKg = Number.isFinite(latestWeight) ? latestWeight : undefined
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-background">
@@ -81,6 +81,12 @@ export default function PublicPassportPage({ params }: { params: Promise<{ token
               </div>
             </div>
 
+            {/* About — read-only for whoever holds the link (vet, sitter, shelter) */}
+            <PetAbout
+              pet={{ ...data.pet, bio: null, adoptionDate: null }}
+              latestWeightKg={latestWeightKg}
+            />
+
             {allergies.length > 0 && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -113,7 +119,12 @@ export default function PublicPassportPage({ params }: { params: Promise<{ token
               })}
             </div>
 
-            <p className="text-center text-[11px] text-outline pt-2">Shared securely via Zoiko · The guardian can revoke this link anytime.</p>
+            <p className="no-print text-center text-[11px] text-outline pt-2">
+              Shared securely via Zoiko · The guardian can revoke this link anytime. ·{' '}
+              <a href="/docs/profile-and-pets#pet-passport-lookup" className="underline hover:text-primary transition-colors">
+                What is this?
+              </a>
+            </p>
           </div>
         )}
       </div>

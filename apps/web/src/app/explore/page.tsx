@@ -10,6 +10,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { ExploreFeed } from '@/components/feed/ExploreFeed'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 export default function ExplorePage(): React.JSX.Element {
   const { loading, isAuthenticated } = useAuth()
@@ -39,10 +40,11 @@ export default function ExplorePage(): React.JSX.Element {
               <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Compass className="w-5 h-5 text-primary" />
               </div>
-              <div>
+              <div className="flex-1">
                 <h1 className="font-headline text-headline-md text-on-surface leading-tight">Explore</h1>
                 <p className="text-label-sm text-outline">Public posts from across ZoikoSocial</p>
               </div>
+              <DocsHelpLink href="/docs/feed-and-content#home-feed-and-explore" />
             </div>
             <ExploreFeed />
           </div>

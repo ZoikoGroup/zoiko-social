@@ -17,6 +17,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 import {
   shopApi, newsApi, providersApi, feedApi,
   type Product, type ProductEnquiryInbox, type NewsArticle, type Provider, type PostItem,
@@ -358,6 +359,7 @@ export default function DashboardPage(): React.JSX.Element {
                     {verifiedAt && <span className="text-[11px] text-outline">Verified {new Date(verifiedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
                   </div>
                 </div>
+                <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />
               </div>
             </div>
 

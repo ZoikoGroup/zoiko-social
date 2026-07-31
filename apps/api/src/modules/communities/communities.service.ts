@@ -249,6 +249,11 @@ export class CommunitiesService {
           isDeleted: false,
           searchDoc: { contains: q },
           ...(opts.category ? { category: { slug: opts.category } } : {}),
+          // Private/invite-only communities are only discoverable via search to active members.
+          OR: [
+            { privacy: 'public' },
+            ...(viewerId ? [{ members: { some: { userId: viewerId, status: 'active' as const } } }] : []),
+          ],
         },
         include: { category: { select: { slug: true } } },
         orderBy: { membersCount: 'desc' },

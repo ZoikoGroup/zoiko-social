@@ -16,6 +16,7 @@ import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { LocationInput } from '@/components/LocationInput'
 import { AddProviderModal } from '@/components/ServiceDirectory'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 export default function PetCarePage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
@@ -70,6 +71,7 @@ export default function PetCarePage(): React.JSX.Element {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <DocsHelpLink href="/docs/marketplace-and-services#booking-a-provider" />
                 <Link href="/pet-care/my-bookings" className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-outline-variant/40 text-label-sm text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
                   <Calendar className="w-4 h-4" /> My Bookings
                 </Link>

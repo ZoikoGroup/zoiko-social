@@ -23,6 +23,10 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error?: string }>
   updatePassword: (password: string) => Promise<{ error?: string }>
+  /** Change email address — sends confirmation to both old and new addresses. */
+  updateEmail: (email: string) => Promise<{ error?: string }>
+  /** Change password while signed in (no URL-hash dependency). */
+  changePassword: (password: string) => Promise<{ error?: string }>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -274,6 +278,36 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     }
   }, [])
 
+  /**
+   * Change email — Supabase sends confirmation emails to both old and new addresses.
+   * The email only updates after the user clicks the confirmation link.
+   */
+  const updateEmail = useCallback(async (email: string) => {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ email })
+      if (error) return { error: error.message }
+      return {}
+    } catch {
+      return { error: 'Failed to update email. Please try again.' }
+    }
+  }, [])
+
+  /**
+   * Change password while signed in — no URL-hash dependency.
+   * For the reset-password page, use updatePassword() instead.
+   */
+  const changePassword = useCallback(async (password: string) => {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) return { error: error.message }
+      return {}
+    } catch {
+      return { error: 'Failed to change password. Please try again.' }
+    }
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -288,6 +322,8 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         signOut,
         resetPassword,
         updatePassword,
+        updateEmail,
+        changePassword,
       }}
     >
       {children}

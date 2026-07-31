@@ -5,7 +5,7 @@ import {
   Send, Paperclip, Smile, Phone, Video, ArrowLeft, Info,
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
-  MoreVertical, MoreHorizontal, Flag, UserMinus2,
+  MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
   FileText, EyeOff, Palette,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -26,10 +26,12 @@ import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
 import { compressImage } from '@/lib/image'
-import { moderationApi } from '@/lib/api'
+import { moderationApi, networkApi, profileApi, type Relationship } from '@/lib/api'
 import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
+import { ReportContentModal } from '@/components/ReportContentModal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useCall } from '@/hooks/use-call'
 import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
@@ -97,6 +99,54 @@ export function MessageConversation({
   const activeTheme = getChatTheme(themeId)
   const { success: toastSuccess, error: toastError } = useToast()
   const { startCall } = useCall()
+
+  // Block/mute/report state for the other DM participant.
+  const [relationship, setRelationship] = useState<Relationship | null>(null)
+  const [reportUserOpen, setReportUserOpen] = useState(false)
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
+
+  useEffect(() => {
+    if (!otherUserId) return undefined
+    let cancelled = false
+    profileApi.getRelationship(otherUserId).then((r) => { if (!cancelled) setRelationship(r) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [otherUserId])
+
+  async function handleToggleMute(): Promise<void> {
+    if (!otherUserId) return
+    const wasMuted = !!relationship?.muted
+    try {
+      if (wasMuted) {
+        await networkApi.unmute(otherUserId)
+        setRelationship((r) => r ? { ...r, muted: false } : r)
+        toastSuccess('Unmuted', `You'll see posts from ${displayName} again.`)
+      } else {
+        await networkApi.mute(otherUserId)
+        setRelationship((r) => r ? { ...r, muted: true } : r)
+        toastSuccess('Muted', `You won't see posts from ${displayName} in your feed.`)
+      }
+    } catch (e) {
+      toastError('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  async function handleUnblock(): Promise<void> {
+    if (!otherUserId) return
+    try {
+      await networkApi.unblock(otherUserId)
+      setRelationship((r) => r ? { ...r, blocked: false } : r)
+      toastSuccess('Unblocked', `${displayName} can now see your profile and message you again.`)
+    } catch (e) {
+      toastError('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  async function handleBlock(): Promise<void> {
+    if (!otherUserId) return
+    await networkApi.block(otherUserId)
+    setRelationship((r) => r ? { ...r, blocked: true, following: false, followedBy: false } : r)
+    toastSuccess('Blocked', `${displayName} can no longer see your profile or message you.`)
+  }
 
   // Keep local theme in sync with the conversation (initial load + switching chats).
   useEffect(() => {
@@ -912,13 +962,26 @@ export function MessageConversation({
                 <span className="font-medium text-xs">Theme</span>
               </Button>
               <Button
+                className="w-full justify-start gap-2 rounded bg-transparent hover:bg-accent"
+                size="sm"
+                type="button"
+                variant="ghost"
+                disabled={!otherUserId}
+                onClick={() => void handleToggleMute()}
+              >
+                {relationship?.muted ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+                <span className="font-medium text-xs">{relationship?.muted ? 'Unmute User' : 'Mute User'}</span>
+              </Button>
+              <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
                 size="sm"
                 type="button"
                 variant="ghost"
+                disabled={!otherUserId}
+                onClick={() => (relationship?.blocked ? void handleUnblock() : setConfirmBlockOpen(true))}
               >
-                <UserMinus2 className="size-4" />
-                <span className="font-medium text-xs">Block User</span>
+                {relationship?.blocked ? <UserCheck2 className="size-4" /> : <UserMinus2 className="size-4" />}
+                <span className="font-medium text-xs">{relationship?.blocked ? 'Unblock User' : 'Block User'}</span>
               </Button>
               <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
@@ -935,15 +998,7 @@ export function MessageConversation({
                 type="button"
                 variant="ghost"
                 disabled={!otherUserId}
-                onClick={async () => {
-                  if (!otherUserId) return
-                  try {
-                    await moderationApi.report('user', otherUserId, 'harassment')
-                    toastSuccess('User reported', "We'll review it shortly.")
-                  } catch {
-                    toastError('Report failed', 'Could not submit the report. Please try again.')
-                  }
-                }}
+                onClick={() => setReportUserOpen(true)}
               >
                 <Flag className="size-4" />
                 <span className="font-medium text-xs">Report User</span>
@@ -1699,29 +1754,28 @@ export function MessageConversation({
               </div>
               <div className="p-4 space-y-1">
                 {[
-                  { label: 'Mute notifications' },
-                  { label: 'Block user' },
                   {
-                    label: 'Report spam',
+                    label: relationship?.muted ? 'Unmute notifications' : 'Mute notifications',
+                    onClick: otherUserId ? () => void handleToggleMute() : undefined,
+                  },
+                  {
+                    label: relationship?.blocked ? 'Unblock user' : 'Block user',
                     onClick: otherUserId
-                      ? async () => {
-                          try {
-                            await moderationApi.report('user', otherUserId, 'spam')
-                            toastSuccess('User reported', "We'll review it shortly.")
-                          } catch {
-                            toastError('Report failed', 'Could not submit the report. Please try again.')
-                          }
-                        }
+                      ? () => (relationship?.blocked ? void handleUnblock() : setConfirmBlockOpen(true))
                       : undefined,
+                  },
+                  {
+                    label: 'Report user',
+                    onClick: otherUserId ? () => setReportUserOpen(true) : undefined,
                   },
                   { label: 'Delete conversation', danger: true },
                 ].map(({ label, danger, onClick }) => (
                   <button
                     key={label}
                     onClick={onClick}
-                    disabled={!onClick && label === 'Report spam'}
+                    disabled={!onClick}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer',
+                      'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
                       danger ? 'text-destructive hover:bg-destructive/10' : 'text-foreground/80 hover:bg-surface-container',
                     )}
                   >
@@ -1874,6 +1928,22 @@ export function MessageConversation({
             </div>
           </div>
         </div>
+      )}
+      {reportUserOpen && otherUserId && (
+        <ReportContentModal
+          targetType="user"
+          targetId={otherUserId}
+          onClose={() => setReportUserOpen(false)}
+        />
+      )}
+      {confirmBlockOpen && otherUserId && (
+        <ConfirmDialog
+          title={`Block ${displayName}?`}
+          body={`They won't be able to see your profile, follow you, or message you. Existing follows between you will be removed. You can unblock them anytime.`}
+          confirmLabel="Block"
+          onConfirm={handleBlock}
+          onClose={() => setConfirmBlockOpen(false)}
+        />
       )}
     </Card>
   )

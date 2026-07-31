@@ -16,6 +16,7 @@ import { lostFoundApi, type LostFoundReport, type NewReport } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const TABS = [{ v: '', label: 'All' }, { v: 'lost', label: 'Lost' }, { v: 'found', label: 'Found' }]
 
@@ -108,9 +109,12 @@ export default function LostFoundPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Reunite pets with their families</p>
                 </div>
               </div>
-              <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary text-white text-label-sm font-semibold hover:bg-secondary/90 transition-colors cursor-pointer">
-                <Plus className="w-4 h-4" />Report
-              </button>
+              <div className="flex items-center gap-3">
+                <DocsHelpLink href="/docs/adoption-and-lost-found#reporting-a-lost-pet" />
+                <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-secondary text-white text-label-sm font-semibold hover:bg-secondary/90 transition-colors cursor-pointer">
+                  <Plus className="w-4 h-4" />Report
+                </button>
+              </div>
             </div>
 
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 space-y-2.5">
@@ -229,7 +233,12 @@ function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">Report a pet</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink
+              href={form.kind === 'lost' ? '/docs/adoption-and-lost-found#reporting-a-lost-pet' : '/docs/adoption-and-lost-found#reporting-a-sighting'}
+            />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto flex-1">
           <div className="flex gap-2">

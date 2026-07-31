@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Stethoscope, ShoppingBag, HandHeart, Newspaper, Check, Loader2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { profileApi, type ProfessionalProfile } from '@/lib/api'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface Category {
   slug: string
@@ -66,9 +67,12 @@ export function SwitchProfessionalModal({ open, onClose, onSwitched }: SwitchPro
               Your posts, followers, and messages stay exactly the same
             </p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Category grid */}

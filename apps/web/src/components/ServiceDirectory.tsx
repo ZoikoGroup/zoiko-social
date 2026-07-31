@@ -14,6 +14,7 @@ import { MobileTabs } from './MobileTabs'
 import { providersApi, type Provider, type NewProvider } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface ServiceDirectoryProps {
   category: 'vet' | 'pet_care'
@@ -188,7 +189,12 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink
+              href={category === 'vet' ? '/docs/marketplace-and-services#finding-a-provider' : '/docs/marketplace-and-services#booking-a-provider'}
+            />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto flex-1">
           <button onClick={() => fileRef.current?.click()} className="relative w-full h-24 rounded-xl overflow-hidden bg-surface-container flex items-center justify-center group cursor-pointer">

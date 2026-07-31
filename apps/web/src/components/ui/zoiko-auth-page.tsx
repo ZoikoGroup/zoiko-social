@@ -734,6 +734,12 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
             </Link>
             .
           </p>
+          <p className="mt-2 text-center text-sm text-gray-500">
+            New here?{' '}
+            <Link href="/docs/getting-started" className="font-semibold text-primary hover:underline">
+              See how ZoikoSocial works
+            </Link>
+          </p>
         </div>
       </div>
     </div>

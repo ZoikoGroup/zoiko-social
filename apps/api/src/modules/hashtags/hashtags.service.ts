@@ -57,13 +57,13 @@ export class HashtagsService {
     return rows
   }
 
-  async search(q: string): Promise<{ tag: string; postsCount: number }[]> {
+  async search(q: string, limit = 15): Promise<{ tag: string; postsCount: number }[]> {
     const query = q.trim().toLowerCase().replace(/^#/, '')
     if (query.length < 2) return []
     return this.prisma.hashtag.findMany({
       where: { tag: { contains: query }, postsCount: { gt: 0 } },
       orderBy: { postsCount: 'desc' },
-      take: 15,
+      take: Math.min(limit, 30),
       select: { tag: true, postsCount: true },
     })
   }

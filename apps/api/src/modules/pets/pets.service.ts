@@ -42,6 +42,10 @@ export interface PetResponse {
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
+  color: string | null
+  microchipId: string | null
+  neutered: boolean | null
+  adoptionDate: string | null
   isPublic: boolean
   createdAt: string
 }
@@ -54,6 +58,11 @@ export interface PublicPassportResponse {
     sex: string | null
     avatarUrl: string | null
     birthdate: string | null
+    color: string | null
+    // Included deliberately: the passport link is owner-issued and revocable,
+    // and the chip number is exactly what a vet or shelter needs to identify a pet.
+    microchipId: string | null
+    neutered: boolean | null
     ownerName: string | null
   }
   records: HealthRecordResponse[]
@@ -94,6 +103,10 @@ export class PetsService {
         ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
         ...(input.bio ? { bio: input.bio } : {}),
         ...(input.birthdate ? { birthdate: new Date(input.birthdate) } : {}),
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.microchipId ? { microchipId: input.microchipId } : {}),
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.adoptionDate ? { adoptionDate: new Date(input.adoptionDate) } : {}),
         ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
       },
     })
@@ -112,6 +125,11 @@ export class PetsService {
         ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl || null } : {}),
         ...(input.bio !== undefined ? { bio: input.bio || null } : {}),
         ...(input.birthdate !== undefined ? { birthdate: input.birthdate ? new Date(input.birthdate) : null } : {}),
+        ...(input.color !== undefined ? { color: input.color || null } : {}),
+        ...(input.microchipId !== undefined ? { microchipId: input.microchipId || null } : {}),
+        // Tri-state: null clears it back to "not specified", false means "not neutered".
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.adoptionDate !== undefined ? { adoptionDate: input.adoptionDate ? new Date(input.adoptionDate) : null } : {}),
         ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
       },
     })
@@ -271,6 +289,7 @@ export class PetsService {
       where: { healthShareToken: token },
       select: {
         id: true, name: true, species: true, breed: true, sex: true, avatarUrl: true, birthdate: true,
+        color: true, microchipId: true, neutered: true,
         owner: { select: { displayName: true } },
       },
     })
@@ -284,6 +303,9 @@ export class PetsService {
         name: pet.name, species: pet.species, breed: pet.breed, sex: pet.sex,
         avatarUrl: pet.avatarUrl,
         birthdate: pet.birthdate ? pet.birthdate.toISOString().slice(0, 10) : null,
+        color: pet.color,
+        microchipId: pet.microchipId,
+        neutered: pet.neutered,
         ownerName: pet.owner?.displayName ?? null,
       },
       records: records.map((r) => this.mapHealth(r)),
@@ -301,6 +323,10 @@ export class PetsService {
       avatarUrl: p.avatarUrl,
       bio: p.bio,
       birthdate: p.birthdate ? p.birthdate.toISOString().slice(0, 10) : null,
+      color: p.color,
+      microchipId: p.microchipId,
+      neutered: p.neutered,
+      adoptionDate: p.adoptionDate ? p.adoptionDate.toISOString().slice(0, 10) : null,
       isPublic: p.isPublic,
       createdAt: p.createdAt.toISOString(),
     }

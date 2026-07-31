@@ -18,10 +18,12 @@ import {
   SwitchProfessionalSchema,
   UpdateProfessionalSchema,
   SubmitVerificationSchema,
+  UpdateSettingsSchema,
   type UpdateProfileInput,
   type SwitchProfessionalInput,
   type UpdateProfessionalInput,
   type SubmitVerificationInput,
+  type UpdateSettingsInput,
 } from './profile.service'
 
 const UploadDocumentSchema = z.object({
@@ -213,6 +215,62 @@ export class ProfileController {
     await this.profileService.requireAdminOrModerator(user.id)
     const result = await this.profileService.reviewVerificationRequest(id, user.id, body.approved, body.rejectionReason)
     return { data: result }
+  }
+
+  // ── USER SETTINGS ───────────────────────────────────────────────────────────
+
+  @Get('settings/me')
+  @UseGuards(JwtAuthGuard)
+  async getMySettings(@CurrentUser() user: AuthenticatedUser) {
+    const settings = await this.profileService.getSettings(user.id)
+    return { data: settings }
+  }
+
+  @Put('settings/me')
+  @UseGuards(JwtAuthGuard)
+  async updateMySettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(UpdateSettingsSchema)) body: UpdateSettingsInput,
+  ) {
+    const settings = await this.profileService.updateSettings(user.id, body)
+    return { data: settings }
+  }
+
+  // ── ACCOUNT DELETION ───────────────────────────────────────────────────────
+
+  /**
+   * Temporarily hide the account. Reversible by signing back in — there is no
+   * authenticated "reactivate" route because JwtAuthGuard rejects every request
+   * from a non-active account.
+   */
+  @Post('me/deactivate')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deactivateAccount(@CurrentUser() user: AuthenticatedUser) {
+    const result = await this.profileService.deactivateAccount(user.id)
+    return {
+      data: {
+        ...result,
+        message: 'Your account is now hidden. Sign in again whenever you want it back.',
+      },
+    }
+  }
+
+  /**
+   * Schedule deletion after the grace period. Nothing is destroyed yet: signing
+   * in before the deadline cancels it.
+   */
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteAccount(@CurrentUser() user: AuthenticatedUser) {
+    const result = await this.profileService.requestAccountDeletion(user.id)
+    return {
+      data: {
+        ...result,
+        message: `Your account is scheduled for deletion in ${result.graceDays} days. Sign in before then to cancel it.`,
+      },
+    }
   }
 
   // ── RELATIONSHIP ───────────────────────────────────────────────────────────

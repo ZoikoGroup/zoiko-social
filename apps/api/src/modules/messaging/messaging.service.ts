@@ -7,6 +7,7 @@ import { MessagingPrivacyService } from './messaging-privacy.service'
 import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
 import type {
   ConversationResponse,
   SuggestionResponse,
@@ -26,6 +27,7 @@ export class MessagingService {
     private readonly privacy: MessagingPrivacyService,
     private readonly presence: PresenceService,
     private readonly profanity: ProfanityService,
+    private readonly aiAssistant: AiAssistantService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -33,6 +35,11 @@ export class MessagingService {
   async getConversations(userId: string, cursor?: string | null): Promise<{ data: ConversationResponse[]; nextCursor: string | null; hasMore: boolean }> {
     const take = 21
     const decoded = cursor ? decodeCursor(cursor) : null
+
+    // Every member gets a thread with ZoikoSocial AI. Provisioned lazily on the
+    // first inbox load rather than at signup, so accounts that predate the
+    // assistant get one too. Only on the first page — deeper pages skip it.
+    if (!cursor) await this.ensureAiThread(userId)
 
     const memberships = await this.prisma.conversationMember.findMany({
       where: {
@@ -550,6 +557,17 @@ export class MessagingService {
       this.logger.warn(`post-send tasks failed for ${conversationId}: ${err.message}`),
     )
 
+    // When the recipient of this DM is ZoikoSocial AI, generate its reply. Also
+    // off the critical path: the sender's message is already delivered, and the
+    // reply arrives over the same socket moments later. The sender-is-AI guard is
+    // what stops the assistant replying to itself.
+    const recipientId = member.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
+    if (input.body && recipientId && this.aiAssistant.isAiProfile(recipientId) && !this.aiAssistant.isAiProfile(userId)) {
+      void this.dispatchAiReply(conversationId, userId, input.body).catch((err: Error) =>
+        this.logger.warn(`AI reply failed for ${conversationId}: ${err.message}`),
+      )
+    }
+
     return {
       id: message.id,
       conversationId: message.conversationId,
@@ -569,6 +587,68 @@ export class MessagingService {
       reactions: [],
       receipt: null,
       createdAt: message.createdAt.toISOString(),
+    }
+  }
+
+  /**
+   * Generates ZoikoSocial AI's reply and sends it as a normal message.
+   *
+   * The reply goes back through `sendMessage` with the assistant as sender, so it
+   * gets the same persistence, realtime delivery and notification handling as any
+   * human message — nothing about the assistant's messages is special-cased.
+   * Typing indicators bracket the model call using the existing `typing:update`
+   * event, so the member sees "typing…" while it thinks.
+   */
+  private async dispatchAiReply(conversationId: string, userId: string, text: string): Promise<void> {
+    const aiId = this.aiAssistant.getAiProfileId()
+    if (!aiId) return
+
+    await this.presence.setTyping(aiId, conversationId, true)
+    try {
+      const reply = await this.aiAssistant.generateReply(conversationId, userId, text)
+      await this.sendMessage(aiId, conversationId, { body: reply })
+    } finally {
+      // Always clear the indicator, or it sticks until the client's own timeout.
+      await this.presence.setTyping(aiId, conversationId, false).catch(() => undefined)
+    }
+  }
+
+  /**
+   * Ensures this member has their ZoikoSocial AI thread, seeded with a greeting.
+   *
+   * Creates the conversation directly rather than through `getOrCreateConversation`
+   * because that path enforces the follow/privacy gate and would turn this into a
+   * message request — the assistant is always reachable. Best-effort: a failure
+   * here must not stop the inbox from loading.
+   */
+  private async ensureAiThread(userId: string): Promise<void> {
+    const aiId = this.aiAssistant.getAiProfileId()
+    if (!aiId || aiId === userId) return
+
+    try {
+      const existing = await this.prisma.conversation.findFirst({
+        where: {
+          type: 'dm',
+          isDeleted: false,
+          AND: [{ members: { some: { userId } } }, { members: { some: { userId: aiId } } }],
+        },
+        select: { id: true },
+      })
+      if (existing) return
+
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          type: 'dm',
+          createdBy: aiId,
+          members: { createMany: { data: [{ userId }, { userId: aiId }] } },
+        },
+        select: { id: true },
+      })
+
+      await this.sendMessage(aiId, conversation.id, { body: this.aiAssistant.greeting })
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      this.logger.warn(`Could not provision AI thread for ${userId}: ${reason}`)
     }
   }
 

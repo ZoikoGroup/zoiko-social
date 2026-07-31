@@ -5,6 +5,7 @@ import { X, Loader2, CheckCircle2, XCircle, Globe, Lock, Mail, Camera, ImagePlus
 import { communitiesApi, type CommunityCategory, type Community } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 type SlugStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken'
@@ -113,9 +114,12 @@ export function CreateCommunityModal({ open, onClose, onCreated }: CreateCommuni
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">Create a community</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/community-and-events#communities" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto flex-1">

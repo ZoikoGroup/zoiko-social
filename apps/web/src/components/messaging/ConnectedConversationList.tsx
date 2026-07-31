@@ -9,6 +9,7 @@ import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
 import { useAuth } from '@/hooks/use-auth'
 import type { Conversation } from '@/hooks/use-messaging'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 export type ChatTab = 'all' | 'groups' | 'communities'
 
@@ -99,6 +100,7 @@ export function ConnectedConversationList({
         <div className="hidden md:flex items-center justify-between mb-4">
           <h2 className="text-[22px] font-bold tracking-tight text-on-surface">Messages</h2>
           <div className="flex items-center gap-1.5">
+            <DocsHelpLink href="/docs/messaging-and-calls#starting-a-conversation" />
             {unreadCount > 0 && (
               <button
                 onClick={() => void markAllRead()}

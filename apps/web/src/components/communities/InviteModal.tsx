@@ -5,6 +5,7 @@ import { X, Search, Link2, Loader2, Check, UserPlus, Copy } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { communitiesApi, networkApi } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface InvitePerson {
   id: string
@@ -97,9 +98,12 @@ function InviteSheet({ communityId, onClose }: Omit<InviteModalProps, 'open'>): 
           <h2 className="flex items-center gap-2 font-headline text-headline-md text-on-surface">
             <UserPlus className="w-5 h-5 text-primary" />Invite members
           </h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/community-and-events#communities" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Search */}

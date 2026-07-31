@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -12,6 +13,8 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { AuthService } from '../auth/auth.service'
+import { ConfigService } from '../config/config.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 
@@ -27,6 +30,34 @@ export const UpdateProfileSchema = z.object({
   username: z.string().min(3).max(30).optional(),
   currency: z.string().trim().min(2).max(8).optional(),
 })
+
+export const UpdateSettingsSchema = z.object({
+  // Privacy toggles
+  showLastActive: z.boolean().optional(),
+  showEmail: z.boolean().optional(),
+  allowTagging: z.boolean().optional(),
+  showLocation: z.boolean().optional(),
+  allowMessaging: z.enum(['everyone', 'connections', 'none']).optional(),
+
+  // Notification preferences
+  notifLikes: z.boolean().optional(),
+  notifComments: z.boolean().optional(),
+  notifFollows: z.boolean().optional(),
+  notifMentions: z.boolean().optional(),
+  notifEvents: z.boolean().optional(),
+  notifCommunities: z.boolean().optional(),
+  notifNews: z.boolean().optional(),
+  notifPromotions: z.boolean().optional(),
+  emailDigest: z.boolean().optional(),
+  emailMarketing: z.boolean().optional(),
+  pushEnabled: z.boolean().optional(),
+
+  // Display preferences
+  reducedMotion: z.boolean().optional(),
+  compactView: z.boolean().optional(),
+})
+
+export type UpdateSettingsInput = z.infer<typeof UpdateSettingsSchema>
 
 export const SwitchProfessionalSchema = z.object({
   category: z.nativeEnum(ProfessionalCategory),
@@ -190,6 +221,8 @@ export class ProfileService {
     private readonly notifications: NotificationQueueService,
     private readonly auditLog: AuditLogService,
     private readonly profanity: ProfanityService,
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -825,6 +858,200 @@ export class ProfileService {
         message: 'You do not have permission to perform this action',
       })
     }
+  }
+
+  // ── DEACTIVATION AND DELETION ──────────────────────────────────────────────
+
+  /** Days a member has to sign back in and cancel a pending deletion. */
+  get deletionGraceDays(): number {
+    return this.config.env.ACCOUNT_DELETION_GRACE_DAYS ?? 30
+  }
+
+  /**
+   * Temporarily hide the account. Nothing is destroyed: signing back in restores
+   * it (see AuthService.restoreOnLogin). Everyone else stops seeing the member
+   * and their content for free, because profile visibility across feed, search,
+   * posts, comments, messaging and stories is gated on `state = 'active'`.
+   */
+  async deactivateAccount(userId: string): Promise<{ state: string }> {
+    const profile = await this.loadForStateChange(userId)
+
+    await this.prisma.profile.update({
+      where: { id: userId },
+      data: { state: 'deactivated', deactivatedAt: new Date(), deletionRequestedAt: null },
+    })
+    await this.afterStateChange(userId, profile.username, 'account.deactivated')
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'account.deactivate',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username: profile.username },
+    })
+    // Sign every device out, so the account really does go quiet.
+    await this.revokeSessions(userId)
+
+    this.logger.log(`Account deactivated for ${userId}`)
+    return { state: 'deactivated' }
+  }
+
+  /**
+   * Schedule the account for deletion after the grace period.
+   *
+   * Deliberately does NOT touch Supabase Auth: the login has to keep working, or
+   * the member could never sign in to change their mind. The irreversible part
+   * happens later, in `purgeAccount` — either from the daily job or the moment an
+   * expired account tries to sign in.
+   */
+  async requestAccountDeletion(userId: string): Promise<{ scheduledFor: string; graceDays: number }> {
+    const profile = await this.loadForStateChange(userId)
+
+    const requestedAt = new Date()
+    const scheduledFor = new Date(requestedAt.getTime() + this.deletionGraceDays * 86_400_000)
+
+    await this.prisma.profile.update({
+      where: { id: userId },
+      data: { state: 'pending_deletion', deletionRequestedAt: requestedAt, deactivatedAt: null },
+    })
+    await this.afterStateChange(userId, profile.username, 'account.deletion_scheduled')
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'account.deletion_requested',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username: profile.username, graceDays: this.deletionGraceDays, scheduledFor: scheduledFor.toISOString() },
+    })
+    await this.revokeSessions(userId)
+
+    this.logger.log(`Deletion scheduled for ${userId} at ${scheduledFor.toISOString()}`)
+    return { scheduledFor: scheduledFor.toISOString(), graceDays: this.deletionGraceDays }
+  }
+
+  /**
+   * Irreversibly delete the account. Deleting the Supabase auth user cascades the
+   * profile row away, so this is a hard delete despite the `deleted` state value.
+   *
+   * Everything after the auth call is best-effort: the irreversible part has
+   * already happened, so a failure in the tidy-up must not report failure to
+   * someone whose account is in fact gone.
+   */
+  async purgeAccount(userId: string, deletedBy: 'self' | 'grace_period_expired'): Promise<void> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true },
+    })
+    const username = profile?.username ?? null
+
+    try {
+      await this.authService.deleteAccount(userId)
+    } catch (error) {
+      this.logger.error(`Auth deletion failed for user ${userId}: ${(error as Error).message}`)
+      throw new BadRequestException({
+        code: 'ACCOUNT_DELETION_FAILED',
+        message: 'Failed to delete account. Please try again later.',
+      })
+    }
+
+    // The auth cascade normally removes this row already; if it survived, mark it.
+    try {
+      await this.prisma.profile.update({ where: { id: userId }, data: { state: 'deleted' } })
+    } catch {
+      this.logger.log(`Profile row for ${userId} was already removed by the auth cascade`)
+    }
+
+    try {
+      await this.redis.invalidateProfile(userId)
+      if (username) await this.redis.invalidateUsername(username)
+      await this.realtime.publishToProfile(userId, 'account.deleted', { userId })
+    } catch (error) {
+      this.logger.warn(`Post-deletion cleanup failed for ${userId}: ${(error as Error).message}`)
+    }
+
+    // actorId must be null: the profile it would reference no longer exists, and a
+    // non-null value fails the foreign key — which is why deletions previously
+    // left no trail at all. Identity is kept in entityId and newData, neither of
+    // which is a foreign key.
+    await this.auditLog.record({
+      actorId: null,
+      action: 'account.delete',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username, deletedBy },
+    })
+
+    this.logger.log(`Account purged for ${userId} (${deletedBy})`)
+  }
+
+  /** Rejects states that must not be changed by the member themselves. */
+  private async loadForStateChange(userId: string): Promise<{ username: string; state: string }> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { username: true, state: true },
+    })
+    if (!profile) {
+      throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+    }
+    if (profile.state === 'deleted') {
+      throw new ConflictException({ code: 'ALREADY_DELETED', message: 'Account is already deleted' })
+    }
+    // A moderator's decision is not something the member can step around by
+    // deactivating and signing back in.
+    if (profile.state === 'suspended' || profile.state === 'banned') {
+      throw new ConflictException({
+        code: 'ACCOUNT_RESTRICTED',
+        message: 'This account is restricted. Contact support.',
+      })
+    }
+    return profile
+  }
+
+  private async afterStateChange(userId: string, username: string, event: string): Promise<void> {
+    try {
+      await this.redis.invalidateProfile(userId)
+      await this.redis.invalidateUsername(username)
+      await this.realtime.publishToProfile(userId, event, { userId })
+    } catch (error) {
+      this.logger.warn(`Cache/realtime update failed for ${userId}: ${(error as Error).message}`)
+    }
+  }
+
+  private async revokeSessions(userId: string): Promise<void> {
+    try {
+      await this.authService.logout(userId)
+    } catch (error) {
+      this.logger.warn(`Could not revoke sessions for ${userId}: ${(error as Error).message}`)
+    }
+  }
+
+  // ── USER SETTINGS ───────────────────────────────────────────────────────────
+
+  /**
+   * Get the user's settings — creates a row with defaults on first access.
+   */
+  async getSettings(userId: string) {
+    const existing = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    })
+    if (existing) return existing
+
+    // First access: create with defaults (model defaults match the settings page)
+    return this.prisma.userSettings.create({
+      data: { userId },
+    })
+  }
+
+  /**
+   * Update user settings — upserts so it works on first save too.
+   */
+  async updateSettings(userId: string, input: UpdateSettingsInput) {
+    const settings = await this.prisma.userSettings.upsert({
+      where: { userId },
+      create: { userId, ...input },
+      update: input,
+    })
+
+    await this.redis.invalidateProfile(userId)
+    return settings
   }
 
   // ── PROFESSIONAL CATEGORIES ───────────────────────────────────────────────

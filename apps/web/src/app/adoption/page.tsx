@@ -16,6 +16,7 @@ import { adoptionApi, type AdoptionListing, type NewListing } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const SPECIES = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
 
@@ -112,9 +113,12 @@ export default function AdoptionPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Find your new best friend</p>
                 </div>
               </div>
-              <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
-                <Plus className="w-4 h-4" />List a pet
-              </button>
+              <div className="flex items-center gap-3">
+                <DocsHelpLink href="/docs/adoption-and-lost-found" />
+                <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                  <Plus className="w-4 h-4" />List a pet
+                </button>
+              </div>
             </div>
 
             {/* Filters */}
@@ -241,7 +245,10 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">List a pet</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/adoption-and-lost-found#listing-a-pet-for-adoption" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-5 space-y-3 overflow-y-auto flex-1">
           {/* Cover */}

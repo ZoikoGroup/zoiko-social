@@ -6,6 +6,7 @@ import { X, Users, Crown, Shield, Wrench } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { communitiesApi, type CommunityMember } from '@/lib/api'
 import { SkeletonRowList } from '../Skeletons'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const ROLE_BADGE: Record<string, { label: string; Icon: typeof Crown; className: string }> = {
   owner: { label: 'Owner', Icon: Crown, className: 'text-amber-500' },
@@ -62,9 +63,12 @@ function MembersList({ communityId, memberCount, onClose }: Omit<MembersModalPro
             <Users className="w-5 h-5 text-primary" />
             {memberCount.toLocaleString()} members
           </h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/community-and-events#community-roles" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">

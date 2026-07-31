@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Home, Users, Plus, MessageSquare, User, X,
   Newspaper, Calendar, PawPrint, MapPin, ShoppingBag, HandHeart, Dna,
-  Stethoscope, Activity, Heart, TriangleAlert,
+  Stethoscope, Activity, Heart, TriangleAlert, HelpCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useMessaging } from '@/hooks/use-messaging'
@@ -34,6 +34,7 @@ const TRAY_MODULES: { name: string; Icon: LucideIcon; href: string }[] = [
   { name: 'Vet Finder',        Icon: Stethoscope,  href: '/vet-finder'     },
   { name: 'Breeding Match',    Icon: Dna,          href: '/breeding-match' },
   { name: 'Health Passport',   Icon: Activity,     href: '/health-passport'},
+  { name: 'Help Center',       Icon: HelpCircle,   href: '/docs'           },
 ]
 
 export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element {
