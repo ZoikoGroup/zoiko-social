@@ -360,6 +360,8 @@ model Profile {
   pets            Pet[]
   eventsHosted    Event[]
   eventRsvps      EventRsvp[]
+  eventInvites    EventInvite[] @relation("EventInvitee")
+  eventInvitesSent EventInvite[] @relation("EventInviter")
   adoptionPosts     AdoptionPost[]
   adoptionEnquiries AdoptionEnquiry[]
   adoptionEnquiryMessages AdoptionEnquiryMessage[]
@@ -528,15 +530,20 @@ model Event {
   startsAt    DateTime    @map("starts_at")
   endsAt      DateTime?   @map("ends_at")
   goingCount  Int         @default(0) @map("going_count")
+  inviteOnly  Boolean     @default(false) @map("invite_only")
+  shareToken  String?     @unique @map("share_token")   // opaque share-link token
+  shareLinkExtendsInvites Boolean @default(false) @map("share_link_extends_invites")
   isDeleted   Boolean     @default(false) @map("is_deleted")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  host  Profile     @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  rsvps EventRsvp[]
+  host    Profile       @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  rsvps   EventRsvp[]
+  invites EventInvite[]
 
   @@index([startsAt])
   @@index([hostId, startsAt])
+  @@index([inviteOnly, startsAt])
   @@map("events")
 }
 
@@ -552,6 +559,24 @@ model EventRsvp {
   @@id([eventId, userId])
   @@index([userId])
   @@map("event_rsvps")
+}
+
+/// One row per (inviter â†’ invitee) on an invite-only event. Only invited
+/// users can see and RSVP to the event. See supabase/migrations/053.
+model EventInvite {
+  eventId   String   @map("event_id")
+  userId    String   @map("user_id")
+  status    String   @default("invited")   // invited | declined
+  invitedBy String   @map("invited_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user    Profile @relation("EventInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  inviter Profile @relation("EventInviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("event_invites")
 }
 
 model AdoptionPost {

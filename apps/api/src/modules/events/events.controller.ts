@@ -2,7 +2,7 @@ import {
   Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common'
 import { EventsService } from './events.service'
-import { CreateEventSchema, UpdateEventSchema, RsvpSchema, EVENT_CATEGORIES, type CreateEventInput, type UpdateEventInput, type RsvpInput } from './events.schemas'
+import { CreateEventSchema, UpdateEventSchema, InviteSchema, JoinEventSchema, ShareLinkSchema, RsvpSchema, EVENT_CATEGORIES, type CreateEventInput, type UpdateEventInput, type InviteInput, type JoinInput, type ShareLinkInput, type RsvpInput } from './events.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
@@ -41,14 +41,30 @@ export class EventsController {
 
   @Get(':id')
   @UseGuards(OptionalAuthGuard)
-  async get(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
-    return { data: await this.eventsService.get(id, user?.id) }
+  async get(@Param('id') id: string, @Query('share') share?: string, @CurrentUser() user?: AuthenticatedUser) {
+    return { data: await this.eventsService.get(id, user?.id, share) }
   }
 
   @Get(':id/attendees')
   @UseGuards(OptionalAuthGuard)
-  async attendees(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
-    return { data: await this.eventsService.getAttendees(id, user?.id) }
+  async attendees(@Param('id') id: string, @Query('share') share?: string, @CurrentUser() user?: AuthenticatedUser) {
+    return { data: await this.eventsService.getAttendees(id, user?.id, share) }
+  }
+
+  /** POST /events/:id/join — join via share link (token in body). */
+  @Post(':id/join')
+  @UseGuards(JwtAuthGuard)
+  async join(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: JoinInput) {
+    const input = JoinEventSchema.parse(body)
+    return { data: await this.eventsService.join(id, user.id, input.token) }
+  }
+
+  /** POST /events/:id/share-link — host share-link settings (toggle/regenerate). */
+  @Post(':id/share-link')
+  @UseGuards(JwtAuthGuard)
+  async shareLink(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: ShareLinkInput) {
+    const input = ShareLinkSchema.parse(body ?? {})
+    return { data: await this.eventsService.updateShareLink(id, user.id, input) }
   }
 
   @Patch(':id')
@@ -65,11 +81,43 @@ export class EventsController {
     return { data: await this.eventsService.create(user.id, input) }
   }
 
+  /** POST /events/:id/invites — add invitees (host only, invite-only events). */
+  @Post(':id/invites')
+  @UseGuards(JwtAuthGuard)
+  async invite(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: InviteInput) {
+    const input = InviteSchema.parse(body)
+    return { data: await this.eventsService.invite(id, user.id, input.userIds) }
+  }
+
+  /** GET /events/:id/invites — list invitees (host only). */
+  @Get(':id/invites')
+  @UseGuards(JwtAuthGuard)
+  async listInvites(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return { data: await this.eventsService.listInvites(id, user.id) }
+  }
+
+  /** POST /events/:id/invites/decline — an invited guest declines their invite. */
+  @Post(':id/invites/decline')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async declineInvite(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return { data: await this.eventsService.decline(id, user.id) }
+  }
+
+  /** DELETE /events/:id/invites/:inviteeId — revoke an invite (host only). */
+  @Delete(':id/invites/:inviteeId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async removeInvite(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Param('inviteeId') inviteeId: string) {
+    await this.eventsService.removeInvite(id, user.id, inviteeId)
+    return { data: { success: true } }
+  }
+
   @Post(':id/rsvp')
   @UseGuards(JwtAuthGuard)
-  async rsvp(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: RsvpInput) {
+  async rsvp(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Query('share') share?: string, @Body() body?: RsvpInput) {
     const input = RsvpSchema.parse(body ?? {})
-    return { data: await this.eventsService.rsvp(id, user.id, input) }
+    return { data: await this.eventsService.rsvp(id, user.id, input, share) }
   }
 
   @Delete(':id/rsvp')

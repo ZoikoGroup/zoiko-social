@@ -607,6 +607,9 @@ export interface EventItem {
   location: string | null
   venueName: string | null
   visibility: string
+  inviteOnly: boolean
+  shareToken: string | null
+  shareLinkExtendsInvites: boolean
   isOnline: boolean
   coverUrl: string | null
   videoUrl: string | null
@@ -622,6 +625,7 @@ export interface EventItem {
   startsAt: string
   endsAt: string | null
   goingCount: number
+  viewerInvited: boolean
   viewerGoing: boolean
 }
 export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
@@ -630,10 +634,21 @@ export interface EventFilters { category?: string; free?: boolean; q?: string; m
 export interface EventAttendee { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 export type EventInput = {
   title?: string; description?: string | null; location?: string | null; venueName?: string | null
-  isOnline?: boolean; visibility?: 'public' | 'followers'
+  isOnline?: boolean; visibility?: 'public' | 'followers'; inviteOnly?: boolean; invitees?: string[]
+  shareLinkExtendsInvites?: boolean
   coverUrl?: string | null; videoUrl?: string | null; category?: string | null; isFree?: boolean; price?: string | null
   bookingUrl?: string | null; capacity?: number | null; latitude?: number | null; longitude?: number | null
   startsAt?: string; endsAt?: string | null
+}
+
+export interface EventInvitee {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  isVerified: boolean
+  status: string
+  invitedAt: string
 }
 
 function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): string {
@@ -652,16 +667,42 @@ function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): s
 export const eventsApi = {
   upcoming: (cursor?: string | null, limit = 15, filters: EventFilters = {}) =>
     request<EventPage>(`/events?${eventQuery(cursor, limit, filters)}`),
-  get: (id: string) => cachedGet<EventItem>(`/events/${id}`, 30_000),
-  attendees: (id: string) => cachedGet<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees`, 15_000),
+  get: (id: string, share?: string) =>
+    share
+      ? request<EventItem>(`/events/${id}?share=${encodeURIComponent(share)}`)
+      : cachedGet<EventItem>(`/events/${id}`, 30_000),
+  attendees: (id: string, share?: string) =>
+    share
+      ? request<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees?share=${encodeURIComponent(share)}`)
+      : cachedGet<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees`, 15_000),
   create: (input: EventInput & { title: string; startsAt: string }) =>
     mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: string, input: EventInput) =>
     mutate<EventItem>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-  rsvp: (id: string, status: 'going' | 'interested' = 'going') =>
-    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
+  /** Join via a share link (token from the URL). */
+  join: (id: string, token: string) =>
+    mutate<EventItem>(`/events/${id}/join`, { method: 'POST', body: JSON.stringify({ token }) }),
+  /** Host share-link settings â€” toggle extends-invites and/or regenerate the token. */
+  shareLink: (id: string, input: { extendsInvites?: boolean; reset?: boolean }) =>
+    mutate<{ shareToken: string; shareLinkExtendsInvites: boolean }>(`/events/${id}/share-link`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  rsvp: (id: string, status: 'going' | 'interested' = 'going', share?: string) =>
+    mutate<{ going: boolean; goingCount: number }>(
+      `/events/${id}/rsvp${share ? `?share=${encodeURIComponent(share)}` : ''}`,
+      { method: 'POST', body: JSON.stringify({ status }) },
+    ),
   cancelRsvp: (id: string) =>
     mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'DELETE' }),
+  invite: (id: string, userIds: string[]) =>
+    mutate<{ invited: number }>(`/events/${id}/invites`, { method: 'POST', body: JSON.stringify({ userIds }) }),
+  invites: (id: string) => cachedGet<EventInvitee[]>(`/events/${id}/invites`, 15_000),
+  /** Decline an invite â€” the event leaves the viewer's feed/list. */
+  declineInvite: (id: string) =>
+    mutate<{ declined: boolean; goingCount: number }>(`/events/${id}/invites/decline`, { method: 'POST' }),
+  removeInvite: (id: string, inviteeId: string) =>
+    mutate<{ success: boolean }>(`/events/${id}/invites/${inviteeId}`, { method: 'DELETE' }),
   remove: (id: string) => mutate<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
 }
 

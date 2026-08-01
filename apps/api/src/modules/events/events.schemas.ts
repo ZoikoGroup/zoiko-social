@@ -13,6 +13,11 @@ export const CreateEventSchema = z
     location: z.string().trim().max(200).optional(),
     venueName: z.string().trim().max(160).optional(),
     visibility: z.enum(['public', 'followers']).optional(),
+    inviteOnly: z.boolean().optional(),
+    /** Whether people who join via the share link are added to the invite list. */
+    shareLinkExtendsInvites: z.boolean().optional(),
+    /** Initial invitees for an invite-only event — validated to exist, host excluded. */
+    invitees: z.array(z.string().min(1)).max(500).optional(),
     isOnline: z.boolean().optional(),
     coverUrl: z.string().url().max(600).optional(),
     videoUrl: z.string().url().max(600).optional(),
@@ -39,6 +44,11 @@ export const UpdateEventSchema = z
     location: z.string().trim().max(200).nullable().optional(),
     venueName: z.string().trim().max(160).nullable().optional(),
     visibility: z.enum(['public', 'followers']).optional(),
+    inviteOnly: z.boolean().optional(),
+    /** Whether people who join via the share link are added to the invite list. */
+    shareLinkExtendsInvites: z.boolean().optional(),
+    /** Additional invitees to add on edit (invite-only events only). */
+    invitees: z.array(z.string().min(1)).max(500).optional(),
     isOnline: z.boolean().optional(),
     coverUrl: z.string().url().max(600).nullable().optional(),
     videoUrl: z.string().url().max(600).nullable().optional(),
@@ -53,10 +63,29 @@ export const UpdateEventSchema = z
     endsAt: z.string().datetime().nullable().optional(),
   })
 
+/** Add invitees to an invite-only event (host only). */
+export const InviteSchema = z.object({
+  userIds: z.array(z.string().min(1)).min(1).max(500),
+})
+
+/** Join an event via its share link (token from the URL). */
+export const JoinEventSchema = z.object({
+  token: z.string().min(1).max(200),
+})
+
+/** Host share-link management: toggle extends-invites and/or regenerate the token. */
+export const ShareLinkSchema = z.object({
+  extendsInvites: z.boolean().optional(),
+  reset: z.boolean().optional(),
+})
+
 export const RsvpSchema = z.object({
   status: z.enum(['going', 'interested']).optional(),
 })
 
 export type CreateEventInput = z.infer<typeof CreateEventSchema>
 export type UpdateEventInput = z.infer<typeof UpdateEventSchema>
+export type InviteInput = z.infer<typeof InviteSchema>
+export type JoinInput = z.infer<typeof JoinEventSchema>
+export type ShareLinkInput = z.infer<typeof ShareLinkSchema>
 export type RsvpInput = z.infer<typeof RsvpSchema>
