@@ -770,6 +770,117 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // ── AFFINITY (personalization model) ────────────────────────────────────────
+  // Per-user interest profiles stored as hashes. Dimensions:
+  //   author    — authorId → engagement weight (who you interact with)
+  //   tag       — hashtag → weight (what topics you like)
+  //   community — communityId → weight (where you're active)
+  //   kind      — postKind → weight (which post kinds you like)
+  // Keys: aff:{dimension}:{userId}. TTL refreshed on every write so inactive
+  // users' profiles age out naturally. The daily decay job multiplies all
+  // scores by a decay factor so old interests fade (freshness of the model).
+
+  /** Increment an affinity dimension field (float, may be negative). */
+  async affinityIncr(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+    field: string,
+    delta: number,
+    ttlSeconds = 60 * 24 * 3600,
+  ): Promise<void> {
+    if (!this.client) return
+    try {
+      const key = `aff:${dimension}:${userId}`
+      await this.client
+        .multi()
+        .hincrbyfloat(key, field, delta)
+        .expire(key, ttlSeconds)
+        .exec()
+    } catch (err) {
+      this.logger.warn(`affinityIncr failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Read every field of one affinity dimension as a Map (or null if absent). */
+  async affinityGetAll(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+  ): Promise<Map<string, number> | null> {
+    if (!this.client) return null
+    try {
+      const raw = await this.client.hgetall(`aff:${dimension}:${userId}`)
+      if (!raw || Object.keys(raw).length === 0) return null
+      const out = new Map<string, number>()
+      for (const [k, v] of Object.entries(raw)) out.set(k, Number(v))
+      return out
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Read ONLY the requested fields of an affinity dimension — one HMGET.
+   * Feed ranking only needs the authors/tags/communities/kinds present in the
+   * candidate pool, so this avoids pulling a heavy user's entire profile per
+   * request (the HGETALL path is kept for rebuild/decay bookkeeping).
+   */
+  async affinityGetMany(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+    fields: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    if (!this.client || fields.length === 0) return out
+    try {
+      const raw = await this.client.hmget(`aff:${dimension}:${userId}`, ...fields)
+      fields.forEach((field, i) => {
+        const v = raw[i]
+        if (v !== null && v !== undefined && v !== '') out.set(field, Number(v))
+      })
+      return out
+    } catch {
+      return out
+    }
+  }
+
+  /**
+   * Decay every affinity score by `factor` (e.g. 0.95 daily). Fields that drop
+   * below `floor` are removed so the hash stays bounded. SCAN-based — safe to
+   * run on a live cluster without blocking.
+   */
+  async affinityDecayAll(factor = 0.95, floor = 0.1): Promise<number> {
+    if (!this.client) return 0
+    let decayed = 0
+    try {
+      let cursor = '0'
+      do {
+        const [next, keys] = await this.client.scan(cursor, 'MATCH', 'aff:*', 'COUNT', 500)
+        cursor = next
+        for (const key of keys) {
+          const raw = await this.client.hgetall(key)
+          if (!raw || Object.keys(raw).length === 0) continue
+          const multi = this.client.multi()
+          let removedAll = true
+          for (const [field, value] of Object.entries(raw)) {
+            const nextVal = Number(value) * factor
+            if (Math.abs(nextVal) < floor) {
+              multi.hdel(key, field)
+            } else {
+              multi.hset(key, field, String(nextVal))
+              removedAll = false
+            }
+          }
+          if (removedAll) multi.del(key) // fully-decayed profile → reclaim the key
+          await multi.exec()
+          decayed++
+        }
+      } while (cursor !== '0')
+    } catch (err) {
+      this.logger.warn(`affinityDecayAll failed: ${(err as Error).message}`)
+    }
+    return decayed
+  }
+
   // ── PUB/SUB ───────────────────────────────────────────────────────────────
 
   /**

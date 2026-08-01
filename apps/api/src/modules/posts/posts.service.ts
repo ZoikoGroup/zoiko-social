@@ -15,6 +15,8 @@ import { ProfanityService } from '../common/moderation/profanity.service'
 import { parseHashtags, parseMentions } from './caption-parser'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import type { CreatePostInput, UpdatePostInput } from './posts.schemas'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
+import type { AffinitySignalPost } from '../personalization/affinity.service'
 
 // ── Response shapes ─────────────────────────────────────────────────────────
 
@@ -90,6 +92,7 @@ export class PostsService {
     private readonly notifications: NotificationQueueService,
     private readonly feedFanout: FeedFanoutService,
     private readonly profanity: ProfanityService,
+    private readonly affinity: AffinityService,
   ) {}
 
   // ── CREATE ────────────────────────────────────────────────────────────────
@@ -223,7 +226,7 @@ export class PostsService {
     const post = await this.loadPost(postId)
     await this.assertCanViewPost(post, viewerId)
     const flags = viewerId ? await this.viewerFlags([postId], viewerId) : new Map()
-    const flag = flags.get(postId) ?? { liked: false, saved: false }
+    const flag = flags.get(postId) ?? { liked: false, saved: false, viewed: false }
     return this.mapPost(post, flag)
   }
 
@@ -310,7 +313,7 @@ export class PostsService {
 
     return {
       data: visible.map((s) =>
-        this.mapPost(s.post, flags.get(s.postId) ?? { liked: false, saved: true }),
+        this.mapPost(s.post, flags.get(s.postId) ?? { liked: false, saved: true, viewed: false }),
       ),
       nextCursor: hasMore
         ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.postId)
@@ -382,7 +385,7 @@ export class PostsService {
     })
 
     const flags = await this.viewerFlags([postId], authorId)
-    return this.mapPost(updated, flags.get(postId) ?? { liked: false, saved: false })
+    return this.mapPost(updated, flags.get(postId) ?? { liked: false, saved: false, viewed: false })
   }
 
   async deletePost(postId: string, authorId: string): Promise<void> {
@@ -523,7 +526,7 @@ export class PostsService {
    * Slim loader for engagement/comment gates — skips the heavy media/author
    * includes when only identity + privacy fields are needed.
    */
-  async loadPostSlim(postId: string): Promise<{
+  async loadPostSlim(postId: string): Promise<AffinitySignalPost & {
     id: string
     authorId: string
     isDeleted: boolean
@@ -531,6 +534,8 @@ export class PostsService {
     likesCount: number
     visibility: string
     communityId: string | null
+    kind: string
+    hashtags: { hashtag: { tag: string } }[]
     author: { isPrivate: boolean; state: string }
   }> {
     const post = await this.prisma.post.findUnique({
@@ -543,6 +548,8 @@ export class PostsService {
         likesCount: true,
         visibility: true,
         communityId: true,
+        kind: true,
+        hashtags: { include: { hashtag: { select: { tag: true } } } },
         author: { select: { isPrivate: true, state: true } },
       },
     })
@@ -563,13 +570,55 @@ export class PostsService {
     return post
   }
 
-  /** Batch viewer flags for a page of posts — 2 IN-queries, never N+1. */
+  /**
+   * Record that the viewer actually saw a batch of posts. Idempotent — the
+   * composite PK ignores repeats, so the client can fire this as often as it
+   * likes. Feeds the "seen filter": viewed (or liked) posts stop reappearing.
+   *
+   * No feed-cache busting here on purpose: the cached first page is live-
+   * filtered at serve time via viewerFlags (viewed/liked dropped, fall-through
+   * when too few remain), so the 60s first-page cache stays effective.
+   */
+  async recordViews(userId: string, postIds: string[]): Promise<{ recorded: number }> {
+    if (postIds.length === 0) return { recorded: 0 }
+    const res = await this.prisma.postView.createMany({
+      data: postIds.map((postId) => ({ userId, postId })),
+      skipDuplicates: true,
+    })
+    // Implicit personalization signal: viewing is weak interest. Fire-and-forget.
+    if (res.count > 0) {
+      void this.captureViewSignals(userId, postIds)
+    }
+    return { recorded: res.count }
+  }
+
+  /** Feed each newly-viewed post into the viewer's affinity profile (view = +1). */
+  private async captureViewSignals(userId: string, postIds: string[]): Promise<void> {
+    try {
+      const posts = await this.prisma.post.findMany({
+        where: { id: { in: postIds }, isDeleted: false },
+        select: {
+          authorId: true,
+          communityId: true,
+          kind: true,
+          hashtags: { include: { hashtag: { select: { tag: true } } } },
+        },
+      })
+      for (const post of posts) {
+        await this.affinity.record(userId, post, AFFINITY_WEIGHTS.view)
+      }
+    } catch (err) {
+      this.logger.warn(`captureViewSignals failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Batch viewer flags for a page of posts — 3 IN-queries, never N+1. */
   async viewerFlags(
     postIds: string[],
     viewerId: string,
-  ): Promise<Map<string, { liked: boolean; saved: boolean }>> {
+  ): Promise<Map<string, { liked: boolean; saved: boolean; viewed: boolean }>> {
     if (postIds.length === 0) return new Map()
-    const [likes, saves] = await Promise.all([
+    const [likes, saves, views] = await Promise.all([
       this.prisma.like.findMany({
         where: { userId: viewerId, postId: { in: postIds } },
         select: { postId: true },
@@ -578,10 +627,20 @@ export class PostsService {
         where: { userId: viewerId, postId: { in: postIds } },
         select: { postId: true },
       }),
+      this.prisma.postView.findMany({
+        where: { userId: viewerId, postId: { in: postIds } },
+        select: { postId: true },
+      }),
     ])
     const likedSet = new Set(likes.map((l) => l.postId))
     const savedSet = new Set(saves.map((s) => s.postId))
-    return new Map(postIds.map((id) => [id, { liked: likedSet.has(id), saved: savedSet.has(id) }]))
+    const viewedSet = new Set(views.map((v) => v.postId))
+    return new Map(
+      postIds.map((id) => [
+        id,
+        { liked: likedSet.has(id), saved: savedSet.has(id), viewed: viewedSet.has(id) },
+      ]),
+    )
   }
 
   async buildPage(
@@ -594,7 +653,7 @@ export class PostsService {
     const flags = viewerId ? await this.viewerFlags(items.map((p) => p.id), viewerId) : new Map()
 
     return {
-      data: items.map((p) => this.mapPost(p, flags.get(p.id) ?? { liked: false, saved: false })),
+      data: items.map((p) => this.mapPost(p, flags.get(p.id) ?? { liked: false, saved: false, viewed: false })),
       nextCursor: hasMore
         ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.id)
         : null,

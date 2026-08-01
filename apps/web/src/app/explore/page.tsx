@@ -9,6 +9,7 @@ import { CommunitiesWidget } from '@/components/CommunitiesWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import { ExploreFeed } from '@/components/feed/ExploreFeed'
+import { TopicsRail } from '@/components/feed/TopicsRail'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
@@ -46,6 +47,8 @@ export default function ExplorePage(): React.JSX.Element {
               </div>
               <DocsHelpLink href="/docs/feed-and-content#home-feed-and-explore" />
             </div>
+            {/* Personalized discovery — top tags by the viewer's affinity */}
+            <TopicsRail />
             <ExploreFeed />
           </div>
         </div>

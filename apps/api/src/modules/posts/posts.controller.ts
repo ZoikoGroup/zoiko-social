@@ -12,7 +12,14 @@ import {
   HttpStatus,
 } from '@nestjs/common'
 import { PostsService } from './posts.service'
-import { CreatePostSchema, UpdatePostSchema, type CreatePostInput, type UpdatePostInput } from './posts.schemas'
+import {
+  CreatePostSchema,
+  UpdatePostSchema,
+  ReportViewsSchema,
+  type CreatePostInput,
+  type UpdatePostInput,
+  type ReportViewsInput,
+} from './posts.schemas'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
@@ -85,6 +92,21 @@ export class MePostsController {
       cursor ?? null,
       limit ? parseInt(limit, 10) : 12,
     )
+    return { data: result }
+  }
+
+  /**
+   * Batch-report posts the viewer actually saw. Idempotent + fire-and-forget:
+   * feeds the "seen filter" so viewed/liked posts stop reappearing in feeds.
+   */
+  @Post('views')
+  @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 120, windowSeconds: 60, prefix: 'post.views' })
+  async reportViews(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(ReportViewsSchema)) body: ReportViewsInput,
+  ) {
+    const result = await this.postsService.recordViews(user.id, body.postIds)
     return { data: result }
   }
 }

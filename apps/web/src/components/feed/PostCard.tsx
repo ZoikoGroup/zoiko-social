@@ -14,6 +14,7 @@ import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
 import { postsApi, networkApi, type PostItem } from '@/lib/api'
 import { trackPostEvent, type PostEventSurface } from '@/lib/analytics'
+import { reportPostView } from '@/lib/post-views'
 import { LocationLink } from '@/components/LocationLink'
 import { PostInsightsModal } from '@/components/analytics/PostInsightsModal'
 import { ReportContentModal } from '@/components/ReportContentModal'
@@ -132,6 +133,32 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
     observer.observe(el)
     return () => observer.disconnect()
   }, [trackable, post.id, surface])
+
+  // Seen-filter: report the post once it's actually on screen (any account,
+  // own posts excluded — they must always stay in the feed). Batched client-
+  // side; the API dedupes re-views via the composite PK.
+  useEffect(() => {
+    // Own posts are never seen-filtered in the feed query — skip reporting.
+    if (isOwn) return
+    // Detail is open by definition — report immediately, no observer needed.
+    if (surface === 'detail') {
+      reportPostView(post.id)
+      return
+    }
+    const el = cardRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          reportPostView(post.id)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isOwn, post.id, surface])
 
   async function toggleLike(forceLike = false): Promise<void> {
     if (forceLike && liked) return

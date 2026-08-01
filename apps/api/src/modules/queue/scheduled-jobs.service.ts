@@ -20,6 +20,10 @@ import { ProfileService } from '../profile/profile.service'
  *   Deletes read notifications older than NOTIFICATION_RETENTION_DAYS
  *   (default 90). Configurable via env.
  *
+ * Post-view cleanup (daily):
+ *   Prunes post_views older than POST_VIEW_RETENTION_DAYS (default 30) so the
+ *   seen-filter's table stays bounded and old posts can resurface again.
+ *
  * Both jobs use separate queues and workers, each with their own Redis
  * connection to avoid blocking.
  */
@@ -27,6 +31,8 @@ import { ProfileService } from '../profile/profile.service'
 export const COUNTER_RECONCILE_QUEUE = 'counter-reconcile'
 export const NOTIFICATION_CLEANUP_QUEUE = 'notification-cleanup'
 export const ACCOUNT_PURGE_QUEUE = 'account-purge'
+export const POST_VIEW_CLEANUP_QUEUE = 'post-view-cleanup'
+export const AFFINITY_DECAY_QUEUE = 'affinity-decay'
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
@@ -53,8 +59,10 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     const reconcileConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const cleanupConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const purgeConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const postViewConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const affinityConn = this.redis.createConnection({ maxRetriesPerRequest: null })
 
-    if (!reconcileConn || !cleanupConn || !purgeConn) {
+    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn) {
       this.logger.warn('Redis unavailable — scheduled jobs disabled')
       return
     }
@@ -62,6 +70,8 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     this.setupCounterReconciliation(reconcileConn)
     this.setupNotificationCleanup(cleanupConn)
     this.setupAccountPurge(purgeConn)
+    this.setupPostViewCleanup(postViewConn)
+    this.setupAffinityDecay(affinityConn)
 
     this.logger.log('Scheduled jobs initialised')
   }
@@ -271,6 +281,113 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(`Notification cleanup complete: deleted ${result.count} notifications`)
   }
+  // ── 7. Post-view cleanup (daily) ───────────────────────────────────────
+
+  private setupPostViewCleanup(connection: Redis): void {
+    const queue = new Queue(POST_VIEW_CLEANUP_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    // Runs daily at 03:15, after notification cleanup
+    queue.add(
+      'post-views.cleanup',
+      {},
+      {
+        repeat: { pattern: '15 3 * * *' },
+        jobId: 'post-views-cleanup',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register post-view cleanup repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      POST_VIEW_CLEANUP_QUEUE,
+      async () => {
+        await this.runPostViewCleanup()
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+
+    worker.on('completed', (job) => {
+      this.logger.log(`Post-view cleanup completed (job ${job.id})`)
+    })
+    worker.on('failed', (job, err) => {
+      this.logger.error(`Post-view cleanup failed (job ${job?.id}): ${err.message}`)
+    })
+
+    this.queues.set(POST_VIEW_CLEANUP_QUEUE, queue)
+    this.workers.set(POST_VIEW_CLEANUP_QUEUE, worker)
+  }
+
+  /**
+   * Prune post_views older than the retention period so the table stays
+   * bounded and posts can legitimately reappear after the window.
+   */
+  private async runPostViewCleanup(): Promise<void> {
+    const retentionDays = this.config.env.POST_VIEW_RETENTION_DAYS ?? 30
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+
+    const result = await this.prisma.postView.deleteMany({
+      where: { viewedAt: { lt: cutoff } },
+    })
+
+    this.logger.log(`Post-view cleanup complete: pruned ${result.count} views older than ${cutoff.toISOString()}`)
+  }
+
+  // ── 8. Affinity decay (daily) ──────────────────────────────────────────
+  // The personalization model's interests fade over time (multiplicative
+  // decay), so a user who liked cats three months ago stops seeing cat posts
+  // forever. Runs after the other daily jobs at 03:45.
+
+  private setupAffinityDecay(connection: Redis): void {
+    const queue = new Queue(AFFINITY_DECAY_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    queue.add(
+      'affinity.decay',
+      {},
+      {
+        repeat: { pattern: '45 3 * * *' }, // Daily at 03:45
+        jobId: 'affinity-decay',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register affinity decay repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      AFFINITY_DECAY_QUEUE,
+      async () => {
+        await this.runAffinityDecay()
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+
+    worker.on('completed', (job) => {
+      this.logger.log(`Affinity decay completed (job ${job.id})`)
+    })
+    worker.on('failed', (job, err) => {
+      this.logger.error(`Affinity decay failed (job ${job?.id}): ${err.message}`)
+    })
+
+    this.queues.set(AFFINITY_DECAY_QUEUE, queue)
+    this.workers.set(AFFINITY_DECAY_QUEUE, worker)
+  }
+
+  /** Multiply every affinity score by 0.95; drop fields that round to zero. */
+  private async runAffinityDecay(): Promise<void> {
+    const decayed = await this.redis.affinityDecayAll(0.95, 0.1)
+    this.logger.log(`Affinity decay complete: refreshed ${decayed} profile(s)`)
+  }
+
   /**
    * Permanently deletes accounts whose deletion grace period has run out.
    *

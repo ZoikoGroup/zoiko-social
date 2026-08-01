@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
 import { decodeCursor } from '../common/utils/cursor-pagination'
+import { AffinityService } from '../personalization/affinity.service'
 
 export interface StoryByTagItem {
   id: string
@@ -35,6 +36,7 @@ export class HashtagsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly postsService: PostsService,
+    private readonly affinity: AffinityService,
   ) {}
 
   async trending(): Promise<{ tag: string; postsCount: number }[]> {
@@ -55,6 +57,34 @@ export class HashtagsService {
       select: { tag: true, postsCount: true },
     })
     return rows
+  }
+
+  /**
+   * "Topics for you" — the viewer's top tags by affinity, decorated with live
+   * post counts (same enrichment as trending). Falls back to trending when the
+   * viewer has no affinity profile yet (cold start).
+   */
+  async forYou(viewerId: string, limit = 12): Promise<{ tag: string; postsCount: number }[]> {
+    const top = await this.affinity.getTopTags(viewerId, limit)
+    if (top.length === 0) {
+      return this.trending()
+    }
+    const rows = await this.prisma.hashtag.findMany({
+      where: { tag: { in: top } },
+      select: { tag: true, postsCount: true },
+    })
+    const counts = new Map(rows.map((r) => [r.tag, r.postsCount]))
+    // Drop stale affinity tags that no longer have live posts (they persist up
+    // to 60 days in the profile, but the posts may be gone) and cap at limit.
+    const decorated = top
+      .map((tag) => ({ tag, postsCount: counts.get(tag) ?? 0 }))
+      .filter((t) => t.postsCount > 0)
+      .slice(0, limit)
+    // If every affinity tag is stale, fall back to trending so the rail stays populated.
+    if (decorated.length === 0) {
+      return this.trending()
+    }
+    return decorated
   }
 
   async search(q: string, limit = 15): Promise<{ tag: string; postsCount: number }[]> {

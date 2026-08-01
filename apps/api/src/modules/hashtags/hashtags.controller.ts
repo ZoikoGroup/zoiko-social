@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
 import { HashtagsService } from './hashtags.service'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
@@ -11,6 +12,14 @@ export class HashtagsController {
   @Get('trending')
   async trending() {
     const result = await this.hashtagsService.trending()
+    return { data: result }
+  }
+
+  /** Personalized "Topics for you" rail — top tags by the viewer's affinity. */
+  @Get('for-you')
+  @UseGuards(JwtAuthGuard)
+  async forYou(@CurrentUser() user: AuthenticatedUser, @Query('limit') limit?: string) {
+    const result = await this.hashtagsService.forYou(user.id, limit ? parseInt(limit, 10) : 12)
     return { data: result }
   }
 

@@ -397,6 +397,7 @@ model Profile {
   comments          Comment[]
   commentLikes      CommentLike[]
   savedPosts        SavedPost[]
+  postViews         PostView[]
   mentionsReceived  Mention[] @relation("MentionedUser")
   mentionsMade      Mention[] @relation("MentionActor")
 
@@ -561,7 +562,7 @@ model EventRsvp {
   @@map("event_rsvps")
 }
 
-/// One row per (inviter â†’ invitee) on an invite-only event. Only invited
+/// One row per (inviter → invitee) on an invite-only event. Only invited
 /// users can see and RSVP to the event. See supabase/migrations/053.
 model EventInvite {
   eventId   String   @map("event_id")
@@ -1098,6 +1099,7 @@ model Post {
   likes     Like[]
   comments  Comment[]
   saves     SavedPost[]
+  views     PostView[]
   hashtags  PostHashtag[]
   mentions  Mention[]
   pin       CommunityPostPin?
@@ -1221,6 +1223,22 @@ model SavedPost {
   @@id([userId, postId])
   @@index([userId, createdAt(sort: Desc)])
   @@map("saved_posts")
+}
+
+/// One row per (viewer, post) the viewer has actually seen — powers the
+/// feed's "seen filter" (posts you've seen or liked stop reappearing).
+/// See supabase/migrations/052_post_views.sql.
+model PostView {
+  userId   String   @map("user_id")
+  postId   String   @map("post_id")
+  viewedAt DateTime @default(now()) @map("viewed_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([userId, viewedAt(sort: Desc)])
+  @@map("post_views")
 }
 
 model Hashtag {

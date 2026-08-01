@@ -682,7 +682,7 @@ export const eventsApi = {
   /** Join via a share link (token from the URL). */
   join: (id: string, token: string) =>
     mutate<EventItem>(`/events/${id}/join`, { method: 'POST', body: JSON.stringify({ token }) }),
-  /** Host share-link settings â€” toggle extends-invites and/or regenerate the token. */
+  /** Host share-link settings — toggle extends-invites and/or regenerate the token. */
   shareLink: (id: string, input: { extendsInvites?: boolean; reset?: boolean }) =>
     mutate<{ shareToken: string; shareLinkExtendsInvites: boolean }>(`/events/${id}/share-link`, {
       method: 'POST',
@@ -698,7 +698,7 @@ export const eventsApi = {
   invite: (id: string, userIds: string[]) =>
     mutate<{ invited: number }>(`/events/${id}/invites`, { method: 'POST', body: JSON.stringify({ userIds }) }),
   invites: (id: string) => cachedGet<EventInvitee[]>(`/events/${id}/invites`, 15_000),
-  /** Decline an invite â€” the event leaves the viewer's feed/list. */
+  /** Decline an invite — the event leaves the viewer's feed/list. */
   declineInvite: (id: string) =>
     mutate<{ declined: boolean; goingCount: number }>(`/events/${id}/invites/decline`, { method: 'POST' }),
   removeInvite: (id: string, inviteeId: string) =>
@@ -1227,6 +1227,20 @@ export const feedApi = {
     cachedGet<PostPage>(`/me/saved?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, 15_000),
 }
 
+// ── Post views (seen-filter) ────────────────────────────────────────────────
+// Fire-and-forget batch reporting; the API dedupes via the composite PK, so
+// duplicate ids (re-views) are free. Never uses `mutate` — this must not
+// clear the GET cache on every scroll. Named postViewsApi to avoid clashing
+// with the Stories module's viewsApi.
+
+export const postViewsApi = {
+  report: (postIds: string[]) =>
+    request<{ recorded: number }>('/me/views', {
+      method: 'POST',
+      body: JSON.stringify({ postIds }),
+    }),
+}
+
 // ── Post analytics (professional accounts) ─────────────────────────────────
 
 export interface PostInsights {
@@ -1619,6 +1633,8 @@ export const mentionsApi = {
 // Re-export under hashtagsApi for story tag browsing
 export const hashtagsApi = {
   trending: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/trending', 60_000),
+  /** Personalized "Topics for you" rail — top tags by the viewer's affinity. */
+  forYou: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/for-you', 60_000),
   search: (q: string) => cachedGet<{ tag: string; postsCount: number }[]>(`/hashtags/search?q=${encodeURIComponent(q)}`, 30_000),
   posts: (tag: string, cursor?: string | null) =>
     cachedGet<PostPage & { tag: string; postsCount: number }>(
