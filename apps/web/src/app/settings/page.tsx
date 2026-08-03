@@ -14,6 +14,7 @@ import { profileApi, settingsApi, networkApi, type UserSettings, type UpdateSett
 import { createClient } from '@/lib/supabase/client'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
+import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
 
 type SettingsTab =
   | 'account'
@@ -668,6 +669,14 @@ function PrivacySettings({ settings, loading, patch }: SettingsContextValue): Re
           </button>
         </label>
       ))}
+
+      {/* Message privacy was enforced server-side but had no controls at all,
+          so every account sat on the defaults. */}
+      <div className="pt-2 border-t border-outline-variant/20">
+        <p className="text-label-md font-semibold text-on-surface mb-0.5">Messages</p>
+        <p className="text-[11px] text-outline mb-3">Who can reach you, and what they can see.</p>
+        <MessagingPrivacySettings />
+      </div>
     </div>
   )
 }

@@ -1911,6 +1911,42 @@ export const communitiesApi = {
     ),
   acceptInvite: (code: string, acceptRules?: boolean) =>
     mutate<{ status: string; slug: string }>(`/invites/${code}/accept`, { method: 'POST', body: JSON.stringify({ acceptRules }) }),
+
+  // ── Moderation (owner / admin / moderator) ────────────────────────────────
+  // All of this existed on the API and had no caller, which meant a community
+  // owner could not moderate their own community from the web app at all.
+
+  /** Block a join request outright — rejects it and bans the requester. */
+  blockRequest: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/block`, { method: 'POST' }),
+  setRole: (id: string, userId: string, role: 'admin' | 'moderator' | 'member') =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/remove`, { method: 'POST' }),
+  banMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/ban`, { method: 'POST' }),
+  unbanMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/ban`, { method: 'DELETE' }),
+  muteMember: (id: string, userId: string, duration: '1h' | '24h' | '7d') =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/mute`, {
+      method: 'POST',
+      body: JSON.stringify({ duration }),
+    }),
+  unmuteMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/mute`, { method: 'DELETE' }),
+  setRules: (id: string, rules: { title: string; body?: string }[]) =>
+    mutate<{ success: boolean }>(`/communities/${id}/rules`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules }),
+    }),
+  transferOwnership: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/transfer-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
 }
 
 // ── Notifications API ──────────────────────────────────────────────────────

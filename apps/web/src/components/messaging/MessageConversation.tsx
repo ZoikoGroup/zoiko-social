@@ -6,7 +6,7 @@ import {
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
-  FileText, EyeOff, Palette,
+  FileText, EyeOff, Palette, LogOut,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,7 @@ import { SkeletonMessageList } from '@/components/Skeletons'
 import { useToast } from '@/hooks/use-toast'
 import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
+import { messagingApi } from '@/lib/messaging-api'
 import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
@@ -57,10 +58,11 @@ export function MessageConversation({
   onNewMessage,
 }: MessageConversationProps): React.JSX.Element {
   const { user, profile } = useAuth()
-  const { markRead } = useMessaging()
+  const { markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
   const { isUserTyping, subscribePresence, unsubscribePresence, getPresence } = usePresence()
 
   const [messages, setMessages] = useState<MessageData[]>([])
+  const [leavingGroup, setLeavingGroup] = useState(false)
   const [loading, setLoading] = useState(false)
   const [input, setInput] = useState('')
   const [showInfo, setShowInfo] = useState(false)
@@ -146,6 +148,36 @@ export function MessageConversation({
     await networkApi.block(otherUserId)
     setRelationship((r) => r ? { ...r, blocked: true, following: false, followedBy: false } : r)
     toastSuccess('Blocked', `${displayName} can no longer see your profile or message you.`)
+  }
+
+  /** Removes the thread from this member's inbox; the other copy is untouched. */
+  async function handleDeleteConversation(): Promise<void> {
+    if (!conversationId) return
+    if (!window.confirm('Delete this conversation? It stays in the other person\'s inbox.')) return
+    try {
+      await messagingApi.deleteConversation(conversationId)
+      await retryFetchConversations()
+      setActiveConversationId(null)
+      toastSuccess('Deleted', 'The conversation is no longer in your inbox.')
+    } catch (e) {
+      toastError('Could not delete', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  async function handleLeaveGroup(): Promise<void> {
+    if (!conversationId) return
+    if (!window.confirm('Leave this group? You will stop receiving its messages.')) return
+    setLeavingGroup(true)
+    try {
+      await messagingApi.leaveGroup(conversationId)
+      await retryFetchConversations()
+      setActiveConversationId(null)
+      toastSuccess('Left group', 'You will no longer receive messages from it.')
+    } catch (e) {
+      toastError('Could not leave', e instanceof Error ? e.message : 'Please try again')
+    } finally {
+      setLeavingGroup(false)
+    }
   }
 
   // Keep local theme in sync with the conversation (initial load + switching chats).
@@ -983,11 +1015,27 @@ export function MessageConversation({
                 {relationship?.blocked ? <UserCheck2 className="size-4" /> : <UserMinus2 className="size-4" />}
                 <span className="font-medium text-xs">{relationship?.blocked ? 'Unblock User' : 'Block User'}</span>
               </Button>
+              {/* Groups get "Leave" instead: deleting your copy while still a
+                  member would just refill on the next message. */}
+              {!isDM && (
+                <Button
+                  className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  disabled={leavingGroup}
+                  onClick={() => void handleLeaveGroup()}
+                >
+                  {leavingGroup ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+                  <span className="font-medium text-xs">Leave group</span>
+                </Button>
+              )}
               <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
                 size="sm"
                 type="button"
                 variant="ghost"
+                onClick={() => void handleDeleteConversation()}
               >
                 <Trash2 className="size-4" />
                 <span className="font-medium text-xs">Delete Conversation</span>

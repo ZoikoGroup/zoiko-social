@@ -2,11 +2,12 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Users, Lock, BadgeCheck, Globe, Mail, ScrollText, UsersRound, Settings, UserPlus } from 'lucide-react'
+import { ChevronLeft, Users, Lock, BadgeCheck, Globe, Mail, ScrollText, UsersRound, Settings, UserPlus, Shield } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { JoinButton } from '@/components/communities/JoinButton'
 import { MembersModal } from '@/components/communities/MembersModal'
+import { ModerationModal } from '@/components/communities/ModerationModal'
 import { CommunitySettingsModal } from '@/components/communities/CommunitySettingsModal'
 import { InviteModal } from '@/components/communities/InviteModal'
 import { CommunityFeed } from '@/components/communities/CommunityFeed'
@@ -29,6 +30,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
   const [membersOpen, setMembersOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [moderationOpen, setModerationOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -60,6 +62,9 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
   const isMember = community?.viewerStatus === 'active'
   const isPrivateLocked = community && community.privacy !== 'public' && !isMember
   const canManage = community?.viewerRole === 'owner' || community?.viewerRole === 'admin'
+  // Moderators can mute, so they need the Manage panel even though they cannot
+  // change roles, ban, edit rules or invite.
+  const canModerate = canManage || community?.viewerRole === 'moderator'
   const PrivacyIcon = community ? PRIVACY_ICON[community.privacy as keyof typeof PRIVACY_ICON] ?? Globe : Globe
 
   return (
@@ -112,21 +117,30 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                     </div>
                     <div className="mt-10 flex items-center gap-2">
                       {canManage && (
-                        <>
-                          <button
-                            onClick={() => setInviteOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
-                          >
-                            <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Invite</span>
-                          </button>
-                          <button
-                            onClick={() => setSettingsOpen(true)}
-                            className="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
-                            aria-label="Community settings"
-                          >
-                            <Settings className="w-4 h-4" />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => setInviteOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+                        >
+                          <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Invite</span>
+                        </button>
+                      )}
+                      {/* Moderators get this too — muting is theirs to do. */}
+                      {canModerate && (
+                        <button
+                          onClick={() => setModerationOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+                        >
+                          <Shield className="w-4 h-4" /><span className="hidden sm:inline">Manage</span>
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => setSettingsOpen(true)}
+                          className="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+                          aria-label="Community settings"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
                       )}
                       {user && <JoinButton community={community} className="px-5 py-2" onChange={() => communitiesApi.get(slug).then(setCommunity).catch(() => {})} />}
                     </div>
@@ -244,6 +258,13 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                 memberCount={community.membersCount}
                 onClose={() => setMembersOpen(false)}
               />
+              {moderationOpen && (
+                <ModerationModal
+                  community={community}
+                  onClose={() => setModerationOpen(false)}
+                  onChanged={() => { void communitiesApi.get(slug).then(setCommunity).catch(() => {}) }}
+                />
+              )}
               <CommunitySettingsModal
                 open={settingsOpen}
                 community={community}

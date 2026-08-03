@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Search, MessageSquare, Plus, Users, CheckCheck } from 'lucide-react'
+import {
+  Search, MessageSquare, Plus, Users, CheckCheck, MoreHorizontal, Loader2,
+  Pin, PinOff, Bell, BellOff, Archive, ArchiveRestore,
+} from 'lucide-react'
 import Link from 'next/link'
 import { UserAvatar } from '@/components/UserAvatar'
 import { GroupInvitations } from '@/components/messaging/GroupInvitations'
@@ -10,6 +13,8 @@ import { usePresence } from '@/hooks/use-presence'
 import { useAuth } from '@/hooks/use-auth'
 import type { Conversation } from '@/hooks/use-messaging'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { messagingApi } from '@/lib/messaging-api'
+import { MessageRequestsPanel } from '@/components/messaging/MessageRequestsPanel'
 
 export type ChatTab = 'all' | 'groups' | 'communities'
 
@@ -158,6 +163,8 @@ export function ConnectedConversationList({
         <div className="pt-2">
           <GroupInvitations variant="compact" />
         </div>
+        {/* Held-back DMs from people the recipient's privacy settings filter. */}
+        <MessageRequestsPanel />
         {isLoadingConversations ? (
           <div className="p-4 space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -298,6 +305,7 @@ function ConversationItem({
   const isTyping = otherUserId && conv.id ? isUserTyping(otherUserId, conv.id) : false
 
   return (
+    <div className="relative group">
     <button
       onClick={() => onSelect(conv.id)}
       className={`w-[calc(100%-16px)] mx-2 my-0.5 flex items-center gap-3 px-3 py-3 rounded-2xl transition-colors cursor-pointer text-left active:scale-[0.99] ${
@@ -334,7 +342,8 @@ function ConversationItem({
           ) : (
             <p className={`text-[12px] truncate flex-1 ${conv.unreadCount > 0 ? 'text-on-surface-variant font-medium' : 'text-outline'}`}>{lastMsgText}</p>
           )}
-          {conv.unreadCount > 0 && (
+          {conv.isMuted && <BellOff className="w-3 h-3 text-outline flex-shrink-0" />}
+          {conv.unreadCount > 0 && !conv.isMuted && (
             <span className="flex-shrink-0 min-w-[19px] h-[19px] px-1.5 bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
               {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
             </span>
@@ -342,6 +351,76 @@ function ConversationItem({
         </div>
       </div>
     </button>
+
+      {/* Pin / mute / archive lived only on the API until now. Kept outside the
+          row button (buttons can't nest) and revealed on hover or focus. */}
+      <ConversationActions conv={conv} />
+    </div>
+  )
+}
+
+function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Element {
+  // Same refetch the error-retry path uses — pin/mute/archive all change the
+  // list's ordering or filtering, so the list has to come back from the server.
+  const { retryFetchConversations } = useMessaging()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function run(fn: () => Promise<unknown>): Promise<void> {
+    setBusy(true)
+    try {
+      await fn()
+      await retryFetchConversations()
+    } catch {
+      // The list simply doesn't change; the row is not the place for an error.
+    } finally {
+      setBusy(false)
+      setOpen(false)
+    }
+  }
+
+  const ACTIONS = [
+    conv.isPinned
+      ? { label: 'Unpin', Icon: PinOff, run: () => messagingApi.unpin(conv.id) }
+      : { label: 'Pin', Icon: Pin, run: () => messagingApi.pin(conv.id) },
+    conv.isMuted
+      ? { label: 'Unmute', Icon: Bell, run: () => messagingApi.unmute(conv.id) }
+      : { label: 'Mute', Icon: BellOff, run: () => messagingApi.mute(conv.id) },
+    conv.isArchived
+      ? { label: 'Unarchive', Icon: ArchiveRestore, run: () => messagingApi.unarchive(conv.id) }
+      : { label: 'Archive', Icon: Archive, run: () => messagingApi.archive(conv.id) },
+  ]
+
+  return (
+    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Conversation options"
+        className={`p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-all cursor-pointer ${
+          open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+        }`}
+      >
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-8 z-20 w-40 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl">
+            {ACTIONS.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => void run(a.run)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-label-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+              >
+                <a.Icon className="w-3.5 h-3.5 text-outline" />
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
