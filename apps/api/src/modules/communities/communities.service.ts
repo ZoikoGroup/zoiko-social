@@ -327,6 +327,46 @@ export class CommunitiesService {
       }))
   }
 
+  /**
+   * Communities another member belongs to, for their profile.
+   *
+   * Public communities only. Belonging to a private or invite-only community is
+   * itself private information — a support group for owners of a dying animal,
+   * a breeder circle — and a profile page is exactly where it would leak to
+   * people who were never admitted. The viewer's own memberships come from
+   * getMyCommunities instead, which has no such restriction.
+   *
+   * `viewerStatus` is deliberately null here: it describes the profile owner's
+   * membership, not the viewer's, and returning theirs would be misleading.
+   */
+  async getPublicCommunitiesFor(profileId: string, limit = 12): Promise<CommunityCard[]> {
+    const memberships = await this.prisma.communityMember.findMany({
+      where: {
+        userId: profileId,
+        status: 'active',
+        community: { isDeleted: false, privacy: 'public' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 50),
+      include: { community: { include: { category: { select: { slug: true } } } } },
+    })
+
+    return memberships.map((m) => ({
+      id: m.community.id,
+      slug: m.community.slug,
+      name: m.community.name,
+      description: m.community.description,
+      avatarUrl: m.community.avatarUrl,
+      coverUrl: m.community.coverUrl,
+      category: m.community.category?.slug ?? null,
+      membersCount: m.community.membersCount,
+      postsCount: m.community.postsCount,
+      privacy: m.community.privacy,
+      isVerified: m.community.isVerified,
+      viewerStatus: null,
+    }))
+  }
+
   // ── UPDATE / DELETE ───────────────────────────────────────────────────────
 
   async update(id: string, input: UpdateCommunityInput): Promise<CommunityResponse> {

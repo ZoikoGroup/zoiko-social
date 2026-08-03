@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { CommunitiesController, MyCommunitiesController } from './communities.controller'
+import { CommunitiesController, MyCommunitiesController, ProfileCommunitiesController } from './communities.controller'
 import { MembershipController } from './membership/membership.controller'
 import { CommunityInvitesController, InviteRedeemController } from './invites/invites.controller'
 import { CommunitiesService } from './communities.service'
@@ -14,6 +14,7 @@ import { PersonalizationModule } from '../personalization/personalization.module
   controllers: [
     CommunitiesController,
     MyCommunitiesController,
+    ProfileCommunitiesController,
     MembershipController,
     CommunityInvitesController,
     InviteRedeemController,

@@ -1,14 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link2, Calendar, AtSign, Briefcase, FileText, PawPrint, Bookmark, Grid3X3, Images } from 'lucide-react'
+import { Link2, Calendar, AtSign, Briefcase, FileText, PawPrint, Bookmark, Grid3X3, Images, UsersRound, Lock } from 'lucide-react'
 import Link from 'next/link'
-import { profileApi, feedApi, petsApi, eventsApi, type Profile, type PostItem, type Pet, type EventItem, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import { profileApi, feedApi, petsApi, eventsApi, communitiesApi, type Profile, type PostItem, type Pet, type EventItem, type CommunityCard, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
 import { ageOf } from '@/lib/pet'
 import { useAuth } from '@/hooks/use-auth'
 import { PostGrid } from './feed/PostGrid'
 
-type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events'
+type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events' | 'communities'
 
 function EmptyState({ Icon, title, hint }: { Icon: typeof FileText; title: string; hint: string }): React.JSX.Element {
   return (
@@ -174,6 +174,7 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
     { id: 'pets', label: 'Pets', Icon: PawPrint },
     // What someone organises says as much about them as what they post.
     { id: 'events', label: 'Events', Icon: Calendar },
+    { id: 'communities', label: 'Communities', Icon: UsersRound },
     { id: 'about', label: 'About', Icon: FileText },
   ]
 
@@ -226,6 +227,7 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
           single pet, however many the member had. */}
       {active === 'pets' && <PetsTab profileId={targetId} isOwn={isOwn} />}
       {active === 'events' && <EventsTab profileId={targetId} isOwn={isOwn} />}
+      {active === 'communities' && <CommunitiesTab profileId={targetId} isOwn={isOwn} />}
     </div>
   )
 }
@@ -363,6 +365,78 @@ function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn:
           </Link>
         )
       })}
+    </div>
+  )
+}
+
+// ── Communities ──────────────────────────────────────────────────────────────
+
+/**
+ * Communities this member belongs to.
+ *
+ * Other people's profiles show **public communities only**: belonging to a
+ * private or invite-only community is itself private information — a support
+ * group, a breeder circle — and a profile page is exactly where it would leak to
+ * people who were never admitted. Your own tab has no such restriction, so the
+ * note below explains the difference rather than letting it look like a bug.
+ */
+function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const [communities, setCommunities] = useState<CommunityCard[] | null>(null)
+
+  useEffect(() => {
+    if (!profileId) return
+    let cancelled = false
+    const load = isOwn ? communitiesApi.mine() : communitiesApi.forProfile(profileId)
+    load.then((c) => { if (!cancelled) setCommunities(c) }).catch(() => { if (!cancelled) setCommunities([]) })
+    return () => { cancelled = true }
+  }, [profileId, isOwn])
+
+  if (communities === null) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => <div key={i} className="h-28 rounded-xl bg-surface-container animate-pulse" />)}
+      </div>
+    )
+  }
+
+  if (communities.length === 0) {
+    return (
+      <EmptyState
+        Icon={UsersRound}
+        title="No communities yet"
+        hint={isOwn
+          ? 'Communities you join will show up here.'
+          : 'Public communities this member belongs to will show up here.'}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {communities.map((c) => (
+          <Link
+            key={c.id}
+            href={`/c/${c.slug}`}
+            className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 hover:border-primary/40 transition-colors group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-primary/10 overflow-hidden flex items-center justify-center mb-2">
+              {c.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : <UsersRound className="w-5 h-5 text-primary" />}
+            </div>
+            <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{c.name}</p>
+            <p className="text-[11px] text-outline">{c.membersCount.toLocaleString()} members</p>
+          </Link>
+        ))}
+      </div>
+      {!isOwn && (
+        <p className="flex items-center gap-1.5 text-[11px] text-outline">
+          <Lock className="w-3 h-3" />
+          Only public communities are shown.
+        </p>
+      )}
     </div>
   )
 }

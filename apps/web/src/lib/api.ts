@@ -1939,6 +1939,12 @@ export const communitiesApi = {
   approve: (id: string, userId: string) => mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/approve`, { method: 'POST' }),
   reject: (id: string, userId: string) => mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/reject`, { method: 'POST' }),
   mine: () => cachedGet<CommunityCard[]>('/me/communities', 30_000),
+  /**
+   * Another member's communities, for their profile. Public ones only —
+   * belonging to a private community is itself private.
+   */
+  forProfile: (profileId: string) =>
+    cachedGet<CommunityCard[]>(`/profiles/${profileId}/communities`, 60_000),
   // Invites
   inviteUser: (id: string, username: string) =>
     mutate<{ id: string; type: string; invitee: { username: string; displayName: string } | null; expiresAt: string | null }>(
