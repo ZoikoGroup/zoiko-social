@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
-import { PersonalizationService } from '../personalization/personalization.service'
+import {
+  PersonalizationService,
+  type ScoreablePost,
+  type RankMode,
+} from '../personalization/personalization.service'
 
 const FEED_PAGE = 15
 
@@ -74,72 +78,53 @@ export class FeedService {
 
     const offset = cursor ? this.decodeOffset(cursor) : 0
 
-    const pool = await this.prisma.post.findMany({
-      where: {
-        isDeleted: false,
-        createdAt: { gte: new Date(Date.now() - HOME_WINDOW_DAYS * 24 * 3_600_000) },
-        OR: [
-          // Own posts — every visibility, never seen-filtered
-          { authorId: viewerId },
-          // Followed authors — public + followers-only, skipping what the
-          // viewer has already seen or reacted to
-          {
-            visibility: { in: ['public', 'followers'] },
-            author: {
-              followsAsFollowing: {
-                some: { followerId: viewerId, status: 'active' },
+    const order = await this.rankedOrder(viewerId, 'home', offset, () =>
+      this.prisma.post.findMany({
+        where: {
+          isDeleted: false,
+          createdAt: { gte: new Date(Date.now() - HOME_WINDOW_DAYS * 24 * 3_600_000) },
+          OR: [
+            // Own posts — every visibility, never seen-filtered
+            { authorId: viewerId },
+            // Followed authors — public + followers-only, skipping what the
+            // viewer has already seen or reacted to
+            {
+              visibility: { in: ['public', 'followers'] },
+              author: {
+                followsAsFollowing: {
+                  some: { followerId: viewerId, status: 'active' },
+                },
+              },
+              NOT: {
+                OR: [
+                  { views: { some: { userId: viewerId } } },
+                  { likes: { some: { userId: viewerId } } },
+                ],
               },
             },
-            NOT: {
-              OR: [
-                { views: { some: { userId: viewerId } } },
-                { likes: { some: { userId: viewerId } } },
-              ],
+            // Posts from communities the viewer is an active member of
+            {
+              visibility: 'community',
+              community: {
+                members: { some: { userId: viewerId, status: 'active' } },
+              },
+              NOT: {
+                OR: [
+                  { views: { some: { userId: viewerId } } },
+                  { likes: { some: { userId: viewerId } } },
+                ],
+              },
             },
-          },
-          // Posts from communities the viewer is an active member of
-          {
-            visibility: 'community',
-            community: {
-              members: { some: { userId: viewerId, status: 'active' } },
-            },
-            NOT: {
-              OR: [
-                { views: { some: { userId: viewerId } } },
-                { likes: { some: { userId: viewerId } } },
-              ],
-            },
-          },
-        ],
-      },
-      take: HOME_POOL,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: this.poolInclude(),
-    })
+          ],
+        },
+        take: HOME_POOL,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: this.poolInclude(),
+      }),
+      HOME_MAX_PER_AUTHOR,
+    )
 
-    const ranked = await this.personalization.rank(viewerId, pool, 'home')
-
-    // Soft diversity on Home: cap per author so one account can't dominate.
-    const perAuthor = new Map<string, number>()
-    const diversified: typeof pool = []
-    for (const r of ranked) {
-      const n = perAuthor.get(r.post.authorId) ?? 0
-      if (n >= HOME_MAX_PER_AUTHOR) continue
-      perAuthor.set(r.post.authorId, n + 1)
-      diversified.push(r.post)
-    }
-
-    const slice = diversified.slice(offset, offset + take)
-    const hasMore = offset + take < diversified.length
-    const flags = await this.postsService.viewerFlags(slice.map((p) => p.id), viewerId)
-
-    const page: PostPage = {
-      data: slice.map((p) =>
-        this.postsService.mapPost(p, flags.get(p.id) ?? { liked: false, saved: false, viewed: false }),
-      ),
-      nextCursor: hasMore ? Buffer.from(String(offset + take)).toString('base64') : null,
-      hasMore,
-    }
+    const page = await this.pageFromOrder(order, viewerId, offset, take)
 
     if (isFirstPage) {
       // Cache with neutral viewer flags — flags are re-attached per request
@@ -164,50 +149,118 @@ export class FeedService {
     const take = Math.min(limit, 30)
     const offset = cursor ? this.decodeOffset(cursor) : 0
 
-    const pool = await this.prisma.post.findMany({
-      where: {
-        isDeleted: false,
-        visibility: 'public',
-        authorId: { not: viewerId },
-        createdAt: { gte: new Date(Date.now() - EXPLORE_WINDOW_DAYS * 24 * 3_600_000) },
-        author: {
-          isPrivate: false,
-          state: 'active',
-          blockedUsers: { none: { blockedId: viewerId } },
-          blockedByUsers: { none: { blockerId: viewerId } },
-          followsAsFollowing: { none: { followerId: viewerId, status: 'active' } },
+    const order = await this.rankedOrder(viewerId, 'explore', offset, () =>
+      this.prisma.post.findMany({
+        where: {
+          isDeleted: false,
+          visibility: 'public',
+          authorId: { not: viewerId },
+          createdAt: { gte: new Date(Date.now() - EXPLORE_WINDOW_DAYS * 24 * 3_600_000) },
+          author: {
+            isPrivate: false,
+            state: 'active',
+            blockedUsers: { none: { blockedId: viewerId } },
+            blockedByUsers: { none: { blockerId: viewerId } },
+            followsAsFollowing: { none: { followerId: viewerId, status: 'active' } },
+          },
+          // Seen filter: don't re-surface posts the viewer has viewed or liked
+          NOT: {
+            OR: [
+              { views: { some: { userId: viewerId } } },
+              { likes: { some: { userId: viewerId } } },
+            ],
+          },
         },
-        // Seen filter: don't re-surface posts the viewer has viewed or liked
-        NOT: {
-          OR: [
-            { views: { some: { userId: viewerId } } },
-            { likes: { some: { userId: viewerId } } },
-          ],
-        },
-      },
-      take: EXPLORE_POOL,
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: this.poolInclude(),
-    })
+        take: EXPLORE_POOL,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: this.poolInclude(),
+      }),
+      EXPLORE_MAX_PER_AUTHOR,
+    )
 
-    const ranked = await this.personalization.rank(viewerId, pool, 'explore')
+    return this.pageFromOrder(order, viewerId, offset, take)
+  }
 
-    // Diversity: no single author dominates a page.
-    const perAuthor = new Map<string, number>()
-    const rankedList: typeof pool = []
-    for (const r of ranked) {
-      const n = perAuthor.get(r.post.authorId) ?? 0
-      if (n >= EXPLORE_MAX_PER_AUTHOR) continue
-      perAuthor.set(r.post.authorId, n + 1)
-      rankedList.push(r.post)
+  /**
+   * The viewer's ranked post ids for a surface, cached for the length of a
+   * scroll session.
+   *
+   * Two problems this solves. Cost: without it, every page re-read the whole
+   * candidate pool (600 posts on Home, hydrated with author, media and
+   * community) and re-scored all of it just to return fifteen — page 5 cost
+   * exactly what page 1 did. Correctness: scores move with live engagement and
+   * affinity, so re-ranking between requests reshuffled the list under the
+   * reader, who then saw some posts twice and never saw others at all.
+   *
+   * Freezing the order for a few minutes fixes both. A cache miss mid-scroll
+   * (expiry, or Redis unavailable) rebuilds it and lands the reader at roughly
+   * the same place, since the inputs have barely changed.
+   */
+  private async rankedOrder<T extends ScoreablePost>(
+    viewerId: string,
+    surface: RankMode,
+    offset: number,
+    loadPool: () => Promise<T[]>,
+    maxPerAuthor: number,
+  ): Promise<string[]> {
+    // Only trust a cached order when continuing a scroll. A fresh visit to the
+    // feed should see current ranking, not a snapshot from three minutes ago.
+    if (offset > 0) {
+      const cached = await this.redis.getFeedOrder(viewerId, surface)
+      if (cached && cached.length > 0) return cached
     }
 
-    const slice = rankedList.slice(offset, offset + take)
-    const hasMore = offset + take < rankedList.length
-    const flags = await this.postsService.viewerFlags(slice.map((p) => p.id), viewerId)
+    const pool = await loadPool()
+    const ranked = await this.personalization.rank(viewerId, pool, surface)
+
+    // Soft diversity cap so one prolific account cannot dominate the feed.
+    const perAuthor = new Map<string, number>()
+    const ids: string[] = []
+    for (const r of ranked) {
+      const n = perAuthor.get(r.post.authorId) ?? 0
+      if (n >= maxPerAuthor) continue
+      perAuthor.set(r.post.authorId, n + 1)
+      ids.push(r.post.id)
+    }
+
+    await this.redis.setFeedOrder(viewerId, surface, ids)
+    return ids
+  }
+
+  /**
+   * Hydrate one page out of a ranked id list.
+   *
+   * Only the ids on this page are fetched, and they are re-sorted into the
+   * ranked order Postgres knows nothing about. Posts deleted since the order
+   * was computed simply fall out, which is why `hasMore` comes from the id list
+   * rather than from how many rows came back.
+   */
+  private async pageFromOrder(
+    order: string[],
+    viewerId: string,
+    offset: number,
+    take: number,
+  ): Promise<PostPage> {
+    const pageIds = order.slice(offset, offset + take)
+    const hasMore = offset + take < order.length
+
+    if (pageIds.length === 0) {
+      return { data: [], nextCursor: null, hasMore: false }
+    }
+
+    const [rows, flags] = await Promise.all([
+      this.prisma.post.findMany({
+        where: { id: { in: pageIds }, isDeleted: false },
+        include: this.poolInclude(),
+      }),
+      this.postsService.viewerFlags(pageIds, viewerId),
+    ])
+
+    const byId = new Map(rows.map((p) => [p.id, p]))
+    const ordered = pageIds.map((id) => byId.get(id)).filter((p): p is (typeof rows)[number] => !!p)
 
     return {
-      data: slice.map((p) =>
+      data: ordered.map((p) =>
         this.postsService.mapPost(p, flags.get(p.id) ?? { liked: false, saved: false, viewed: false }),
       ),
       nextCursor: hasMore ? Buffer.from(String(offset + take)).toString('base64') : null,

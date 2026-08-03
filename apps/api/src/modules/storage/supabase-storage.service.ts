@@ -4,6 +4,9 @@ import { ConfigService } from '../config/config.service'
 
 const CHAT_BUCKET = 'chat-media'
 
+/** Private bucket — see supabase/migrations/055. Never served publicly. */
+export const VERIFICATION_BUCKET = 'verification-docs'
+
 /**
  * SupabaseStorageService — chat media storage backed by Supabase Storage.
  *
@@ -57,6 +60,26 @@ export class SupabaseStorageService {
   getPublicUrl(key: string): string {
     if (!this.client) return key
     return this.client.storage.from(this.bucket).getPublicUrl(key).data.publicUrl
+  }
+
+  /**
+   * Time-limited read URL for an object in a PRIVATE bucket.
+   *
+   * Callers are responsible for authorising the request first — signing is
+   * unconditional. Kept short-lived because the URL itself is the credential:
+   * anyone holding it can read the object until it expires.
+   */
+  async createSignedDownloadUrl(bucket: string, key: string, expiresInSeconds = 300): Promise<string> {
+    if (!this.client) throw new Error('Supabase storage not configured')
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .createSignedUrl(key, expiresInSeconds)
+
+    if (error || !data) {
+      this.logger.error(`Failed to sign ${bucket}/${key}: ${error?.message}`)
+      throw new Error('Failed to create download URL')
+    }
+    return data.signedUrl
   }
 
   async delete(key: string): Promise<void> {

@@ -192,6 +192,21 @@ export class ProfileController {
     return { data: result }
   }
 
+  /**
+   * Signed read URL for one uploaded document. Available to the member who
+   * uploaded it and to reviewing staff — the bucket itself is private, so this
+   * is the only way to see the file.
+   */
+  @Get('verification/documents/:id/url')
+  @UseGuards(JwtAuthGuard)
+  async getVerificationDocumentUrl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const url = await this.profileService.getVerificationDocumentUrl(user.id, id)
+    return { data: { url } }
+  }
+
   // ── ADMIN VERIFICATION REVIEW ──────────────────────────────────────────────
 
   @Get('admin/verification-requests')

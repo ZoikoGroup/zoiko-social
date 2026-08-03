@@ -2055,13 +2055,65 @@ export interface VerificationRequest {
   documents: VerificationDocument[]
 }
 
+export interface ProfessionalCategory {
+  slug: string
+  name: string
+  permissions: string[]
+}
+
+export type VerificationType = 'professional' | 'identity' | 'organization'
+
+export interface SubmitVerificationInput {
+  type: VerificationType
+  categorySlug?: string
+  notes?: string
+}
+
+// Every route lives under the `profiles` controller — including the admin ones.
+// Omitting that prefix is what made the admin review queue 404.
 export const verificationApi = {
+  /**
+   * The signed-in member's latest request, or null if they've never applied.
+   *
+   * `request` unwraps `{data: {data: x}}` to `x`, but a null `x` falls through
+   * its `??` and comes back as the inner `{data: null}` envelope — so normalise
+   * anything without an id to null.
+   */
+  myStatus: () =>
+    request<VerificationRequest | { data: null } | null>('/profiles/me/verification/status')
+      .then((r) => (r && 'id' in r ? r : null)),
+  submit: (input: SubmitVerificationInput) =>
+    mutate<VerificationRequest>('/profiles/me/verification', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  uploadDocument: (input: {
+    requestId: string
+    documentType: string
+    documentUrl: string
+    fileName?: string
+    fileSize?: number
+    mimeType?: string
+  }) =>
+    mutate<VerificationDocument>('/profiles/me/verification/documents', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  categories: () =>
+    cachedGet<ProfessionalCategory[]>('/profiles/professional-categories', 86_400_000),
+  /**
+   * Documents live in a private bucket, so a URL has to be signed on demand and
+   * expires in minutes — never cache it.
+   */
+  documentUrl: (documentId: string) =>
+    request<{ url: string }>(`/profiles/verification/documents/${documentId}/url`).then((r) => r.url),
+
   adminList: (status?: string) => {
     const qs = status ? `?status=${status}` : ''
-    return request<{ data: VerificationRequest[] }>(`/admin/verification-requests${qs}`).then((r) => r.data)
+    return request<VerificationRequest[]>(`/profiles/admin/verification-requests${qs}`)
   },
   adminReview: (id: string, approved: boolean, rejectionReason?: string) =>
-    mutate<VerificationRequest>(`/admin/verification-requests/${id}/review`, {
+    mutate<VerificationRequest>(`/profiles/admin/verification-requests/${id}/review`, {
       method: 'POST',
       body: JSON.stringify({ approved, rejectionReason }),
     }),

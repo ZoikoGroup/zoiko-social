@@ -15,6 +15,7 @@ import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AuthService } from '../auth/auth.service'
 import { ConfigService } from '../config/config.service'
+import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase-storage.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 
@@ -223,6 +224,7 @@ export class ProfileService {
     private readonly profanity: ProfanityService,
     private readonly authService: AuthService,
     private readonly config: ConfigService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -801,6 +803,33 @@ export class ProfileService {
       status: doc.status,
       createdAt: doc.createdAt.toISOString(),
     }
+  }
+
+  /**
+   * Short-lived read URL for a verification document.
+   *
+   * The documents live in a private bucket (migrations/055), so `documentUrl`
+   * holds a storage key rather than a fetchable URL — identity documents must
+   * not be readable by anyone who happens to have the link. Only the member who
+   * uploaded it and staff reviewing it can obtain a signed URL, and it expires
+   * in five minutes.
+   */
+  async getVerificationDocumentUrl(requesterId: string, documentId: string): Promise<string> {
+    const doc = await this.prisma.verificationDocument.findUnique({
+      where: { id: documentId },
+      select: { documentUrl: true, request: { select: { userId: true } } },
+    })
+    if (!doc) {
+      throw new NotFoundException({ code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' })
+    }
+
+    if (doc.request.userId !== requesterId) {
+      // Throws ForbiddenException for non-staff, so a member cannot probe for
+      // other people's document ids.
+      await this.requireAdminOrModerator(requesterId)
+    }
+
+    return this.storage.createSignedDownloadUrl(VERIFICATION_BUCKET, doc.documentUrl)
   }
 
   // ── RELATIONSHIP ENGINE ───────────────────────────────────────────────────

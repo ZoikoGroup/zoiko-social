@@ -160,14 +160,27 @@ export class PostsService {
         include: this.postInclude(),
       })
 
-      // Hashtags: upsert each tag with counter +1
-      for (const tag of hashtags) {
-        const hashtag = await tx.hashtag.upsert({
-          where: { tag },
-          create: { tag, postsCount: 1 },
-          update: { postsCount: { increment: 1 } },
+      // Hashtags: three statements regardless of tag count, rather than two
+      // round trips per tag while holding the transaction open. createMany with
+      // skipDuplicates makes the insert safe against a concurrent post using the
+      // same new tag; the increment then applies to whichever rows now exist.
+      if (hashtags.length > 0) {
+        await tx.hashtag.createMany({
+          data: hashtags.map((tag) => ({ tag })),
+          skipDuplicates: true,
         })
-        await tx.postHashtag.create({ data: { postId: created.id, hashtagId: hashtag.id } })
+        await tx.hashtag.updateMany({
+          where: { tag: { in: hashtags } },
+          data: { postsCount: { increment: 1 } },
+        })
+        const rows = await tx.hashtag.findMany({
+          where: { tag: { in: hashtags } },
+          select: { id: true },
+        })
+        await tx.postHashtag.createMany({
+          data: rows.map((h) => ({ postId: created.id, hashtagId: h.id })),
+          skipDuplicates: true,
+        })
       }
 
       if (mentionedUsers.length > 0) {
@@ -199,12 +212,21 @@ export class PostsService {
       select: { username: true, displayName: true },
     })
 
-    // Mention notifications (skip if the mentioned user blocked the author)
+    // Mention notifications (skip if the mentioned user blocked the author).
+    // One query for every block rather than one per mention.
+    const blockedBy = new Set(
+      mentionedUsers.length > 0
+        ? (
+            await this.prisma.blockedUser.findMany({
+              where: { blockedId: authorId, blockerId: { in: mentionedUsers.map((u) => u.id) } },
+              select: { blockerId: true },
+            })
+          ).map((b) => b.blockerId)
+        : [],
+    )
+
     for (const mentioned of mentionedUsers) {
-      const blocked = await this.prisma.blockedUser.findUnique({
-        where: { blockerId_blockedId: { blockerId: mentioned.id, blockedId: authorId } },
-      })
-      if (blocked) continue
+      if (blockedBy.has(mentioned.id)) continue
       await this.notifications.enqueue({
         userId: mentioned.id,
         type: 'mention',

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateEventInput, UpdateEventInput, RsvpInput, ShareLinkInput } from './events.schemas'
 
@@ -59,7 +60,46 @@ const MAX = 30
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationQueueService,
+  ) {}
+
+  /**
+   * Fan a notification out to a set of members, skipping the actor.
+   *
+   * Every call site is fire-and-forget (`void`): an event action must not fail
+   * because a notification could not be queued, and the queue service already
+   * falls back to an inline write before giving up.
+   */
+  private async notifyMany(
+    userIds: string[],
+    actorId: string,
+    payload: { type: string; title: string; body: string; data: Record<string, unknown> },
+  ): Promise<void> {
+    const recipients = [...new Set(userIds)].filter((id) => id !== actorId)
+    for (const userId of recipients) {
+      await this.notifications.enqueue({ userId, ...payload })
+    }
+  }
+
+  /** Display name for notification copy — falls back rather than throwing. */
+  private async actorName(userId: string): Promise<string> {
+    const p = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { displayName: true },
+    })
+    return p?.displayName ?? 'Someone'
+  }
+
+  /** Everyone who RSVP'd, so an update or cancellation reaches them. */
+  private async attendeeIds(eventId: string): Promise<string[]> {
+    const rows = await this.prisma.eventRsvp.findMany({
+      where: { eventId },
+      select: { userId: true },
+    })
+    return rows.map((r) => r.userId)
+  }
 
   private hostInclude() {
     return { host: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
@@ -312,11 +352,47 @@ export class EventsService {
       }
       return event
     })
+
+    // New invitees picked in the edit form get the same notification as an
+    // invite made from the manage-invites modal.
+    if ((existing.inviteOnly || input.inviteOnly === true) && input.invitees?.length) {
+      void this.notifyInvitees(
+        id,
+        userId,
+        [...new Set(input.invitees)].filter((uid) => uid !== userId),
+      )
+    }
+
+    // Only a moved date or a changed venue is worth interrupting someone for —
+    // a tweaked description is not. Anything else stays silent on purpose.
+    const timeChanged = input.startsAt !== undefined
+    const placeChanged = input.location !== undefined || input.venueName !== undefined || input.isOnline !== undefined
+    if (timeChanged || placeChanged) {
+      void this.notifyEventChanged(id, userId, updated.title, timeChanged)
+    }
+
     const [going, invited] = await Promise.all([
       this.goingFlags([id], userId),
       this.invitedFlags([id], userId),
     ])
     return this.map(updated, going.has(id), null, invited.has(id))
+  }
+
+  private async notifyEventChanged(
+    eventId: string,
+    hostId: string,
+    title: string,
+    timeChanged: boolean,
+  ): Promise<void> {
+    const attendees = await this.attendeeIds(eventId)
+    await this.notifyMany(attendees, hostId, {
+      type: 'event_updated',
+      title: timeChanged ? 'Event time changed' : 'Event details changed',
+      body: timeChanged
+        ? `${title} has been moved — check the new time`
+        : `${title} has a new location`,
+      data: { eventId, actorId: hostId },
+    })
   }
 
   async get(id: string, viewerId?: string, shareToken?: string): Promise<EventResponse> {
@@ -394,6 +470,14 @@ export class EventsService {
       }
       return created
     })
+
+    if (input.inviteOnly && input.invitees?.length) {
+      void this.notifyInvitees(
+        event.id,
+        hostId,
+        [...new Set(input.invitees)].filter((id) => id !== hostId),
+      )
+    }
     return this.map(event, true, null, false)
   }
 
@@ -468,10 +552,22 @@ export class EventsService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    const e = await this.prisma.event.findUnique({ where: { id }, select: { hostId: true } })
+    const e = await this.prisma.event.findUnique({ where: { id }, select: { hostId: true, title: true } })
     if (!e) throw new NotFoundException({ code: 'EVENT_NOT_FOUND', message: 'Event not found' })
     if (e.hostId !== userId) throw new ForbiddenException({ code: 'NOT_HOST', message: 'Only the host can delete this event' })
+
+    // Read attendees BEFORE the soft delete — after it the event is invisible to
+    // the list queries, but the RSVP rows are what we need and they survive.
+    const attendees = await this.attendeeIds(id)
     await this.prisma.event.update({ where: { id }, data: { isDeleted: true } })
+
+    // Someone who planned their day around this needs to hear about it.
+    void this.notifyMany(attendees, userId, {
+      type: 'event_cancelled',
+      title: 'Event cancelled',
+      body: `${e.title} has been cancelled by the host`,
+      data: { eventId: id, actorId: userId },
+    })
   }
 
   // ── INVITE-ONLY ACCESS ───────────────────────────────────────────────────────
@@ -515,7 +611,30 @@ export class EventsService {
       data: validIds.map((inviteeId) => ({ eventId, userId: inviteeId, invitedBy: userId })),
       skipDuplicates: true,
     })
+
+    void this.notifyInvitees(eventId, userId, validIds)
     return { invited: validIds.length }
+  }
+
+  /**
+   * Tell people they've been invited.
+   *
+   * Without this an invite-only event was silent — the only way to discover you
+   * were invited was to open the events tab and notice a new entry.
+   */
+  private async notifyInvitees(eventId: string, hostId: string, inviteeIds: string[]): Promise<void> {
+    if (inviteeIds.length === 0) return
+    const [event, host] = await Promise.all([
+      this.prisma.event.findUnique({ where: { id: eventId }, select: { title: true } }),
+      this.actorName(hostId),
+    ])
+    if (!event) return
+    await this.notifyMany(inviteeIds, hostId, {
+      type: 'event_invite',
+      title: 'Event invitation',
+      body: `${host} invited you to ${event.title}`,
+      data: { eventId, actorId: hostId },
+    })
   }
 
   /** GET /events/:id/invites — list invitees (host only). */
@@ -578,6 +697,28 @@ export class EventsService {
    * accurate. Idempotent: an already-declined invitee still succeeds.
    */
   async decline(eventId: string, userId: string): Promise<{ declined: boolean; goingCount: number }> {
+    const result = await this.declineInTransaction(eventId, userId)
+
+    // The host is planning numbers; a decline is information they need.
+    void this.notifyDecline(eventId, userId)
+    return result
+  }
+
+  private async notifyDecline(eventId: string, userId: string): Promise<void> {
+    const [event, guest] = await Promise.all([
+      this.prisma.event.findUnique({ where: { id: eventId }, select: { hostId: true, title: true } }),
+      this.actorName(userId),
+    ])
+    if (!event) return
+    await this.notifyMany([event.hostId], userId, {
+      type: 'event_invite_declined',
+      title: 'Invitation declined',
+      body: `${guest} can't make ${event.title}`,
+      data: { eventId, actorId: userId },
+    })
+  }
+
+  private async declineInTransaction(eventId: string, userId: string): Promise<{ declined: boolean; goingCount: number }> {
     return this.prisma.$transaction(async (tx) => {
       const invite = await tx.eventInvite.findUnique({
         where: { eventId_userId: { eventId, userId } },

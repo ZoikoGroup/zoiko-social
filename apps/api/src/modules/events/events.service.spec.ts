@@ -1,6 +1,7 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common'
 import { EventsService } from './events.service'
 import type { PrismaService } from '../prisma/prisma.service'
+import type { NotificationQueueService } from '../queue/notification-queue.service'
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
@@ -110,6 +111,8 @@ function build(overrides: {
         const state = args?.where?.state
         return Promise.resolve(state ? list.filter((p) => p.state === state) : list)
       }),
+      // Notification copy reads the actor's display name.
+      findUnique: jest.fn().mockResolvedValue({ displayName: 'Test Host' }),
     },
     follow: {
       findFirst: jest.fn().mockResolvedValue(null),
@@ -117,9 +120,19 @@ function build(overrides: {
     $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma)),
   }
 
-  const service = new EventsService(prisma as unknown as PrismaService)
-  return { service, prisma }
+  // Notifications are fire-and-forget side effects; capturing them lets the
+  // tests below assert that an invite or a cancellation actually reaches people.
+  const notifications = { enqueue: jest.fn().mockResolvedValue(undefined) }
+
+  const service = new EventsService(
+    prisma as unknown as PrismaService,
+    notifications as unknown as NotificationQueueService,
+  )
+  return { service, prisma, notifications }
 }
+
+/** The notify* helpers are deliberately not awaited, so let microtasks drain. */
+const flushAsync = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 describe('EventsService invite-only access', () => {
   it('rsvp rejects a stranger on an invite-only event with EVENT_NOT_INVITED', async () => {
@@ -619,5 +632,93 @@ describe('EventsService invite-only access', () => {
       where: { eventId: 'evt-1', userId: { in: [GUEST] }, status: 'declined' },
       data: { status: 'invited' },
     })
+  })
+})
+
+describe('EventsService notifications', () => {
+  it('tells an invitee they were invited', async () => {
+    // The whole point of the invite-only feature: before this, being invited to
+    // a hidden event produced no signal at all.
+    const { service, notifications } = build({ event: { inviteOnly: true, hostId: HOST } })
+
+    await service.invite('evt-1', HOST, [GUEST])
+    await flushAsync()
+
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: GUEST,
+        type: 'event_invite',
+        body: expect.stringContaining('invited you'),
+        data: expect.objectContaining({ eventId: 'evt-1' }),
+      }),
+    )
+  })
+
+  it('never notifies the host about their own invite', async () => {
+    const { service, notifications } = build({
+      event: { inviteOnly: true, hostId: HOST },
+      profiles: [{ id: HOST, state: 'active' }, { id: GUEST, state: 'active' }],
+    })
+
+    await service.invite('evt-1', HOST, [HOST, GUEST])
+    await flushAsync()
+
+    const recipients = notifications.enqueue.mock.calls.map((c) => (c[0] as { userId: string }).userId)
+    expect(recipients).not.toContain(HOST)
+  })
+
+  it('warns attendees when the start time moves', async () => {
+    const { service, notifications } = build({
+      event: { hostId: HOST },
+      attendees: [{ userId: GUEST }, { userId: HOST }],
+    })
+
+    await service.update('evt-1', HOST, { startsAt: '2026-09-01T10:00:00.000Z' })
+    await flushAsync()
+
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: GUEST, type: 'event_updated' }),
+    )
+  })
+
+  it('stays quiet when only the description changed', async () => {
+    // A banner for every typo trains people to ignore event notifications.
+    const { service, notifications } = build({
+      event: { hostId: HOST },
+      attendees: [{ userId: GUEST }],
+    })
+
+    await service.update('evt-1', HOST, { description: 'Now with more dogs' })
+    await flushAsync()
+
+    expect(notifications.enqueue).not.toHaveBeenCalled()
+  })
+
+  it('tells attendees when the event is cancelled', async () => {
+    const { service, notifications } = build({
+      event: { hostId: HOST },
+      attendees: [{ userId: GUEST }],
+    })
+
+    await service.remove('evt-1', HOST)
+    await flushAsync()
+
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: GUEST, type: 'event_cancelled' }),
+    )
+  })
+
+  it('tells the host when a guest declines', async () => {
+    const { service, notifications } = build({
+      event: { hostId: HOST },
+      invite: { eventId: 'evt-1', userId: GUEST, status: 'invited' },
+    })
+
+    await service.decline('evt-1', GUEST)
+    await flushAsync()
+
+    expect(notifications.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: HOST, type: 'event_invite_declined' }),
+    )
   })
 })

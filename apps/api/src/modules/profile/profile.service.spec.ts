@@ -7,6 +7,7 @@ import type { AuditLogService } from '../common/audit-log/audit-log.service'
 import type { ProfanityService } from '../common/moderation/profanity.service'
 import type { AuthService } from '../auth/auth.service'
 import type { ConfigService } from '../config/config.service'
+import type { SupabaseStorageService } from '../storage/supabase-storage.service'
 
 const USER_ID = 'member-1'
 const PROFILE = { id: USER_ID, username: 'someone', state: 'active' }
@@ -51,6 +52,7 @@ function build(overrides: {
     { assertClean: jest.fn() } as unknown as ProfanityService,
     authService as unknown as AuthService,
     config as unknown as ConfigService,
+    { createSignedDownloadUrl: jest.fn() } as unknown as SupabaseStorageService,
   )
   return { service, prisma, redis, realtime, auditLog, authService }
 }

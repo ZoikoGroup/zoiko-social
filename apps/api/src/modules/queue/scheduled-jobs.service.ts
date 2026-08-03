@@ -6,6 +6,7 @@ import { RedisService } from '../redis/redis.service'
 import { ConfigService } from '../config/config.service'
 import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 import { ProfileService } from '../profile/profile.service'
+import { NotificationQueueService } from './notification-queue.service'
 
 /**
  * ScheduledJobsService — repeatable BullMQ jobs for counter reconciliation
@@ -33,6 +34,7 @@ export const NOTIFICATION_CLEANUP_QUEUE = 'notification-cleanup'
 export const ACCOUNT_PURGE_QUEUE = 'account-purge'
 export const POST_VIEW_CLEANUP_QUEUE = 'post-view-cleanup'
 export const AFFINITY_DECAY_QUEUE = 'affinity-decay'
+export const EVENT_REMINDER_QUEUE = 'event-reminders'
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
@@ -45,6 +47,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly profiles: ProfileService,
+    private readonly notifications: NotificationQueueService,
   ) {}
 
   onModuleInit(): void {
@@ -61,8 +64,9 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     const purgeConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const postViewConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const affinityConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const eventReminderConn = this.redis.createConnection({ maxRetriesPerRequest: null })
 
-    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn) {
+    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn || !eventReminderConn) {
       this.logger.warn('Redis unavailable — scheduled jobs disabled')
       return
     }
@@ -72,6 +76,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     this.setupAccountPurge(purgeConn)
     this.setupPostViewCleanup(postViewConn)
     this.setupAffinityDecay(affinityConn)
+    this.setupEventReminders(eventReminderConn)
 
     this.logger.log('Scheduled jobs initialised')
   }
@@ -386,6 +391,88 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
   private async runAffinityDecay(): Promise<void> {
     const decayed = await this.redis.affinityDecayAll(0.95, 0.1)
     this.logger.log(`Affinity decay complete: refreshed ${decayed} profile(s)`)
+  }
+
+  // ── 9. Event reminders (hourly) ────────────────────────────────────────
+
+  private setupEventReminders(connection: Redis): void {
+    const queue = new Queue(EVENT_REMINDER_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    queue.add(
+      'event.reminders',
+      {},
+      {
+        repeat: { pattern: '10 * * * *' }, // Hourly, ten past
+        jobId: 'event-reminders',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register event reminder repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      EVENT_REMINDER_QUEUE,
+      async () => {
+        await this.runEventReminders()
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+
+    worker.on('completed', (job) => {
+      this.logger.log(`Event reminders completed (job ${job.id})`)
+    })
+    worker.on('failed', (job, err) => {
+      this.logger.error(`Event reminders failed (job ${job?.id}): ${err.message}`)
+    })
+
+    this.queues.set(EVENT_REMINDER_QUEUE, queue)
+    this.workers.set(EVENT_REMINDER_QUEUE, worker)
+  }
+
+  /**
+   * Remind attendees about events starting in roughly a day.
+   *
+   * Runs hourly and covers the 24–25h window ahead, so each event falls into
+   * exactly one run and nobody is reminded twice — no per-event bookkeeping
+   * needed. An event created less than 24h before it starts gets no reminder,
+   * which is correct: the RSVP itself was the reminder.
+   */
+  private async runEventReminders(): Promise<void> {
+    const from = new Date(Date.now() + 24 * 3_600_000)
+    const to = new Date(Date.now() + 25 * 3_600_000)
+
+    const events = await this.prisma.event.findMany({
+      where: { isDeleted: false, startsAt: { gte: from, lt: to } },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        hostId: true,
+        rsvps: { where: { status: 'going' }, select: { userId: true } },
+      },
+    })
+
+    let sent = 0
+    for (const event of events) {
+      for (const rsvp of event.rsvps) {
+        // The host knows about their own event.
+        if (rsvp.userId === event.hostId) continue
+        await this.notifications.enqueue({
+          userId: rsvp.userId,
+          type: 'event_reminder',
+          title: 'Event tomorrow',
+          body: `${event.title} starts tomorrow`,
+          data: { eventId: event.id, startsAt: event.startsAt.toISOString() },
+        })
+        sent += 1
+      }
+    }
+    this.logger.log(`Event reminders complete: ${sent} reminder(s) for ${events.length} event(s)`)
   }
 
   /**

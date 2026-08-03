@@ -327,6 +327,41 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  // ── FEED RANKED-ORDER CACHE ────────────────────────────────────────────────
+  // The ranked order of a viewer's candidate pool, held briefly so paging
+  // through the feed does not re-rank the whole pool per request AND so the
+  // order cannot shift underneath the reader between page 1 and page 2.
+  //
+  // Only ids are stored: post bodies change (edits, counter updates) and the
+  // hydration query is cheap for one page, but the ORDER is the expensive,
+  // must-stay-stable part.
+
+  async getFeedOrder(userId: string, surface: string): Promise<string[] | null> {
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(`feed:order:${surface}:${userId}`)
+      if (!raw) return null
+      const parsed: unknown = JSON.parse(raw)
+      return Array.isArray(parsed) ? (parsed as string[]) : null
+    } catch {
+      return null
+    }
+  }
+
+  async setFeedOrder(userId: string, surface: string, ids: string[], ttlSeconds = 180): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.set(
+        `feed:order:${surface}:${userId}`,
+        JSON.stringify(ids),
+        'EX',
+        ttlSeconds,
+      )
+    } catch (err) {
+      this.logger.warn(`setFeedOrder failed: ${(err as Error).message}`)
+    }
+  }
+
   // ── STORY SEEN-SET ─────────────────────────────────────────────────────────
   // TTL = 25h (> story lifetime) so seen state naturally ages out as stories expire.
 

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from '
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
@@ -13,11 +13,13 @@ import { CURRENCIES } from '@/lib/currency'
 import { profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { VerificationSettings } from '@/components/settings/VerificationSettings'
 
 type SettingsTab =
   | 'account'
   | 'privacy'
   | 'blocked'
+  | 'verification'
   | 'security'
   | 'notifications'
   | 'preferences'
@@ -34,6 +36,7 @@ const SECTIONS: SettingsSection[] = [
   { id: 'account',       label: 'Account',       icon: User,      description: 'Profile info, email, password' },
   { id: 'privacy',       label: 'Privacy',        icon: Lock,      description: 'Who can see your activity' },
   { id: 'blocked',       label: 'Blocked & Muted', icon: UserX,    description: 'Manage accounts you\'ve blocked or muted' },
+  { id: 'verification',  label: 'Verification',   icon: BadgeCheck,description: 'Apply for a verified badge' },
   { id: 'security',      label: 'Security',       icon: Shield,    description: 'Login, 2FA, active sessions' },
   { id: 'notifications', label: 'Notifications',  icon: Bell,      description: 'Push, email, in-app alerts' },
   { id: 'preferences',   label: 'Preferences',    icon: Sliders,   description: 'Theme, language, accessibility' },
@@ -46,6 +49,7 @@ const SECTION_DOCS_LINK: Partial<Record<SettingsTab, string>> = {
   account: '/docs/profile-and-pets#your-profile',
   privacy: '/docs/notifications-and-settings#privacy-settings',
   blocked: '/docs/safety-and-trust#blocking-and-muting',
+  verification: '/docs/safety-and-trust#verified-accounts',
   security: '/docs/notifications-and-settings#security',
   notifications: '/docs/notifications-and-settings#notification-preferences',
   preferences: '/docs/notifications-and-settings#preferences',
@@ -1176,6 +1180,8 @@ export default function SettingsPage(): React.JSX.Element {
         return <PrivacySettings {...sharedSettings} />
       case 'blocked':
         return <BlockedAndMutedSettings />
+      case 'verification':
+        return <VerificationSettings />
       case 'security':
         return <SecuritySettings />
       case 'notifications':
