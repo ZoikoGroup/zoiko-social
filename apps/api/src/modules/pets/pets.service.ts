@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client'
 import { nanoid } from 'nanoid'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import type {
   CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput,
   CreateHealthRecordInput, UpdateHealthRecordInput,
@@ -72,7 +73,10 @@ type PetRow = Prisma.PetGetPayload<Record<string, never>>
 
 @Injectable()
 export class PetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profanity: ProfanityService,
+  ) {}
 
   /** The signed-in user's pets (all, public + private). */
   async listMine(ownerId: string): Promise<PetResponse[]> {
@@ -93,6 +97,8 @@ export class PetsService {
   }
 
   async create(ownerId: string, input: CreatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     const pet = await this.prisma.pet.create({
       data: {
         ownerId,
@@ -114,6 +120,8 @@ export class PetsService {
   }
 
   async update(id: string, ownerId: string, input: UpdatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     await this.assertOwner(id, ownerId)
     const pet = await this.prisma.pet.update({
       where: { id },

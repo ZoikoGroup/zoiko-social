@@ -76,4 +76,36 @@ export class SearchController {
     const result = await this.searchService.searchProducts(user?.id, q ?? '', parseLimit(limit))
     return { data: result }
   }
+
+  @Get('events')
+  async events(
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const result = await this.searchService.searchEvents(user?.id, q ?? '', parseLimit(limit))
+    return { data: result }
+  }
+
+  @Get('adoption')
+  async adoption(
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const result = await this.searchService.searchAdoption(user?.id, q ?? '', parseLimit(limit))
+    return { data: result }
+  }
+
+  @Get('lost-found')
+  async lostFound(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const result = await this.searchService.searchLostFound(q ?? '', parseLimit(limit))
+    return { data: result }
+  }
+
+  @Get('providers')
+  async providers(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const result = await this.searchService.searchProviders(q ?? '', parseLimit(limit))
+    return { data: result }
+  }
 }

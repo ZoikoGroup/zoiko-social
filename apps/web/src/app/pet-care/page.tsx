@@ -17,6 +17,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { LocationInput } from '@/components/LocationInput'
 import { AddProviderModal } from '@/components/ServiceDirectory'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
 
 export default function PetCarePage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
@@ -52,6 +53,9 @@ export default function PetCarePage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />

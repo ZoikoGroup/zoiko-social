@@ -17,6 +17,7 @@ import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
 
 const SPECIES = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
 
@@ -80,6 +81,9 @@ export default function AdoptionPage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
           <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>

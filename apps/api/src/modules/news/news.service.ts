@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateArticleInput, UpdateArticleInput, CommentInput, NewsCategory } from './news.schemas'
@@ -55,6 +56,7 @@ export class NewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private authorInclude() {
@@ -163,6 +165,8 @@ export class NewsService {
   }
 
   async create(authorId: string, input: CreateArticleInput): Promise<ArticleResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, excerpt: input.excerpt, body: input.body, sourceName: input.sourceName }, { actorId: authorId, entityType: 'news_article' })
     const author = await this.prisma.profile.findUnique({
       where: { id: authorId },
       select: { verificationTier: true, professionalProfile: { select: { category: true } } },
@@ -190,6 +194,8 @@ export class NewsService {
   }
 
   async update(id: string, userId: string, input: UpdateArticleInput): Promise<ArticleResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, excerpt: input.excerpt, body: input.body, sourceName: input.sourceName }, { actorId: userId, entityType: 'news_article' })
     await this.assertOwner(id, userId)
     const updated = await this.prisma.newsArticle.update({
       where: { id },

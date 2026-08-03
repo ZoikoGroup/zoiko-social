@@ -14,6 +14,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { EventFormModal } from '@/components/events/EventFormModal'
 import { eventsApi, networkApi, ApiError, EVENT_CATEGORY_LABELS, type EventItem, type EventAttendee, type EventInvitee, type FollowSuggestion } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { ReportButton } from '@/components/ReportButton'
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -204,9 +205,14 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
               {duration && <Fact Icon={Timer} label="Duration" value={duration} />}
               <Fact Icon={Users} label="Going" value={`${ev.goingCount}${ev.capacity !== null ? ` / ${ev.capacity}` : ''}`} />
             </div>
-            <button onClick={() => setAttendeesOpen(true)} className="text-label-sm text-primary font-semibold hover:underline flex items-center gap-1.5 cursor-pointer">
-              <Users className="w-4 h-4" />See who&apos;s going
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <button onClick={() => setAttendeesOpen(true)} className="text-label-sm text-primary font-semibold hover:underline flex items-center gap-1.5 cursor-pointer">
+                <Users className="w-4 h-4" />See who&apos;s going
+              </button>
+              {/* The host has their own controls further down; reporting is for
+                  everyone else. */}
+              {!isHost && <ReportButton targetType="event" targetId={ev.id} />}
+            </div>
 
             {/* Venue */}
             {!ev.isOnline && (ev.venueName || ev.location) && (

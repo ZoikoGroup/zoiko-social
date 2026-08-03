@@ -13,6 +13,7 @@ import { CommunityFeed } from '@/components/communities/CommunityFeed'
 import { communitiesApi, ApiError, type Community } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
+import { ReportButton } from '@/components/ReportButton'
 
 type Tab = 'posts' | 'about' | 'members'
 
@@ -131,9 +132,12 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="font-headline text-headline-lg text-on-surface">{community.name}</h1>
-                    {community.isVerified && <BadgeCheck className="w-5 h-5 text-primary" />}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="font-headline text-headline-lg text-on-surface">{community.name}</h1>
+                      {community.isVerified && <BadgeCheck className="w-5 h-5 text-primary" />}
+                    </div>
+                    <ReportButton targetType="community" targetId={community.id} variant="icon" className="flex-shrink-0" />
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-label-sm text-outline">
                     <span className="flex items-center gap-1"><PrivacyIcon className="w-3.5 h-3.5" />{community.privacy.replace('_', ' ')}</span>

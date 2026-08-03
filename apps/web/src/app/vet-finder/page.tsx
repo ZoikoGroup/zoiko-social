@@ -19,6 +19,7 @@ import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
 
 const MODE_ICON: Record<string, typeof Video> = { in_clinic: Building2, home_visit: Home, video: Video }
 
@@ -77,6 +78,9 @@ export default function VetFinderPage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-6 lg:col-start-4 space-y-3">
             {[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}

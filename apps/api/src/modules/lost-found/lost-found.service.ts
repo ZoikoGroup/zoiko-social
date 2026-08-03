@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateReportInput, UpdateReportInput, SightingInput } from './lost-found.schemas'
@@ -48,6 +49,7 @@ export class LostFoundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private include() {
@@ -213,6 +215,8 @@ export class LostFoundService {
   }
 
   async create(reporterId: string, input: CreateReportInput): Promise<ReportResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, color: input.color, collar: input.collar, description: input.description, lastSeenLocation: input.lastSeenLocation }, { actorId: reporterId, entityType: 'lost_found_report' })
     const r = await this.prisma.lostFoundPost.create({
       data: {
         reporterId, kind: input.kind, species: input.species,
@@ -242,6 +246,8 @@ export class LostFoundService {
   }
 
   async update(id: string, userId: string, input: UpdateReportInput): Promise<ReportResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, color: input.color, collar: input.collar, description: input.description, lastSeenLocation: input.lastSeenLocation }, { actorId: userId, entityType: 'lost_found_report' })
     await this.assertOwner(id, userId)
     const r = await this.prisma.lostFoundPost.update({
       where: { id },

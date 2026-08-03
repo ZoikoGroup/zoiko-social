@@ -2,6 +2,8 @@ import { ForbiddenException, BadRequestException } from '@nestjs/common'
 import { EventsService } from './events.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import type { NotificationQueueService } from '../queue/notification-queue.service'
+import type { ProfanityService } from '../common/moderation/profanity.service'
+import type { AffinityService } from '../personalization/affinity.service'
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
@@ -124,11 +126,22 @@ function build(overrides: {
   // tests below assert that an invite or a cancellation actually reaches people.
   const notifications = { enqueue: jest.fn().mockResolvedValue(undefined) }
 
+  // Real ProfanityService behaviour is covered by its own tests; here it just
+  // has to not block the fixture text.
+  const profanity = { assertCleanFields: jest.fn(), assertClean: jest.fn() }
+
+  const affinity = {
+    recordInterest: jest.fn().mockResolvedValue(undefined),
+    recordAuthor: jest.fn().mockResolvedValue(undefined),
+  }
+
   const service = new EventsService(
     prisma as unknown as PrismaService,
     notifications as unknown as NotificationQueueService,
+    profanity as unknown as ProfanityService,
+    affinity as unknown as AffinityService,
   )
-  return { service, prisma, notifications }
+  return { service, prisma, notifications, profanity, affinity }
 }
 
 /** The notify* helpers are deliberately not awaited, so let microtasks drain. */
@@ -720,5 +733,39 @@ describe('EventsService notifications', () => {
     expect(notifications.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ userId: HOST, type: 'event_invite_declined' }),
     )
+  })
+})
+
+describe('EventsService interest signals', () => {
+  it('feeds a going RSVP into the interest model', async () => {
+    // Turning up somewhere says more about what a member cares about than a
+    // like does, and none of it was reaching the ranking engine.
+    const { service, affinity } = build({ event: { hostId: HOST, category: 'training', capacity: null } })
+
+    await service.rsvp('evt-1', GUEST, { status: 'going' })
+    await flushAsync()
+
+    expect(affinity.recordInterest).toHaveBeenCalledWith(GUEST, ['training'], expect.any(Number))
+    expect(affinity.recordAuthor).toHaveBeenCalledWith(GUEST, HOST, expect.any(Number))
+  })
+
+  it('records nothing for an "interested" RSVP', async () => {
+    const { service, affinity } = build({ event: { hostId: HOST, category: 'training', capacity: null } })
+
+    await service.rsvp('evt-1', GUEST, { status: 'interested' })
+    await flushAsync()
+
+    expect(affinity.recordInterest).not.toHaveBeenCalled()
+  })
+
+  it('still RSVPs when the interest write fails', async () => {
+    // A ranking signal must never be able to fail a user action.
+    const { service, affinity } = build({ event: { hostId: HOST, category: 'training', capacity: null } })
+    affinity.recordInterest.mockRejectedValue(new Error('redis down'))
+
+    const result = await service.rsvp('evt-1', GUEST, { status: 'going' })
+    await flushAsync()
+
+    expect(result.going).toBe(true)
   })
 })

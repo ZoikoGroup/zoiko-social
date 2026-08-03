@@ -31,6 +31,12 @@ export const AFFINITY_WEIGHTS = {
   save: 5,
   follow: 5,
   share: 6,
+  // Off-feed intent. Weighted at or above a share because these cost the member
+  // something real — turning up somewhere, enquiring about an animal, paying.
+  joinCommunity: 6,
+  eventRsvp: 6,
+  adoptionEnquiry: 8,
+  purchase: 8,
 } as const
 
 /** How many hashtags per post are fed into the tag dimension (cap noise). */
@@ -109,6 +115,45 @@ export class AffinityService {
       await this.redis.affinityIncr(userId, 'author', authorId, delta, this.ttlSeconds)
     } catch (err) {
       this.logger.warn(`affinity author record failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Joining or leaving a community — community-dimension signal only. */
+  async recordCommunity(userId: string, communityId: string, delta: number): Promise<void> {
+    if (!this.enabled) return
+    try {
+      await this.redis.affinityIncr(userId, 'community', communityId, delta, this.ttlSeconds)
+    } catch (err) {
+      this.logger.warn(`affinity community record failed: ${(err as Error).message}`)
+    }
+  }
+
+  /**
+   * Interest expressed outside the feed — an event RSVP, an adoption enquiry, a
+   * purchase.
+   *
+   * These are the strongest intent signals on the platform and the ranking
+   * engine was ignoring all of them: it only ever learned from likes, saves,
+   * shares, comments, follows and views. Someone who RSVPs to every training
+   * meetup and buys agility gear is telling us what they care about far more
+   * clearly than someone who taps a heart.
+   *
+   * Recorded against the tag dimension using a stable synthetic tag, so it
+   * lifts matching posts through the machinery that already exists rather than
+   * needing a new dimension.
+   */
+  async recordInterest(userId: string, tags: string[], weight: number): Promise<void> {
+    if (!this.enabled || tags.length === 0) return
+    try {
+      const ttl = this.ttlSeconds
+      await Promise.all(
+        tags
+          .slice(0, MAX_TAGS_PER_POST)
+          .filter((t) => t.trim().length > 0)
+          .map((tag) => this.redis.affinityIncr(userId, 'tag', tag.trim().toLowerCase(), weight, ttl)),
+      )
+    } catch (err) {
+      this.logger.warn(`affinity interest record failed: ${(err as Error).message}`)
     }
   }
 

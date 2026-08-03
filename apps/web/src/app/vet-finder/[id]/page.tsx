@@ -16,6 +16,7 @@ import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { ReportButton } from '@/components/ReportButton'
 
 const MODE_ICON: Record<string, typeof Video> = { in_clinic: Building2, home_visit: Home, video: Video }
 
@@ -90,6 +91,9 @@ export default function VetClinicDetailPage(): React.JSX.Element {
                     <span className={`flex items-center gap-1 font-semibold ${clinic.is24x7 || clinic.openNow ? 'text-green-600' : 'text-outline'}`}><Clock className="w-3.5 h-3.5" />{openLabel}</span>
                   </div>
                 </div>
+                {/* Listings describe third-party clinics, so wrong or stale
+                    details are the common complaint, not abuse. */}
+                <ReportButton targetType="provider" targetId={clinic.id} variant="icon" className="flex-shrink-0" />
               </div>
 
               {/* Actions */}

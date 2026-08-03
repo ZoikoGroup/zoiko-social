@@ -6,6 +6,12 @@ import type { PostsService } from '../posts/posts.service'
 import type { CommunitiesService } from '../communities/communities.service'
 import type { NewsService } from '../news/news.service'
 import type { ShopService } from '../shop/shop.service'
+import type { EventsService } from '../events/events.service'
+import type { AdoptionService } from '../adoption/adoption.service'
+import type { LostFoundService } from '../lost-found/lost-found.service'
+import type { ProvidersService } from '../providers/providers.service'
+
+const emptyPage = { data: [], nextCursor: null, hasMore: false }
 
 function buildDeps() {
   const prisma = { post: { findMany: jest.fn() } }
@@ -15,6 +21,12 @@ function buildDeps() {
   const communitiesService = { browse: jest.fn() }
   const newsService = { browse: jest.fn() }
   const shopService = { browse: jest.fn() }
+  // The pet surfaces default to empty so the pre-existing tests, which only care
+  // about one category each, don't have to stub all four.
+  const eventsService = { list: jest.fn().mockResolvedValue(emptyPage) }
+  const adoptionService = { browse: jest.fn().mockResolvedValue(emptyPage) }
+  const lostFoundService = { browse: jest.fn().mockResolvedValue(emptyPage) }
+  const providersService = { browse: jest.fn().mockResolvedValue(emptyPage) }
 
   const service = new SearchService(
     prisma as unknown as PrismaService,
@@ -24,9 +36,16 @@ function buildDeps() {
     communitiesService as unknown as CommunitiesService,
     newsService as unknown as NewsService,
     shopService as unknown as ShopService,
+    eventsService as unknown as EventsService,
+    adoptionService as unknown as AdoptionService,
+    lostFoundService as unknown as LostFoundService,
+    providersService as unknown as ProvidersService,
   )
 
-  return { service, prisma, networkService, hashtagsService, postsService, communitiesService, newsService, shopService }
+  return {
+    service, prisma, networkService, hashtagsService, postsService, communitiesService,
+    newsService, shopService, eventsService, adoptionService, lostFoundService, providersService,
+  }
 }
 
 describe('SearchService', () => {
@@ -36,7 +55,10 @@ describe('SearchService', () => {
 
       const result = await service.searchAll('viewer-1', ' a ')
 
-      expect(result).toEqual({ query: 'a', people: [], hashtags: [], posts: [], communities: [], news: [], products: [] })
+      expect(result).toEqual({
+        query: 'a', people: [], hashtags: [], posts: [], communities: [], news: [], products: [],
+        events: [], adoption: [], lostFound: [], providers: [],
+      })
       expect(networkService.searchUsers).not.toHaveBeenCalled()
       expect(hashtagsService.search).not.toHaveBeenCalled()
       expect(postsService.buildPage).not.toHaveBeenCalled()
@@ -180,5 +202,84 @@ describe('SearchService', () => {
       await service.searchProducts('viewer-1', 'dane', 999)
       expect(shopService.browse).toHaveBeenCalledWith({ q: 'dane' }, 'viewer-1', null, 40)
     })
+  })
+})
+
+// ── The pet surfaces ─────────────────────────────────────────────────────────
+// These four were reachable by the AI assistant's discovery tools but not from
+// the search box. Each delegates to the owning service so its visibility rules
+// keep applying — which is why the tests assert delegation rather than SQL.
+
+describe('SearchService — pet surfaces', () => {
+  it('searchEvents passes the viewer through so invite-only events stay hidden', async () => {
+    const { service, eventsService } = buildDeps()
+    await service.searchEvents('viewer-1', 'meetup', 999)
+    expect(eventsService.list).toHaveBeenCalledWith('viewer-1', null, 40, { q: 'meetup' })
+  })
+
+  it('searchAdoption delegates with a capped limit', async () => {
+    const { service, adoptionService } = buildDeps()
+    await service.searchAdoption('viewer-1', 'beagle', 999)
+    expect(adoptionService.browse).toHaveBeenCalledWith('viewer-1', { q: 'beagle' }, null, 40)
+  })
+
+  it('searchLostFound works without a viewer — a missing pet must be findable by anyone', async () => {
+    const { service, lostFoundService } = buildDeps()
+    await service.searchLostFound('tabby', 20)
+    expect(lostFoundService.browse).toHaveBeenCalledWith({ q: 'tabby' }, null, 20)
+  })
+
+  it('searchProviders merges vets and pet-care into one ranked list', async () => {
+    const { service, providersService } = buildDeps()
+    providersService.browse
+      .mockResolvedValueOnce({ data: [{ id: 'v1', name: 'City Vets', serviceType: null, location: null }], nextCursor: null, hasMore: false })
+      .mockResolvedValueOnce({ data: [{ id: 'g1', name: 'Groom', serviceType: 'grooming', location: null }], nextCursor: null, hasMore: false })
+
+    const result = await service.searchProviders('groom', 20)
+
+    expect(providersService.browse).toHaveBeenCalledWith('vet', { q: 'groom' }, null, 20)
+    expect(providersService.browse).toHaveBeenCalledWith('pet_care', { q: 'groom' }, null, 20)
+    // The exact-ish match ranks above the unrelated vet clinic.
+    expect(result[0]?.id).toBe('g1')
+  })
+
+  it('searchProviders honours the limit across BOTH categories, not per category', async () => {
+    // Two browses of `take` each could otherwise return 2×take results.
+    const { service, providersService } = buildDeps()
+    const many = (prefix: string) =>
+      Array.from({ length: 40 }, (_, i) => ({ id: `${prefix}${i}`, name: 'Pet Place', serviceType: null, location: null }))
+    providersService.browse
+      .mockResolvedValueOnce({ data: many('v'), nextCursor: null, hasMore: false })
+      .mockResolvedValueOnce({ data: many('g'), nextCursor: null, hasMore: false })
+
+    const result = await service.searchProviders('pet', 10)
+
+    expect(result).toHaveLength(10)
+  })
+
+  it('searchAll includes the pet surfaces in its preview', async () => {
+    const { service, networkService, hashtagsService, postsService, communitiesService, newsService, shopService, prisma, eventsService, adoptionService, lostFoundService, providersService } = buildDeps()
+
+    networkService.searchUsers.mockResolvedValue([])
+    hashtagsService.search.mockResolvedValue([])
+    prisma.post.findMany.mockResolvedValue([])
+    postsService.buildPage.mockResolvedValue(emptyPage)
+    communitiesService.browse.mockResolvedValue(emptyPage)
+    newsService.browse.mockResolvedValue(emptyPage)
+    shopService.browse.mockResolvedValue(emptyPage)
+    eventsService.list.mockResolvedValue({ data: [{ id: 'e1', title: 'Dane Meetup' }], nextCursor: null, hasMore: false })
+    adoptionService.browse.mockResolvedValue({ data: [{ id: 'a1', name: 'Dane' }], nextCursor: null, hasMore: false })
+    lostFoundService.browse.mockResolvedValue({ data: [{ id: 'l1', petName: 'Dane' }], nextCursor: null, hasMore: false })
+    providersService.browse.mockResolvedValue({ data: [{ id: 'pr1', name: 'Dane Vets' }], nextCursor: null, hasMore: false })
+
+    const result = await service.searchAll('viewer-1', 'dane')
+
+    expect(result.events).toHaveLength(1)
+    expect(result.adoption).toHaveLength(1)
+    expect(result.lostFound).toHaveLength(1)
+    // Both provider categories return the same row here, so dedupe-by-nothing
+    // yields two — the point is only that providers reach the result at all.
+    expect(result.providers.length).toBeGreaterThan(0)
+    expect(eventsService.list).toHaveBeenCalledWith('viewer-1', null, 5, { q: 'dane' })
   })
 })

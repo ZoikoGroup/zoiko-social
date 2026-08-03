@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type {
@@ -168,6 +169,7 @@ export class ProvidersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -331,6 +333,8 @@ export class ProvidersService {
   }
 
   async create(addedBy: string, input: CreateProviderInput): Promise<ProviderResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, serviceType: input.serviceType, description: input.description, location: input.location, address: input.address }, { actorId: addedBy, entityType: 'provider' })
     const p = await this.prisma.serviceProvider.create({
       data: {
         addedBy, category: input.category, name: input.name,
@@ -362,6 +366,8 @@ export class ProvidersService {
   }
 
   async update(id: string, userId: string, input: UpdateProviderInput): Promise<ProviderResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, serviceType: input.serviceType, description: input.description, location: input.location, address: input.address }, { actorId: userId, entityType: 'provider' })
     await this.assertOwner(id, userId)
     const p = await this.prisma.serviceProvider.update({
       where: { id },

@@ -20,6 +20,13 @@ const TARGET_LABELS: Record<ReportTargetType, string> = {
   message: 'message',
   user: 'account',
   story: 'story',
+  adoption_listing: 'adoption listing',
+  lost_found_report: 'lost & found report',
+  event: 'event',
+  product: 'product',
+  provider: 'listing',
+  breeding_profile: 'breeding profile',
+  community: 'community',
 }
 
 interface ReportContentModalProps {

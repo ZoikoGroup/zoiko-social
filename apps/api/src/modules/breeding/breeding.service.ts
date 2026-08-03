@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import { scanForFraud } from '../common/fraud/fraud-scan'
@@ -108,6 +109,7 @@ export class BreedingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private ownerInclude() {
@@ -350,6 +352,8 @@ export class BreedingService {
   }
 
   async create(ownerId: string, input: CreateBreedingInput): Promise<BreedingResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, about: input.about, location: input.location }, { actorId: ownerId, entityType: 'breeding_profile' })
     // Pull details from the linked Health Passport pet when provided.
     let petId: string | null = null
     let species = input.species ?? 'dog'
@@ -412,6 +416,8 @@ export class BreedingService {
   }
 
   async update(id: string, ownerId: string, input: UpdateBreedingInput): Promise<BreedingResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, about: input.about, location: input.location }, { actorId: ownerId, entityType: 'breeding_profile' })
     await this.assertOwner(id, ownerId)
     const updated = await this.prisma.breedingProfile.update({
       where: { id },

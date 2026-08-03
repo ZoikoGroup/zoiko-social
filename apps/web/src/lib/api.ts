@@ -2011,6 +2011,10 @@ export interface SearchAllResult {
   communities: CommunityCard[]
   news: NewsArticle[]
   products: Product[]
+  events: EventItem[]
+  adoption: AdoptionListing[]
+  lostFound: LostFoundReport[]
+  providers: Provider[]
 }
 
 export const searchApi = {
@@ -2027,6 +2031,14 @@ export const searchApi = {
     cachedGet<NewsArticle[]>(`/search/news?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
   products: (q: string, limit = 20) =>
     cachedGet<Product[]>(`/search/products?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  events: (q: string, limit = 20) =>
+    cachedGet<EventItem[]>(`/search/events?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  adoption: (q: string, limit = 20) =>
+    cachedGet<AdoptionListing[]>(`/search/adoption?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  lostFound: (q: string, limit = 20) =>
+    cachedGet<LostFoundReport[]>(`/search/lost-found?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  providers: (q: string, limit = 20) =>
+    cachedGet<Provider[]>(`/search/providers?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
 }
 
 // ── Verification review API (admin) ─────────────────────────────────────────
@@ -2121,7 +2133,10 @@ export const verificationApi = {
 
 // ── Moderation / Trust & Safety API ─────────────────────────────────────────
 
-export type ReportTargetType = 'post' | 'comment' | 'message' | 'user' | 'story'
+export type ReportTargetType =
+  | 'post' | 'comment' | 'message' | 'user' | 'story'
+  | 'adoption_listing' | 'lost_found_report' | 'event' | 'product' | 'provider'
+  | 'breeding_profile' | 'community'
 export type ReportReason = 'spam' | 'harassment' | 'abuse' | 'animal_welfare' | 'impersonation' | 'other'
 export type ResolveAction = 'dismiss' | 'remove_content' | 'warn' | 'suspend' | 'ban'
 

@@ -7,9 +7,10 @@ import { MembershipService } from './membership/membership.service'
 import { InvitesService } from './invites/invites.service'
 import { CommunityRoleGuard } from './membership/community-role.guard'
 import { AuthModule } from '../auth/auth.module'
+import { PersonalizationModule } from '../personalization/personalization.module'
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, PersonalizationModule],
   controllers: [
     CommunitiesController,
     MyCommunitiesController,

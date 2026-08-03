@@ -24,6 +24,7 @@ import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
+import { ReportButton } from '@/components/ReportButton'
 
 export default function ProviderDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
@@ -133,14 +134,17 @@ export default function ProviderDetailPage(): React.JSX.Element {
                       </div>
                     </div>
                   </div>
-                  {!isOwner && (
-                    <button
-                      onClick={() => { setSelectedService(null); setBookingOpen(true) }}
-                      className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-bold hover:bg-primary/90 transition-all active:scale-[0.97] shadow-sm cursor-pointer flex items-center gap-2"
-                    >
-                      <Calendar className="w-4 h-4" /> Book Now
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!isOwner && (
+                      <button
+                        onClick={() => { setSelectedService(null); setBookingOpen(true) }}
+                        className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-bold hover:bg-primary/90 transition-all active:scale-[0.97] shadow-sm cursor-pointer flex items-center gap-2"
+                      >
+                        <Calendar className="w-4 h-4" /> Book Now
+                      </button>
+                    )}
+                    <ReportButton targetType="provider" targetId={provider.id} variant="icon" />
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-3 text-label-sm text-outline">
                   {provider.location && <LocationLink location={provider.location} iconClassName="w-3.5 h-3.5" />}

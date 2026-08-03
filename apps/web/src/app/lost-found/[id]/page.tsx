@@ -13,6 +13,7 @@ import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/li
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { ReportButton } from '@/components/ReportButton'
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
@@ -132,6 +133,8 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                 <h1 className="font-headline text-headline-lg text-on-surface mt-1">{report.petName ?? report.species}</h1>
                 <p className="text-label-md text-on-surface-variant">{report.species}{report.breed ? ` · ${report.breed}` : ''}</p>
               </div>
+              {/* Reward-bait and hoax reports are a real pattern here. */}
+              <ReportButton targetType="lost_found_report" targetId={report.id} variant="icon" />
             </div>
 
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-label-sm text-on-surface-variant">

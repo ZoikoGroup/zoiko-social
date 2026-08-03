@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateProductInput, UpdateProductInput, EnquiryInput, ShopCategory, ShopSort } from './shop.schemas'
@@ -52,6 +53,7 @@ export class ShopService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private sellerInclude() {
@@ -167,6 +169,8 @@ export class ShopService {
   }
 
   async create(sellerId: string, input: CreateProductInput): Promise<ProductResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     const created = await this.prisma.product.create({
       data: {
         sellerId, title: input.title, priceCents: Math.round(input.price * 100),
@@ -192,6 +196,8 @@ export class ShopService {
   }
 
   async update(id: string, sellerId: string, input: UpdateProductInput): Promise<ProductResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     await this.assertSeller(id, sellerId)
     const updated = await this.prisma.product.update({
       where: { id },

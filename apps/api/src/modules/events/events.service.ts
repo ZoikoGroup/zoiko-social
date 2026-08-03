@@ -2,7 +2,9 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateEventInput, UpdateEventInput, RsvpInput, ShareLinkInput } from './events.schemas'
 
@@ -63,6 +65,8 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
+    private readonly affinity: AffinityService,
   ) {}
 
   /**
@@ -90,6 +94,29 @@ export class EventsService {
       select: { displayName: true },
     })
     return p?.displayName ?? 'Someone'
+  }
+
+  /**
+   * Feed an RSVP into the interest model.
+   *
+   * Never throws and never blocks the RSVP — a ranking signal is not worth
+   * failing a user action over.
+   */
+  private async recordRsvpInterest(eventId: string, userId: string): Promise<void> {
+    try {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { category: true, hostId: true },
+      })
+      if (!event) return
+      if (event.category) {
+        await this.affinity.recordInterest(userId, [event.category], AFFINITY_WEIGHTS.eventRsvp)
+      }
+      // Attending someone's event is also a signal about them.
+      await this.affinity.recordAuthor(userId, event.hostId, AFFINITY_WEIGHTS.eventRsvp)
+    } catch {
+      // Deliberately silent: AffinityService already logs its own failures.
+    }
   }
 
   /** Everyone who RSVP'd, so an update or cancellation reaches them. */
@@ -289,6 +316,10 @@ export class EventsService {
 
   /** Update an event — host only. */
   async update(id: string, userId: string, input: UpdateEventInput): Promise<EventResponse> {
+    this.profanity.assertCleanFields(
+      { title: input.title, description: input.description, venueName: input.venueName, location: input.location },
+      { actorId: userId, entityType: 'event' },
+    )
     const existing = await this.prisma.event.findUnique({
       where: { id },
       select: { hostId: true, isDeleted: true, inviteOnly: true },
@@ -431,6 +462,11 @@ export class EventsService {
   }
 
   async create(hostId: string, input: CreateEventInput): Promise<EventResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields(
+      { title: input.title, description: input.description, venueName: input.venueName, location: input.location },
+      { actorId: hostId, entityType: 'event' },
+    )
     const event = await this.prisma.$transaction(async (tx) => {
       const created = await tx.event.create({
         data: {
@@ -508,6 +544,10 @@ export class EventsService {
         throw new ConflictException({ code: 'EVENT_FULL', message: 'This event is full' })
       }
     }
+
+    // Turning up somewhere is a stronger statement of interest than a like, so
+    // the event's category and title words feed the ranking engine.
+    if (status === 'going') void this.recordRsvpInterest(eventId, userId)
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.eventRsvp.findUnique({ where: { eventId_userId: { eventId, userId } } })
