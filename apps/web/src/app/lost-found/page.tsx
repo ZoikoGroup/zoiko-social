@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { SafetyBanner } from '@/components/SafetyBanner'
+import { TagInput } from '@/components/TagInput'
 
 const TABS = [{ v: '', label: 'All' }, { v: 'lost', label: 'Lost' }, { v: 'found', label: 'Found' }]
 
@@ -303,6 +304,13 @@ function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <input type="date" value={form.lastSeenAt ?? ''} onChange={(e) => set('lastSeenAt', e.target.value)} className={`${input} mt-1`} />
           </label>
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Details that help identify the pet…" className={`${input} resize-none`} />
+
+          <TagInput
+            value={form.tags ?? []}
+            onChange={(tags) => set('tags', tags)}
+            placeholder="beagle, tricolour, collar…"
+            hint="Puts this report on those tag pages so more people see it."
+          />
           <div className="grid grid-cols-2 gap-3">
             <input value={form.contact ?? ''} onChange={(e) => set('contact', e.target.value)} maxLength={200} placeholder="Contact (phone / email)" className={input} />
             {form.kind === 'lost' && <input type="number" min={0} value={form.reward ?? ''} onChange={(e) => set('reward', e.target.value ? Number(e.target.value) : undefined)} placeholder="Reward ₹ (optional)" className={input} />}

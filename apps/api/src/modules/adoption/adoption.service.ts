@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
@@ -36,6 +37,7 @@ export interface ListingResponse {
   negotiable: boolean
   fee: number | null
   status: string
+  tags: string[]
   enquiriesCount: number
   createdAt: string
   viewerEnquiryStatus: string | null
@@ -70,7 +72,7 @@ export class AdoptionService {
       coverUrl: l.coverUrl, photos: l.photos,
       vaccinated: l.vaccinated, neutered: l.neutered, goodWith: l.goodWith,
       listingType: l.listingType, price: l.price, negotiable: l.negotiable, fee: l.fee,
-      status: l.status, enquiriesCount: l.enquiriesCount, createdAt: l.createdAt.toISOString(),
+      status: l.status, tags: l.tags, enquiriesCount: l.enquiriesCount, createdAt: l.createdAt.toISOString(),
       viewerEnquiryStatus,
     }
   }
@@ -94,7 +96,7 @@ export class AdoptionService {
 
   async browse(
     viewerId: string | undefined,
-    filters: { species?: string; status?: string; q?: string; listingType?: string; nearLat?: number; nearLng?: number },
+    filters: { species?: string; status?: string; q?: string; listingType?: string; nearLat?: number; nearLng?: number; tag?: string },
     cursor: string | null,
     limit = 15,
   ): Promise<ListingPage> {
@@ -108,6 +110,8 @@ export class AdoptionService {
       ...(filters.status ? { status: filters.status } : { status: { in: ['available', 'pending'] } }),
       ...(filters.species ? { species: { equals: filters.species, mode: 'insensitive' } } : {}),
       ...(filters.listingType ? { listingType: filters.listingType } : {}),
+        // Exact containment — normalised on write, so an index lookup.
+        ...(filters.tag ? { tags: { has: filters.tag } } : {}),
       ...(filters.q
         ? { OR: [
             { name: { contains: filters.q, mode: 'insensitive' } },
@@ -191,6 +195,7 @@ export class AdoptionService {
     const l = await this.prisma.adoptionPost.create({
       data: {
         posterId, name: input.name, species: input.species,
+        ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
         sex: input.sex ?? 'unknown',
         ...(input.breed ? { breed: input.breed } : {}),
         ...(input.age ? { age: input.age } : {}),
@@ -221,6 +226,7 @@ export class AdoptionService {
     const l = await this.prisma.adoptionPost.update({
       where: { id },
       data: {
+        ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.species !== undefined ? { species: input.species } : {}),
         ...(input.breed !== undefined ? { breed: input.breed || null } : {}),

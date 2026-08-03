@@ -8,6 +8,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { eventsApi, networkApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventInput, type FollowSuggestion } from '@/lib/api'
 import { uploadCommunityImage, uploadEventVideo } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { TagInput } from '@/components/TagInput'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 /** datetime-local value (local tz) from an ISO string. */
@@ -50,6 +51,7 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     event?.latitude != null && event?.longitude != null ? { lat: event.latitude, lng: event.longitude } : null,
   )
+  const [tags, setTags] = useState<string[]>(event?.tags ?? [])
   const [uploading, setUploading] = useState<'' | 'cover' | 'video'>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -107,6 +109,7 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
       longitude: !isOnline ? (coords?.lng ?? null) : null,
       // Only meaningful on create — an event does not change hands afterwards.
       ...(!editing && communityId ? { communityId } : {}),
+      tags,
     }
     try {
       let saved: EventItem
@@ -240,6 +243,13 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
             </div>
           )}
           <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="Capacity / max seats (optional)" className={inputCls} />
+
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            placeholder="meetup, training, beagle…"
+            hint="Puts this event on those tag pages alongside posts and adoptable pets."
+          />
 
           {error && <p className="text-label-sm text-red-500">{error}</p>}
         </div>

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
@@ -38,6 +39,7 @@ export interface ReportResponse {
   contact: string | null
   reward: number | null
   status: string
+  tags: string[]
   sightingsCount: number
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   /** Set when the reporter linked their own pet profile — enables both-way navigation. */
@@ -72,7 +74,7 @@ export class LostFoundService {
       description: r.description, lastSeenLocation: r.lastSeenLocation,
       lastSeenAt: r.lastSeenAt ? r.lastSeenAt.toISOString().slice(0, 10) : null,
       photoUrl: r.photoUrl, photoUrls: r.photoUrls, latitude: r.latitude, longitude: r.longitude, distanceKm,
-      contact: r.contact, reward: r.reward, status: r.status, sightingsCount: r.sightingsCount,
+      contact: r.contact, reward: r.reward, status: r.status, tags: r.tags, sightingsCount: r.sightingsCount,
       reporter: {
         id: r.reporter.id, username: r.reporter.username, displayName: r.reporter.displayName,
         avatarUrl: r.reporter.avatarUrl, isVerified: r.reporter.verificationTier === 'professional',
@@ -91,7 +93,7 @@ export class LostFoundService {
   }
 
   async browse(
-    filters: { kind?: string; status?: string; q?: string; species?: string; hasReward?: boolean; nearLat?: number; nearLng?: number },
+    filters: { kind?: string; status?: string; q?: string; species?: string; hasReward?: boolean; nearLat?: number; nearLng?: number; tag?: string },
     cursor: string | null,
     limit = 15,
   ): Promise<ReportPage> {
@@ -107,6 +109,8 @@ export class LostFoundService {
         ...(filters.status ? { status: filters.status } : { status: 'active' }),
         ...(filters.species ? { species: filters.species } : {}),
         ...(filters.hasReward ? { reward: { gt: 0 } } : {}),
+        // Exact containment — normalised on write, so an index lookup.
+        ...(filters.tag ? { tags: { has: filters.tag } } : {}),
         ...(filters.q
           ? { OR: [
               { petName: { contains: filters.q, mode: 'insensitive' } },
@@ -249,6 +253,7 @@ export class LostFoundService {
       data: {
         reporterId,
         kind: input.kind,
+        ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
         species: input.species || linked?.species || 'other',
         ...(linked ? { petId: linked.id } : {}),
         ...(petName ? { petName } : {}),
@@ -338,6 +343,7 @@ export class LostFoundService {
         ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
         ...(input.contact !== undefined ? { contact: input.contact || null } : {}),
         ...(input.reward !== undefined ? { reward: input.reward } : {}),
+        ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
       },
       include: this.include(),

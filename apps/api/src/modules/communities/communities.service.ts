@@ -237,7 +237,7 @@ export class CommunitiesService {
 
   async browse(
     viewerId: string | undefined,
-    opts: { q?: string; category?: string; sort?: string; cursor?: string | null; limit?: number },
+    opts: { q?: string; category?: string; sort?: string; cursor?: string | null; limit?: number; tag?: string },
   ): Promise<CommunityPage> {
     const take = Math.min(opts.limit ?? 18, MAX_PAGE)
     const q = opts.q?.trim().toLowerCase()
@@ -273,6 +273,9 @@ export class CommunitiesService {
       where: {
         isDeleted: false,
         ...(opts.category ? { category: { slug: opts.category } } : {}),
+        // communities.tags predates the shared tag system but uses the same
+        // shape, so the unified tag page can query it directly.
+        ...(opts.tag ? { tags: { has: opts.tag } } : {}),
         ...(decoded && opts.sort === 'newest'
           ? {
               OR: [

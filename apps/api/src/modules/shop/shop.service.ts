@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
@@ -23,6 +24,7 @@ export interface ProductResponse {
   shipping: string | null
   location: string | null
   status: string
+  tags: string[]
   savesCount: number
   enquiriesCount: number
   createdAt: string
@@ -46,6 +48,8 @@ interface BrowseFilters {
   condition?: string
   q?: string
   sort?: ShopSort
+  /** Normalised tag; exact containment against the GIN-indexed array. */
+  tag?: string
 }
 
 @Injectable()
@@ -71,7 +75,7 @@ export class ShopService {
       price: p.priceCents / 100, compareAt: p.compareCents !== null ? p.compareCents / 100 : null,
       currency: p.currency, category: p.category, condition: p.condition,
       coverUrl: p.coverUrl, photos: p.photos, stock: p.stock, inStock: p.stock > 0,
-      shipping: p.shipping, location: p.location, status: p.status,
+      shipping: p.shipping, location: p.location, status: p.status, tags: p.tags,
       savesCount: p.savesCount, enquiriesCount: p.enquiriesCount,
       createdAt: p.createdAt.toISOString(), viewerSaved: saved,
     }
@@ -92,6 +96,7 @@ export class ShopService {
       hiddenAt: null,
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.condition ? { condition: filters.condition } : {}),
+      ...(filters.tag ? { tags: { has: filters.tag } } : {}),
       ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: 'insensitive' } }, { description: { contains: filters.q, mode: 'insensitive' } }] } : {}),
     }
 
@@ -174,6 +179,7 @@ export class ShopService {
     const created = await this.prisma.product.create({
       data: {
         sellerId, title: input.title, priceCents: Math.round(input.price * 100),
+        ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
         category: input.category ?? 'accessories', condition: input.condition ?? 'new',
         stock: input.stock ?? 1,
         ...(input.compareAt !== undefined ? { compareCents: Math.round(input.compareAt * 100) } : {}),
@@ -202,6 +208,7 @@ export class ShopService {
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
+        ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.price !== undefined ? { priceCents: Math.round(input.price * 100) } : {}),

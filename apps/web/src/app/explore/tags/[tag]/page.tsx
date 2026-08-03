@@ -6,7 +6,15 @@ import { ChevronLeft, Hash } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { PostGrid } from '@/components/feed/PostGrid'
-import { hashtagsApi, ApiError, type PostItem } from '@/lib/api'
+import { hashtagsApi, ApiError, type PostItem, type TagEverything } from '@/lib/api'
+import { TagSections } from '@/components/TagSections'
+
+/** Whether any non-post section has something, so an empty state stays honest. */
+function hasOtherResults(e: TagEverything | null): boolean {
+  if (!e) return false
+  return e.adoption.length > 0 || e.lostFound.length > 0 || e.events.length > 0
+    || e.products.length > 0 || e.communities.length > 0
+}
 
 export default function HashtagPage({ params }: { params: Promise<{ tag: string }> }): React.JSX.Element {
   const { tag } = use(params)
@@ -17,6 +25,17 @@ export default function HashtagPage({ params }: { params: Promise<{ tag: string 
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [everything, setEverything] = useState<TagEverything | null>(null)
+
+  // The non-post sections load independently: a tag with no posts can still
+  // have an adoptable dog behind it, so one empty result must not hide the rest.
+  useEffect(() => {
+    let cancelled = false
+    hashtagsApi.everything(decodedTag)
+      .then((e) => { if (!cancelled) setEverything(e) })
+      .catch(() => { /* sections simply don't render */ })
+    return () => { cancelled = true }
+  }, [decodedTag])
 
   useEffect(() => {
     let cancelled = false
@@ -68,13 +87,22 @@ export default function HashtagPage({ params }: { params: Promise<{ tag: string 
             </div>
           </div>
 
-          {notFound ? (
+          {/* Pets first: someone on a breed tag is usually looking for an
+              animal, not for people talking about one. */}
+          <TagSections tag={decodedTag} data={everything} />
+
+          {notFound && !hasOtherResults(everything) ? (
             <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
-              <p className="text-label-md font-semibold text-on-surface">No posts with this hashtag yet</p>
-              <p className="text-label-sm text-outline mt-1">Be the first — use #{decodedTag} in a post.</p>
+              <p className="text-label-md font-semibold text-on-surface">Nothing tagged #{decodedTag} yet</p>
+              <p className="text-label-sm text-outline mt-1">
+                Use it in a post, an adoption listing or an event to start it off.
+              </p>
             </div>
-          ) : (
-            <PostGrid posts={posts} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
+          ) : notFound ? null : (
+            <div className="mt-6">
+              <h2 className="font-headline text-headline-sm text-on-surface mb-3">Posts</h2>
+              <PostGrid posts={posts} loading={loading} hasMore={hasMore} onLoadMore={loadMore} />
+            </div>
           )}
         </div>
       </main>

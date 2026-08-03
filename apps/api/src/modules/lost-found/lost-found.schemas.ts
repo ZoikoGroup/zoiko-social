@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 export const CreateReportSchema = z.object({
   kind: z.enum(['lost', 'found']),
+  /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+  tags: z.array(z.string().trim().max(40)).max(10).optional(),
   /**
    * The reporter's own pet. Anything the form leaves blank is filled from that
    * profile (breed, colour, microchip, photo), because nobody remembers a

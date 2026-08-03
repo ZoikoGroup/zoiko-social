@@ -7,6 +7,8 @@ export const SHOP_SORTS = ['newest', 'price-low', 'price-high', 'popular'] as co
 export type ShopSort = (typeof SHOP_SORTS)[number]
 
 export const CreateProductSchema = z.object({
+  /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+  tags: z.array(z.string().trim().max(40)).max(10).optional(),
   title: z.string().trim().min(3).max(160),
   description: z.string().trim().max(4000).optional(),
   price: z.number().min(0).max(100000),
@@ -22,6 +24,8 @@ export const CreateProductSchema = z.object({
 })
 
 export const UpdateProductSchema = z.object({
+  /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+  tags: z.array(z.string().trim().max(40)).max(10).optional(),
   title: z.string().trim().min(3).max(160).optional(),
   description: z.string().trim().max(4000).optional(),
   price: z.number().min(0).max(100000).optional(),

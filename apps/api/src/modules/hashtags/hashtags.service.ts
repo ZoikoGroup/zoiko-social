@@ -5,6 +5,34 @@ import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
 import { decodeCursor } from '../common/utils/cursor-pagination'
 import { AffinityService } from '../personalization/affinity.service'
+import { AdoptionService, type ListingResponse } from '../adoption/adoption.service'
+import { EventsService, type EventResponse } from '../events/events.service'
+import { LostFoundService, type ReportResponse } from '../lost-found/lost-found.service'
+import { ShopService, type ProductResponse } from '../shop/shop.service'
+import { CommunitiesService, type CommunityCard } from '../communities/communities.service'
+import { normalizeTag } from '../common/utils/tags'
+
+/**
+ * Everything carrying one tag, across every entity type that can carry tags.
+ *
+ * A tag used to reach posts and stories only, so #beagle found people talking
+ * about beagles and never the beagle up for adoption, the beagle meetup or the
+ * beagle someone was looking for. Each section is fetched through the owning
+ * service so its visibility rules apply unchanged — this endpoint widens
+ * discovery, it does not widen access.
+ */
+export interface TagEverythingResult {
+  tag: string
+  postsCount: number
+  adoption: ListingResponse[]
+  lostFound: ReportResponse[]
+  events: EventResponse[]
+  products: ProductResponse[]
+  communities: CommunityCard[]
+}
+
+/** Enough to show a section is worth opening, few enough to stay one screen. */
+const SECTION_LIMIT = 6
 
 export interface StoryByTagItem {
   id: string
@@ -37,7 +65,45 @@ export class HashtagsService {
     private readonly redis: RedisService,
     private readonly postsService: PostsService,
     private readonly affinity: AffinityService,
+    private readonly adoptionService: AdoptionService,
+    private readonly eventsService: EventsService,
+    private readonly lostFoundService: LostFoundService,
+    private readonly shopService: ShopService,
+    private readonly communitiesService: CommunitiesService,
   ) {}
+
+  /**
+   * The non-post half of a tag page.
+   *
+   * Kept separate from postsByTag so the existing paginated post grid is
+   * untouched: this returns a small preview of each other section, and each
+   * section links through to its own filtered browse page.
+   */
+  async everythingByTag(tag: string, viewerId?: string): Promise<TagEverythingResult> {
+    const normalized = normalizeTag(tag) ?? ''
+    if (!normalized) {
+      return { tag: '', postsCount: 0, adoption: [], lostFound: [], events: [], products: [], communities: [] }
+    }
+
+    const [hashtag, adoption, lostFound, events, products, communities] = await Promise.all([
+      this.prisma.hashtag.findUnique({ where: { tag: normalized }, select: { postsCount: true } }),
+      this.adoptionService.browse(viewerId, { tag: normalized }, null, SECTION_LIMIT),
+      this.lostFoundService.browse({ tag: normalized }, null, SECTION_LIMIT),
+      this.eventsService.list(viewerId, null, SECTION_LIMIT, { tag: normalized }),
+      this.shopService.browse({ tag: normalized }, viewerId, null, SECTION_LIMIT),
+      this.communitiesService.browse(viewerId, { tag: normalized, limit: SECTION_LIMIT }),
+    ])
+
+    return {
+      tag: normalized,
+      postsCount: hashtag?.postsCount ?? 0,
+      adoption: adoption.data,
+      lostFound: lostFound.data,
+      events: events.data,
+      products: products.data,
+      communities: communities.data,
+    }
+  }
 
   async trending(): Promise<{ tag: string; postsCount: number }[]> {
     const top = await this.redis.trendTop(10)

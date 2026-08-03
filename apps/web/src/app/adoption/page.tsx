@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { SafetyBanner } from '@/components/SafetyBanner'
+import { TagInput } from '@/components/TagInput'
 
 const SPECIES = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
 
@@ -298,6 +299,13 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           )}
 
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={3000} rows={3} placeholder="Tell adopters / buyers about this pet…" className={`${input} resize-none`} />
+
+          <TagInput
+            value={form.tags ?? []}
+            onChange={(tags) => set('tags', tags)}
+            placeholder="beagle, rescue, puppy…"
+            hint="Puts this listing on those tag pages, so someone browsing #beagle finds it."
+          />
           <div className="flex flex-wrap gap-2">
             <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}Vaccinated</button>
             <button onClick={() => set('neutered', !form.neutered)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.neutered ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.neutered && <Check className="w-3.5 h-3.5" />}Neutered</button>

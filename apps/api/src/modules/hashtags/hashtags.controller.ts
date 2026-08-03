@@ -29,6 +29,17 @@ export class HashtagsController {
     return { data: result }
   }
 
+  /**
+   * Everything else carrying this tag — adoption listings, lost & found reports,
+   * events, products and communities. Posts and stories keep their own
+   * paginated routes; this is the preview that makes a tag page whole.
+   */
+  @Get(':tag/everything')
+  @UseGuards(OptionalAuthGuard)
+  async everything(@Param('tag') tag: string, @CurrentUser() user?: AuthenticatedUser) {
+    return { data: await this.hashtagsService.everythingByTag(tag, user?.id) }
+  }
+
   @Get(':tag/posts')
   @UseGuards(OptionalAuthGuard)
   async posts(

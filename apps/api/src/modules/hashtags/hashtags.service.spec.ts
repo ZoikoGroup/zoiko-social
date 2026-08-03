@@ -3,6 +3,13 @@ import type { PrismaService } from '../prisma/prisma.service'
 import type { RedisService } from '../redis/redis.service'
 import type { PostsService } from '../posts/posts.service'
 import type { AffinityService } from '../personalization/affinity.service'
+import type { AdoptionService } from '../adoption/adoption.service'
+import type { EventsService } from '../events/events.service'
+import type { LostFoundService } from '../lost-found/lost-found.service'
+import type { ShopService } from '../shop/shop.service'
+import type { CommunitiesService } from '../communities/communities.service'
+
+const emptyPage = { data: [], nextCursor: null, hasMore: false }
 
 const VIEWER = 'viewer-1'
 
@@ -10,10 +17,13 @@ function build(overrides: {
   topTags?: string[]
   hashtagRows?: { tag: string; postsCount: number }[]
   trendingRows?: { tag: string; postsCount: number }[]
+  postsCount?: number
+  sections?: Partial<Record<'adoption' | 'lostFound' | 'events' | 'products' | 'communities', unknown[]>>
 } = {}) {
   const prisma = {
     hashtag: {
       findMany: jest.fn().mockResolvedValue(overrides.hashtagRows ?? []),
+      findUnique: jest.fn().mockResolvedValue(overrides.postsCount !== undefined ? { postsCount: overrides.postsCount } : null),
     },
   }
   const redis = {
@@ -23,13 +33,28 @@ function build(overrides: {
     getTopTags: jest.fn().mockResolvedValue(overrides.topTags ?? []),
   }
 
+  const page = (rows?: unknown[]) => ({ ...emptyPage, data: rows ?? [] })
+  const adoptionService = { browse: jest.fn().mockResolvedValue(page(overrides.sections?.adoption)) }
+  const eventsService = { list: jest.fn().mockResolvedValue(page(overrides.sections?.events)) }
+  const lostFoundService = { browse: jest.fn().mockResolvedValue(page(overrides.sections?.lostFound)) }
+  const shopService = { browse: jest.fn().mockResolvedValue(page(overrides.sections?.products)) }
+  const communitiesService = { browse: jest.fn().mockResolvedValue(page(overrides.sections?.communities)) }
+
   const service = new HashtagsService(
     prisma as unknown as PrismaService,
     redis as unknown as RedisService,
     {} as unknown as PostsService,
     affinity as unknown as AffinityService,
+    adoptionService as unknown as AdoptionService,
+    eventsService as unknown as EventsService,
+    lostFoundService as unknown as LostFoundService,
+    shopService as unknown as ShopService,
+    communitiesService as unknown as CommunitiesService,
   )
-  return { service, prisma, redis, affinity }
+  return {
+    service, prisma, redis, affinity,
+    adoptionService, eventsService, lostFoundService, shopService, communitiesService,
+  }
 }
 
 describe('HashtagsService.forYou', () => {
@@ -114,5 +139,82 @@ describe('HashtagsService.forYou', () => {
     await service.forYou(VIEWER, 6)
 
     expect(affinity.getTopTags).toHaveBeenCalledWith(VIEWER, 6)
+  })
+})
+
+describe('HashtagsService.everythingByTag', () => {
+  it('normalises the tag before querying, so #Beagle and beagle agree', async () => {
+    // Tags are stored normalised, so an un-normalised lookup would silently
+    // return nothing rather than erroring — the worst kind of bug here.
+    const { service, adoptionService, eventsService, lostFoundService, shopService, communitiesService } = build()
+
+    const result = await service.everythingByTag('#Beagle', VIEWER)
+
+    expect(result.tag).toBe('beagle')
+    expect(adoptionService.browse).toHaveBeenCalledWith(VIEWER, { tag: 'beagle' }, null, 6)
+    expect(lostFoundService.browse).toHaveBeenCalledWith({ tag: 'beagle' }, null, 6)
+    expect(eventsService.list).toHaveBeenCalledWith(VIEWER, null, 6, { tag: 'beagle' })
+    expect(shopService.browse).toHaveBeenCalledWith({ tag: 'beagle' }, VIEWER, null, 6)
+    expect(communitiesService.browse).toHaveBeenCalledWith(VIEWER, { tag: 'beagle', limit: 6 })
+  })
+
+  it('passes the viewer through so each section keeps its own visibility rules', async () => {
+    // This endpoint widens discovery, not access: an invite-only event or a
+    // private listing must stay hidden exactly as it would elsewhere.
+    const { service, eventsService, adoptionService } = build()
+
+    await service.everythingByTag('beagle', VIEWER)
+
+    expect(eventsService.list.mock.calls[0]![0]).toBe(VIEWER)
+    expect(adoptionService.browse.mock.calls[0]![0]).toBe(VIEWER)
+  })
+
+  it('works for an anonymous viewer', async () => {
+    const { service, eventsService } = build()
+
+    await service.everythingByTag('beagle')
+
+    expect(eventsService.list.mock.calls[0]![0]).toBeUndefined()
+  })
+
+  it('returns an empty shell for a tag that normalises to nothing', async () => {
+    // '###' would otherwise become a lookup for the empty string, which the GIN
+    // index would happily run against every row.
+    const { service, adoptionService } = build()
+
+    const result = await service.everythingByTag('###')
+
+    expect(result).toEqual({
+      tag: '', postsCount: 0, adoption: [], lostFound: [], events: [], products: [], communities: [],
+    })
+    expect(adoptionService.browse).not.toHaveBeenCalled()
+  })
+
+  it('collects each section into its own field', async () => {
+    const { service } = build({
+      postsCount: 12,
+      sections: {
+        adoption: [{ id: 'a1' }],
+        lostFound: [{ id: 'l1' }, { id: 'l2' }],
+        events: [{ id: 'e1' }],
+        products: [{ id: 'p1' }],
+        communities: [{ id: 'c1' }],
+      },
+    })
+
+    const result = await service.everythingByTag('beagle', VIEWER)
+
+    expect(result.postsCount).toBe(12)
+    expect(result.adoption).toHaveLength(1)
+    expect(result.lostFound).toHaveLength(2)
+    expect(result.events).toHaveLength(1)
+    expect(result.products).toHaveLength(1)
+    expect(result.communities).toHaveLength(1)
+  })
+
+  it('reports zero posts for a tag with no hashtag row rather than failing', async () => {
+    const { service } = build()
+    const result = await service.everythingByTag('nothinghere', VIEWER)
+    expect(result.postsCount).toBe(0)
   })
 })

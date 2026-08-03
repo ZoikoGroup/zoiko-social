@@ -544,6 +544,8 @@ model Event {
   shareToken  String?     @unique @map("share_token")   // opaque share-link token
   shareLinkExtendsInvites Boolean @default(false) @map("share_link_extends_invites")
   isDeleted   Boolean     @default(false) @map("is_deleted")
+  /** Normalised, lowercase, no leading "#". See supabase/migrations/060. */
+  tags           String[] @default([])
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
@@ -616,6 +618,8 @@ model AdoptionPost {
   status         String   @default("available")  // available | pending | adopted | withdrawn
   enquiriesCount Int      @default(0) @map("enquiries_count")
   isDeleted      Boolean  @default(false) @map("is_deleted")
+  /** Normalised, lowercase, no leading "#". See supabase/migrations/060. */
+  tags           String[] @default([])
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -891,6 +895,8 @@ model LostFoundPost {
   status           String    @default("active")        // active | reunited | closed
   sightingsCount   Int       @default(0) @map("sightings_count")
   isDeleted        Boolean   @default(false) @map("is_deleted")
+  /** Normalised, lowercase, no leading "#". See supabase/migrations/060. */
+  tags           String[] @default([])
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
@@ -2393,6 +2399,8 @@ model Product {
   savesCount     Int      @default(0) @map("saves_count")
   enquiriesCount Int      @default(0) @map("enquiries_count")
   isDeleted      Boolean  @default(false) @map("is_deleted")
+  /** Normalised, lowercase, no leading "#". See supabase/migrations/060. */
+  tags           String[] @default([])
   hiddenAt       DateTime? @map("hidden_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

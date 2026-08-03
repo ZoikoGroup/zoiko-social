@@ -9,6 +9,8 @@ export const EVENT_CATEGORIES = [
 export const CreateEventSchema = z
   .object({
     title: z.string().trim().min(1).max(120),
+    /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+    tags: z.array(z.string().trim().max(40)).max(10).optional(),
     description: z.string().trim().max(2000).optional(),
     location: z.string().trim().max(200).optional(),
     venueName: z.string().trim().max(160).optional(),
@@ -44,6 +46,7 @@ export const CreateEventSchema = z
 // Editable fields (host only). All optional; startsAt/endsAt validated when present.
 export const UpdateEventSchema = z
   .object({
+    tags: z.array(z.string().trim().max(40)).max(10).optional(),
     title: z.string().trim().min(1).max(120).optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     location: z.string().trim().max(200).nullable().optional(),

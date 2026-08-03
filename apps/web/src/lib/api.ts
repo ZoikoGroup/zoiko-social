@@ -627,6 +627,7 @@ export interface EventItem {
   startsAt: string
   endsAt: string | null
   goingCount: number
+  tags: string[]
   viewerInvited: boolean
   viewerGoing: boolean
   /** Set when a community hosts this event. */
@@ -641,6 +642,7 @@ export type EventInput = {
   isOnline?: boolean; visibility?: 'public' | 'followers'; inviteOnly?: boolean; invitees?: string[]
   /** Host on behalf of a community you own or administer. */
   communityId?: string
+  tags?: string[]
   shareLinkExtendsInvites?: boolean
   coverUrl?: string | null; videoUrl?: string | null; category?: string | null; isFree?: boolean; price?: string | null
   bookingUrl?: string | null; capacity?: number | null; latitude?: number | null; longitude?: number | null
@@ -739,6 +741,7 @@ export interface AdoptionListing {
   negotiable: boolean
   fee: number | null
   status: string
+  tags: string[]
   enquiriesCount: number
   createdAt: string
   viewerEnquiryStatus: string | null
@@ -763,6 +766,7 @@ export interface NewListing {
   description?: string; location?: string; latitude?: number; longitude?: number; coverUrl?: string; photos?: string[]
   vaccinated?: boolean; neutered?: boolean; goodWith?: string[]
   listingType?: 'adopt' | 'sale'; price?: number; negotiable?: boolean; fee?: number
+  tags?: string[]
 }
 
 export const adoptionApi = {
@@ -901,6 +905,7 @@ export interface LostFoundReport {
   contact: string | null
   reward: number | null
   status: string
+  tags: string[]
   sightingsCount: number
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   /** Present when the reporter linked their own pet profile. */
@@ -923,6 +928,7 @@ export interface NewReport {
   kind: 'lost' | 'found'; petName?: string; species: string; breed?: string
   /** Your own pet — blank fields are filled from its profile. */
   petId?: string
+  tags?: string[]
   age?: string; color?: string; sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
   microchipId?: string; collar?: string; neutered?: boolean; vaccinated?: boolean
   description?: string; lastSeenLocation?: string; lastSeenAt?: string
@@ -1034,6 +1040,7 @@ export interface Product {
   shipping: string | null
   location: string | null
   status: string
+  tags: string[]
   savesCount: number
   enquiriesCount: number
   createdAt: string
@@ -1652,9 +1659,29 @@ export const mentionsApi = {
   },
 }
 
+/**
+ * A tag page's non-post sections. Each is a small preview — the section header
+ * links through to that feature's own filtered browse view.
+ */
+export interface TagEverything {
+  tag: string
+  postsCount: number
+  adoption: AdoptionListing[]
+  lostFound: LostFoundReport[]
+  events: EventItem[]
+  products: Product[]
+  communities: CommunityCard[]
+}
+
 // Re-export under hashtagsApi for story tag browsing
 export const hashtagsApi = {
   trending: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/trending', 60_000),
+  /**
+   * Everything else carrying this tag. Posts keep their own paginated call; this
+   * is what turns a tag page from "posts about beagles" into "beagles".
+   */
+  everything: (tag: string) =>
+    cachedGet<TagEverything>(`/hashtags/${encodeURIComponent(tag)}/everything`, 30_000),
   /** Personalized "Topics for you" rail — top tags by the viewer's affinity. */
   forYou: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/for-you', 60_000),
   search: (q: string) => cachedGet<{ tag: string; postsCount: number }[]>(`/hashtags/search?q=${encodeURIComponent(q)}`, 30_000),

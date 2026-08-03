@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
@@ -34,6 +35,7 @@ export interface EventResponse {
   startsAt: string
   endsAt: string | null
   goingCount: number
+  tags: string[]
   viewerGoing: boolean
   viewerInvited: boolean
   /** Set when a community hosts this event. */
@@ -177,7 +179,7 @@ export class EventsService {
       seatsLeft: e.capacity !== null ? Math.max(0, e.capacity - e.goingCount) : null,
       latitude: e.latitude, longitude: e.longitude, distanceKm,
       startsAt: e.startsAt.toISOString(), endsAt: e.endsAt ? e.endsAt.toISOString() : null,
-      goingCount: e.goingCount, viewerGoing: going, viewerInvited: invited,
+      goingCount: e.goingCount, tags: e.tags, viewerGoing: going, viewerInvited: invited,
       community: e.community ? { id: e.community.id, slug: e.community.slug, name: e.community.name } : null,
     }
   }
@@ -225,7 +227,7 @@ export class EventsService {
     viewerId: string | undefined,
     cursor: string | null,
     limit = 15,
-    filters: { category?: string; isFree?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number; communityId?: string; hostId?: string } = {},
+    filters: { category?: string; isFree?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number; communityId?: string; hostId?: string; tag?: string } = {},
   ): Promise<EventPage> {
     const take = Math.min(limit, MAX)
     if (filters.nearLat !== undefined && filters.nearLng !== undefined) {
@@ -253,6 +255,7 @@ export class EventsService {
         // The visibility OR-gate below still applies, so a stranger sees only
         // what they were already entitled to see.
         ...(filters.hostId ? { hostId: filters.hostId } : {}),
+        ...(filters.tag ? { tags: { has: filters.tag } } : {}),
         ...(filters.q ? { title: { contains: filters.q, mode: 'insensitive' } } : {}),
         AND: [
           ...(mine ? [] : [{ OR: this.visibilityWhere(viewerId) }]),
@@ -361,6 +364,7 @@ export class EventsService {
     if (existing.hostId !== userId) throw new ForbiddenException({ code: 'NOT_HOST', message: 'Only the host can edit this event' })
 
     const data: Prisma.EventUpdateInput = {}
+    if (input.tags !== undefined) data.tags = normalizeTags(input.tags)
     if (input.title !== undefined) data.title = input.title
     if (input.description !== undefined) data.description = input.description
     if (input.location !== undefined) data.location = input.location
@@ -513,6 +517,7 @@ export class EventsService {
           isFree: input.isFree ?? true,
           visibility: input.visibility ?? 'public',
           inviteOnly: input.inviteOnly ?? false,
+          ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
           ...(input.communityId ? { communityId: input.communityId } : {}),
           shareToken: randomUUID(),
           shareLinkExtendsInvites: input.shareLinkExtendsInvites ?? false,
