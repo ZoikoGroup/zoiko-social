@@ -7,7 +7,10 @@ import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateReportInput, UpdateReportInput, SightingInput } from './lost-found.schemas'
 
 type Row = Prisma.LostFoundPostGetPayload<{
-  include: { reporter: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: {
+    reporter: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    pet: { select: { id: true; name: true; avatarUrl: true } }
+  }
 }>
 
 export interface ReportResponse {
@@ -37,6 +40,8 @@ export interface ReportResponse {
   status: string
   sightingsCount: number
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /** Set when the reporter linked their own pet profile — enables both-way navigation. */
+  pet: { id: string; name: string; avatarUrl: string | null } | null
   createdAt: string
 }
 
@@ -53,7 +58,10 @@ export class LostFoundService {
   ) {}
 
   private include() {
-    return { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return {
+      reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      pet: { select: { id: true, name: true, avatarUrl: true } },
+    }
   }
 
   private map(r: Row, distanceKm: number | null = null): ReportResponse {
@@ -69,6 +77,7 @@ export class LostFoundService {
         id: r.reporter.id, username: r.reporter.username, displayName: r.reporter.displayName,
         avatarUrl: r.reporter.avatarUrl, isVerified: r.reporter.verificationTier === 'professional',
       },
+      pet: r.pet ? { id: r.pet.id, name: r.pet.name, avatarUrl: r.pet.avatarUrl } : null,
       createdAt: r.createdAt.toISOString(),
     }
   }
@@ -217,23 +226,45 @@ export class LostFoundService {
   async create(reporterId: string, input: CreateReportInput): Promise<ReportResponse> {
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, color: input.color, collar: input.collar, description: input.description, lastSeenLocation: input.lastSeenLocation }, { actorId: reporterId, entityType: 'lost_found_report' })
+
+    // Reporting your own pet: fill anything the form left blank from the pet
+    // profile, so a member in a panic doesn't have to remember the microchip
+    // number. Ownership is checked — a pet id you don't own is simply dropped
+    // rather than rejected, since the report itself is still worth filing.
+    const linked = input.petId ? await this.loadOwnedPet(reporterId, input.petId) : null
+
+    // What the form sent always wins; the pet profile only fills the gaps.
+    const fromPet = <T>(supplied: T | undefined, fallback: T | null | undefined): T | undefined =>
+      supplied !== undefined && supplied !== null ? supplied : (fallback ?? undefined)
+
+    const petName = fromPet(input.petName, linked?.name)
+    const breed = fromPet(input.breed, linked?.breed)
+    const color = fromPet(input.color, linked?.color)
+    const sex = fromPet(input.sex, linked?.sex)
+    const microchipId = fromPet(input.microchipId, linked?.microchipId)
+    const photoUrl = fromPet(input.photoUrl, linked?.avatarUrl)
+    const neutered = fromPet(input.neutered, linked?.neutered)
+
     const r = await this.prisma.lostFoundPost.create({
       data: {
-        reporterId, kind: input.kind, species: input.species,
-        ...(input.petName ? { petName: input.petName } : {}),
-        ...(input.breed ? { breed: input.breed } : {}),
+        reporterId,
+        kind: input.kind,
+        species: input.species || linked?.species || 'other',
+        ...(linked ? { petId: linked.id } : {}),
+        ...(petName ? { petName } : {}),
+        ...(breed ? { breed } : {}),
         ...(input.age ? { age: input.age } : {}),
-        ...(input.color ? { color: input.color } : {}),
-        ...(input.sex ? { sex: input.sex } : {}),
+        ...(color ? { color } : {}),
+        ...(sex ? { sex } : {}),
         ...(input.size ? { size: input.size } : {}),
-        ...(input.microchipId ? { microchipId: input.microchipId } : {}),
+        ...(microchipId ? { microchipId } : {}),
         ...(input.collar ? { collar: input.collar } : {}),
-        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(neutered !== undefined ? { neutered } : {}),
         ...(input.vaccinated !== undefined ? { vaccinated: input.vaccinated } : {}),
         ...(input.description ? { description: input.description } : {}),
         ...(input.lastSeenLocation ? { lastSeenLocation: input.lastSeenLocation } : {}),
         ...(input.lastSeenAt ? { lastSeenAt: new Date(input.lastSeenAt) } : {}),
-        ...(input.photoUrl ? { photoUrl: input.photoUrl } : {}),
+        ...(photoUrl ? { photoUrl } : {}),
         ...(input.photoUrls ? { photoUrls: input.photoUrls } : {}),
         ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
         ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
@@ -243,6 +274,41 @@ export class LostFoundService {
       include: this.include(),
     })
     return this.map(r)
+  }
+
+  /**
+   * Open reports the owner has filed about one of their own pets.
+   *
+   * Scoped to the caller's pets so this cannot be used to discover whether
+   * someone else's animal is missing.
+   */
+  async activeForPet(ownerId: string, petId: string): Promise<ReportResponse[]> {
+    const pet = await this.loadOwnedPet(ownerId, petId)
+    if (!pet) return []
+    const rows = await this.prisma.lostFoundPost.findMany({
+      where: { petId, isDeleted: false, status: 'active' },
+      orderBy: { createdAt: 'desc' },
+      include: this.include(),
+    })
+    return rows.map((r) => this.map(r))
+  }
+
+  /**
+   * The reporter's own pet, or null.
+   *
+   * Returns null rather than throwing for a pet that isn't theirs: the point of
+   * the id is convenience, and refusing to file a missing-pet report over a bad
+   * id would be the wrong trade. It also means the id can't be used to read
+   * other people's pet details.
+   */
+  private async loadOwnedPet(ownerId: string, petId: string) {
+    return this.prisma.pet.findFirst({
+      where: { id: petId, ownerId },
+      select: {
+        id: true, name: true, species: true, breed: true, color: true,
+        sex: true, microchipId: true, avatarUrl: true, neutered: true,
+      },
+    })
   }
 
   async update(id: string, userId: string, input: UpdateReportInput): Promise<ReportResponse> {
@@ -301,7 +367,14 @@ export class LostFoundService {
 
     const sighting = await this.prisma.$transaction(async (tx) => {
       const s = await tx.lostFoundSighting.create({
-        data: { postId, reporterId, ...(input.message ? { message: input.message } : {}), ...(input.location ? { location: input.location } : {}) },
+        data: {
+          postId,
+          reporterId,
+          ...(input.message ? { message: input.message } : {}),
+          ...(input.location ? { location: input.location } : {}),
+          ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+          ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
+        },
       })
       await tx.lostFoundPost.update({ where: { id: postId }, data: { sightingsCount: { increment: 1 } } })
       return s
@@ -320,15 +393,33 @@ export class LostFoundService {
 
   async listSightings(postId: string): Promise<Array<{
     id: string; message: string | null; location: string | null; createdAt: string
+    latitude: number | null; longitude: number | null; distanceKm: number | null
     reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   }>> {
-    const sightings = await this.prisma.lostFoundSighting.findMany({
-      where: { postId },
-      orderBy: { createdAt: 'desc' },
-      include: { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
-    })
+    const [post, sightings] = await Promise.all([
+      this.prisma.lostFoundPost.findUnique({
+        where: { id: postId },
+        select: { latitude: true, longitude: true },
+      }),
+      this.prisma.lostFoundSighting.findMany({
+        where: { postId },
+        orderBy: { createdAt: 'desc' },
+        include: { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      }),
+    ])
+
+    // Distance from where the animal was last seen — the number that tells you
+    // whether it is drifting in one direction or circling.
+    const origin = post?.latitude !== null && post?.latitude !== undefined && post.longitude !== null
+      ? { lat: post.latitude, lng: post.longitude }
+      : null
+
     return sightings.map((s) => ({
       id: s.id, message: s.message, location: s.location, createdAt: s.createdAt.toISOString(),
+      latitude: s.latitude, longitude: s.longitude,
+      distanceKm: origin && s.latitude !== null && s.longitude !== null
+        ? Math.round(LostFoundService.haversineKm(origin.lat, origin.lng, s.latitude, s.longitude) * 10) / 10
+        : null,
       reporter: {
         id: s.reporter.id, username: s.reporter.username, displayName: s.reporter.displayName,
         avatarUrl: s.reporter.avatarUrl, isVerified: s.reporter.verificationTier === 'professional',

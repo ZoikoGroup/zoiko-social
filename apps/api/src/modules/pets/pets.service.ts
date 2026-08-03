@@ -30,6 +30,8 @@ export interface HealthRecordResponse {
   attachments: string[]
   recordDate: string | null
   nextDue: string | null
+  /** The clinic that wrote this record, when it came from a booking. */
+  provider: { id: string; name: string } | null
   createdAt: string
 }
 
@@ -224,6 +226,7 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return records.map((r) => this.mapHealth(r))
   }
@@ -238,6 +241,7 @@ export class PetsService {
         ...(input.recordDate ? { recordDate: new Date(input.recordDate) } : {}),
         ...(input.nextDue ? { nextDue: new Date(input.nextDue) } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -256,6 +260,7 @@ export class PetsService {
         ...(input.recordDate !== undefined ? { recordDate: input.recordDate ? new Date(input.recordDate) : null } : {}),
         ...(input.nextDue !== undefined ? { nextDue: input.nextDue ? new Date(input.nextDue) : null } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -265,13 +270,21 @@ export class PetsService {
     await this.prisma.petHealthRecord.deleteMany({ where: { id: recordId, petId, ownerId } })
   }
 
-  private mapHealth(r: Prisma.PetHealthRecordGetPayload<Record<string, never>>): HealthRecordResponse {
+  private mapHealth(
+    r: Prisma.PetHealthRecordGetPayload<{ include: { provider: { select: { id: true; name: true } } } }>,
+  ): HealthRecordResponse {
     return {
       id: r.id, petId: r.petId, type: r.type, title: r.title, notes: r.notes, attachments: r.attachments,
       recordDate: r.recordDate ? r.recordDate.toISOString().slice(0, 10) : null,
       nextDue: r.nextDue ? r.nextDue.toISOString().slice(0, 10) : null,
+      provider: r.provider ? { id: r.provider.id, name: r.provider.name } : null,
       createdAt: r.createdAt.toISOString(),
     }
+  }
+
+  /** Health records always carry their clinic, so the UI can link back to it. */
+  private healthInclude() {
+    return { provider: { select: { id: true, name: true } } }
   }
 
   // ── PUBLIC SHARE (vet card) ─────────────────────────────────────────────────
@@ -305,6 +318,7 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId: pet.id },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return {
       pet: {

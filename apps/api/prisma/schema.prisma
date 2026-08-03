@@ -468,6 +468,7 @@ model Pet {
   healthRecords PetHealthRecord[]
   vetBookings  PetCareBooking[]
   breedingProfiles BreedingProfile[]
+  lostFoundPosts   LostFoundPost[]
 
   @@index([ownerId, createdAt(sort: Desc)])
   @@map("pets")
@@ -500,13 +501,18 @@ model PetHealthRecord {
   title      String
   notes      String?
   attachments String[] @default([])
+  // The clinic that wrote this record, when it came from a booking. Previously
+  // only its name existed, inside the title string.
+  providerId String?   @map("provider_id")
   recordDate DateTime? @map("record_date") @db.Date
   nextDue    DateTime? @map("next_due") @db.Date
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet      Pet              @relation(fields: [petId], references: [id], onDelete: Cascade)
+  provider ServiceProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
 
   @@index([petId, recordDate(sort: Desc)])
+  @@index([providerId])
   @@map("pet_health_records")
 }
 
@@ -531,6 +537,9 @@ model Event {
   startsAt    DateTime    @map("starts_at")
   endsAt      DateTime?   @map("ends_at")
   goingCount  Int         @default(0) @map("going_count")
+  // Set when a community hosts the event, so it can surface on the community
+  // page and reach members. See supabase/migrations/059.
+  communityId String?     @map("community_id")
   inviteOnly  Boolean     @default(false) @map("invite_only")
   shareToken  String?     @unique @map("share_token")   // opaque share-link token
   shareLinkExtendsInvites Boolean @default(false) @map("share_link_extends_invites")
@@ -538,13 +547,15 @@ model Event {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  host    Profile       @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  host      Profile     @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  community Community?  @relation(fields: [communityId], references: [id], onDelete: SetNull)
   rsvps   EventRsvp[]
   invites EventInvite[]
 
   @@index([startsAt])
   @@index([hostId, startsAt])
   @@index([inviteOnly, startsAt])
+  @@index([communityId, startsAt])
   @@map("events")
 }
 
@@ -693,6 +704,7 @@ model ServiceProvider {
   bookings     PetCareBooking[]
   teamMembers  ProviderTeamMember[]
   verifiedBreedingProfiles BreedingProfile[]
+  healthRecords            PetHealthRecord[]
 
   @@index([category, rating(sort: Desc)])
   @@index([category, createdAt(sort: Desc)])
@@ -854,6 +866,7 @@ model ProviderReview {
 model LostFoundPost {
   id               String    @id @default(uuid())
   reporterId       String    @map("reporter_id")
+  petId            String?   @map("pet_id")
   kind             String                              // lost | found
   petName          String?   @map("pet_name")
   species          String
@@ -882,6 +895,10 @@ model LostFoundPost {
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   reporter  Profile             @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  // Optional: set when the reporter is reporting their OWN pet, which lets the
+  // form prefill from the profile and the profile show an active alert.
+  // SetNull so removing a pet profile never removes the missing-pet report.
+  pet       Pet?                @relation(fields: [petId], references: [id], onDelete: SetNull)
   sightings LostFoundSighting[]
 
   @@index([kind, status, createdAt(sort: Desc)])
@@ -895,6 +912,8 @@ model LostFoundSighting {
   reporterId String   @map("reporter_id")
   message    String?
   location   String?
+  latitude   Float?
+  longitude  Float?
   createdAt  DateTime @default(now()) @map("created_at")
 
   post     LostFoundPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -1912,6 +1931,7 @@ model Community {
   pins     CommunityPostPin[]
   reports  CommunityReport[]
   posts    Post[]
+  events   Event[]
 
   @@index([categoryId])
   @@index([membersCount(sort: Desc)])

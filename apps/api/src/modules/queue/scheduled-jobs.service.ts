@@ -35,6 +35,34 @@ export const ACCOUNT_PURGE_QUEUE = 'account-purge'
 export const POST_VIEW_CLEANUP_QUEUE = 'post-view-cleanup'
 export const AFFINITY_DECAY_QUEUE = 'affinity-decay'
 export const EVENT_REMINDER_QUEUE = 'event-reminders'
+export const HEALTH_REMINDER_QUEUE = 'health-reminders'
+
+export interface HealthReminderWindow {
+  from: Date
+  to: Date
+  lead: 'week' | 'today'
+}
+
+/**
+ * The day-wide buckets the health reminder job looks in.
+ *
+ * Exported and pure so the boundaries can be tested directly: getting these
+ * wrong means either double-notifying people or silently missing a due date,
+ * and neither is visible from the outside until someone complains.
+ */
+export function healthReminderWindows(now = new Date()): HealthReminderWindow[] {
+  const startOfToday = new Date(now)
+  startOfToday.setHours(0, 0, 0, 0)
+  const day = 24 * 3_600_000
+  return [
+    {
+      from: new Date(startOfToday.getTime() + 7 * day),
+      to: new Date(startOfToday.getTime() + 8 * day),
+      lead: 'week',
+    },
+    { from: startOfToday, to: new Date(startOfToday.getTime() + day), lead: 'today' },
+  ]
+}
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
@@ -65,8 +93,9 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     const postViewConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const affinityConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const eventReminderConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const healthReminderConn = this.redis.createConnection({ maxRetriesPerRequest: null })
 
-    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn || !eventReminderConn) {
+    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn || !eventReminderConn || !healthReminderConn) {
       this.logger.warn('Redis unavailable — scheduled jobs disabled')
       return
     }
@@ -77,6 +106,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     this.setupPostViewCleanup(postViewConn)
     this.setupAffinityDecay(affinityConn)
     this.setupEventReminders(eventReminderConn)
+    this.setupHealthReminders(healthReminderConn)
 
     this.logger.log('Scheduled jobs initialised')
   }
@@ -473,6 +503,104 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
       }
     }
     this.logger.log(`Event reminders complete: ${sent} reminder(s) for ${events.length} event(s)`)
+  }
+
+  // ── 10. Pet health reminders (daily) ───────────────────────────────────
+
+  private setupHealthReminders(connection: Redis): void {
+    const queue = new Queue(HEALTH_REMINDER_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    queue.add(
+      'health.reminders',
+      {},
+      {
+        repeat: { pattern: '0 8 * * *' }, // Daily at 08:00
+        jobId: 'health-reminders',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register health reminder repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      HEALTH_REMINDER_QUEUE,
+      async () => {
+        await this.runHealthReminders()
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+
+    worker.on('completed', (job) => {
+      this.logger.log(`Health reminders completed (job ${job.id})`)
+    })
+    worker.on('failed', (job, err) => {
+      this.logger.error(`Health reminders failed (job ${job?.id}): ${err.message}`)
+    })
+
+    this.queues.set(HEALTH_REMINDER_QUEUE, queue)
+    this.workers.set(HEALTH_REMINDER_QUEUE, worker)
+  }
+
+  /**
+   * Remind owners about vaccinations, medications and check-ups coming due.
+   *
+   * `PetHealthRecord.nextDue` has always been captured — the Health Passport
+   * even counts overdue items — but nothing ever told the owner, so a booster
+   * date could pass in silence. On a platform about animal welfare that was the
+   * most useful message we weren't sending.
+   *
+   * Fires twice per record: a week ahead, then on the day. Each run covers a
+   * single day-wide window, so a record lands in exactly one bucket per run and
+   * needs no "already reminded" bookkeeping — the same trick the event reminder
+   * uses. A date more than a week out is not yet actionable; one already past is
+   * left alone, because a daily nag about a vaccination someone has decided to
+   * skip is how people turn notifications off.
+   */
+  private async runHealthReminders(): Promise<void> {
+    const windows = healthReminderWindows()
+
+    let sent = 0
+    for (const w of windows) {
+      const records = await this.prisma.petHealthRecord.findMany({
+        where: { nextDue: { gte: w.from, lt: w.to } },
+        select: {
+          id: true,
+          ownerId: true,
+          petId: true,
+          type: true,
+          title: true,
+          nextDue: true,
+          pet: { select: { name: true } },
+        },
+      })
+
+      for (const r of records) {
+        const petName = r.pet?.name ?? 'your pet'
+        const when = w.lead === 'today' ? 'today' : 'in a week'
+        await this.notifications.enqueue({
+          userId: r.ownerId,
+          // Distinct types so a member can mute check-up nudges without losing
+          // medication reminders, once notification preferences are per-type.
+          type: r.type === 'medication' ? 'medication_due' : 'health_due',
+          title: w.lead === 'today' ? 'Due today' : 'Due next week',
+          body: `${r.title} for ${petName} is due ${when}`,
+          data: {
+            petId: r.petId,
+            recordId: r.id,
+            recordType: r.type,
+            dueDate: r.nextDue?.toISOString().slice(0, 10) ?? null,
+          },
+        })
+        sent += 1
+      }
+    }
+
+    this.logger.log(`Health reminders complete: ${sent} reminder(s) sent`)
   }
 
   /**

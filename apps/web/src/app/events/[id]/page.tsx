@@ -248,6 +248,17 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   <p className="text-label-md font-semibold text-on-surface group-hover:text-primary transition-colors">{ev.host.displayName}</p>
                 </div>
               </Link>
+              {/* A community-hosted event should say so, and lead back there —
+                  that's usually the reason someone is interested in it. */}
+              {ev.community && (
+                <Link
+                  href={`/c/${ev.community.slug}`}
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-label-sm font-semibold hover:bg-primary/15 transition-colors"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  {ev.community.name}
+                </Link>
+              )}
             </div>
           </div>
 

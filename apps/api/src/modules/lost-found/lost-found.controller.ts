@@ -39,6 +39,19 @@ export class LostFoundController {
     return { data: await this.lostFound.browse(filters, cursor ?? null, limit ? parseInt(limit, 10) : 15) }
   }
 
+  /**
+   * Active reports for one of the caller's pets.
+   *
+   * Lets the pet profile show "reported missing" instead of the owner having to
+   * remember whether they filed a report. Declared before the `:id` route so the
+   * literal segment wins.
+   */
+  @Get('for-pet/:petId')
+  @UseGuards(JwtAuthGuard)
+  async forPet(@CurrentUser() user: AuthenticatedUser, @Param('petId') petId: string) {
+    return { data: await this.lostFound.activeForPet(user.id, petId) }
+  }
+
   @Get(':id')
   async get(@Param('id') id: string) {
     return { data: await this.lostFound.get(id) }

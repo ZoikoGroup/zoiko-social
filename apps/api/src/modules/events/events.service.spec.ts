@@ -8,6 +8,7 @@ import type { AffinityService } from '../personalization/affinity.service'
 const HOST = 'host-1'
 const GUEST = 'guest-1'
 const STRANGER = 'stranger-1'
+const COMMUNITY = '0f14d0ab-9605-4a62-a9e4-5ed26688389b'
 
 /** Minimal event row shape the service maps (only the fields it reads). */
 function eventRow(overrides: Record<string, unknown> = {}) {
@@ -56,6 +57,8 @@ function build(overrides: {
   invites?: { userId: string; status: string; createdAt: Date }[]
   profiles?: { id: string; state: string }[]
   attendees?: { userId: string }[]
+  /** The caller's membership of the community they claim to host for. */
+  membership?: { role: string; status: string } | null
 } = {}) {
   const prisma = {
     event: {
@@ -118,6 +121,11 @@ function build(overrides: {
     },
     follow: {
       findFirst: jest.fn().mockResolvedValue(null),
+    },
+    communityMember: {
+      findUnique: jest.fn().mockResolvedValue(
+        overrides.membership === undefined ? null : overrides.membership,
+      ),
     },
     $transaction: jest.fn().mockImplementation((fn: (tx: unknown) => unknown) => fn(prisma)),
   }
@@ -767,5 +775,56 @@ describe('EventsService interest signals', () => {
     await flushAsync()
 
     expect(result.going).toBe(true)
+  })
+})
+
+describe('EventsService — hosting for a community', () => {
+  it('lets a community admin host in the community\'s name', async () => {
+    const { service } = build({ event: { hostId: HOST }, membership: { role: 'admin', status: 'active' } })
+
+    await expect(
+      service.create(HOST, { title: 'Rescue meet', startsAt: '2026-09-01T10:00:00.000Z', communityId: COMMUNITY }),
+    ).resolves.toMatchObject({ id: 'evt-1' })
+  })
+
+  it('refuses a plain member — attaching an event to a community is a claim of authority', async () => {
+    // Without this check anyone could put their event on any community's page.
+    const { service } = build({ event: { hostId: HOST }, membership: { role: 'member', status: 'active' } })
+
+    await expect(
+      service.create(GUEST, { title: 'Not mine', startsAt: '2026-09-01T10:00:00.000Z', communityId: COMMUNITY }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_COMMUNITY_ADMIN' } })
+  })
+
+  it('refuses a moderator — muting members is not the same as speaking publicly', async () => {
+    const { service } = build({ event: { hostId: HOST }, membership: { role: 'moderator', status: 'active' } })
+
+    await expect(
+      service.create(GUEST, { title: 'Nope', startsAt: '2026-09-01T10:00:00.000Z', communityId: COMMUNITY }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_COMMUNITY_ADMIN' } })
+  })
+
+  it('refuses an admin whose membership is not active (banned or pending)', async () => {
+    const { service } = build({ event: { hostId: HOST }, membership: { role: 'admin', status: 'banned' } })
+
+    await expect(
+      service.create(GUEST, { title: 'Nope', startsAt: '2026-09-01T10:00:00.000Z', communityId: COMMUNITY }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_COMMUNITY_ADMIN' } })
+  })
+
+  it('refuses a non-member', async () => {
+    const { service } = build({ event: { hostId: HOST }, membership: null })
+
+    await expect(
+      service.create(STRANGER, { title: 'Nope', startsAt: '2026-09-01T10:00:00.000Z', communityId: COMMUNITY }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_COMMUNITY_ADMIN' } })
+  })
+
+  it('skips the check entirely for a personal event', async () => {
+    const { service, prisma } = build({ event: { hostId: HOST } })
+
+    await service.create(HOST, { title: 'My event', startsAt: '2026-09-01T10:00:00.000Z' })
+
+    expect(prisma.communityMember.findUnique).not.toHaveBeenCalled()
   })
 })

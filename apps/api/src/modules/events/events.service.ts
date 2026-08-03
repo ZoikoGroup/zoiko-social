@@ -36,6 +36,8 @@ export interface EventResponse {
   goingCount: number
   viewerGoing: boolean
   viewerInvited: boolean
+  /** Set when a community hosts this event. */
+  community: { id: string; slug: string; name: string } | null
 }
 
 export interface InviteeItem {
@@ -55,7 +57,10 @@ export interface EventPage {
 }
 
 type EventRow = Prisma.EventGetPayload<{
-  include: { host: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: {
+    host: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    community: { select: { id: true; slug: true; name: true } }
+  }
 }>
 
 const MAX = 30
@@ -119,6 +124,25 @@ export class EventsService {
     }
   }
 
+  /**
+   * Only a community's owner or admin may host an event in its name.
+   *
+   * Moderators are excluded on purpose: muting a member and speaking for the
+   * community in public are different levels of authority.
+   */
+  private async assertCanHostForCommunity(userId: string, communityId: string): Promise<void> {
+    const membership = await this.prisma.communityMember.findUnique({
+      where: { communityId_userId: { communityId, userId } },
+      select: { role: true, status: true },
+    })
+    if (membership?.status !== 'active' || !['owner', 'admin'].includes(membership.role)) {
+      throw new ForbiddenException({
+        code: 'NOT_COMMUNITY_ADMIN',
+        message: 'Only a community owner or admin can host an event for it',
+      })
+    }
+  }
+
   /** Everyone who RSVP'd, so an update or cancellation reaches them. */
   private async attendeeIds(eventId: string): Promise<string[]> {
     const rows = await this.prisma.eventRsvp.findMany({
@@ -129,7 +153,10 @@ export class EventsService {
   }
 
   private hostInclude() {
-    return { host: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return {
+      host: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      community: { select: { id: true, slug: true, name: true } },
+    }
   }
 
   private map(e: EventRow, going: boolean, distanceKm: number | null = null, invited = false): EventResponse {
@@ -151,6 +178,7 @@ export class EventsService {
       latitude: e.latitude, longitude: e.longitude, distanceKm,
       startsAt: e.startsAt.toISOString(), endsAt: e.endsAt ? e.endsAt.toISOString() : null,
       goingCount: e.goingCount, viewerGoing: going, viewerInvited: invited,
+      community: e.community ? { id: e.community.id, slug: e.community.slug, name: e.community.name } : null,
     }
   }
 
@@ -197,7 +225,7 @@ export class EventsService {
     viewerId: string | undefined,
     cursor: string | null,
     limit = 15,
-    filters: { category?: string; isFree?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number } = {},
+    filters: { category?: string; isFree?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number; communityId?: string; hostId?: string } = {},
   ): Promise<EventPage> {
     const take = Math.min(limit, MAX)
     if (filters.nearLat !== undefined && filters.nearLng !== undefined) {
@@ -220,6 +248,11 @@ export class EventsService {
         ...(mine ? { hostId: viewerId } : filters.past ? { startsAt: { lt: now } } : { startsAt: { gte: now } }),
         ...(filters.category ? { category: filters.category } : {}),
         ...(filters.isFree !== undefined ? { isFree: filters.isFree } : {}),
+        ...(filters.communityId ? { communityId: filters.communityId } : {}),
+        // Events hosted by one person — powers the Events tab on a profile.
+        // The visibility OR-gate below still applies, so a stranger sees only
+        // what they were already entitled to see.
+        ...(filters.hostId ? { hostId: filters.hostId } : {}),
         ...(filters.q ? { title: { contains: filters.q, mode: 'insensitive' } } : {}),
         AND: [
           ...(mine ? [] : [{ OR: this.visibilityWhere(viewerId) }]),
@@ -467,6 +500,11 @@ export class EventsService {
       { title: input.title, description: input.description, venueName: input.venueName, location: input.location },
       { actorId: hostId, entityType: 'event' },
     )
+
+    // Hosting for a community is a claim about authority, so it is verified
+    // rather than trusted: without this anyone could attach their event to any
+    // community and have it appear on that community's page.
+    if (input.communityId) await this.assertCanHostForCommunity(hostId, input.communityId)
     const event = await this.prisma.$transaction(async (tx) => {
       const created = await tx.event.create({
         data: {
@@ -475,6 +513,7 @@ export class EventsService {
           isFree: input.isFree ?? true,
           visibility: input.visibility ?? 'public',
           inviteOnly: input.inviteOnly ?? false,
+          ...(input.communityId ? { communityId: input.communityId } : {}),
           shareToken: randomUUID(),
           shareLinkExtendsInvites: input.shareLinkExtendsInvites ?? false,
           ...(input.description ? { description: input.description } : {}),

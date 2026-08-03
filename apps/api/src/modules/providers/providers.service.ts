@@ -863,6 +863,9 @@ export class ProvidersService {
           notes,
           recordDate: new Date(),
           nextDue: followUpAt,
+          // Keep the clinic as a real reference, not just a name inside the
+          // title, so the owner can navigate back to it later.
+          providerId: b.providerId,
         },
       })
       void this.notifications.enqueue({

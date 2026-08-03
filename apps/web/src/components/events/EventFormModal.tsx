@@ -18,8 +18,13 @@ function toLocalInput(iso: string | null): string {
 }
 
 /** Create (no `event`) or edit (with `event`) an event in one modal. */
-export function EventFormModal({ event, onClose, onSaved }: {
+export function EventFormModal({ event, communityId, onClose, onSaved }: {
   event?: EventItem | null
+  /**
+   * Host on behalf of a community. Set when the form is opened from a community
+   * page; the API independently checks the caller owns or administers it.
+   */
+  communityId?: string
   onClose: () => void
   onSaved: (e: EventItem) => void
 }): React.JSX.Element {
@@ -100,6 +105,8 @@ export function EventFormModal({ event, onClose, onSaved }: {
       location: !isOnline ? (location.trim() || null) : null,
       latitude: !isOnline ? (coords?.lat ?? null) : null,
       longitude: !isOnline ? (coords?.lng ?? null) : null,
+      // Only meaningful on create — an event does not change hands afterwards.
+      ...(!editing && communityId ? { communityId } : {}),
     }
     try {
       let saved: EventItem

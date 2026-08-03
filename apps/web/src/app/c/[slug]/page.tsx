@@ -15,8 +15,9 @@ import { communitiesApi, ApiError, type Community } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
 import { ReportButton } from '@/components/ReportButton'
+import { CommunityEvents } from '@/components/communities/CommunityEvents'
 
-type Tab = 'posts' | 'about' | 'members'
+type Tab = 'posts' | 'events' | 'about' | 'members'
 
 const PRIVACY_ICON = { public: Globe, private: Lock, invite_only: Mail } as const
 
@@ -176,7 +177,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
               {/* Tabs */}
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm mb-gutter">
                 <div className="flex">
-                  {(['posts', 'about', 'members'] as Tab[]).map((t) => (
+                  {(['posts', 'events', 'about', 'members'] as Tab[]).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
@@ -204,6 +205,20 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                   </section>
                 ) : (
                   <CommunityFeed communityId={community.id} isMember={isMember} />
+                )
+              )}
+
+              {/* Communities can now host events, so they belong on the
+                  community page rather than only in the global events list. */}
+              {tab === 'events' && (
+                isPrivateLocked ? (
+                  <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
+                    <Lock className="w-8 h-8 text-outline mx-auto mb-3" />
+                    <p className="text-label-md font-semibold text-on-surface">Events are private</p>
+                    <p className="text-label-sm text-outline mt-1">Join to see what&apos;s on.</p>
+                  </section>
+                ) : (
+                  <CommunityEvents communityId={community.id} canHost={!!canManage} communityName={community.name} />
                 )
               )}
 

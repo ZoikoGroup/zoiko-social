@@ -530,6 +530,8 @@ export interface HealthRecord {
   attachments: string[]
   recordDate: string | null
   nextDue: string | null
+  /** The clinic that wrote this record, when it came from a booking. */
+  provider: { id: string; name: string } | null
   createdAt: string
 }
 
@@ -627,14 +629,18 @@ export interface EventItem {
   goingCount: number
   viewerInvited: boolean
   viewerGoing: boolean
+  /** Set when a community hosts this event. */
+  community: { id: string; slug: string; name: string } | null
 }
 export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
 
-export interface EventFilters { category?: string; free?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number }
+export interface EventFilters { category?: string; free?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number; communityId?: string; hostId?: string }
 export interface EventAttendee { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 export type EventInput = {
   title?: string; description?: string | null; location?: string | null; venueName?: string | null
   isOnline?: boolean; visibility?: 'public' | 'followers'; inviteOnly?: boolean; invitees?: string[]
+  /** Host on behalf of a community you own or administer. */
+  communityId?: string
   shareLinkExtendsInvites?: boolean
   coverUrl?: string | null; videoUrl?: string | null; category?: string | null; isFree?: boolean; price?: string | null
   bookingUrl?: string | null; capacity?: number | null; latitude?: number | null; longitude?: number | null
@@ -661,6 +667,8 @@ function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): s
   if (f.mine) p.set('mine', '1')
   if (f.past) p.set('past', '1')
   if (f.nearLat !== undefined && f.nearLng !== undefined) { p.set('nearLat', String(f.nearLat)); p.set('nearLng', String(f.nearLng)) }
+  if (f.communityId) p.set('communityId', f.communityId)
+  if (f.hostId) p.set('hostId', f.hostId)
   return p.toString()
 }
 
@@ -895,18 +903,26 @@ export interface LostFoundReport {
   status: string
   sightingsCount: number
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /** Present when the reporter linked their own pet profile. */
+  pet: { id: string; name: string; avatarUrl: string | null } | null
   createdAt: string
 }
 export interface LostFoundSighting {
   id: string
   message: string | null
   location: string | null
+  latitude: number | null
+  longitude: number | null
+  /** Straight-line distance from where the animal was last seen. */
+  distanceKm: number | null
   createdAt: string
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 }
 export interface LostFoundPage { data: LostFoundReport[]; nextCursor: string | null; hasMore: boolean }
 export interface NewReport {
   kind: 'lost' | 'found'; petName?: string; species: string; breed?: string
+  /** Your own pet — blank fields are filled from its profile. */
+  petId?: string
   age?: string; color?: string; sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
   microchipId?: string; collar?: string; neutered?: boolean; vaccinated?: boolean
   description?: string; lastSeenLocation?: string; lastSeenAt?: string
@@ -935,8 +951,14 @@ export const lostFoundApi = {
     mutate<LostFoundReport>(`/lost-found/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/lost-found/${id}`, { method: 'DELETE' }),
   sightings: (id: string) => request<LostFoundSighting[]>(`/lost-found/${id}/sightings`),
-  addSighting: (id: string, input: { message?: string; location?: string }) =>
+  addSighting: (id: string, input: { message?: string; location?: string; latitude?: number; longitude?: number }) =>
     mutate<{ id: string }>(`/lost-found/${id}/sightings`, { method: 'POST', body: JSON.stringify(input) }),
+  /**
+   * Open reports the signed-in owner has filed about one of their own pets, so
+   * the pet profile can show a "reported missing" banner rather than the owner
+   * having to remember.
+   */
+  forPet: (petId: string) => request<LostFoundReport[]>(`/lost-found/for-pet/${petId}`),
 }
 
 export interface NewsArticle {

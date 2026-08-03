@@ -24,6 +24,8 @@ export class EventsController {
     @Query('past') past?: string,
     @Query('nearLat') nearLat?: string,
     @Query('nearLng') nearLng?: string,
+    @Query('communityId') communityId?: string,
+    @Query('hostId') hostId?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const lat = nearLat !== undefined ? Number(nearLat) : NaN
@@ -35,6 +37,9 @@ export class EventsController {
       ...(mine === '1' || mine === 'true' ? { mine: true } : {}),
       ...(past === '1' || past === 'true' ? { past: true } : {}),
       ...(Number.isFinite(lat) && Number.isFinite(lng) ? { nearLat: lat, nearLng: lng } : {}),
+      // Powers the Events tab on a community page.
+      ...(communityId && communityId.trim() ? { communityId: communityId.trim() } : {}),
+      ...(hostId && hostId.trim() ? { hostId: hostId.trim() } : {}),
     }
     return { data: await this.eventsService.list(user?.id, cursor ?? null, limit ? parseInt(limit, 10) : 15, filters) }
   }

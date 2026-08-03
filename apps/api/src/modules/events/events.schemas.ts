@@ -12,6 +12,11 @@ export const CreateEventSchema = z
     description: z.string().trim().max(2000).optional(),
     location: z.string().trim().max(200).optional(),
     venueName: z.string().trim().max(160).optional(),
+    /**
+     * Host on behalf of a community. Only its owner or an admin may do this —
+     * checked in the service, since a schema cannot know the caller's role.
+     */
+    communityId: z.string().uuid().optional(),
     visibility: z.enum(['public', 'followers']).optional(),
     inviteOnly: z.boolean().optional(),
     /** Whether people who join via the share link are added to the invite list. */

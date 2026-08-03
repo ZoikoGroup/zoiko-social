@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link2, Calendar, AtSign, Briefcase, FileText, PawPrint, Bookmark, Grid3X3, Images } from 'lucide-react'
-import { profileApi, feedApi, type Profile, type PostItem, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import Link from 'next/link'
+import { profileApi, feedApi, petsApi, eventsApi, type Profile, type PostItem, type Pet, type EventItem, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import { ageOf } from '@/lib/pet'
 import { useAuth } from '@/hooks/use-auth'
 import { PostGrid } from './feed/PostGrid'
 
-type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets'
+type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events'
 
 function EmptyState({ Icon, title, hint }: { Icon: typeof FileText; title: string; hint: string }): React.JSX.Element {
   return (
@@ -169,8 +171,10 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
     { id: 'posts', label: 'Posts', Icon: Grid3X3 },
     { id: 'media', label: 'Media', Icon: Images },
     ...(isOwn ? [{ id: 'saved' as Tab, label: 'Saved', Icon: Bookmark }] : []),
-    { id: 'about', label: 'About', Icon: FileText },
     { id: 'pets', label: 'Pets', Icon: PawPrint },
+    // What someone organises says as much about them as what they post.
+    { id: 'events', label: 'Events', Icon: Calendar },
+    { id: 'about', label: 'About', Icon: FileText },
   ]
 
   return (
@@ -218,9 +222,147 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
         />
       )}
       {active === 'about' && <AboutTab profile={profile} />}
-      {active === 'pets' && (
-        <EmptyState Icon={PawPrint} title="No pets added yet" hint="Pet profiles with diary and health passport will appear here." />
-      )}
+      {/* This tab used to render a hardcoded empty state — it never listed a
+          single pet, however many the member had. */}
+      {active === 'pets' && <PetsTab profileId={targetId} isOwn={isOwn} />}
+      {active === 'events' && <EventsTab profileId={targetId} isOwn={isOwn} />}
+    </div>
+  )
+}
+
+// ── Pets ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The member's pets.
+ *
+ * `byProfile` already applies each pet's `isPublic` flag, so a private pet stays
+ * hidden from other people without any filtering here.
+ */
+function PetsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const [pets, setPets] = useState<Pet[] | null>(null)
+
+  useEffect(() => {
+    if (!profileId) return
+    let cancelled = false
+    const load = isOwn ? petsApi.mine() : petsApi.byProfile(profileId)
+    load.then((p) => { if (!cancelled) setPets(p) }).catch(() => { if (!cancelled) setPets([]) })
+    return () => { cancelled = true }
+  }, [profileId, isOwn])
+
+  if (pets === null) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-40 rounded-xl bg-surface-container animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (pets.length === 0) {
+    return (
+      <EmptyState
+        Icon={PawPrint}
+        title="No pets added yet"
+        hint={isOwn
+          ? 'Add a pet to start a diary and a Health Passport for them.'
+          : 'Pet profiles will appear here once added.'}
+      />
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+      {pets.map((pet) => (
+        <Link
+          key={pet.id}
+          href={isOwn ? '/health-passport' : `/profile/${pet.ownerId}`}
+          className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:border-primary/40 transition-colors group"
+        >
+          <div className="aspect-square bg-surface-container flex items-center justify-center overflow-hidden">
+            {pet.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={pet.avatarUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+            ) : <PawPrint className="w-7 h-7 text-outline" />}
+          </div>
+          <div className="p-3">
+            <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{pet.name}</p>
+            <p className="text-[11px] text-outline truncate capitalize">
+              {[pet.breed, ageOf(pet.birthdate)].filter(Boolean).join(' · ') || pet.species}
+            </p>
+          </div>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+
+/**
+ * Upcoming events this member is hosting.
+ *
+ * Filtered server-side by host, and the list's normal visibility gate still
+ * applies — a follower-only or invite-only event does not become visible just
+ * because it is listed on a profile.
+ */
+function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const [events, setEvents] = useState<EventItem[] | null>(null)
+
+  useEffect(() => {
+    if (!profileId) return
+    let cancelled = false
+    eventsApi.upcoming(null, 20, { hostId: profileId })
+      .then((p) => { if (!cancelled) setEvents(p.data) })
+      .catch(() => { if (!cancelled) setEvents([]) })
+    return () => { cancelled = true }
+  }, [profileId])
+
+  if (events === null) {
+    return (
+      <div className="space-y-2">
+        {[0, 1].map((i) => <div key={i} className="h-16 rounded-xl bg-surface-container animate-pulse" />)}
+      </div>
+    )
+  }
+
+  if (events.length === 0) {
+    return (
+      <EmptyState
+        Icon={Calendar}
+        title="No upcoming events"
+        hint={isOwn ? 'Events you host will show up here.' : 'Events this member hosts will show up here.'}
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {events.map((e) => {
+        const when = new Date(e.startsAt)
+        return (
+          <Link
+            key={e.id}
+            href={`/events/${e.id}`}
+            className="flex items-center gap-3 p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/30 hover:border-primary/40 transition-colors"
+          >
+            <div className="w-12 h-12 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
+              <span className="text-[10px] font-bold uppercase text-primary leading-none">
+                {when.toLocaleDateString('en-GB', { month: 'short' })}
+              </span>
+              <span className="text-label-md font-bold text-primary leading-tight">{when.getDate()}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-label-sm font-semibold text-on-surface truncate">{e.title}</p>
+              <p className="text-[11px] text-outline truncate">
+                {when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                {e.community ? ` · ${e.community.name}` : ''}
+                {e.isOnline ? ' · Online' : e.venueName ? ` · ${e.venueName}` : ''}
+              </p>
+            </div>
+          </Link>
+        )
+      })}
     </div>
   )
 }
