@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common'
 import { SearchService } from './search.service'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 
@@ -9,8 +9,14 @@ function parseLimit(limit: string | undefined, fallback = 20): number {
   return Number.isFinite(n) && n > 0 ? n : fallback
 }
 
+/**
+ * Search serves signed-out visitors too. Every handler already treats the viewer
+ * as optional and every service method takes `viewerId: string | undefined` — the
+ * viewer only ever narrows results (blocks, mutes, private accounts), so its
+ * absence widens nothing it shouldn't.
+ */
 @Controller('search')
-@UseGuards(JwtAuthGuard)
+@UseGuards(OptionalAuthGuard)
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
