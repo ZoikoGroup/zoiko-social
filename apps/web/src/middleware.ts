@@ -20,6 +20,7 @@ const PROTECTED_ROUTES = [
   '/settings',
   '/lost-found',
   '/vet-finder',
+  '/onboarding',
 ]
 
 // Auth pages — redirect to app if already signed in

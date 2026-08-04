@@ -205,3 +205,165 @@ describe('ProfileService.purgeAccount', () => {
     expect(auditLog.record).not.toHaveBeenCalled()
   })
 })
+
+// ── ONBOARDING ──────────────────────────────────────────────────────────────
+// A new OAuth account arrives already wearing a username the signup trigger
+// derived from its email address, and a name the provider gave us as one string.
+// These cover the two things that makes tricky: suggesting a handle worth
+// choosing, and renaming without spending the 30-day cooldown.
+
+const RECORD = {
+  id: USER_ID,
+  username: 'someone',
+  displayName: '',
+  firstName: null as string | null,
+  lastName: null as string | null,
+  bio: null as string | null,
+  avatarUrl: null as string | null,
+  bannerUrl: null,
+  websiteUrl: null,
+  state: 'active',
+  role: 'user',
+  verificationTier: 'none',
+  isPrivate: false,
+  followersCount: 0,
+  followingCount: 0,
+  postsCount: 0,
+  trustScore: 100,
+  currency: null,
+  usernameChangedAt: null as Date | null,
+  onboardingCompletedAt: null as Date | null,
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+  professionalProfile: null,
+}
+
+function buildOnboarding(
+  opts: { onboardedAt?: Date | null; usernameTaken?: boolean; takenSuggestions?: string[] } = {},
+) {
+  const ctx = build()
+  const p = ctx.prisma.profile as unknown as Record<string, jest.Mock>
+
+  // Arg-aware: an { id } lookup is "who is this", a { username } lookup is
+  // "is this handle free".
+  p.findUnique = jest.fn(({ where }: { where: Record<string, unknown> }) =>
+    Promise.resolve(
+      'username' in where
+        ? opts.usernameTaken
+          ? { id: 'someone-else' }
+          : null
+        : { ...RECORD, onboardingCompletedAt: opts.onboardedAt ?? null },
+    ),
+  )
+  p.findMany = jest
+    .fn()
+    .mockResolvedValue((opts.takenSuggestions ?? []).map((username) => ({ username })))
+  p.update = jest.fn(({ data }: { data: Record<string, unknown> }) =>
+    Promise.resolve({ ...RECORD, ...data }),
+  )
+  return ctx
+}
+
+describe('ProfileService.suggestUsernames', () => {
+  it('leads with the handle a person would pick for themselves', async () => {
+    const { service } = buildOnboarding()
+    const out = await service.suggestUsernames('Vignesh', 'K')
+    expect(out[0]).toBe('vignesh.k')
+    expect(out).toContain('vigneshk')
+  })
+
+  it('offers only free handles', async () => {
+    const { service } = buildOnboarding({ takenSuggestions: ['vignesh.k', 'vigneshk'] })
+    const out = await service.suggestUsernames('Vignesh', 'K')
+    expect(out).not.toContain('vignesh.k')
+    expect(out).not.toContain('vigneshk')
+    expect(out.length).toBeGreaterThan(0)
+  })
+
+  it('drops accents and punctuation rather than the letters under them', async () => {
+    const { service } = buildOnboarding()
+    const out = await service.suggestUsernames('José', "O'Brien")
+    expect(out).toContain('jose.obrien')
+  })
+
+  it('still fills the list when every plain handle is taken', async () => {
+    const { service } = buildOnboarding({ takenSuggestions: ['vignesh.k', 'vigneshk', 'vignesh_k', 'vignesh.k1'] })
+    const out = await service.suggestUsernames('Vignesh', 'K')
+    expect(out.length).toBeGreaterThan(0)
+    expect(out).not.toContain('vignesh.k1')
+  })
+
+  it('returns nothing rather than something illegal when a name has no usable letters', async () => {
+    const { service } = buildOnboarding()
+    await expect(service.suggestUsernames('!!', '@@')).resolves.toEqual([])
+  })
+
+  it('never suggests a reserved handle', async () => {
+    const { service } = buildOnboarding()
+    const out = await service.suggestUsernames('admin', '')
+    expect(out).not.toContain('admin')
+  })
+})
+
+describe('ProfileService.completeOnboarding', () => {
+  const input = { firstName: 'Vignesh', lastName: 'K', username: 'vignesh.k' }
+
+  it('stores both name parts and the joined display name', async () => {
+    const { service, prisma } = buildOnboarding()
+    await service.completeOnboarding(USER_ID, input)
+    expect(prisma.profile.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          firstName: 'Vignesh',
+          lastName: 'K',
+          displayName: 'Vignesh K',
+          username: 'vignesh.k',
+        }),
+      }),
+    )
+  })
+
+  // The whole reason this is not updateProfile. Stamping usernameChangedAt here
+  // would spend the user's one rename per 30 days on replacing a handle they
+  // never chose.
+  it('does not start the 30-day username cooldown', async () => {
+    const { service, prisma } = buildOnboarding()
+    await service.completeOnboarding(USER_ID, input)
+    const data = (prisma.profile.update as jest.Mock).mock.calls[0][0].data
+    expect(data).not.toHaveProperty('usernameChangedAt')
+    expect(data.onboardingCompletedAt).toBeInstanceOf(Date)
+  })
+
+  it('drops a last name that was left blank rather than storing an empty one', async () => {
+    const { service, prisma } = buildOnboarding()
+    await service.completeOnboarding(USER_ID, { ...input, lastName: '' })
+    const data = (prisma.profile.update as jest.Mock).mock.calls[0][0].data
+    expect(data.lastName).toBeNull()
+    expect(data.displayName).toBe('Vignesh')
+  })
+
+  // Re-checking it would report the handle as taken by its own owner.
+  it('lets someone keep the provisional handle the trigger gave them', async () => {
+    const { service, prisma, redis } = buildOnboarding({ usernameTaken: true })
+    await expect(
+      service.completeOnboarding(USER_ID, { ...input, username: 'someone' }),
+    ).resolves.toBeDefined()
+    expect((prisma.profile.update as jest.Mock).mock.calls[0][0].data.username).toBe('someone')
+    // Nothing moved, so there is no stale username→id mapping to bust.
+    expect(redis.invalidateUsername).not.toHaveBeenCalled()
+  })
+
+  it('refuses a handle someone else already holds', async () => {
+    const { service } = buildOnboarding({ usernameTaken: true })
+    await expect(service.completeOnboarding(USER_ID, input)).rejects.toMatchObject({
+      response: { code: 'USERNAME_TAKEN' },
+    })
+  })
+
+  it('refuses to run twice', async () => {
+    const { service } = buildOnboarding({ onboardedAt: new Date('2026-02-02') })
+    await expect(service.completeOnboarding(USER_ID, input)).rejects.toMatchObject({
+      response: { code: 'ONBOARDING_ALREADY_COMPLETE' },
+    })
+  })
+})

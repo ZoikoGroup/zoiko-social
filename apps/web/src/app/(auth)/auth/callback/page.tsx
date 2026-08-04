@@ -3,14 +3,30 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { lastOAuthProvider, PROVIDER_LABELS, useAuth } from '@/hooks/use-auth'
 import { Loader2, AlertTriangle } from 'lucide-react'
 
 export default function AuthCallbackPage(): React.JSX.Element {
   const router = useRouter()
+  const { refreshProfile } = useAuth()
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
+    /**
+     * Resolve where this person belongs *before* leaving this page. Navigating to
+     * '/' and letting the in-app gate bounce them means the home feed renders for
+     * as long as the profile request takes, then vanishes — which reads as a bug.
+     *
+     * This also warms the shared profile cache, so it costs no extra request.
+     */
+    async function goOnwards(): Promise<void> {
+      const profile = await refreshProfile()
+      // A profile we couldn't read is not grounds for trapping anyone on a
+      // spinner — send them in and let the in-app gate sort it out.
+      router.replace(profile?.onboardingCompleted === false ? '/onboarding' : '/')
+    }
+
     async function handleCallback() {
       const supabase = createClient()
 
@@ -27,8 +43,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
           return
         }
 
-        // Successfully authenticated — redirect to home
-        router.push('/')
+        await goOnwards()
         return
       }
 
@@ -47,7 +62,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
           return
         }
 
-        router.push('/')
+        await goOnwards()
         return
       }
 
@@ -56,22 +71,25 @@ export default function AuthCallbackPage(): React.JSX.Element {
     }
 
     void handleCallback()
-  }, [router])
+  }, [router, refreshProfile])
 
   async function handleRetry() {
     setRetrying(true)
     setError('')
     const supabase = createClient()
 
+    // Retry whatever the visitor actually picked, not always Google.
+    const provider = lastOAuthProvider()
+
     const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 
     if (oauthError || !data.url) {
-      setError('Failed to start Google sign-in. Please try again.')
+      setError(`Failed to start ${PROVIDER_LABELS[provider]} sign-in. Please try again.`)
       setRetrying(false)
       return
     }

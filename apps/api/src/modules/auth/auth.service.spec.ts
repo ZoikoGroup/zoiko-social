@@ -29,6 +29,9 @@ function build(opts: {
       exchangeCodeForSession: jest.fn().mockResolvedValue({
         data: { session: SESSION, user: { id: USER_ID, email: 'a@b.com' } }, error: null,
       }),
+      signInWithOAuth: jest.fn().mockResolvedValue({
+        data: { url: 'https://project.supabase.co/auth/v1/authorize?provider=facebook' }, error: null,
+      }),
       admin: {
         deleteUser: jest.fn().mockResolvedValue({ error: null }),
         signOut: jest.fn().mockResolvedValue({ error: null }),
@@ -217,5 +220,68 @@ describe('AuthService.handleOAuthCallback', () => {
     })
     await expect(service.handleOAuthCallback('code')).rejects.toBeDefined()
     expect(supabaseAdmin.auth.admin.deleteUser).toHaveBeenCalledWith(USER_ID)
+  })
+})
+
+// Supabase builds an authorize URL for any provider it knows by name, enabled or
+// not — it only says no when the URL is visited. Answering 200 with such a URL
+// sends the visitor to a raw GoTrue JSON error page, so getOAuthUrl checks first.
+describe('AuthService.getOAuthUrl — provider enablement', () => {
+  const fetchMock = jest.fn()
+  const realFetch = global.fetch
+
+  beforeEach(() => fetchMock.mockReset())
+  beforeAll(() => {
+    global.fetch = fetchMock as unknown as typeof fetch
+  })
+  afterAll(() => {
+    global.fetch = realFetch
+  })
+
+  it('returns the URL when authorize redirects to the provider', async () => {
+    const { service } = build()
+    fetchMock.mockResolvedValue({ status: 302 })
+    await expect(service.getOAuthUrl('facebook')).resolves.toEqual({
+      url: 'https://project.supabase.co/auth/v1/authorize?provider=facebook',
+    })
+  })
+
+  it('refuses with a message worth showing when the provider is not enabled', async () => {
+    const { service } = build()
+    fetchMock.mockResolvedValue({ status: 400 })
+    await expect(service.getOAuthUrl('facebook')).rejects.toMatchObject({
+      response: {
+        code: 'OAUTH_PROVIDER_DISABLED',
+        message: 'Facebook sign-in is not available right now.',
+      },
+    })
+  })
+
+  it('probes an enabled provider once and remembers it', async () => {
+    const { service } = build()
+    fetchMock.mockResolvedValue({ status: 302 })
+    await service.getOAuthUrl('facebook')
+    await service.getOAuthUrl('facebook')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  // Nothing negative is cached, so enabling a provider in the Supabase dashboard
+  // takes effect without an API restart.
+  it('re-probes a disabled provider every time', async () => {
+    const { service } = build()
+    fetchMock.mockResolvedValue({ status: 400 })
+    await expect(service.getOAuthUrl('facebook')).rejects.toBeDefined()
+    fetchMock.mockResolvedValue({ status: 302 })
+    await expect(service.getOAuthUrl('facebook')).resolves.toBeDefined()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  // Our own probe failing is not evidence against the provider.
+  it('lets the caller through when the probe cannot reach Supabase', async () => {
+    const { service } = build()
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))
+    await expect(service.getOAuthUrl('facebook')).resolves.toEqual({
+      url: 'https://project.supabase.co/auth/v1/authorize?provider=facebook',
+    })
   })
 })

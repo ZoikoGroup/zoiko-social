@@ -168,6 +168,8 @@ export interface Profile {
   id: string
   username: string
   displayName: string
+  firstName: string | null
+  lastName: string | null
   bio: string | null
   avatarUrl: string | null
   bannerUrl: string | null
@@ -182,6 +184,8 @@ export interface Profile {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  /** False until the person has been through /onboarding and named themselves. */
+  onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
   professionalProfile: ProfessionalProfile | null
@@ -299,6 +303,22 @@ export const profileApi = {
   deleteAccount: () =>
     mutate<{ scheduledFor: string; graceDays: number; message: string }>('/profiles/me', { method: 'DELETE' }),
   getRelationship: (id: string) => request<Relationship>(`/profiles/${id}/relationship`),
+  checkUsername: (username: string) =>
+    request<{ username: string; available: boolean; reason: 'invalid' | 'reserved' | 'taken' | null }>(
+      `/profiles/username-available?username=${encodeURIComponent(username)}`,
+    ),
+  /** Free handles built from a name — already filtered, so any of them can be taken. */
+  suggestUsernames: (firstName: string, lastName: string) =>
+    request<{ suggestions: string[] }>(
+      `/profiles/username-suggestions?firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`,
+    ),
+  completeOnboarding: (input: {
+    firstName: string
+    lastName?: string
+    username: string
+    bio?: string
+    avatarUrl?: string | null
+  }) => mutate<Profile>('/profiles/me/onboarding', { method: 'POST', body: JSON.stringify(input) }),
 }
 
 // ── User Settings API ─────────────────────────────────────────────────────────

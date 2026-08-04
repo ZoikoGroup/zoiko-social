@@ -19,6 +19,8 @@ import {
   UpdateProfessionalSchema,
   SubmitVerificationSchema,
   UpdateSettingsSchema,
+  CompleteOnboardingSchema,
+  type CompleteOnboardingInput,
   type UpdateProfileInput,
   type SwitchProfessionalInput,
   type UpdateProfessionalInput,
@@ -55,6 +57,19 @@ export class ProfileController {
   async checkUsername(@Query('username') username: string) {
     const result = await this.profileService.checkUsernameAvailability(username ?? '')
     return { data: result }
+  }
+
+  /** Handles built from a name, already filtered to the ones still free. */
+  @Get('username-suggestions')
+  async suggestUsernames(
+    @Query('firstName') firstName?: string,
+    @Query('lastName') lastName?: string,
+  ) {
+    const suggestions = await this.profileService.suggestUsernames(
+      firstName ?? '',
+      lastName ?? '',
+    )
+    return { data: { suggestions } }
   }
 
   // ── PROFILE CRUD ───────────────────────────────────────────────────────────
@@ -104,6 +119,22 @@ export class ProfileController {
     @Body(new ZodValidationPipe(UpdateProfileSchema)) body: UpdateProfileInput,
   ) {
     const profile = await this.profileService.updateProfile(user.id, body)
+    return { data: profile }
+  }
+
+  /**
+   * The single naming pass a new OAuth account goes through. Separate from
+   * PUT me so it does not spend the 30-day username cooldown on replacing a
+   * handle the signup trigger derived from their email address.
+   */
+  @Post('me/onboarding')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async completeOnboarding(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(CompleteOnboardingSchema)) body: CompleteOnboardingInput,
+  ) {
+    const profile = await this.profileService.completeOnboarding(user.id, body)
     return { data: profile }
   }
 

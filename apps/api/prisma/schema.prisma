@@ -322,6 +322,8 @@ model Profile {
   id                String           @id @default(uuid())
   username          String           @unique
   displayName       String           @map("display_name")
+  firstName         String?          @map("first_name")
+  lastName          String?          @map("last_name")
   bio               String?
   avatarUrl         String?          @map("avatar_url")
   bannerUrl         String?          @map("banner_url")
@@ -338,6 +340,7 @@ model Profile {
   trustScore        Int              @default(100) @map("trust_score")
   currency          String?
   usernameChangedAt DateTime?        @map("username_changed_at")
+  onboardingCompletedAt DateTime?    @map("onboarding_completed_at")
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
 
