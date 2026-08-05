@@ -135,16 +135,6 @@ export class ConfigService {
     return accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined
   }
 
-  /** True when all R2 credentials are configured. */
-  get r2Enabled(): boolean {
-    return !!(
-      this.env.R2_ACCOUNT_ID &&
-      this.env.R2_ACCESS_KEY_ID &&
-      this.env.R2_SECRET_ACCESS_KEY &&
-      this.env.R2_BUCKET &&
-      this.env.R2_PUBLIC_URL
-    )
-  }
 
   get livekitUrl(): string | undefined {
     return this.env.LIVEKIT_URL

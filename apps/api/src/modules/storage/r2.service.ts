@@ -16,7 +16,11 @@ export class R2Service {
     const secretAccessKey = config.r2SecretAccessKey
 
     if (!accountId || !accessKeyId || !secretAccessKey) {
-      this.logger.warn('R2 credentials not configured — uploads disabled')
+      // Not a warning: nothing currently injects R2Service, and every upload
+      // path in the app goes to Supabase Storage (avatars, post-media,
+      // chat-media). Saying "uploads disabled" here read as a broken build and
+      // sent testers hunting for an upload bug that did not exist.
+      this.logger.log('R2 not configured — R2 storage inactive. No upload path depends on it.')
       return
     }
 

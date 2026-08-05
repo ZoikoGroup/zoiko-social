@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from '
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Download, Clock, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
@@ -1123,15 +1123,20 @@ function BlockedAndMutedSettings(): React.JSX.Element {
 function HelpSettings(): React.JSX.Element {
   return (
     <div className="space-y-5">
+      {/*
+        Every row here must have an href. Four rows used to sit in this list with
+        no destination — Contact Support, Billing & Subscriptions, Download Your
+        Data and Version History — rendering as buttons that did nothing when
+        tapped. Billing has no product behind it, there is no data-export
+        endpoint, there is no support address yet, and the version is already
+        shown in the card below this list. A control that does nothing reads as a
+        broken app, so they are gone until there is something to point them at.
+      */}
       {[
         { icon: HelpCircle, title: 'Help Center', desc: 'Find answers to common questions', color: 'text-primary', href: '/docs' },
         { icon: Users, title: 'Community Guidelines', desc: 'Our principles for a safe platform', color: 'text-secondary', href: '/docs/safety-and-trust' },
-        { icon: Mail, title: 'Contact Support', desc: 'Get in touch with our team', color: 'text-tertiary' },
-        { icon: CreditCard, title: 'Billing & Subscriptions', desc: 'Manage your Premium plan', color: 'text-primary' },
-        { icon: Download, title: 'Download Your Data', desc: 'Request an export of all your data', color: 'text-secondary' },
-        { icon: ExternalLink, title: 'Terms of Service', desc: 'Read our terms and conditions', color: 'text-tertiary' },
-        { icon: Lock, title: 'Privacy Policy', desc: 'How we handle your data', color: 'text-primary' },
-        { icon: Clock, title: 'Version History', desc: 'ZoikoSocial v1.0 — June 2026', color: 'text-secondary' },
+        { icon: ExternalLink, title: 'Terms of Service', desc: 'Read our terms and conditions', color: 'text-tertiary', href: '/terms' },
+        { icon: Lock, title: 'Privacy Policy', desc: 'How we handle your data', color: 'text-primary', href: '/privacy' },
       ].map((item) => {
         const rowClassName = 'w-full flex items-center gap-4 p-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/30 hover:border-primary/30 hover:shadow-sm transition-all text-left cursor-pointer group'
         const rowContent = (
@@ -1146,14 +1151,12 @@ function HelpSettings(): React.JSX.Element {
             <ChevronRight className="w-4 h-4 text-outline flex-shrink-0" />
           </>
         )
-        return item.href ? (
+        // Always a Link, never a button: this way TypeScript rejects any row
+        // added above without an href, instead of silently rendering a dead one.
+        return (
           <Link key={item.title} href={item.href} className={rowClassName}>
             {rowContent}
           </Link>
-        ) : (
-          <button key={item.title} className={rowClassName}>
-            {rowContent}
-          </button>
         )
       })}
 
