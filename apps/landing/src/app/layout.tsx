@@ -1,6 +1,6 @@
 import "./globals.css";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import Footer from "@/components/footer";
 import { Montserrat, Inter } from "next/font/google";
 
 const montserrat = Montserrat({
