@@ -26,17 +26,17 @@ name: Deploy API → Render
 #    REDIS_URL, LIVEKIT_*, R2_*, STRIPE_*, RESEND_*, SENTRY_DSN, etc.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Automatic deploys disabled ───────────────────────────────────────────────
+# GCP VM is the production target (api-deploy-vm.yml). This path is kept
+# for manual use only — a fallback if the VM is unavailable, and so the
+# working setup notes above are not lost.
+#
+# Auto-triggers were removed because both paths fired on every merge to main,
+# deploying the same app twice to two different places. Run this from the
+# Actions tab (Deploy API → Render → Run workflow) if you ever need it.
+# ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'Dockerfile.api'
-      - 'apps/api/**'
-      - 'packages/**'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - 'package.json'
 
 concurrency:
   group: render-${{ github.ref }}
