@@ -17,6 +17,8 @@ import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
+import { TagInput } from '@/components/TagInput'
 
 const TABS = [{ v: '', label: 'All' }, { v: 'lost', label: 'Lost' }, { v: 'found', label: 'Found' }]
 
@@ -76,6 +78,9 @@ export default function LostFoundPage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
           <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
@@ -299,6 +304,13 @@ function ReportModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <input type="date" value={form.lastSeenAt ?? ''} onChange={(e) => set('lastSeenAt', e.target.value)} className={`${input} mt-1`} />
           </label>
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Details that help identify the pet…" className={`${input} resize-none`} />
+
+          <TagInput
+            value={form.tags ?? []}
+            onChange={(tags) => set('tags', tags)}
+            placeholder="beagle, tricolour, collar…"
+            hint="Puts this report on those tag pages so more people see it."
+          />
           <div className="grid grid-cols-2 gap-3">
             <input value={form.contact ?? ''} onChange={(e) => set('contact', e.target.value)} maxLength={200} placeholder="Contact (phone / email)" className={input} />
             {form.kind === 'lost' && <input type="number" min={0} value={form.reward ?? ''} onChange={(e) => set('reward', e.target.value ? Number(e.target.value) : undefined)} placeholder="Reward ₹ (optional)" className={input} />}

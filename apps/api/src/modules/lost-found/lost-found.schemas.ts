@@ -2,8 +2,18 @@ import { z } from 'zod'
 
 export const CreateReportSchema = z.object({
   kind: z.enum(['lost', 'found']),
+  /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+  tags: z.array(z.string().trim().max(40)).max(10).optional(),
+  /**
+   * The reporter's own pet. Anything the form leaves blank is filled from that
+   * profile (breed, colour, microchip, photo), because nobody remembers a
+   * microchip number at the moment their animal goes missing. Ignored if the pet
+   * isn't theirs.
+   */
+  petId: z.string().uuid().optional(),
   petName: z.string().trim().max(80).optional(),
-  species: z.string().trim().min(1).max(40),
+  // Optional when petId is given — the pet profile supplies it.
+  species: z.string().trim().min(1).max(40).or(z.literal('')).optional().default(''),
   breed: z.string().trim().max(60).optional(),
   age: z.string().trim().max(40).optional(),
   color: z.string().trim().max(60).optional(),
@@ -32,6 +42,10 @@ export const SightingSchema = z
   .object({
     message: z.string().trim().max(1000).optional(),
     location: z.string().trim().max(200).optional(),
+    // Coordinates turn a list of notes into a map of where the animal has
+    // actually been, which is what makes a search plannable.
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
   })
   .refine((s) => !!(s.message?.trim() || s.location?.trim()), {
     message: 'A sighting needs a note or a location',

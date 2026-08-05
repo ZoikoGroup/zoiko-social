@@ -7,7 +7,10 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "pnpm -r --parallel dev",
+    "dev:api": "pnpm --filter @zoiko/api dev",
+    "dev:web": "pnpm --filter @zoiko/web dev",
+    "dev:landing": "pnpm --filter @zoiko/landing dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",

@@ -28,11 +28,26 @@ export interface AuditLogEntrySummary {
   createdAt: string
 }
 
+/**
+ * Which Prisma model backs each reportable type, for the `remove_content`
+ * action. Every model listed here must have an `isDeleted` flag — removal is
+ * always a soft delete so a wrongly-actioned report can be undone.
+ *
+ * `breeding_profile` is deliberately absent: it has no isDeleted column (it
+ * uses a status enum instead), so removal there would need different handling
+ * and silently doing nothing would be worse. A reviewer can still warn,
+ * suspend or ban the owner.
+ */
 const TARGET_CONTENT_MODEL = {
   post: 'post',
   comment: 'comment',
   message: 'message',
-  story: 'story',
+  adoption_listing: 'adoptionPost',
+  lost_found_report: 'lostFoundPost',
+  event: 'event',
+  product: 'product',
+  provider: 'serviceProvider',
+  community: 'community',
 } as const
 
 @Injectable()
@@ -140,10 +155,34 @@ export class ModerationService {
         const message = await this.prisma.message.findUnique({ where: { id: targetId }, select: { senderId: true } })
         return message?.senderId ?? null
       }
-      case 'story': {
-        const story = await this.prisma.story.findUnique({ where: { id: targetId }, select: { authorId: true } })
-        return story?.authorId ?? null
+      case 'adoption_listing': {
+        const listing = await this.prisma.adoptionPost.findUnique({ where: { id: targetId }, select: { posterId: true } })
+        return listing?.posterId ?? null
       }
+      case 'lost_found_report': {
+        const report = await this.prisma.lostFoundPost.findUnique({ where: { id: targetId }, select: { reporterId: true } })
+        return report?.reporterId ?? null
+      }
+      case 'event': {
+        const event = await this.prisma.event.findUnique({ where: { id: targetId }, select: { hostId: true } })
+        return event?.hostId ?? null
+      }
+      case 'product': {
+        const product = await this.prisma.product.findUnique({ where: { id: targetId }, select: { sellerId: true } })
+        return product?.sellerId ?? null
+      }
+      case 'breeding_profile': {
+        const profile = await this.prisma.breedingProfile.findUnique({ where: { id: targetId }, select: { ownerId: true } })
+        return profile?.ownerId ?? null
+      }
+      case 'community': {
+        const community = await this.prisma.community.findUnique({ where: { id: targetId }, select: { createdBy: true } })
+        return community?.createdBy ?? null
+      }
+      // A clinic listing is added by a member but describes a third party, so
+      // there is no author to sanction — removal is the only sensible action.
+      case 'provider':
+        return null
       default:
         return null
     }

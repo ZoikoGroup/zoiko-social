@@ -4,9 +4,10 @@ import { EngagementService } from './engagement.service'
 import { PostsModule } from '../posts/posts.module'
 import { AuthModule } from '../auth/auth.module'
 import { MessagingModule } from '../messaging/messaging.module'
+import { PersonalizationModule } from '../personalization/personalization.module'
 
 @Module({
-  imports: [PostsModule, AuthModule, MessagingModule],
+  imports: [PostsModule, AuthModule, MessagingModule, PersonalizationModule],
   controllers: [EngagementController],
   providers: [EngagementService],
 })

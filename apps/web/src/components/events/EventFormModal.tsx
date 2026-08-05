@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Globe, MapPin, Users, ImagePlus, Film, Loader2 } from 'lucide-react'
+import { X, Globe, MapPin, Users, Mail, ImagePlus, Film, Loader2, Search, Check } from 'lucide-react'
 import { Img } from '@/components/Img'
 import { LocationInput } from '@/components/LocationInput'
-import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventInput } from '@/lib/api'
+import { UserAvatar } from '@/components/UserAvatar'
+import { eventsApi, networkApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventInput, type FollowSuggestion } from '@/lib/api'
 import { uploadCommunityImage, uploadEventVideo } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { TagInput } from '@/components/TagInput'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 /** datetime-local value (local tz) from an ISO string. */
@@ -17,8 +19,13 @@ function toLocalInput(iso: string | null): string {
 }
 
 /** Create (no `event`) or edit (with `event`) an event in one modal. */
-export function EventFormModal({ event, onClose, onSaved }: {
+export function EventFormModal({ event, communityId, onClose, onSaved }: {
   event?: EventItem | null
+  /**
+   * Host on behalf of a community. Set when the form is opened from a community
+   * page; the API independently checks the caller owns or administers it.
+   */
+  communityId?: string
   onClose: () => void
   onSaved: (e: EventItem) => void
 }): React.JSX.Element {
@@ -30,6 +37,8 @@ export function EventFormModal({ event, onClose, onSaved }: {
   const [location, setLocation] = useState(event?.location ?? '')
   const [venueName, setVenueName] = useState(event?.venueName ?? '')
   const [visibility, setVisibility] = useState<'public' | 'followers'>((event?.visibility as 'public' | 'followers') ?? 'public')
+  const [inviteOnly, setInviteOnly] = useState(event?.inviteOnly ?? false)
+  const [invitees, setInvitees] = useState<FollowSuggestion[]>([])
   const [isOnline, setIsOnline] = useState(event?.isOnline ?? false)
   const [startsAt, setStartsAt] = useState(toLocalInput(event?.startsAt ?? null))
   const [endsAt, setEndsAt] = useState(toLocalInput(event?.endsAt ?? null))
@@ -42,11 +51,27 @@ export function EventFormModal({ event, onClose, onSaved }: {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     event?.latitude != null && event?.longitude != null ? { lat: event.latitude, lng: event.longitude } : null,
   )
+  const [tags, setTags] = useState<string[]>(event?.tags ?? [])
   const [uploading, setUploading] = useState<'' | 'cover' | 'video'>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const inputCls = 'w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none'
+
+  const [inviteQuery, setInviteQuery] = useState('')
+  const [inviteResults, setInviteResults] = useState<FollowSuggestion[]>([])
+  const [inviteSearching, setInviteSearching] = useState(false)
+
+  async function searchInvitees(q: string): Promise<void> {
+    setInviteQuery(q)
+    if (!q.trim()) { setInviteResults([]); return }
+    setInviteSearching(true)
+    try {
+      const res = await networkApi.search(q.trim(), 10)
+      const selected = new Set(invitees.map((i) => i.id))
+      setInviteResults(res.filter((u) => !selected.has(u.id) && u.id !== profile?.id))
+    } catch { setInviteResults([]) } finally { setInviteSearching(false) }
+  }
 
   async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0]; e.target.value = ''
@@ -68,6 +93,8 @@ export function EventFormModal({ event, onClose, onSaved }: {
       title: title.trim(),
       startsAt: new Date(startsAt).toISOString(),
       isOnline, isFree, visibility,
+      inviteOnly,
+      ...(inviteOnly && invitees.length > 0 ? { invitees: invitees.map((i) => i.id) } : {}),
       description: description.trim() || null,
       category: category || null,
       coverUrl: coverUrl || null,
@@ -80,6 +107,9 @@ export function EventFormModal({ event, onClose, onSaved }: {
       location: !isOnline ? (location.trim() || null) : null,
       latitude: !isOnline ? (coords?.lat ?? null) : null,
       longitude: !isOnline ? (coords?.lng ?? null) : null,
+      // Only meaningful on create — an event does not change hands afterwards.
+      ...(!editing && communityId ? { communityId } : {}),
+      tags,
     }
     try {
       let saved: EventItem
@@ -131,10 +161,57 @@ export function EventFormModal({ event, onClose, onSaved }: {
           <div>
             <p className="text-[11px] text-outline mb-1">Who can see this event?</p>
             <div className="flex rounded-xl border border-outline-variant/40 overflow-hidden text-label-sm font-semibold">
-              <button onClick={() => setVisibility('public')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 cursor-pointer ${visibility === 'public' ? 'bg-primary text-white' : 'text-on-surface-variant'}`}><Globe className="w-4 h-4" />Public</button>
-              <button onClick={() => setVisibility('followers')} className={`flex-1 py-2 flex items-center justify-center gap-1.5 cursor-pointer ${visibility === 'followers' ? 'bg-primary text-white' : 'text-on-surface-variant'}`}><Users className="w-4 h-4" />Followers only</button>
+              <button onClick={() => { setVisibility('public'); setInviteOnly(false) }} className={`flex-1 py-2 flex items-center justify-center gap-1.5 cursor-pointer ${visibility === 'public' && !inviteOnly ? 'bg-primary text-white' : 'text-on-surface-variant'}`}><Globe className="w-4 h-4" />Public</button>
+              <button onClick={() => { setVisibility('followers'); setInviteOnly(false) }} className={`flex-1 py-2 flex items-center justify-center gap-1.5 cursor-pointer ${visibility === 'followers' && !inviteOnly ? 'bg-primary text-white' : 'text-on-surface-variant'}`}><Users className="w-4 h-4" />Followers</button>
+              <button onClick={() => setInviteOnly(true)} className={`flex-1 py-2 flex items-center justify-center gap-1.5 cursor-pointer ${inviteOnly ? 'bg-primary text-white' : 'text-on-surface-variant'}`}><Mail className="w-4 h-4" />Invite only</button>
             </div>
+            {inviteOnly && (
+              <p className="text-[11px] text-outline mt-1">Only people you invite can see and join this event.</p>
+            )}
           </div>
+
+          {inviteOnly && (
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
+                <input
+                  value={inviteQuery}
+                  onChange={(e) => void searchInvitees(e.target.value)}
+                  placeholder="Search people to invite…"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none"
+                />
+                {inviteQuery.trim() && (
+                  <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-lg max-h-52 overflow-y-auto">
+                    {inviteSearching ? (
+                      <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+                    ) : inviteResults.length === 0 ? (
+                      <p className="px-3 py-3 text-label-sm text-outline">No people found.</p>
+                    ) : inviteResults.map((u) => (
+                      <button key={u.id} onClick={() => { setInvitees((p) => [...p, u]); setInviteResults((p) => p.filter((x) => x.id !== u.id)); setInviteQuery('') }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-surface-container text-left cursor-pointer">
+                        <UserAvatar name={u.displayName} image={u.avatarUrl ?? undefined} size="sm" verified={u.isVerified} />
+                        <div className="min-w-0"><p className="text-label-sm font-semibold text-on-surface truncate">{u.displayName}</p><p className="text-[11px] text-outline truncate">@{u.username}</p></div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {invitees.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {invitees.map((u) => (
+                    <span key={u.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                      <UserAvatar name={u.displayName} image={u.avatarUrl ?? undefined} size="xs" verified={u.isVerified} />
+                      <span className="max-w-28 truncate">{u.displayName}</span>
+                      <button onClick={() => setInvitees((p) => p.filter((x) => x.id !== u.id))} className="text-primary/70 hover:text-primary cursor-pointer"><X className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {editing && (
+                <p className="text-[11px] text-outline flex items-center gap-1"><Check className="w-3 h-3" />Existing invites are managed from the event page.</p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <label className="text-[11px] text-outline block">Starts
@@ -166,6 +243,13 @@ export function EventFormModal({ event, onClose, onSaved }: {
             </div>
           )}
           <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} placeholder="Capacity / max seats (optional)" className={inputCls} />
+
+          <TagInput
+            value={tags}
+            onChange={setTags}
+            placeholder="meetup, training, beagle…"
+            hint="Puts this event on those tag pages alongside posts and adoptable pets."
+          />
 
           {error && <p className="text-label-sm text-red-500">{error}</p>}
         </div>

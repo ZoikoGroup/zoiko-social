@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common'
 import { SafetyService } from './safety.service'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 
 /**
  * Coordinates come from the browser's geolocation, so they are validated here
@@ -18,8 +18,12 @@ function coordinate(raw: string | undefined, max: number, name: string): number 
   return value
 }
 
+/**
+ * Weather-driven welfare advisories are public: the answer depends only on the
+ * coordinates, so there is nothing here to withhold from a signed-out visitor.
+ */
 @Controller('safety')
-@UseGuards(JwtAuthGuard)
+@UseGuards(OptionalAuthGuard)
 export class SafetyController {
   constructor(private readonly safetyService: SafetyService) {}
 

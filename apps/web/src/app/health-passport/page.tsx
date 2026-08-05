@@ -21,6 +21,8 @@ import { usePets } from '@/hooks/use-pets'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { PetMissingBanner } from '@/components/PetMissingBanner'
+import Link from 'next/link'
 
 interface TypeMeta { value: string; label: string; Icon: LucideIcon; node: string; tint: string }
 const TYPES: TypeMeta[] = [
@@ -260,6 +262,10 @@ export default function HealthPassportPage(): React.JSX.Element {
                   </div>
                 </div>
 
+                {/* Missing-pet state and one-tap reporting — the details this
+                    page already holds are exactly what the report needs. */}
+                <PetMissingBanner petId={pet.id} petName={pet.name} />
+
                 {/* About */}
                 <PetAbout
                   pet={pet}
@@ -453,7 +459,19 @@ function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => vo
               <span className="text-label-md font-semibold text-on-surface">{r.title}</span>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.tint}`}>{m.label}</span>
             </div>
-            <span className="text-[11px] text-outline">{r.recordDate ? fmtDate(r.recordDate) : 'Undated'}</span>
+            <span className="flex items-center gap-1.5 text-[11px] text-outline">
+              {r.recordDate ? fmtDate(r.recordDate) : 'Undated'}
+              {/* The clinic used to exist only as text inside the title, so there
+                  was nothing to tap. Now it links back to the listing. */}
+              {r.provider && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <Link href={`/vet-finder/${r.provider.id}`} className="font-semibold text-primary hover:underline">
+                    {r.provider.name}
+                  </Link>
+                </>
+              )}
+            </span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 no-print">
             <button onClick={onEdit} className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"><Pencil className="w-4 h-4" /></button>

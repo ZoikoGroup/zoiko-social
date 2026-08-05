@@ -1,6 +1,19 @@
 import { z } from 'zod'
 
-export const ReportTargetType = z.enum(['post', 'comment', 'message', 'user', 'story'])
+/**
+ * What can be reported.
+ *
+ * The pet surfaces were missing, which meant a suspicious adoption listing, a
+ * fake lost-pet report claiming a reward, an unlicensed breeder or a
+ * misrepresented clinic could not be flagged at all — on a platform whose
+ * report reasons include `animal_welfare`. Those are exactly the listings where
+ * a member is the only person in a position to notice.
+ */
+export const ReportTargetType = z.enum([
+  'post', 'comment', 'message', 'user',
+  'adoption_listing', 'lost_found_report', 'event', 'product', 'provider',
+  'breeding_profile', 'community',
+])
 export const ReportReason = z.enum(['spam', 'harassment', 'abuse', 'animal_welfare', 'impersonation', 'other'])
 export const ResolveAction = z.enum(['dismiss', 'remove_content', 'warn', 'suspend', 'ban'])
 

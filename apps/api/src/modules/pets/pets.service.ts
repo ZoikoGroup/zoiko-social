@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client'
 import { nanoid } from 'nanoid'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import type {
   CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput,
   CreateHealthRecordInput, UpdateHealthRecordInput,
@@ -29,6 +30,8 @@ export interface HealthRecordResponse {
   attachments: string[]
   recordDate: string | null
   nextDue: string | null
+  /** The clinic that wrote this record, when it came from a booking. */
+  provider: { id: string; name: string } | null
   createdAt: string
 }
 
@@ -72,7 +75,10 @@ type PetRow = Prisma.PetGetPayload<Record<string, never>>
 
 @Injectable()
 export class PetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profanity: ProfanityService,
+  ) {}
 
   /** The signed-in user's pets (all, public + private). */
   async listMine(ownerId: string): Promise<PetResponse[]> {
@@ -93,6 +99,8 @@ export class PetsService {
   }
 
   async create(ownerId: string, input: CreatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     const pet = await this.prisma.pet.create({
       data: {
         ownerId,
@@ -114,6 +122,8 @@ export class PetsService {
   }
 
   async update(id: string, ownerId: string, input: UpdatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     await this.assertOwner(id, ownerId)
     const pet = await this.prisma.pet.update({
       where: { id },
@@ -216,6 +226,7 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return records.map((r) => this.mapHealth(r))
   }
@@ -230,6 +241,7 @@ export class PetsService {
         ...(input.recordDate ? { recordDate: new Date(input.recordDate) } : {}),
         ...(input.nextDue ? { nextDue: new Date(input.nextDue) } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -248,6 +260,7 @@ export class PetsService {
         ...(input.recordDate !== undefined ? { recordDate: input.recordDate ? new Date(input.recordDate) : null } : {}),
         ...(input.nextDue !== undefined ? { nextDue: input.nextDue ? new Date(input.nextDue) : null } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -257,13 +270,21 @@ export class PetsService {
     await this.prisma.petHealthRecord.deleteMany({ where: { id: recordId, petId, ownerId } })
   }
 
-  private mapHealth(r: Prisma.PetHealthRecordGetPayload<Record<string, never>>): HealthRecordResponse {
+  private mapHealth(
+    r: Prisma.PetHealthRecordGetPayload<{ include: { provider: { select: { id: true; name: true } } } }>,
+  ): HealthRecordResponse {
     return {
       id: r.id, petId: r.petId, type: r.type, title: r.title, notes: r.notes, attachments: r.attachments,
       recordDate: r.recordDate ? r.recordDate.toISOString().slice(0, 10) : null,
       nextDue: r.nextDue ? r.nextDue.toISOString().slice(0, 10) : null,
+      provider: r.provider ? { id: r.provider.id, name: r.provider.name } : null,
       createdAt: r.createdAt.toISOString(),
     }
+  }
+
+  /** Health records always carry their clinic, so the UI can link back to it. */
+  private healthInclude() {
+    return { provider: { select: { id: true, name: true } } }
   }
 
   // ── PUBLIC SHARE (vet card) ─────────────────────────────────────────────────
@@ -297,6 +318,7 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId: pet.id },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return {
       pet: {

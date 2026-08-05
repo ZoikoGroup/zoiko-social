@@ -15,8 +15,25 @@ export default function AdminVerificationPage(): React.JSX.Element {
   const [requests, setRequests] = useState<VerificationRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [openingDoc, setOpeningDoc] = useState<string | null>(null)
 
   const isStaff = profile && ['admin', 'moderator', 'super_admin'].includes(profile.role)
+
+  /**
+   * Documents sit in a private bucket, so we exchange the id for a short-lived
+   * signed URL at click time rather than rendering a permanent link.
+   */
+  const openDocument = async (documentId: string): Promise<void> => {
+    setOpeningDoc(documentId)
+    try {
+      const url = await verificationApi.documentUrl(documentId)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      window.alert('Could not open that document. Please try again.')
+    } finally {
+      setOpeningDoc(null)
+    }
+  }
 
   const load = useCallback((s: string) => {
     setLoading(true)
@@ -107,15 +124,17 @@ export default function AdminVerificationPage(): React.JSX.Element {
                   {r.documents.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {r.documents.map((doc) => (
-                        <a
+                        <button
                           key={doc.id}
-                          href={doc.documentUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-container text-label-sm text-outline hover:bg-surface-container/80"
+                          onClick={() => void openDocument(doc.id)}
+                          disabled={openingDoc === doc.id}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-container text-label-sm text-outline hover:bg-surface-container/80 cursor-pointer disabled:opacity-50"
                         >
-                          <FileText className="w-3.5 h-3.5" /> {doc.documentType}
-                        </a>
+                          {openingDoc === doc.id
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <FileText className="w-3.5 h-3.5" />}
+                          {doc.documentType}
+                        </button>
                       ))}
                     </div>
                   )}

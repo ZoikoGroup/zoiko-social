@@ -12,6 +12,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { z } from 'zod'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
@@ -107,6 +108,12 @@ export interface UserSearchResult extends FollowSuggestion {
 
 const MAX_PAGE_SIZE = 50
 
+// ── Personalized suggestions bounds ───────────────────────────────────────────
+/** How many high-affinity authors seed the suggestion scan. */
+const MAX_SUGGESTION_SEED_AUTHORS = 50
+/** Cap on follow rows scanned for affinity candidates (bounds the query). */
+const MAX_SUGGESTION_FOLLOW_ROWS = 500
+
 // ── Network Service ────────────────────────────────────────────────────────
 
 @Injectable()
@@ -118,6 +125,7 @@ export class NetworkService {
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
+    private readonly affinity: AffinityService,
   ) {}
 
   // ── FOLLOW / UNFOLLOW ─────────────────────────────────────────────────────
@@ -187,6 +195,8 @@ export class NetworkService {
     this.effects('follow', async () => {
       await this.afterFollowChange(followerId, followingId, { followers: 1, following: 1 })
       await this.notifyNewFollower(followerId, followingId)
+      // Explicit intent: following someone is a strong author-affinity signal
+      await this.affinity.recordAuthor(followerId, followingId, AFFINITY_WEIGHTS.follow)
     })
 
     return { status: 'following' }
@@ -222,9 +232,11 @@ export class NetworkService {
       throw new NotFoundException({ code: 'NOT_FOLLOWING', message: 'You are not following this user' })
     }
 
-    this.effects('unfollow', () =>
-      this.afterFollowChange(followerId, followingId, { followers: -1, following: -1 }),
-    )
+    this.effects('unfollow', async () => {
+      await this.afterFollowChange(followerId, followingId, { followers: -1, following: -1 })
+      // Negative author signal — unfollowing walks back the affinity
+      await this.affinity.recordAuthor(followerId, followingId, -AFFINITY_WEIGHTS.follow)
+    })
   }
 
   async removeFollower(userId: string, followerId: string): Promise<void> {
@@ -943,6 +955,21 @@ export class NetworkService {
 
   // ── FOLLOW SUGGESTIONS ────────────────────────────────────────────────────
 
+  /**
+   * Personalized "Suggested for you" (Instagram-style).
+   *
+   * Two signals are blended:
+   *   1. Affinity (primary) — accounts followed by the viewer's HIGH-AFFINITY
+   *      authors (people they actually engage with). Each contributing author
+   *      is weighted by log₁₀(1 + affinity) so one mega-fan can't drown out
+   *      the collaborative signal.
+   *   2. Mutual connections (tiebreaker) — the previous friend-of-friend
+   *      ranking, still used to break ties and as the sole signal for viewers
+   *      with no affinity profile yet.
+   *
+   * Cold start (no affinity AND no mutual candidates) falls back to verified
+   * professionals, as before.
+   */
   async getSuggestions(userId: string, limit = 10): Promise<FollowSuggestion[]> {
     const take = Math.min(limit, 25)
 
@@ -951,32 +978,70 @@ export class NetworkService {
       select: { followingId: true },
       take: 200,
     })
-    const excludeIds = new Set(following.map((f) => f.followingId))
+    const followingIds = following.map((f) => f.followingId)
+    const excludeIds = new Set(followingIds)
     excludeIds.add(userId)
 
     const blocked = await this.prisma.blockedUser.findMany({
       where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
       select: { blockerId: true, blockedId: true },
     })
+    const blockedIds = new Set<string>()
     blocked.forEach((b) => {
       excludeIds.add(b.blockerId)
       excludeIds.add(b.blockedId)
+      blockedIds.add(b.blockerId)
+      blockedIds.add(b.blockedId)
     })
 
-    // Friend-of-friend: accounts followed by people I follow
-    const candidates = await this.prisma.follow.groupBy({
+    // ── Affinity layer: candidates followed by the viewer's high-affinity
+    // authors, scored by Σ log₁₀(1 + author affinity). Blocked users' graphs
+    // are never used as seeds (the affinity profile isn't cleaned on block).
+    const authorAffinity = await this.affinity.getAuthorAffinity(userId)
+    const highAffinityAuthors = [...authorAffinity.entries()]
+      .filter(([authorId, weight]) => weight >= AFFINITY_WEIGHTS.like && !blockedIds.has(authorId))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, MAX_SUGGESTION_SEED_AUTHORS)
+      .map(([authorId]) => authorId)
+
+    const affinityScores = new Map<string, number>()
+    if (highAffinityAuthors.length > 0) {
+      const rows = await this.prisma.follow.findMany({
+        where: {
+          followerId: { in: highAffinityAuthors },
+          followingId: { notIn: Array.from(excludeIds) },
+          status: 'active',
+        },
+        select: { followerId: true, followingId: true },
+        take: MAX_SUGGESTION_FOLLOW_ROWS, // bound the scan
+      })
+      for (const row of rows) {
+        const weight = authorAffinity.get(row.followerId) ?? 0
+        affinityScores.set(
+          row.followingId,
+          (affinityScores.get(row.followingId) ?? 0) + Math.log10(1 + weight),
+        )
+      }
+    }
+
+    // ── Mutual-connections layer (friend-of-friend), now the tiebreaker.
+    const mutualCandidates = await this.prisma.follow.groupBy({
       by: ['followingId'],
       where: {
-        followerId: { in: Array.from(excludeIds).filter((id) => id !== userId).slice(0, 100) },
+        followerId: { in: followingIds.slice(0, 100) },
         followingId: { notIn: Array.from(excludeIds) },
         status: 'active',
       },
       _count: { followingId: true },
       orderBy: { _count: { followingId: 'desc' } },
-      take: take * 2,
+      take: take * 4, // room for affinity-only candidates below the mutual top
     })
+    const mutualCounts = new Map(mutualCandidates.map((c) => [c.followingId, c._count.followingId]))
 
-    if (candidates.length === 0) {
+    // Union of both candidate pools
+    const candidateIds = [...new Set([...affinityScores.keys(), ...mutualCounts.keys()])]
+
+    if (candidateIds.length === 0) {
       // Cold start — surface verified professionals
       const fallback = await this.prisma.profile.findMany({
         where: {
@@ -993,18 +1058,29 @@ export class NetworkService {
       return this.attachFollowsViewer(fallback.map((u) => this.mapSuggestion(u, 0)), userId)
     }
 
-    const candidateIds = candidates.slice(0, take).map((c) => c.followingId)
+    // Rank: affinity score first, mutual connections as the tiebreaker.
+    const scored = candidateIds
+      .map((id) => ({
+        id,
+        affinity: affinityScores.get(id) ?? 0,
+        mutuals: mutualCounts.get(id) ?? 0,
+      }))
+      .sort((a, b) => b.affinity - a.affinity || b.mutuals - a.mutuals)
+      .slice(0, take)
+
     const profiles = await this.prisma.profile.findMany({
-      where: { id: { in: candidateIds }, state: 'active' },
+      where: { id: { in: scored.map((s) => s.id) }, state: 'active' },
       include: {
         professionalProfile: { select: { category: true, isVerified: true } },
       },
     })
+    const profileById = new Map(profiles.map((p) => [p.id, p]))
 
-    const mutualCounts = new Map(candidates.map((c) => [c.followingId, c._count.followingId]))
-    const ranked = profiles
-      .map((u) => this.mapSuggestion(u, mutualCounts.get(u.id) ?? 0))
-      .sort((a, b) => b.mutualConnections - a.mutualConnections)
+    const ranked = scored
+      .map((s) => profileById.get(s.id))
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .map((p) => this.mapSuggestion(p, mutualCounts.get(p.id) ?? 0))
+
     return this.attachFollowsViewer(ranked, userId)
   }
 

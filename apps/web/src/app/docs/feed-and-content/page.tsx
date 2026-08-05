@@ -6,7 +6,7 @@ import {
 import { DocHeader, JumpLinks, H2, P, UL, LI, Strong, Callout, FeatureGrid } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
 
-export const metadata: Metadata = { title: 'Feed, Posts & Stories' }
+export const metadata: Metadata = { title: 'Feed & Posts' }
 
 export default function FeedAndContentPage(): React.JSX.Element {
   return (
@@ -14,8 +14,8 @@ export default function FeedAndContentPage(): React.JSX.Element {
       <DocHeader
         icon={LayoutGrid}
         eyebrow="Feed & Content"
-        title="Feed, Posts & Stories"
-        lead="How your Home feed is put together, how to post and tell stories, and how hashtags and reactions work."
+        title="Feed & Posts"
+        lead="How your Home feed is put together, how to post, and how hashtags and reactions work."
       />
 
       <JumpLinks
@@ -23,7 +23,6 @@ export default function FeedAndContentPage(): React.JSX.Element {
           { href: '#home-feed-and-explore', label: 'Home feed & Explore' },
           { href: '#creating-a-post', label: 'Creating a post' },
           { href: '#reactions-comments-and-saves', label: 'Reactions, comments & saves' },
-          { href: '#stories', label: 'Stories' },
           { href: '#hashtags-and-trends', label: 'Hashtags & trends' },
           { href: '#reporting-content', label: 'Reporting content' },
         ]}
@@ -79,39 +78,22 @@ export default function FeedAndContentPage(): React.JSX.Element {
         the top of the thread.
       </P>
 
-      <H2 id="stories">Stories</H2>
-      <P>
-        Stories are short-lived photo and video posts that appear at the top of the feed and disappear
-        after a set amount of time — great for day-to-day moments that don’t need to live on your
-        profile forever.
-      </P>
-      <UL>
-        <LI><Strong>Highlights</Strong> — save your favorite stories permanently to a labeled collection on your profile.</LI>
-        <LI><Strong>Mentions</Strong> — tag another person or pet directly in a story.</LI>
-        <LI><Strong>Music</Strong> — search for and add a soundtrack to your story.</LI>
-        <LI><Strong>Reactions</Strong> — friends can react to your story directly, and you can report a story the same way you’d report a post.</LI>
-      </UL>
-      <Callout variant="tip">
-        Archived a story by accident, or let one expire? You can restore it from your story archive at
-        any time.
-      </Callout>
-
       <H2 id="hashtags-and-trends">Hashtags & trends</H2>
       <P>
-        Add hashtags to posts and stories so they’re discoverable beyond your existing followers.
-        Tapping a hashtag anywhere takes you to everything tagged with it — posts and stories alike —
-        and you can search for a specific tag directly from the search bar to see what’s trending.
+        Add hashtags to posts so they’re discoverable beyond your existing followers.
+        Tapping a hashtag anywhere takes you to everything tagged with it, and you can search for a
+        specific tag directly from the search bar to see what’s trending.
       </P>
       <FeatureGrid
         items={[
           { icon: Hash, title: 'Tag your posts', body: 'Add one or more hashtags when you post so the right people can find it.' },
-          { icon: Compass, title: 'Browse a tag', body: 'Tap any hashtag to see every public post and story that used it.' },
+          { icon: Compass, title: 'Browse a tag', body: 'Tap any hashtag to see every public post that used it.' },
         ]}
       />
 
       <H2 id="reporting-content">Reporting content you’re concerned about</H2>
       <P>
-        If you come across a post, comment, or story that doesn’t belong — anything that looks like
+        If you come across a post or comment that doesn’t belong — anything that looks like
         harassment, animal cruelty, misinformation, or otherwise breaks the rules — use the{' '}
         <Strong>Report</Strong> option on that piece of content. It only takes a moment, and it starts a
         proper review on our end.

@@ -65,6 +65,13 @@ export const ShareSchema = z.object({
   recipients: z.array(z.string().uuid()).max(10).optional(),
 })
 
+/** Client-reported views — batched, idempotent (composite PK), fire-and-forget. */
+export const ReportViewsSchema = z.object({
+  postIds: z.array(z.string().uuid()).min(1).max(50),
+})
+
+export type ReportViewsInput = z.infer<typeof ReportViewsSchema>
+
 export type CreatePostInput = z.infer<typeof CreatePostSchema>
 export type UpdatePostInput = z.infer<typeof UpdatePostSchema>
 export type CreateCommentInput = z.infer<typeof CreateCommentSchema>

@@ -6,6 +6,10 @@ import { PostsService, type PostResponse } from '../posts/posts.service'
 import { CommunitiesService, type CommunityCard } from '../communities/communities.service'
 import { NewsService, type ArticleResponse } from '../news/news.service'
 import { ShopService, type ProductResponse } from '../shop/shop.service'
+import { EventsService, type EventResponse } from '../events/events.service'
+import { AdoptionService, type ListingResponse } from '../adoption/adoption.service'
+import { LostFoundService, type ReportResponse } from '../lost-found/lost-found.service'
+import { ProvidersService, type ProviderResponse } from '../providers/providers.service'
 import { rankByRelevance } from './relevance'
 
 export interface SearchAllResult {
@@ -16,6 +20,10 @@ export interface SearchAllResult {
   communities: CommunityCard[]
   news: ArticleResponse[]
   products: ProductResponse[]
+  events: EventResponse[]
+  adoption: ListingResponse[]
+  lostFound: ReportResponse[]
+  providers: ProviderResponse[]
 }
 
 const ALL_PREVIEW_LIMIT = 5
@@ -30,24 +38,39 @@ export class SearchService {
     private readonly communitiesService: CommunitiesService,
     private readonly newsService: NewsService,
     private readonly shopService: ShopService,
+    private readonly eventsService: EventsService,
+    private readonly adoptionService: AdoptionService,
+    private readonly lostFoundService: LostFoundService,
+    private readonly providersService: ProvidersService,
   ) {}
 
   async searchAll(viewerId: string | undefined, rawQuery: string): Promise<SearchAllResult> {
     const query = rawQuery.trim()
     if (query.length < 2) {
-      return { query, people: [], hashtags: [], posts: [], communities: [], news: [], products: [] }
+      return {
+        query, people: [], hashtags: [], posts: [], communities: [], news: [], products: [],
+        events: [], adoption: [], lostFound: [], providers: [],
+      }
     }
 
-    const [people, hashtags, posts, communities, news, products] = await Promise.all([
-      this.searchPeople(viewerId, query, ALL_PREVIEW_LIMIT),
-      this.searchHashtags(query, ALL_PREVIEW_LIMIT),
-      this.searchPosts(viewerId, query, ALL_PREVIEW_LIMIT),
-      this.searchCommunities(viewerId, query, ALL_PREVIEW_LIMIT),
-      this.searchNews(viewerId, query, ALL_PREVIEW_LIMIT),
-      this.searchProducts(viewerId, query, ALL_PREVIEW_LIMIT),
-    ])
+    const [people, hashtags, posts, communities, news, products, events, adoption, lostFound, providers] =
+      await Promise.all([
+        this.searchPeople(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchHashtags(query, ALL_PREVIEW_LIMIT),
+        this.searchPosts(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchCommunities(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchNews(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchProducts(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchEvents(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchAdoption(viewerId, query, ALL_PREVIEW_LIMIT),
+        this.searchLostFound(query, ALL_PREVIEW_LIMIT),
+        this.searchProviders(query, ALL_PREVIEW_LIMIT),
+      ])
 
-    return { query, people, hashtags, posts, communities, news, products }
+    return {
+      query, people, hashtags, posts, communities, news, products,
+      events, adoption, lostFound, providers,
+    }
   }
 
   /** People search requires a viewer — blocked-account exclusion depends on it. Anonymous visitors get no results. */
@@ -106,5 +129,43 @@ export class SearchService {
   async searchProducts(viewerId: string | undefined, rawQuery: string, limit = 20): Promise<ProductResponse[]> {
     const page = await this.shopService.browse({ q: rawQuery }, viewerId, null, Math.min(limit, 40))
     return rankByRelevance(rawQuery, page.data, (p) => [p.title])
+  }
+
+  // ── The pet-specific surfaces ───────────────────────────────────────────────
+  // These four were searchable by the AI assistant (which calls the same
+  // services through its discovery tools) but not by a member using the search
+  // box — so the assistant could find a vet or an adoptable dog and the UI
+  // could not. Each delegates to the owning service so its visibility rules
+  // (invite-only events, blocked posters, private listings) apply unchanged.
+
+  async searchEvents(viewerId: string | undefined, rawQuery: string, limit = 20): Promise<EventResponse[]> {
+    const page = await this.eventsService.list(viewerId, null, Math.min(limit, 40), { q: rawQuery })
+    return rankByRelevance(rawQuery, page.data, (e) => [e.title, e.description, e.venueName, e.location])
+  }
+
+  async searchAdoption(viewerId: string | undefined, rawQuery: string, limit = 20): Promise<ListingResponse[]> {
+    const page = await this.adoptionService.browse(viewerId, { q: rawQuery }, null, Math.min(limit, 40))
+    return rankByRelevance(rawQuery, page.data, (l) => [l.name, l.species, l.breed, l.location])
+  }
+
+  /** Deliberately viewer-agnostic: a missing pet should be findable by anyone. */
+  async searchLostFound(rawQuery: string, limit = 20): Promise<ReportResponse[]> {
+    const page = await this.lostFoundService.browse({ q: rawQuery }, null, Math.min(limit, 40))
+    return rankByRelevance(rawQuery, page.data, (r) => [r.petName, r.species, r.breed, r.lastSeenLocation])
+  }
+
+  /**
+   * Vets and pet-care providers in one list. They live behind separate
+   * categories in their own browse UI, but someone typing "groomer" into the
+   * search box does not care which of the two tabs the answer lives in.
+   */
+  async searchProviders(rawQuery: string, limit = 20): Promise<ProviderResponse[]> {
+    const take = Math.min(limit, 40)
+    const [vets, petCare] = await Promise.all([
+      this.providersService.browse('vet', { q: rawQuery }, null, take),
+      this.providersService.browse('pet_care', { q: rawQuery }, null, take),
+    ])
+    const combined = [...vets.data, ...petCare.data]
+    return rankByRelevance(rawQuery, combined, (p) => [p.name, p.serviceType, p.location]).slice(0, take)
   }
 }

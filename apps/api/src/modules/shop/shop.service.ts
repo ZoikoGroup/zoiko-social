@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateProductInput, UpdateProductInput, EnquiryInput, ShopCategory, ShopSort } from './shop.schemas'
@@ -22,6 +24,7 @@ export interface ProductResponse {
   shipping: string | null
   location: string | null
   status: string
+  tags: string[]
   savesCount: number
   enquiriesCount: number
   createdAt: string
@@ -45,6 +48,8 @@ interface BrowseFilters {
   condition?: string
   q?: string
   sort?: ShopSort
+  /** Normalised tag; exact containment against the GIN-indexed array. */
+  tag?: string
 }
 
 @Injectable()
@@ -52,6 +57,7 @@ export class ShopService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
   ) {}
 
   private sellerInclude() {
@@ -69,7 +75,7 @@ export class ShopService {
       price: p.priceCents / 100, compareAt: p.compareCents !== null ? p.compareCents / 100 : null,
       currency: p.currency, category: p.category, condition: p.condition,
       coverUrl: p.coverUrl, photos: p.photos, stock: p.stock, inStock: p.stock > 0,
-      shipping: p.shipping, location: p.location, status: p.status,
+      shipping: p.shipping, location: p.location, status: p.status, tags: p.tags,
       savesCount: p.savesCount, enquiriesCount: p.enquiriesCount,
       createdAt: p.createdAt.toISOString(), viewerSaved: saved,
     }
@@ -90,6 +96,7 @@ export class ShopService {
       hiddenAt: null,
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.condition ? { condition: filters.condition } : {}),
+      ...(filters.tag ? { tags: { has: filters.tag } } : {}),
       ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: 'insensitive' } }, { description: { contains: filters.q, mode: 'insensitive' } }] } : {}),
     }
 
@@ -167,9 +174,12 @@ export class ShopService {
   }
 
   async create(sellerId: string, input: CreateProductInput): Promise<ProductResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     const created = await this.prisma.product.create({
       data: {
         sellerId, title: input.title, priceCents: Math.round(input.price * 100),
+        ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
         category: input.category ?? 'accessories', condition: input.condition ?? 'new',
         stock: input.stock ?? 1,
         ...(input.compareAt !== undefined ? { compareCents: Math.round(input.compareAt * 100) } : {}),
@@ -192,10 +202,13 @@ export class ShopService {
   }
 
   async update(id: string, sellerId: string, input: UpdateProductInput): Promise<ProductResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     await this.assertSeller(id, sellerId)
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
+        ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.price !== undefined ? { priceCents: Math.round(input.price * 100) } : {}),

@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Search, ChevronLeft, Users, Hash, FileText, Newspaper, ShoppingBag,
-  Heart, MessageCircle, Loader2,
+  Heart, MessageCircle, Loader2, CalendarDays, PawPrint, MapPin, Stethoscope,
+  BadgeCheck, Siren,
 } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
@@ -18,15 +19,25 @@ import {
   searchApi,
   type SearchAllResult, type FollowSuggestion, type PostItem,
   type CommunityCard as CommunityCardData, type NewsArticle, type Product,
+  type EventItem, type AdoptionListing, type LostFoundReport, type Provider,
 } from '@/lib/api'
 
-type Tab = 'all' | 'people' | 'hashtags' | 'posts' | 'communities' | 'news' | 'products'
+type Tab =
+  | 'all' | 'people' | 'hashtags' | 'posts' | 'communities' | 'news' | 'products'
+  | 'events' | 'adoption' | 'lostFound' | 'providers'
 
+// Pets, adoption, events, vets and missing animals are what this platform is
+// actually for, so they sit alongside the social categories rather than being
+// reachable only from their own browse pages.
 const TABS: { key: Tab; label: string; Icon: typeof Search }[] = [
   { key: 'all', label: 'All', Icon: Search },
   { key: 'people', label: 'People', Icon: Users },
   { key: 'hashtags', label: 'Hashtags', Icon: Hash },
   { key: 'posts', label: 'Posts', Icon: FileText },
+  { key: 'adoption', label: 'Adoption', Icon: PawPrint },
+  { key: 'lostFound', label: 'Lost & Found', Icon: Siren },
+  { key: 'events', label: 'Events', Icon: CalendarDays },
+  { key: 'providers', label: 'Vets & Care', Icon: Stethoscope },
   { key: 'communities', label: 'Communities', Icon: Users },
   { key: 'news', label: 'News', Icon: Newspaper },
   { key: 'products', label: 'Products', Icon: ShoppingBag },
@@ -64,6 +75,10 @@ export default function SearchPage(): React.JSX.Element {
   const [communities, setCommunities] = useState<CommunityCardData[]>([])
   const [news, setNews] = useState<NewsArticle[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [events, setEvents] = useState<EventItem[]>([])
+  const [adoption, setAdoption] = useState<AdoptionListing[]>([])
+  const [lostFound, setLostFound] = useState<LostFoundReport[]>([])
+  const [providers, setProviders] = useState<Provider[]>([])
 
   const handleQueryChange = useCallback((value: string) => {
     setQuery(value)
@@ -84,6 +99,7 @@ export default function SearchPage(): React.JSX.Element {
       if (q.length < 2) {
         setAllResult(null); setPeople([]); setHashtags([]); setPosts([])
         setCommunities([]); setNews([]); setProducts([])
+        setEvents([]); setAdoption([]); setLostFound([]); setProviders([])
         setLoading(false)
         return
       }
@@ -96,6 +112,10 @@ export default function SearchPage(): React.JSX.Element {
         activeTab === 'posts' ? searchApi.posts(q, limit).then((d) => { if (!cancelled) setPosts(d) }) :
         activeTab === 'communities' ? searchApi.communities(q, limit).then((d) => { if (!cancelled) setCommunities(d) }) :
         activeTab === 'news' ? searchApi.news(q, limit).then((d) => { if (!cancelled) setNews(d) }) :
+        activeTab === 'events' ? searchApi.events(q, limit).then((d) => { if (!cancelled) setEvents(d) }) :
+        activeTab === 'adoption' ? searchApi.adoption(q, limit).then((d) => { if (!cancelled) setAdoption(d) }) :
+        activeTab === 'lostFound' ? searchApi.lostFound(q, limit).then((d) => { if (!cancelled) setLostFound(d) }) :
+        activeTab === 'providers' ? searchApi.providers(q, limit).then((d) => { if (!cancelled) setProviders(d) }) :
         searchApi.products(q, limit).then((d) => { if (!cancelled) setProducts(d) })
 
       task
@@ -134,7 +154,7 @@ export default function SearchPage(): React.JSX.Element {
                   autoFocus
                   value={query}
                   onChange={(e) => handleQueryChange(e.target.value)}
-                  placeholder="Search people, hashtags, posts, communities, news, products…"
+                  placeholder="Search people, pets for adoption, missing pets, vets, events…"
                   className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-label-md focus:border-primary focus:outline-none transition-colors"
                 />
               </div>
@@ -162,9 +182,9 @@ export default function SearchPage(): React.JSX.Element {
               <EmptyState
                 icon={Search}
                 title="Search ZoikoSocial"
-                subtitle="Find people, hashtags, posts, communities, news and products — all in one place."
+                subtitle="Find people, pets looking for a home, missing pets, vets, events, communities, news and products — all in one place."
               />
-            ) : loading && !allResult && people.length === 0 && hashtags.length === 0 && posts.length === 0 && communities.length === 0 && news.length === 0 && products.length === 0 ? (
+            ) : loading && !allResult && people.length === 0 && hashtags.length === 0 && posts.length === 0 && communities.length === 0 && news.length === 0 && products.length === 0 && events.length === 0 && adoption.length === 0 && lostFound.length === 0 && providers.length === 0 ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-6 h-6 text-outline animate-spin" />
               </div>
@@ -201,6 +221,26 @@ export default function SearchPage(): React.JSX.Element {
                   products.length === 0
                     ? <EmptyState icon={ShoppingBag} title="No products found" subtitle="Try a different keyword." />
                     : <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{products.map((p) => <ProductTile key={p.id} product={p} formatMoney={formatMoney} />)}</div>
+                )}
+                {activeTab === 'adoption' && (
+                  adoption.length === 0
+                    ? <EmptyState icon={PawPrint} title="No pets found" subtitle="Try a breed, species or place — or browse all listings on the Adoption page." />
+                    : <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">{adoption.map((l) => <AdoptionTile key={l.id} listing={l} />)}</div>
+                )}
+                {activeTab === 'lostFound' && (
+                  lostFound.length === 0
+                    ? <EmptyState icon={Siren} title="No reports found" subtitle="Try a pet name, breed or the area they went missing." />
+                    : <div className="space-y-2">{lostFound.map((r) => <LostFoundRow key={r.id} report={r} />)}</div>
+                )}
+                {activeTab === 'events' && (
+                  events.length === 0
+                    ? <EmptyState icon={CalendarDays} title="No events found" subtitle="Try a different name, place or category." />
+                    : <div className="space-y-2">{events.map((e) => <EventRow key={e.id} event={e} />)}</div>
+                )}
+                {activeTab === 'providers' && (
+                  providers.length === 0
+                    ? <EmptyState icon={Stethoscope} title="No vets or providers found" subtitle="Try a clinic name, a service like grooming, or a town." />
+                    : <div className="space-y-2">{providers.map((p) => <ProviderRow key={p.id} provider={p} />)}</div>
                 )}
 
                 {showLoadMore && (
@@ -260,6 +300,8 @@ function AllResults({
 
   const hasAny = result.people.length > 0 || result.hashtags.length > 0 || result.posts.length > 0
     || result.communities.length > 0 || result.news.length > 0 || result.products.length > 0
+    || result.events.length > 0 || result.adoption.length > 0
+    || result.lostFound.length > 0 || result.providers.length > 0
 
   if (!hasAny) {
     return <EmptyState icon={Search} title={`No results for "${result.query}"`} subtitle="Try a different name, keyword or hashtag." />
@@ -282,6 +324,38 @@ function AllResults({
           <div className="flex flex-wrap gap-2">
             {result.hashtags.map((h) => <HashtagChip key={h.tag} tag={h.tag} postsCount={h.postsCount} />)}
           </div>
+        </section>
+      )}
+
+      {/* A missing pet outranks everything else on the page — if someone is
+          searching for one, that is the whole reason they are here. */}
+      {result.lostFound.length > 0 && (
+        <section>
+          <SectionHeader label="Lost & Found" count={result.lostFound.length} onSeeAll={() => onSeeAll('lostFound')} />
+          <div className="space-y-2">{result.lostFound.map((r) => <LostFoundRow key={r.id} report={r} />)}</div>
+        </section>
+      )}
+
+      {result.adoption.length > 0 && (
+        <section>
+          <SectionHeader label="Looking for a home" count={result.adoption.length} onSeeAll={() => onSeeAll('adoption')} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {result.adoption.map((l) => <AdoptionTile key={l.id} listing={l} />)}
+          </div>
+        </section>
+      )}
+
+      {result.providers.length > 0 && (
+        <section>
+          <SectionHeader label="Vets & pet care" count={result.providers.length} onSeeAll={() => onSeeAll('providers')} />
+          <div className="space-y-2">{result.providers.map((p) => <ProviderRow key={p.id} provider={p} />)}</div>
+        </section>
+      )}
+
+      {result.events.length > 0 && (
+        <section>
+          <SectionHeader label="Events" count={result.events.length} onSeeAll={() => onSeeAll('events')} />
+          <div className="space-y-2">{result.events.map((e) => <EventRow key={e.id} event={e} />)}</div>
         </section>
       )}
 
@@ -398,6 +472,144 @@ function ProductTile({
       <div className="p-3">
         <p className="text-label-sm font-semibold text-on-surface line-clamp-2 min-h-[2.5em] group-hover:text-primary transition-colors">{product.title}</p>
         <p className="text-label-md font-bold text-on-surface mt-1">{formatMoney(product.price, product.currency)}</p>
+      </div>
+    </Link>
+  )
+}
+
+// ── The pet surfaces ─────────────────────────────────────────────────────────
+
+function AdoptionTile({ listing }: { listing: AdoptionListing }): React.JSX.Element {
+  const detail = [listing.breed, listing.age, listing.sex].filter(Boolean).join(' · ')
+  return (
+    <Link
+      href={`/adoption/${listing.id}`}
+      className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:border-primary/40 transition-colors group"
+    >
+      <div className="aspect-square bg-surface-container flex items-center justify-center overflow-hidden">
+        {listing.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={listing.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+        ) : <PawPrint className="w-6 h-6 text-outline" />}
+      </div>
+      <div className="p-3">
+        <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
+          {listing.name || listing.species}
+        </p>
+        {detail && <p className="text-[11px] text-outline truncate mt-0.5">{detail}</p>}
+        {listing.location && (
+          <p className="flex items-center gap-1 text-[11px] text-outline truncate mt-0.5">
+            <MapPin className="w-3 h-3 flex-shrink-0" />{listing.location}
+          </p>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+function LostFoundRow({ report }: { report: LostFoundReport }): React.JSX.Element {
+  const isLost = report.kind === 'lost'
+  const detail = [report.breed, report.color, report.sex].filter(Boolean).join(' · ')
+  return (
+    <Link
+      href={`/lost-found/${report.id}`}
+      className="flex items-center gap-3 p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/30 hover:border-primary/40 transition-colors"
+    >
+      <div className="w-14 h-14 rounded-lg bg-surface-container flex-shrink-0 overflow-hidden flex items-center justify-center">
+        {report.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={report.photoUrl} alt="" className="w-full h-full object-cover" />
+        ) : <PawPrint className="w-5 h-5 text-outline" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+            isLost ? 'bg-red-500/15 text-red-600' : 'bg-emerald-500/15 text-emerald-600'
+          }`}>
+            {isLost ? 'Lost' : 'Found'}
+          </span>
+          <p className="text-label-sm font-semibold text-on-surface truncate">
+            {report.petName ?? report.species}
+          </p>
+        </div>
+        {detail && <p className="text-[12px] text-outline truncate mt-0.5">{detail}</p>}
+        {report.lastSeenLocation && (
+          <p className="flex items-center gap-1 text-[11px] text-outline truncate mt-0.5">
+            <MapPin className="w-3 h-3 flex-shrink-0" />Last seen near {report.lastSeenLocation}
+          </p>
+        )}
+      </div>
+      {report.reward !== null && report.reward > 0 && (
+        <span className="flex-shrink-0 text-[11px] font-semibold text-secondary">Reward</span>
+      )}
+    </Link>
+  )
+}
+
+function EventRow({ event }: { event: EventItem }): React.JSX.Element {
+  const when = new Date(event.startsAt)
+  const place = event.isOnline ? 'Online' : (event.venueName ?? event.location)
+  return (
+    <Link
+      href={`/events/${event.id}`}
+      className="flex items-center gap-3 p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/30 hover:border-primary/40 transition-colors"
+    >
+      {/* Date block rather than a cover image: when it happens is the thing
+          someone scanning a list of events actually needs. */}
+      <div className="w-14 h-14 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
+        <span className="text-[10px] font-bold uppercase text-primary leading-none">
+          {when.toLocaleDateString('en-GB', { month: 'short' })}
+        </span>
+        <span className="text-label-md font-bold text-primary leading-tight">{when.getDate()}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-label-sm font-semibold text-on-surface truncate">{event.title}</p>
+          {event.inviteOnly && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-secondary/15 text-secondary text-[10px] font-bold uppercase tracking-wide">
+              Invite only
+            </span>
+          )}
+        </div>
+        <p className="text-[12px] text-outline truncate mt-0.5">
+          {when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          {place ? ` · ${place}` : ''}
+        </p>
+        <p className="text-[11px] text-outline mt-0.5">
+          {event.goingCount} going{event.isFree ? ' · Free' : ''}
+        </p>
+      </div>
+    </Link>
+  )
+}
+
+function ProviderRow({ provider }: { provider: Provider }): React.JSX.Element {
+  const isVet = provider.category === 'vet'
+  return (
+    <Link
+      href={`/${isVet ? 'vet-finder' : 'pet-care'}/${provider.id}`}
+      className="flex items-center gap-3 p-3 bg-surface-container-lowest rounded-xl border border-outline-variant/30 hover:border-primary/40 transition-colors"
+    >
+      <div className="w-14 h-14 rounded-lg bg-surface-container flex-shrink-0 overflow-hidden flex items-center justify-center">
+        {provider.logoUrl ?? provider.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={provider.logoUrl ?? provider.coverUrl ?? ''} alt="" className="w-full h-full object-cover" />
+        ) : <Stethoscope className="w-5 h-5 text-outline" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="text-label-sm font-semibold text-on-surface truncate">{provider.name}</p>
+          {provider.isVerified && <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
+        </div>
+        <p className="text-[12px] text-outline truncate mt-0.5">
+          {provider.serviceType ?? (isVet ? 'Veterinary clinic' : 'Pet care')}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-outline">
+          {provider.location && (
+            <span className="flex items-center gap-1 truncate"><MapPin className="w-3 h-3 flex-shrink-0" />{provider.location}</span>
+          )}
+          {provider.emergencyAvailable && <span className="text-red-600 font-semibold">Emergency</span>}
+        </div>
       </div>
     </Link>
   )

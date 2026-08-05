@@ -12,9 +12,20 @@ import { ConfigService } from '../config/config.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 
+type OAuthProvider = 'google' | 'apple' | 'facebook'
+
+const OAUTH_PROVIDER_LABELS: Record<OAuthProvider, string> = {
+  google: 'Google',
+  apple: 'Apple',
+  facebook: 'Facebook',
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name)
+
+  /** Providers confirmed enabled on the Supabase project. Positive results only. */
+  private readonly enabledOAuthProviders = new Set<OAuthProvider>()
 
   constructor(
     @Inject(SUPABASE_ADMIN_CLIENT)
@@ -230,7 +241,7 @@ export class AuthService {
     return this.getOAuthUrl('google')
   }
 
-  async getOAuthUrl(provider: 'google' | 'apple' | 'facebook') {
+  async getOAuthUrl(provider: OAuthProvider) {
     const redirectUrl = `${this.config.allowedOrigin}/auth/callback`
     // Offline access / forced consent are Google-specific; other providers reject them.
     const queryParams =
@@ -252,7 +263,50 @@ export class AuthService {
       })
     }
 
+    await this.assertProviderEnabled(provider, data.url)
+
     return { url: data.url }
+  }
+
+  /**
+   * Supabase happily builds an authorize URL for any provider it recognises by
+   * name — it only rejects a *disabled* one when the URL is actually visited.
+   * So without this check we answer 200 with a URL that answers 400, and the
+   * caller sends the visitor off to a raw GoTrue JSON error page with no way back.
+   *
+   * Visiting /authorize is side-effect free for our URLs: we pass no
+   * code_challenge, so GoTrue records no flow state and just redirects.
+   */
+  private async assertProviderEnabled(provider: OAuthProvider, url: string) {
+    if (this.enabledOAuthProviders.has(provider)) return
+
+    let status: number
+    try {
+      const res = await fetch(url, { redirect: 'manual' })
+      status = res.status
+    } catch (err) {
+      // Our own probe couldn't reach Supabase. That's no reason to block a
+      // sign-in that might well have worked — let the caller through.
+      this.logger.warn(
+        `${provider} OAuth preflight could not reach Supabase: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      return
+    }
+
+    if (status >= 300 && status < 400) {
+      // Only enabled results are remembered, so turning a provider on in the
+      // Supabase dashboard takes effect without restarting the API.
+      this.enabledOAuthProviders.add(provider)
+      return
+    }
+
+    this.logger.warn(
+      `${provider} OAuth is not enabled on the Supabase project (authorize returned ${status})`,
+    )
+    throw new BadRequestException({
+      code: 'OAUTH_PROVIDER_DISABLED',
+      message: `${OAUTH_PROVIDER_LABELS[provider]} sign-in is not available right now.`,
+    })
   }
 
   async handleOAuthCallback(code: string) {

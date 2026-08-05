@@ -17,6 +17,8 @@ import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
+import { TagInput } from '@/components/TagInput'
 
 const SPECIES = ['All', 'Dog', 'Cat', 'Bird', 'Rabbit', 'Other']
 
@@ -80,6 +82,9 @@ export default function AdoptionPage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
           <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
@@ -294,6 +299,13 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
           )}
 
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={3000} rows={3} placeholder="Tell adopters / buyers about this pet…" className={`${input} resize-none`} />
+
+          <TagInput
+            value={form.tags ?? []}
+            onChange={(tags) => set('tags', tags)}
+            placeholder="beagle, rescue, puppy…"
+            hint="Puts this listing on those tag pages, so someone browsing #beagle finds it."
+          />
           <div className="flex flex-wrap gap-2">
             <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}Vaccinated</button>
             <button onClick={() => set('neutered', !form.neutered)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.neutered ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.neutered && <Check className="w-3.5 h-3.5" />}Neutered</button>

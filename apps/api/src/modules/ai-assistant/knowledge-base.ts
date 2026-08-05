@@ -22,7 +22,7 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     topic: 'What ZoikoSocial is',
     keywords: ['zoikosocial', 'zoiko', 'platform', 'what is this', 'about', 'purpose', 'mission'],
     content:
-      'ZoikoSocial is a social platform built for animal lovers, rescuers, veterinarians, breeders, and anyone who cares about animal welfare, the environment, science and technology. It has the features you would expect from a modern social app — a feed, stories, communities, messaging, video calls and marketplaces — but everything runs under one set of safety-first rules. Four principles hold everywhere: it is profanity-free by design, animal welfare comes before engagement, news must be verified and well-sourced, and every safety-relevant action is logged and auditable.',
+      'ZoikoSocial is a social platform built for animal lovers, rescuers, veterinarians, breeders, and anyone who cares about animal welfare, the environment, science and technology. It has the features you would expect from a modern social app — a feed, communities, messaging, video calls and marketplaces — but everything runs under one set of safety-first rules. Four principles hold everywhere: it is profanity-free by design, animal welfare comes before engagement, news must be verified and well-sourced, and every safety-relevant action is logged and auditable.',
     docsPath: '/docs/getting-started',
   },
   {
@@ -77,10 +77,10 @@ export const KNOWLEDGE_BASE: KnowledgeEntry[] = [
     docsPath: '/docs/profile-and-pets',
   },
   {
-    topic: 'Feed, posts and stories',
-    keywords: ['feed', 'home feed', 'explore', 'post', 'posting', 'create post', 'story', 'stories', 'caption', 'photo', 'video', 'like', 'comment', 'save', 'reaction'],
+    topic: 'Feed and posts',
+    keywords: ['feed', 'home feed', 'explore', 'post', 'posting', 'create post', 'caption', 'photo', 'video', 'like', 'comment', 'save', 'reaction'],
     content:
-      'The Home feed shows posts and stories from people and communities you follow; Explore surfaces public posts you do not already follow. Tap compose to create a post: write text, attach photos or video, tag a pet profile so it appears on their page too, add hashtags, and choose who can see it. Posts support reactions, comments and saves. Stories are short-lived posts that disappear after 24 hours.',
+      'The Home feed shows posts from people and communities you follow; Explore surfaces public posts you do not already follow. Tap compose to create a post: write text, attach photos or video, tag a pet profile so it appears on their page too, add hashtags, and choose who can see it. Posts support reactions, comments and saves.',
     docsPath: '/docs/feed-and-content',
   },
   {

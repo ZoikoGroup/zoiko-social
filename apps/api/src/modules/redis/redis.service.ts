@@ -327,93 +327,38 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  // ── STORY SEEN-SET ─────────────────────────────────────────────────────────
-  // TTL = 25h (> story lifetime) so seen state naturally ages out as stories expire.
+  // ── FEED RANKED-ORDER CACHE ────────────────────────────────────────────────
+  // The ranked order of a viewer's candidate pool, held briefly so paging
+  // through the feed does not re-rank the whole pool per request AND so the
+  // order cannot shift underneath the reader between page 1 and page 2.
+  //
+  // Only ids are stored: post bodies change (edits, counter updates) and the
+  // hydration query is cheap for one page, but the ORDER is the expensive,
+  // must-stay-stable part.
 
-  async seenAdd(viewerId: string, storyId: string): Promise<void> {
-    if (!this.client) return
-    try {
-      await this.client.sadd(`seen:${viewerId}`, storyId)
-      await this.client.expire(`seen:${viewerId}`, 25 * 3600)
-    } catch (err) {
-      this.logger.warn(`seenAdd failed: ${(err as Error).message}`)
-    }
-  }
-
-  async seenCheck(viewerId: string, storyId: string): Promise<boolean> {
-    if (!this.client) return false
-    try {
-      return (await this.client.sismember(`seen:${viewerId}`, storyId)) === 1
-    } catch {
-      return false
-    }
-  }
-
-  async seenGetAll(viewerId: string): Promise<Set<string>> {
-    if (!this.client) return new Set()
-    try {
-      const members = await this.client.smembers(`seen:${viewerId}`)
-      return new Set(members)
-    } catch {
-      return new Set()
-    }
-  }
-
-  // ── AUTHOR ACTIVITY ZSET ───────────────────────────────────────────────────
-  // Tracks the latest story publish timestamp per author for tray ordering.
-
-  async authorActivityAdd(authorId: string, timestampMs: number): Promise<void> {
-    if (!this.client) return
-    try {
-      await this.client.zadd('author-activity', timestampMs, authorId)
-    } catch (err) {
-      this.logger.warn(`authorActivityAdd failed: ${(err as Error).message}`)
-    }
-  }
-
-  /** Returns author IDs with activity, sorted by most-recent-first. */
-  async authorActivityGet(limit = 200): Promise<string[]> {
-    if (!this.client) return []
-    try {
-      return await this.client.zrevrange('author-activity', 0, limit - 1)
-    } catch {
-      return []
-    }
-  }
-
-  async authorActivityRemove(authorId: string): Promise<void> {
-    if (!this.client) return
-    try {
-      await this.client.zrem('author-activity', authorId)
-    } catch (err) {
-      this.logger.warn(`authorActivityRemove failed: ${(err as Error).message}`)
-    }
-  }
-
-  // ── STORY COUNTER MIRROR (exists-only — source of truth is PostgreSQL) ─────
-
-  async storyCounterIncr(storyId: string, field: 'views' | 'impressions' | 'reactions' | 'replies'): Promise<void> {
-    if (!this.client) return
-    try {
-      const key = `cnt:story:${storyId}`
-      await this.client.hincrby(key, field, 1)
-      // Extend TTL on each write
-      await this.client.expire(key, 25 * 3600)
-    } catch (err) {
-      this.logger.warn(`storyCounterIncr failed: ${(err as Error).message}`)
-    }
-  }
-
-  async storyCounterGet(storyId: string): Promise<Record<string, number> | null> {
+  async getFeedOrder(userId: string, surface: string): Promise<string[] | null> {
     if (!this.client) return null
     try {
-      const raw = await this.client.hgetall(`cnt:story:${storyId}`)
-      if (!raw || Object.keys(raw).length === 0) return null
-      const out: Record<string, number> = {}
-      for (const [k, v] of Object.entries(raw)) out[k] = Number(v)
-      return out
+      const raw = await this.client.get(`feed:order:${surface}:${userId}`)
+      if (!raw) return null
+      const parsed: unknown = JSON.parse(raw)
+      return Array.isArray(parsed) ? (parsed as string[]) : null
     } catch {
       return null
+    }
+  }
+
+  async setFeedOrder(userId: string, surface: string, ids: string[], ttlSeconds = 180): Promise<void> {
+    if (!this.client) return
+    try {
+      await this.client.set(
+        `feed:order:${surface}:${userId}`,
+        JSON.stringify(ids),
+        'EX',
+        ttlSeconds,
+      )
+    } catch (err) {
+      this.logger.warn(`setFeedOrder failed: ${(err as Error).message}`)
     }
   }
 
@@ -630,109 +575,7 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  // ── STORY CACHE ────────────────────────────────────────────────────────────
-
-  async getStory<T>(storyId: string): Promise<T | null> {
-    const key = `story:${storyId}`
-    const l1Hit = this.l1.get<T>(key)
-    if (l1Hit !== null) return l1Hit
-    if (!this.client) return null
-    try {
-      const raw = await this.client.get(key)
-      if (!raw) return null
-      const parsed = JSON.parse(raw) as T
-      this.l1.set(key, parsed)
-      return parsed
-    } catch {
-      return null
-    }
-  }
-
-  async setStory(storyId: string, payload: unknown): Promise<void> {
-    const key = `story:${storyId}`
-    this.l1.set(key, payload)
-    if (!this.client) return
-    try {
-      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
-    } catch (err) {
-      this.logger.warn(`setStory failed: ${(err as Error).message}`)
-    }
-  }
-
-  async invalidateStory(storyId: string): Promise<void> {
-    this.l1.delete(`story:${storyId}`)
-    if (!this.client) return
-    try {
-      await this.client.del(`story:${storyId}`)
-    } catch (err) {
-      this.logger.warn(`invalidateStory failed: ${(err as Error).message}`)
-    }
-  }
-
-  // Story tray — ordered list of ready story ids + posters for an author
-  async getStoryTray<T>(authorId: string): Promise<T | null> {
-    const key = `story:tray:${authorId}`
-    const l1Hit = this.l1.get<T>(key)
-    if (l1Hit !== null) return l1Hit
-    if (!this.client) return null
-    try {
-      const raw = await this.client.get(key)
-      if (!raw) return null
-      const parsed = JSON.parse(raw) as T
-      this.l1.set(key, parsed)
-      return parsed
-    } catch {
-      return null
-    }
-  }
-
-  async setStoryTray(authorId: string, payload: unknown): Promise<void> {
-    const key = `story:tray:${authorId}`
-    this.l1.set(key, payload)
-    if (!this.client) return
-    try {
-      await this.client.set(key, JSON.stringify(payload), 'EX', PROFILE_TTL_SECONDS)
-    } catch (err) {
-      this.logger.warn(`setStoryTray failed: ${(err as Error).message}`)
-    }
-  }
-
-  async invalidateStoryTray(authorId: string): Promise<void> {
-    this.l1.delete(`story:tray:${authorId}`)
-    if (!this.client) return
-    try {
-      await this.client.del(`story:tray:${authorId}`)
-    } catch (err) {
-      this.logger.warn(`invalidateStoryTray failed: ${(err as Error).message}`)
-    }
-  }
-
-  // ── TRENDING MUSIC ─────────────────────────────────────────────────────────
-
-  async musicTrendIncr(trackId: string): Promise<void> {
-    if (!this.client) return
-    try {
-      await this.client.zincrby('trend:music', 1, trackId)
-    } catch (err) {
-      this.logger.warn(`musicTrendIncr failed: ${(err as Error).message}`)
-    }
-  }
-
-  async getTrendingMusic(limit = 20): Promise<{ id: string; score: number }[]> {
-    if (!this.client) return []
-    try {
-      const raw = await this.client.zrevrange('trend:music', 0, limit - 1, 'WITHSCORES')
-      const out: { id: string; score: number }[] = []
-      for (let i = 0; i < raw.length; i += 2) {
-        out.push({ id: raw[i]!, score: Number(raw[i + 1]) })
-      }
-      return out
-    } catch {
-      return []
-    }
-  }
-
-  // ── GENERIC CACHE (for ad-hoc keys like music search/browse/trending) ─────
+  // ── GENERIC CACHE (typed wrappers for ad-hoc keys) ────────────────────────
   // These are typed wrappers around get/set with L1 + L2 cascade.
 
   async getCache<T>(key: string): Promise<T | null> {
@@ -768,6 +611,117 @@ export class RedisService implements OnModuleDestroy {
     } catch (err) {
       this.logger.warn(`invalidateCache failed: ${(err as Error).message}`)
     }
+  }
+
+  // ── AFFINITY (personalization model) ────────────────────────────────────────
+  // Per-user interest profiles stored as hashes. Dimensions:
+  //   author    — authorId → engagement weight (who you interact with)
+  //   tag       — hashtag → weight (what topics you like)
+  //   community — communityId → weight (where you're active)
+  //   kind      — postKind → weight (which post kinds you like)
+  // Keys: aff:{dimension}:{userId}. TTL refreshed on every write so inactive
+  // users' profiles age out naturally. The daily decay job multiplies all
+  // scores by a decay factor so old interests fade (freshness of the model).
+
+  /** Increment an affinity dimension field (float, may be negative). */
+  async affinityIncr(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+    field: string,
+    delta: number,
+    ttlSeconds = 60 * 24 * 3600,
+  ): Promise<void> {
+    if (!this.client) return
+    try {
+      const key = `aff:${dimension}:${userId}`
+      await this.client
+        .multi()
+        .hincrbyfloat(key, field, delta)
+        .expire(key, ttlSeconds)
+        .exec()
+    } catch (err) {
+      this.logger.warn(`affinityIncr failed: ${(err as Error).message}`)
+    }
+  }
+
+  /** Read every field of one affinity dimension as a Map (or null if absent). */
+  async affinityGetAll(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+  ): Promise<Map<string, number> | null> {
+    if (!this.client) return null
+    try {
+      const raw = await this.client.hgetall(`aff:${dimension}:${userId}`)
+      if (!raw || Object.keys(raw).length === 0) return null
+      const out = new Map<string, number>()
+      for (const [k, v] of Object.entries(raw)) out.set(k, Number(v))
+      return out
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Read ONLY the requested fields of an affinity dimension — one HMGET.
+   * Feed ranking only needs the authors/tags/communities/kinds present in the
+   * candidate pool, so this avoids pulling a heavy user's entire profile per
+   * request (the HGETALL path is kept for rebuild/decay bookkeeping).
+   */
+  async affinityGetMany(
+    userId: string,
+    dimension: 'author' | 'tag' | 'community' | 'kind',
+    fields: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    if (!this.client || fields.length === 0) return out
+    try {
+      const raw = await this.client.hmget(`aff:${dimension}:${userId}`, ...fields)
+      fields.forEach((field, i) => {
+        const v = raw[i]
+        if (v !== null && v !== undefined && v !== '') out.set(field, Number(v))
+      })
+      return out
+    } catch {
+      return out
+    }
+  }
+
+  /**
+   * Decay every affinity score by `factor` (e.g. 0.95 daily). Fields that drop
+   * below `floor` are removed so the hash stays bounded. SCAN-based — safe to
+   * run on a live cluster without blocking.
+   */
+  async affinityDecayAll(factor = 0.95, floor = 0.1): Promise<number> {
+    if (!this.client) return 0
+    let decayed = 0
+    try {
+      let cursor = '0'
+      do {
+        const [next, keys] = await this.client.scan(cursor, 'MATCH', 'aff:*', 'COUNT', 500)
+        cursor = next
+        for (const key of keys) {
+          const raw = await this.client.hgetall(key)
+          if (!raw || Object.keys(raw).length === 0) continue
+          const multi = this.client.multi()
+          let removedAll = true
+          for (const [field, value] of Object.entries(raw)) {
+            const nextVal = Number(value) * factor
+            if (Math.abs(nextVal) < floor) {
+              multi.hdel(key, field)
+            } else {
+              multi.hset(key, field, String(nextVal))
+              removedAll = false
+            }
+          }
+          if (removedAll) multi.del(key) // fully-decayed profile → reclaim the key
+          await multi.exec()
+          decayed++
+        }
+      } while (cursor !== '0')
+    } catch (err) {
+      this.logger.warn(`affinityDecayAll failed: ${(err as Error).message}`)
+    }
+    return decayed
   }
 
   // ── PUB/SUB ───────────────────────────────────────────────────────────────

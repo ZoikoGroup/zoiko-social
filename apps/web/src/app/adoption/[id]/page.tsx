@@ -12,6 +12,7 @@ import {
   MessageCircle, Tag, Gift, Navigation,
 } from 'lucide-react'
 import { adoptionApi, type AdoptionListing, type AdoptionEnquiryItem } from '@/lib/api'
+import { ReportButton } from '@/components/ReportButton'
 import { AdoptionChat } from '@/components/adoption/AdoptionChat'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
@@ -141,7 +142,23 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
                   {listing.listingType === 'sale' && listing.negotiable && <span className="text-label-sm font-medium text-outline"> · Negotiable</span>}
                 </p>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide flex-shrink-0 ${listing.status === 'available' ? 'bg-emerald-500/10 text-emerald-600' : listing.status === 'adopted' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>{listing.status}</span>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${listing.status === 'available' ? 'bg-emerald-500/10 text-emerald-600' : listing.status === 'adopted' ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'}`}>{listing.status}</span>
+                <ReportButton targetType="adoption_listing" targetId={listing.id} variant="icon" />
+              </div>
+                {listing.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {listing.tags.map((tag) => (
+                      <Link
+                        key={tag}
+                        href={`/explore/tags/${encodeURIComponent(tag)}`}
+                        className="px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        #{tag}
+                      </Link>
+                    ))}
+                  </div>
+                )}
             </div>
 
             {/* Badges */}

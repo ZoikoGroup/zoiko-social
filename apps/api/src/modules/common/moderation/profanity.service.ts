@@ -73,4 +73,23 @@ export class ProfanityService {
       message: 'This content violates our profanity policy and cannot be posted.',
     })
   }
+
+  /**
+   * Screen several fields of one write in a single call.
+   *
+   * Most create/update paths carry more than one free-text field (a title AND a
+   * description AND a place name), and screening only the obvious one leaves the
+   * others open. Undefined and empty values are skipped, so this is safe to call
+   * with a whole partial-update payload spread into it.
+   */
+  assertCleanFields(
+    fields: Record<string, string | null | undefined>,
+    context: { actorId?: string; entityType: string },
+  ): void {
+    for (const value of Object.values(fields)) {
+      if (typeof value === 'string' && value.trim().length > 0) {
+        this.assertClean(value, context)
+      }
+    }
+  }
 }

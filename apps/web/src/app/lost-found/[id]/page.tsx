@@ -8,11 +8,12 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { LocationLink } from '@/components/LocationLink'
 import { LocationInput } from '@/components/LocationInput'
 import { UserAvatar } from '@/components/UserAvatar'
-import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift, Navigation, Sparkles } from 'lucide-react'
+import { ChevronLeft, MapPin, Calendar, Phone, Eye, Loader2, Trash2, Check, Gift, Navigation, Sparkles, HeartPulse } from 'lucide-react'
 import { lostFoundApi, type LostFoundReport, type LostFoundSighting } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { ReportButton } from '@/components/ReportButton'
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
@@ -49,7 +50,21 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
     if (posting || (!message.trim() && !location.trim())) return
     setPosting(true)
     try {
-      await lostFoundApi.addSighting(id, { ...(message.trim() ? { message: message.trim() } : {}), ...(location.trim() ? { location: location.trim() } : {}) })
+      // Coordinates are what make the sightings plottable and distance-ranked;
+      // a refused or slow permission must not block reporting one.
+      const coords = await new Promise<{ latitude: number; longitude: number } | null>((resolve) => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) { resolve(null); return }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 4000, maximumAge: 60_000 },
+        )
+      })
+      await lostFoundApi.addSighting(id, {
+        ...(message.trim() ? { message: message.trim() } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
+        ...(coords ?? {}),
+      })
       setMessage(''); setLocation('')
       loadSightings()
       if (report) setReport({ ...report, sightingsCount: report.sightingsCount + 1 })
@@ -131,8 +146,34 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                 </div>
                 <h1 className="font-headline text-headline-lg text-on-surface mt-1">{report.petName ?? report.species}</h1>
                 <p className="text-label-md text-on-surface-variant">{report.species}{report.breed ? ` · ${report.breed}` : ''}</p>
+                {/* Only the owner sees this route — `pet` is set from their own
+                    profile, so it's the fastest way back to the full record. */}
+                {report.pet && isOwner && (
+                  <Link
+                    href="/health-passport"
+                    className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] font-semibold text-primary hover:underline"
+                  >
+                    <HeartPulse className="w-3.5 h-3.5" />
+                    Linked to {report.pet.name}&apos;s Health Passport
+                  </Link>
+                )}
               </div>
+              {/* Reward-bait and hoax reports are a real pattern here. */}
+              <ReportButton targetType="lost_found_report" targetId={report.id} variant="icon" />
             </div>
+                {report.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {report.tags.map((tag) => (
+                      <Link
+                        key={tag}
+                        href={`/explore/tags/${encodeURIComponent(tag)}`}
+                        className="px-2.5 py-1 rounded-full bg-surface-container text-on-surface-variant text-[11px] font-semibold hover:text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        #{tag}
+                      </Link>
+                    ))}
+                  </div>
+                )}
 
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-label-sm text-on-surface-variant">
               {report.lastSeenLocation && <LocationLink location={report.lastSeenLocation} iconClassName="w-3.5 h-3.5" className="text-primary" />}
@@ -251,7 +292,26 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                       <Link href={`/profile/${s.reporter.username}`} className="text-label-sm font-semibold text-on-surface hover:underline">{s.reporter.displayName}</Link>
                       {s.location && <LocationLink location={s.location} iconClassName="w-3 h-3" className="text-[12px] text-primary mt-0.5" />}
                       {s.message && <p className="text-label-sm text-on-surface-variant mt-0.5">{s.message}</p>}
-                      <p className="text-[11px] text-outline mt-0.5">{fmtDate(s.createdAt)}</p>
+                      <p className="flex items-center gap-2 text-[11px] text-outline mt-0.5">
+                        <span>{fmtDate(s.createdAt)}</span>
+                        {/* Distance from the last-seen point is the number that
+                            shows whether the animal is drifting or circling. */}
+                        {s.distanceKm !== null && (
+                          <span className="flex items-center gap-0.5 font-semibold text-secondary">
+                            <Navigation className="w-3 h-3" />{s.distanceKm} km away
+                          </span>
+                        )}
+                        {s.latitude !== null && s.longitude !== null && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${s.latitude},${s.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary font-semibold hover:underline"
+                          >
+                            Map
+                          </a>
+                        )}
+                      </p>
                     </div>
                   </div>
                 ))}

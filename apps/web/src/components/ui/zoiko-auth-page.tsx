@@ -80,13 +80,21 @@ function GoogleIcon({ className }: { className?: string }) {
   )
 }
 
-function AppleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M17.05 12.54c-.02-2.06 1.68-3.05 1.76-3.1-.96-1.4-2.45-1.6-2.98-1.62-1.27-.13-2.48.75-3.12.75-.64 0-1.64-.73-2.7-.71-1.39.02-2.67.81-3.38 2.05-1.44 2.5-.37 6.2 1.03 8.23.69 1 1.5 2.11 2.57 2.07 1.03-.04 1.42-.66 2.67-.66 1.24 0 1.6.66 2.69.64 1.11-.02 1.81-1.01 2.49-2.01.78-1.15 1.11-2.27 1.12-2.33-.03-.01-2.15-.82-2.17-3.27ZM15.0 6.4c.57-.69.95-1.65.85-2.6-.82.03-1.81.54-2.4 1.23-.53.61-.99 1.59-.87 2.53.91.07 1.85-.47 2.42-1.16Z" />
-    </svg>
-  )
-}
+// ── Apple sign-in is hidden until the provider is enabled ────────────────────
+// Sign in with Apple needs a paid Apple Developer membership, a Services ID and
+// a signing key that has to be rotated every six months. Until that exists the
+// provider is disabled in Supabase, so the button could only ever fail. Kept
+// commented rather than deleted: the handler, label and backend route are all
+// still wired, so restoring it is uncommenting this icon and the button below,
+// and putting the social grid back to grid-cols-3.
+//
+// function AppleIcon({ className }: { className?: string }) {
+//   return (
+//     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+//       <path d="M17.05 12.54c-.02-2.06 1.68-3.05 1.76-3.1-.96-1.4-2.45-1.6-2.98-1.62-1.27-.13-2.48.75-3.12.75-.64 0-1.64-.73-2.7-.71-1.39.02-2.67.81-3.38 2.05-1.44 2.5-.37 6.2 1.03 8.23.69 1 1.5 2.11 2.57 2.07 1.03-.04 1.42-.66 2.67-.66 1.24 0 1.6.66 2.69.64 1.11-.02 1.81-1.01 2.49-2.01.78-1.15 1.11-2.27 1.12-2.33-.03-.01-2.15-.82-2.17-3.27ZM15.0 6.4c.57-.69.95-1.65.85-2.6-.82.03-1.81.54-2.4 1.23-.53.61-.99 1.59-.87 2.53.91.07 1.85-.47 2.42-1.16Z" />
+//     </svg>
+//   )
+// }
 
 function FacebookIcon({ className }: { className?: string }) {
   return (
@@ -633,8 +641,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                   <div className="h-px flex-1 bg-gray-200" />
                 </div>
 
-                {/* Social buttons */}
-                <div className="grid grid-cols-3 gap-3">
+                {/* Social buttons — grid-cols-3 again when Apple comes back */}
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => handleSocial('google')}
@@ -648,6 +656,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                     )}
                     Google
                   </button>
+                  {/* Hidden until Sign in with Apple is set up — see AppleIcon above.
                   <button
                     type="button"
                     onClick={() => handleSocial('apple')}
@@ -661,6 +670,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                     )}
                     Apple
                   </button>
+                  */}
                   <button
                     type="button"
                     onClick={() => handleSocial('facebook')}

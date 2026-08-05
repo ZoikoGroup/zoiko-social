@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { normalizeTags } from '../common/utils/tags'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import { scanForFraud } from '../common/fraud/fraud-scan'
 import type { CreateListingInput, UpdateListingInput, EnquiryInput, EnquiryMessageInput, RespondEnquiryInput } from './adoption.schemas'
@@ -34,6 +37,7 @@ export interface ListingResponse {
   negotiable: boolean
   fee: number | null
   status: string
+  tags: string[]
   enquiriesCount: number
   createdAt: string
   viewerEnquiryStatus: string | null
@@ -48,6 +52,8 @@ export class AdoptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
+    private readonly profanity: ProfanityService,
+    private readonly affinity: AffinityService,
   ) {}
 
   private posterInclude() {
@@ -66,7 +72,7 @@ export class AdoptionService {
       coverUrl: l.coverUrl, photos: l.photos,
       vaccinated: l.vaccinated, neutered: l.neutered, goodWith: l.goodWith,
       listingType: l.listingType, price: l.price, negotiable: l.negotiable, fee: l.fee,
-      status: l.status, enquiriesCount: l.enquiriesCount, createdAt: l.createdAt.toISOString(),
+      status: l.status, tags: l.tags, enquiriesCount: l.enquiriesCount, createdAt: l.createdAt.toISOString(),
       viewerEnquiryStatus,
     }
   }
@@ -90,7 +96,7 @@ export class AdoptionService {
 
   async browse(
     viewerId: string | undefined,
-    filters: { species?: string; status?: string; q?: string; listingType?: string; nearLat?: number; nearLng?: number },
+    filters: { species?: string; status?: string; q?: string; listingType?: string; nearLat?: number; nearLng?: number; tag?: string },
     cursor: string | null,
     limit = 15,
   ): Promise<ListingPage> {
@@ -104,6 +110,8 @@ export class AdoptionService {
       ...(filters.status ? { status: filters.status } : { status: { in: ['available', 'pending'] } }),
       ...(filters.species ? { species: { equals: filters.species, mode: 'insensitive' } } : {}),
       ...(filters.listingType ? { listingType: filters.listingType } : {}),
+        // Exact containment — normalised on write, so an index lookup.
+        ...(filters.tag ? { tags: { has: filters.tag } } : {}),
       ...(filters.q
         ? { OR: [
             { name: { contains: filters.q, mode: 'insensitive' } },
@@ -182,9 +190,12 @@ export class AdoptionService {
   }
 
   async create(posterId: string, input: CreateListingInput): Promise<ListingResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, description: input.description, location: input.location }, { actorId: posterId, entityType: 'adoption_listing' })
     const l = await this.prisma.adoptionPost.create({
       data: {
         posterId, name: input.name, species: input.species,
+        ...(input.tags ? { tags: normalizeTags(input.tags) } : {}),
         sex: input.sex ?? 'unknown',
         ...(input.breed ? { breed: input.breed } : {}),
         ...(input.age ? { age: input.age } : {}),
@@ -209,10 +220,13 @@ export class AdoptionService {
   }
 
   async update(id: string, posterId: string, input: UpdateListingInput): Promise<ListingResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, description: input.description, location: input.location }, { actorId: posterId, entityType: 'adoption_listing' })
     await this.assertPoster(id, posterId)
     const l = await this.prisma.adoptionPost.update({
       where: { id },
       data: {
+        ...(input.tags !== undefined ? { tags: normalizeTags(input.tags) } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.species !== undefined ? { species: input.species } : {}),
         ...(input.breed !== undefined ? { breed: input.breed || null } : {}),
@@ -255,7 +269,7 @@ export class AdoptionService {
   async enquire(listingId: string, applicantId: string, input: EnquiryInput): Promise<{ id: string; status: string }> {
     const listing = await this.prisma.adoptionPost.findUnique({
       where: { id: listingId },
-      select: { id: true, isDeleted: true, posterId: true, name: true },
+      select: { id: true, isDeleted: true, posterId: true, name: true, species: true, breed: true },
     })
     if (!listing || listing.isDeleted) throw new NotFoundException({ code: 'LISTING_NOT_FOUND', message: 'Listing not found' })
     if (listing.posterId === applicantId) throw new BadRequestException({ code: 'OWN_LISTING', message: 'You cannot enquire on your own listing' })
@@ -287,6 +301,14 @@ export class AdoptionService {
       body: `${applicant?.displayName ?? 'Someone'} is interested in ${listing.name}`,
       data: { listingId, applicantUsername: applicant?.username },
     })
+
+    // Enquiring about an animal is the clearest interest signal this platform
+    // has — far stronger than a like — and it was not reaching the feed at all.
+    void this.affinity.recordInterest(
+      applicantId,
+      [listing.species, listing.breed ?? ''].filter(Boolean),
+      AFFINITY_WEIGHTS.adoptionEnquiry,
+    )
     return { id: created.id, status: 'pending' }
   }
 

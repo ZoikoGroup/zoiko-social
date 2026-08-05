@@ -14,6 +14,7 @@ import {
 import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { ReportButton } from '@/components/ReportButton'
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
   const { format } = useCurrency()
@@ -143,7 +144,10 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 )}
               </div>
 
-              <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight text-balance">{product.title}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight text-balance">{product.title}</h1>
+                <ReportButton targetType="product" targetId={product.id} variant="icon" className="flex-shrink-0" />
+              </div>
 
               <div className="flex items-center gap-2 mt-3">
                 <span className="text-headline-md font-bold text-on-surface">{format(product.price, product.currency)}</span>

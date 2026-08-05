@@ -12,10 +12,11 @@ import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { UserAvatar } from '@/components/UserAvatar'
 import { EventFormModal } from '@/components/events/EventFormModal'
-import { Calendar, Globe, Plus, Users, Check, Search, Film, Ticket, Navigation } from 'lucide-react'
+import { Calendar, Globe, Plus, Users, Check, Search, Film, Ticket, Navigation, Mail } from 'lucide-react'
 import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, type EventFilters } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
 
 function dateBadge(iso: string): { mon: string; day: string } {
   const d = new Date(iso)
@@ -87,6 +88,9 @@ export default function EventsPage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 hidden lg:block"><div className="h-56 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div>
           <div className="lg:col-span-6 space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-28 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />)}</div>
@@ -201,6 +205,7 @@ export default function EventsPage(): React.JSX.Element {
                             </span>
                             {e.seatsLeft !== null && <span className={`text-[10px] font-semibold ${e.seatsLeft === 0 ? 'text-red-500' : 'text-outline'}`}>{e.seatsLeft === 0 ? 'Sold out' : `${e.seatsLeft} left`}</span>}
                             {e.visibility === 'followers' && <span className="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant text-[10px] font-bold flex items-center gap-1"><Users className="w-2.5 h-2.5" />FOLLOWERS</span>}
+                            {e.inviteOnly && <span className="px-2 py-0.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-bold flex items-center gap-1"><Mail className="w-2.5 h-2.5" />INVITE ONLY</span>}
                             {e.distanceKm != null && <span className="text-[10px] font-semibold text-primary flex items-center gap-0.5"><Navigation className="w-2.5 h-2.5" />{e.distanceKm} km</span>}
                           </div>
                           <h3 className="text-label-md font-bold text-on-surface">{e.title}</h3>

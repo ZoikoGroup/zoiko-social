@@ -15,6 +15,7 @@ import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AuthService } from '../auth/auth.service'
 import { ConfigService } from '../config/config.service'
+import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase-storage.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 
@@ -120,6 +121,8 @@ export interface ProfileResponse {
   id: string
   username: string
   displayName: string
+  firstName: string | null
+  lastName: string | null
   bio: string | null
   avatarUrl: string | null
   bannerUrl: string | null
@@ -134,6 +137,8 @@ export interface ProfileResponse {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  /** False until the person has been through /onboarding and named themselves. */
+  onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
   professionalProfile: ProfessionalProfileResponse | null
@@ -199,7 +204,7 @@ export const RESERVED_USERNAMES = new Set([
   'api', 'www', 'mail', 'app', 'web', 'dev', 'test', 'staging',
   'login', 'signup', 'register', 'logout', 'auth', 'settings', 'profile',
   'explore', 'notifications', 'messages', 'news', 'events', 'shop', 'adoption',
-  'about', 'contact', 'privacy', 'terms', 'security',
+  'about', 'contact', 'privacy', 'terms', 'security', 'onboarding',
 ])
 
 export interface UsernameAvailability {
@@ -207,6 +212,20 @@ export interface UsernameAvailability {
   available: boolean
   reason: 'invalid' | 'reserved' | 'taken' | null
 }
+
+/**
+ * What we ask an OAuth arrival for. No password — they have none — and no email,
+ * which the provider already vouched for.
+ */
+export const CompleteOnboardingSchema = z.object({
+  firstName: z.string().trim().min(1).max(40),
+  lastName: z.string().trim().max(40).optional(),
+  username: z.string().trim().min(3).max(30),
+  bio: z.string().trim().max(500).optional(),
+  avatarUrl: z.string().url().max(500).optional().nullable(),
+})
+
+export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>
 
 // ── Profile Service ────────────────────────────────────────────────────────
 
@@ -223,6 +242,7 @@ export class ProfileService {
     private readonly profanity: ProfanityService,
     private readonly authService: AuthService,
     private readonly config: ConfigService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -253,6 +273,152 @@ export class ProfileService {
       select: { id: true },
     })
     return { username, available: !existing, reason: existing ? 'taken' : null }
+  }
+
+  /**
+   * Offer handles built from the name the provider gave us, in descending order
+   * of how much they look like a person's own choice. Only available ones come
+   * back, so anything the caller shows can be taken without a second round trip.
+   */
+  async suggestUsernames(firstName: string, lastName: string, limit = 5): Promise<string[]> {
+    const first = ProfileService.usernameToken(firstName)
+    const last = ProfileService.usernameToken(lastName)
+
+    const raw: string[] = []
+    if (first && last) {
+      raw.push(`${first}.${last}`, `${first}${last}`, `${first}_${last}`, `${first}.${last.slice(0, 1)}`)
+    }
+    if (first) raw.push(first)
+    if (last) raw.push(last)
+
+    // Numbered variants so a common name can still fill the list.
+    const seed = raw[0]
+    if (seed) {
+      for (let n = 1; n <= limit * 2; n++) raw.push(`${seed.slice(0, 27)}${n}`)
+    }
+
+    const candidates = [
+      ...new Set(
+        raw
+          .map((r) => ProfileService.normalizeUsernameCandidate(r))
+          .filter((u): u is string => u !== null),
+      ),
+    ]
+    if (candidates.length === 0) return []
+
+    const taken = new Set(
+      (
+        await this.prisma.profile.findMany({
+          where: { username: { in: candidates } },
+          select: { username: true },
+        })
+      ).map((p) => p.username),
+    )
+
+    return candidates.filter((u) => !taken.has(u)).slice(0, limit)
+  }
+
+  /** Reduce a display name to the letters and digits a handle can be built from. */
+  private static usernameToken(raw: string): string {
+    return (raw ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '') // drop accents rather than the letter
+      .replace(/[^a-z0-9]/g, '')
+  }
+
+  /** Coerce a candidate to a legal handle, or null when nothing legal remains. */
+  private static normalizeUsernameCandidate(raw: string): string | null {
+    const trimmed = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9._]/g, '')
+      .replace(/\.{2,}/g, '.')
+      .slice(0, 30)
+      .replace(/^\.+/, '')
+      .replace(/\.+$/, '')
+
+    if (!USERNAME_REGEX.test(trimmed)) return null
+    if (RESERVED_USERNAMES.has(trimmed)) return null
+    return trimmed
+  }
+
+  /**
+   * The one pass where a new OAuth account names itself. Deliberately NOT
+   * updateProfile: that stamps usernameChangedAt and starts the 30-day cooldown,
+   * which would spend the user's first rename on replacing a handle they never
+   * chose — the trigger derived it from their email address.
+   */
+  async completeOnboarding(
+    userId: string,
+    input: CompleteOnboardingInput,
+  ): Promise<ProfileResponse> {
+    const before = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { username: true, onboardingCompletedAt: true },
+    })
+    if (!before) {
+      throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+    }
+    if (before.onboardingCompletedAt) {
+      throw new ConflictException({
+        code: 'ONBOARDING_ALREADY_COMPLETE',
+        message: 'Onboarding has already been completed for this account.',
+      })
+    }
+
+    this.profanity.assertClean(input.firstName, { actorId: userId, entityType: 'profile.firstName' })
+    if (input.lastName) {
+      this.profanity.assertClean(input.lastName, { actorId: userId, entityType: 'profile.lastName' })
+    }
+    if (input.bio) {
+      this.profanity.assertClean(input.bio, { actorId: userId, entityType: 'profile.bio' })
+    }
+    this.profanity.assertClean(input.username, { actorId: userId, entityType: 'profile.username' })
+
+    const username = input.username.trim().toLowerCase()
+
+    // Keeping the provisional handle is legitimate — it is already theirs, and
+    // re-checking it would report it as taken by its own owner.
+    if (username !== before.username) {
+      const availability = await this.checkUsernameAvailability(username)
+      if (!availability.available) {
+        throw new ConflictException(
+          availability.reason === 'taken'
+            ? { code: 'USERNAME_TAKEN', message: 'This username is already taken.' }
+            : {
+                code: 'USERNAME_INVALID',
+                message:
+                  'Usernames are 3–30 characters: lowercase letters, numbers, underscores and periods.',
+              },
+        )
+      }
+    }
+
+    const firstName = input.firstName.trim()
+    const lastName = input.lastName?.trim() || null
+    const displayName = [firstName, lastName].filter(Boolean).join(' ')
+
+    const profile = await this.prisma.profile.update({
+      where: { id: userId },
+      data: {
+        firstName,
+        lastName,
+        displayName,
+        username,
+        bio: input.bio?.trim() || null,
+        avatarUrl: input.avatarUrl ?? undefined,
+        onboardingCompletedAt: new Date(),
+      },
+      include: { professionalProfile: true },
+    })
+
+    await this.redis.invalidateProfile(userId)
+    if (username !== before.username) {
+      await this.redis.invalidateUsername(before.username, username)
+    }
+    this.logger.log(`User ${userId} completed onboarding as @${username}`)
+
+    return this.mapProfile(profile)
   }
 
   // ── PERSONAL PROFILE ──────────────────────────────────────────────────────
@@ -803,6 +969,33 @@ export class ProfileService {
     }
   }
 
+  /**
+   * Short-lived read URL for a verification document.
+   *
+   * The documents live in a private bucket (migrations/055), so `documentUrl`
+   * holds a storage key rather than a fetchable URL — identity documents must
+   * not be readable by anyone who happens to have the link. Only the member who
+   * uploaded it and staff reviewing it can obtain a signed URL, and it expires
+   * in five minutes.
+   */
+  async getVerificationDocumentUrl(requesterId: string, documentId: string): Promise<string> {
+    const doc = await this.prisma.verificationDocument.findUnique({
+      where: { id: documentId },
+      select: { documentUrl: true, request: { select: { userId: true } } },
+    })
+    if (!doc) {
+      throw new NotFoundException({ code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' })
+    }
+
+    if (doc.request.userId !== requesterId) {
+      // Throws ForbiddenException for non-staff, so a member cannot probe for
+      // other people's document ids.
+      await this.requireAdminOrModerator(requesterId)
+    }
+
+    return this.storage.createSignedDownloadUrl(VERIFICATION_BUCKET, doc.documentUrl)
+  }
+
   // ── RELATIONSHIP ENGINE ───────────────────────────────────────────────────
 
   async getRelationship(userId: string, targetUserId: string): Promise<RelationshipResponse> {
@@ -871,7 +1064,7 @@ export class ProfileService {
    * Temporarily hide the account. Nothing is destroyed: signing back in restores
    * it (see AuthService.restoreOnLogin). Everyone else stops seeing the member
    * and their content for free, because profile visibility across feed, search,
-   * posts, comments, messaging and stories is gated on `state = 'active'`.
+   * posts, comments and messaging is gated on `state = 'active'`.
    */
   async deactivateAccount(userId: string): Promise<{ state: string }> {
     const profile = await this.loadForStateChange(userId)
@@ -1091,6 +1284,8 @@ export class ProfileService {
       id: profile.id,
       username: profile.username,
       displayName: profile.displayName,
+      firstName: profile.firstName ?? null,
+      lastName: profile.lastName ?? null,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
       bannerUrl: profile.bannerUrl,
@@ -1105,6 +1300,7 @@ export class ProfileService {
       trustScore: profile.trustScore,
       currency: profile.currency ?? null,
       usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
+      onboardingCompleted: profile.onboardingCompletedAt !== null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
       professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt

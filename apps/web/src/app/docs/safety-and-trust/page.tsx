@@ -37,7 +37,7 @@ export default function SafetyAndTrustPage(): React.JSX.Element {
         spaces. It applies to:
       </P>
       <UL>
-        <LI>Posts, comments, and stories</LI>
+        <LI>Posts and comments</LI>
         <LI>Direct messages and group chats</LI>
         <LI>Usernames, display names, and bios</LI>
         <LI>Community names, descriptions, and rules</LI>
@@ -63,7 +63,7 @@ export default function SafetyAndTrustPage(): React.JSX.Element {
 
       <H2 id="reporting">Reporting content or a person</H2>
       <P>
-        You’ll find a <Strong>Report</Strong> option on posts, comments, stories, messages, profiles,
+        You’ll find a <Strong>Report</Strong> option on posts, comments, messages, profiles,
         listings, and communities — wherever content can appear, it can be reported.
       </P>
       <Steps

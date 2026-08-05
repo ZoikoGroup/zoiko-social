@@ -2,19 +2,22 @@
 
 import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, Users, Lock, BadgeCheck, Globe, Mail, ScrollText, UsersRound, Settings, UserPlus } from 'lucide-react'
+import { ChevronLeft, Users, Lock, BadgeCheck, Globe, Mail, ScrollText, UsersRound, Settings, UserPlus, Shield } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { JoinButton } from '@/components/communities/JoinButton'
 import { MembersModal } from '@/components/communities/MembersModal'
+import { ModerationModal } from '@/components/communities/ModerationModal'
 import { CommunitySettingsModal } from '@/components/communities/CommunitySettingsModal'
 import { InviteModal } from '@/components/communities/InviteModal'
 import { CommunityFeed } from '@/components/communities/CommunityFeed'
 import { communitiesApi, ApiError, type Community } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
+import { ReportButton } from '@/components/ReportButton'
+import { CommunityEvents } from '@/components/communities/CommunityEvents'
 
-type Tab = 'posts' | 'about' | 'members'
+type Tab = 'posts' | 'events' | 'about' | 'members'
 
 const PRIVACY_ICON = { public: Globe, private: Lock, invite_only: Mail } as const
 
@@ -28,6 +31,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
   const [membersOpen, setMembersOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [moderationOpen, setModerationOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -59,6 +63,9 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
   const isMember = community?.viewerStatus === 'active'
   const isPrivateLocked = community && community.privacy !== 'public' && !isMember
   const canManage = community?.viewerRole === 'owner' || community?.viewerRole === 'admin'
+  // Moderators can mute, so they need the Manage panel even though they cannot
+  // change roles, ban, edit rules or invite.
+  const canModerate = canManage || community?.viewerRole === 'moderator'
   const PrivacyIcon = community ? PRIVACY_ICON[community.privacy as keyof typeof PRIVACY_ICON] ?? Globe : Globe
 
   return (
@@ -111,29 +118,41 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                     </div>
                     <div className="mt-10 flex items-center gap-2">
                       {canManage && (
-                        <>
-                          <button
-                            onClick={() => setInviteOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
-                          >
-                            <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Invite</span>
-                          </button>
-                          <button
-                            onClick={() => setSettingsOpen(true)}
-                            className="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
-                            aria-label="Community settings"
-                          >
-                            <Settings className="w-4 h-4" />
-                          </button>
-                        </>
+                        <button
+                          onClick={() => setInviteOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+                        >
+                          <UserPlus className="w-4 h-4" /><span className="hidden sm:inline">Invite</span>
+                        </button>
+                      )}
+                      {/* Moderators get this too — muting is theirs to do. */}
+                      {canModerate && (
+                        <button
+                          onClick={() => setModerationOpen(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+                        >
+                          <Shield className="w-4 h-4" /><span className="hidden sm:inline">Manage</span>
+                        </button>
+                      )}
+                      {canManage && (
+                        <button
+                          onClick={() => setSettingsOpen(true)}
+                          className="p-2 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
+                          aria-label="Community settings"
+                        >
+                          <Settings className="w-4 h-4" />
+                        </button>
                       )}
                       {user && <JoinButton community={community} className="px-5 py-2" onChange={() => communitiesApi.get(slug).then(setCommunity).catch(() => {})} />}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="font-headline text-headline-lg text-on-surface">{community.name}</h1>
-                    {community.isVerified && <BadgeCheck className="w-5 h-5 text-primary" />}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="font-headline text-headline-lg text-on-surface">{community.name}</h1>
+                      {community.isVerified && <BadgeCheck className="w-5 h-5 text-primary" />}
+                    </div>
+                    <ReportButton targetType="community" targetId={community.id} variant="icon" className="flex-shrink-0" />
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-label-sm text-outline">
                     <span className="flex items-center gap-1"><PrivacyIcon className="w-3.5 h-3.5" />{community.privacy.replace('_', ' ')}</span>
@@ -158,7 +177,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
               {/* Tabs */}
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm mb-gutter">
                 <div className="flex">
-                  {(['posts', 'about', 'members'] as Tab[]).map((t) => (
+                  {(['posts', 'events', 'about', 'members'] as Tab[]).map((t) => (
                     <button
                       key={t}
                       onClick={() => setTab(t)}
@@ -186,6 +205,20 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                   </section>
                 ) : (
                   <CommunityFeed communityId={community.id} isMember={isMember} />
+                )
+              )}
+
+              {/* Communities can now host events, so they belong on the
+                  community page rather than only in the global events list. */}
+              {tab === 'events' && (
+                isPrivateLocked ? (
+                  <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
+                    <Lock className="w-8 h-8 text-outline mx-auto mb-3" />
+                    <p className="text-label-md font-semibold text-on-surface">Events are private</p>
+                    <p className="text-label-sm text-outline mt-1">Join to see what&apos;s on.</p>
+                  </section>
+                ) : (
+                  <CommunityEvents communityId={community.id} canHost={!!canManage} communityName={community.name} />
                 )
               )}
 
@@ -240,6 +273,13 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                 memberCount={community.membersCount}
                 onClose={() => setMembersOpen(false)}
               />
+              {moderationOpen && (
+                <ModerationModal
+                  community={community}
+                  onClose={() => setModerationOpen(false)}
+                  onChanged={() => { void communitiesApi.get(slug).then(setCommunity).catch(() => {}) }}
+                />
+              )}
               <CommunitySettingsModal
                 open={settingsOpen}
                 community={community}

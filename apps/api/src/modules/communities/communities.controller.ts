@@ -122,3 +122,21 @@ export class MyCommunitiesController {
     return { data: await this.communities.getMyCommunities(user.id) }
   }
 }
+
+/**
+ * Another member's communities, for their profile page.
+ *
+ * Mirrors how pets are exposed (`GET /profiles/:id/pets`). Public communities
+ * only — see getPublicCommunitiesFor for why membership of a private one is not
+ * ours to disclose.
+ */
+@Controller('profiles')
+export class ProfileCommunitiesController {
+  constructor(private readonly communities: CommunitiesService) {}
+
+  @Get(':id/communities')
+  @UseGuards(OptionalAuthGuard)
+  async forProfile(@Param('id') id: string) {
+    return { data: await this.communities.getPublicCommunitiesFor(id) }
+  }
+}

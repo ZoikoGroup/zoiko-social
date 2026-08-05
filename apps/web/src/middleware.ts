@@ -1,12 +1,23 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-// App routes that require authentication
+// App routes that require authentication.
+//
+// `/dashboard` and `/admin` were missing, so both answered 200 to a signed-out
+// visitor and relied on the page itself to render a "forbidden" panel. No data
+// leaked — the API rejects those calls with 401 — but it read as a bug next to
+// every other protected route, which redirects. They redirect now too.
+//
+// Deliberately absent, and public: /login and the other auth pages, /docs,
+// /terms, /privacy, /search, /explore, /p/:id, /c/:slug, and the shared
+// pet-passport link. Those have to work before someone has an account.
 const PROTECTED_ROUTES = [
   '/',           // Home feed
+  '/admin',
   '/adoption',
   '/breeding-match',
   '/communities',
+  '/dashboard',
   '/events',
   '/messages',
   '/network',
@@ -20,6 +31,7 @@ const PROTECTED_ROUTES = [
   '/settings',
   '/lost-found',
   '/vet-finder',
+  '/onboarding',
 ]
 
 // Auth pages — redirect to app if already signed in

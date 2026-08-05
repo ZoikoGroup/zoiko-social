@@ -18,6 +18,7 @@ import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { ReportButton } from '@/components/ReportButton'
 
 const HEAT_LABELS: Record<string, string> = { in_season: 'In season now', due_soon: 'Heat due soon', resting: 'Resting' }
 const DNA_TONE: Record<string, string> = { clear: 'bg-emerald-500/10 text-emerald-600', carrier: 'bg-amber-500/10 text-amber-600', affected: 'bg-red-500/10 text-red-600' }
@@ -124,7 +125,11 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
                 {profile.status !== 'available' && <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-[10px] font-semibold text-red-600 capitalize">{profile.status}</span>}
               </div>
 
-              <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight">{profile.petName}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight">{profile.petName}</h1>
+                {/* Welfare concerns about breeding practice need a route in. */}
+                <ReportButton targetType="breeding_profile" targetId={profile.id} variant="icon" className="flex-shrink-0" />
+              </div>
               <p className="text-label-md text-on-surface-variant mt-0.5 capitalize">{profile.breed}{profile.age ? ` · ${profile.age}` : ''}</p>
               <div className="flex flex-wrap items-center gap-3 mt-1 text-label-sm text-outline">
                 {profile.location && <LocationLink location={profile.location} iconClassName="w-4 h-4" />}
