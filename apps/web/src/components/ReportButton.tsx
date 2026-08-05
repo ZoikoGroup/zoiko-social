@@ -8,7 +8,7 @@ import type { ReportTargetType } from '@/lib/api'
 /**
  * Self-contained "Report" control.
  *
- * Posts, comments, messages, stories and accounts had a report path; adoption
+ * Posts, comments, messages and accounts had a report path; adoption
  * listings, lost-and-found reports, events, products, clinic listings, breeding
  * profiles and communities did not — which is a problem, because a fake
  * adoption listing or an unlicensed breeder is exactly the kind of thing only a

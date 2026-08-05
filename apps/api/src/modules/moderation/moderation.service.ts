@@ -42,7 +42,6 @@ const TARGET_CONTENT_MODEL = {
   post: 'post',
   comment: 'comment',
   message: 'message',
-  story: 'story',
   adoption_listing: 'adoptionPost',
   lost_found_report: 'lostFoundPost',
   event: 'event',
@@ -155,10 +154,6 @@ export class ModerationService {
       case 'message': {
         const message = await this.prisma.message.findUnique({ where: { id: targetId }, select: { senderId: true } })
         return message?.senderId ?? null
-      }
-      case 'story': {
-        const story = await this.prisma.story.findUnique({ where: { id: targetId }, select: { authorId: true } })
-        return story?.authorId ?? null
       }
       case 'adoption_listing': {
         const listing = await this.prisma.adoptionPost.findUnique({ where: { id: targetId }, select: { posterId: true } })

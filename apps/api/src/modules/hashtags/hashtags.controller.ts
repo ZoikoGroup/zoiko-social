@@ -31,8 +31,8 @@ export class HashtagsController {
 
   /**
    * Everything else carrying this tag — adoption listings, lost & found reports,
-   * events, products and communities. Posts and stories keep their own
-   * paginated routes; this is the preview that makes a tag page whole.
+   * events, products and communities. Posts keep their own paginated route;
+   * this is the preview that makes a tag page whole.
    */
   @Get(':tag/everything')
   @UseGuards(OptionalAuthGuard)
@@ -49,23 +49,6 @@ export class HashtagsController {
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const result = await this.hashtagsService.postsByTag(
-      tag,
-      user?.id,
-      cursor ?? null,
-      limit ? parseInt(limit, 10) : 12,
-    )
-    return { data: result }
-  }
-
-  @Get(':tag/stories')
-  @UseGuards(OptionalAuthGuard)
-  async stories(
-    @Param('tag') tag: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
-    @CurrentUser() user?: AuthenticatedUser,
-  ) {
-    const result = await this.hashtagsService.storiesByTag(
       tag,
       user?.id,
       cursor ?? null,

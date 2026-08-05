@@ -27,7 +27,7 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  // Cloudflare R2 (S3-compatible). When all are set, story media uses R2; else Supabase Storage.
+  // Cloudflare R2 (S3-compatible). Uploads are disabled until all of these are set.
   R2_PUBLIC_URL: z.string().url().optional(),
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
@@ -135,7 +135,7 @@ export class ConfigService {
     return accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined
   }
 
-  /** True when all R2 credentials are configured — story media then uses R2. */
+  /** True when all R2 credentials are configured. */
   get r2Enabled(): boolean {
     return !!(
       this.env.R2_ACCOUNT_ID &&

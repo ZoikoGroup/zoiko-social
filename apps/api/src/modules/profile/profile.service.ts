@@ -1064,7 +1064,7 @@ export class ProfileService {
    * Temporarily hide the account. Nothing is destroyed: signing back in restores
    * it (see AuthService.restoreOnLogin). Everyone else stops seeing the member
    * and their content for free, because profile visibility across feed, search,
-   * posts, comments, messaging and stories is gated on `state = 'active'`.
+   * posts, comments and messaging is gated on `state = 'active'`.
    */
   async deactivateAccount(userId: string): Promise<{ state: string }> {
     const profile = await this.loadForStateChange(userId)

@@ -41,9 +41,9 @@ export const DOCS_NAV: DocsCategory[] = [
   },
   {
     slug: 'feed-and-content',
-    title: 'Feed, Posts & Stories',
+    title: 'Feed & Posts',
     shortTitle: 'Feed & Posts',
-    summary: 'How the Home feed works, plus posting, stories, hashtags, and reactions.',
+    summary: 'How the Home feed works, plus posting, hashtags, and reactions.',
     icon: LayoutGrid,
   },
   {

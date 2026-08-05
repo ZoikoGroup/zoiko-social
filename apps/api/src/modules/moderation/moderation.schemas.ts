@@ -10,7 +10,7 @@ import { z } from 'zod'
  * a member is the only person in a position to notice.
  */
 export const ReportTargetType = z.enum([
-  'post', 'comment', 'message', 'user', 'story',
+  'post', 'comment', 'message', 'user',
   'adoption_listing', 'lost_found_report', 'event', 'product', 'provider',
   'breeding_profile', 'community',
 ])

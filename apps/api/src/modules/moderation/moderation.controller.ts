@@ -20,7 +20,7 @@ const STAFF_ROLES = ['admin', 'moderator', 'super_admin']
 export class ModerationController {
   constructor(private readonly moderation: ModerationService) {}
 
-  // ── PUBLIC: report a post/comment/message/user/story ─────────────────────
+  // ── PUBLIC: report a post/comment/message/user ────────────────────────────
 
   @Post('moderation/reports')
   @UseGuards(JwtAuthGuard)

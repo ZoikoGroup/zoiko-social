@@ -34,7 +34,7 @@ export default function GettingStartedPage(): React.JSX.Element {
       <P>
         ZoikoSocial is a social platform built specifically for animal lovers, rescuers, veterinarians,
         breeders, and anyone who cares about animal welfare, the environment, science, and technology.
-        It brings together the things you’d expect from a modern social app — a feed, stories, groups,
+        It brings together the things you’d expect from a modern social app — a feed, groups,
         messaging, video calls, and marketplaces — but everything runs under one set of rules that put
         safety first.
       </P>
@@ -111,7 +111,7 @@ export default function GettingStartedPage(): React.JSX.Element {
       </P>
       <FeatureGrid
         items={[
-          { icon: LayoutGrid, title: 'Home', body: 'Your personalized feed of posts, stories, and updates from people and communities you follow.' },
+          { icon: LayoutGrid, title: 'Home', body: 'Your personalized feed of posts and updates from people and communities you follow.' },
           { icon: Users, title: 'Network', body: 'Followers, following, mutual connections, and people you might know.' },
           { icon: MessageSquare, title: 'Messages', body: 'Direct messages, group chats, and calls — with an unread badge when something new arrives.' },
           { icon: Bell, title: 'Alerts', body: 'A running feed of notifications: likes, comments, follows, messages, and more.' },
@@ -164,7 +164,7 @@ export default function GettingStartedPage(): React.JSX.Element {
       <FeatureGrid
         items={[
           { icon: PawPrint, title: 'I want to document my pet', body: 'Read Profiles & Pet Passport for Pet Diary and Health Passport.' },
-          { icon: Newspaper, title: 'I want to post and follow people', body: 'Read Feed, Posts & Stories.' },
+          { icon: Newspaper, title: 'I want to post and follow people', body: 'Read Feed & Posts.' },
           { icon: Calendar, title: 'I want to join a community or event', body: 'Read Network, Communities & Events.' },
           { icon: HandHeart, title: 'I want to adopt or rehome a pet', body: 'Read Adoption & Lost and Found.' },
           { icon: Stethoscope, title: 'I need a vet or pet-care provider', body: 'Read Shop, Providers & Bookings.' },
