@@ -4,6 +4,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -13,6 +14,7 @@ import { JwtVerificationService } from '../auth/jwt-verification.service'
 import { MessagingService } from './messaging.service'
 import { PresenceService } from './presence.service'
 import { RealtimeService } from '../realtime/realtime.service'
+import { registerSocketAuth } from '../realtime/socket-auth.middleware'
 
 interface AuthSocket extends Socket {
   data: { userId?: string }
@@ -39,7 +41,7 @@ interface CallSignal {
   cors: { origin: true, credentials: true },
   transports: ['websocket', 'polling'],
 })
-export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(MessagingGateway.name)
 
   /**
@@ -71,31 +73,29 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly realtimeService: RealtimeService,
   ) {}
 
-  async handleConnection(client: AuthSocket): Promise<void> {
-    const token =
-      (client.handshake.auth?.token as string | undefined) ??
-      client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '')
+  afterInit(server: Server): void {
+    // Both gateways share the default namespace; registerSocketAuth is
+    // idempotent per server, so whichever initialises first installs it.
+    registerSocketAuth(server, this.jwtVerification, this.logger)
+  }
 
-    if (!token) {
-      client.emit('error', { code: 'UNAUTHENTICATED', message: 'Access token required' })
+  async handleConnection(client: AuthSocket): Promise<void> {
+    // Identity is already resolved by the auth middleware; this only enforces it
+    // and does the post-auth setup. No second verify.
+    const userId = client.data.userId
+    if (!userId) {
+      const reason = (client.data as { authError?: string }).authError
+      client.emit('error', {
+        code: reason === 'Access token required' ? 'UNAUTHENTICATED' : 'AUTH_FAILED',
+        message: reason ?? 'Invalid or expired token',
+      })
       client.disconnect(true)
       return
     }
 
-    try {
-      const user = await this.jwtVerification.verify(token)
-      client.data.userId = user.id
-      await client.join(`user:${user.id}`)
-
-      // Set online
-      await this.presenceService.setOnline(user.id)
-
-      client.emit('connected', { userId: user.id })
-    } catch (err) {
-      this.logger.error(`Messaging socket auth failed: ${(err as Error).message}`)
-      client.emit('error', { code: 'AUTH_FAILED', message: 'Invalid or expired token' })
-      client.disconnect(true)
-    }
+    await client.join(`user:${userId}`)
+    await this.presenceService.setOnline(userId)
+    client.emit('connected', { userId })
   }
 
   async handleDisconnect(client: AuthSocket): Promise<void> {
