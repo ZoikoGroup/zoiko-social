@@ -3,6 +3,7 @@ import type { ConfigService } from '../config/config.service'
 import type { PrismaService } from '../prisma/prisma.service'
 import type { AuditLogService } from '../common/audit-log/audit-log.service'
 import type { SupabaseAdminClient } from '../database/database.providers'
+import type { RedisService } from '../redis/redis.service'
 
 const USER_ID = 'member-1'
 const SESSION = { access_token: 'at', refresh_token: 'rt', expires_at: 123 }
@@ -42,13 +43,21 @@ function build(opts: {
   const auditLog = { record: jest.fn().mockResolvedValue(undefined) }
   const config = { env: { ACCOUNT_DELETION_GRACE_DAYS: opts.graceDays ?? 30 }, allowedOrigin: 'http://x' }
 
+  // Reactivation must clear the cached profile, or the account comes back while
+  // its page keeps 404ing under the state gate in getProfileById.
+  const redis = {
+    invalidateProfile: jest.fn().mockResolvedValue(undefined),
+    invalidateUsername: jest.fn().mockResolvedValue(undefined),
+  }
+
   const service = new AuthService(
     supabaseAdmin as unknown as SupabaseAdminClient,
     config as unknown as ConfigService,
     prisma as unknown as PrismaService,
     auditLog as unknown as AuditLogService,
+    redis as unknown as RedisService,
   )
-  return { service, prisma, supabaseAdmin, auditLog }
+  return { service, prisma, supabaseAdmin, auditLog, redis }
 }
 
 const active = { username: 'someone', state: 'active', deletionRequestedAt: null }
@@ -87,6 +96,21 @@ describe('AuthService.login — restores a hidden account', () => {
       data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null },
     })
     expect(auditLog.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'account.reactivate' }))
+  })
+
+  it('clears the cached profile so the account is visible again', async () => {
+    // getProfileById gates on state, and the cached copy still says
+    // "deactivated". Without this invalidation the row flips to active while
+    // the profile page keeps answering 404 until the entry expires — the
+    // account comes back everywhere except where anyone would look.
+    const { service, redis } = build({
+      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null },
+    })
+
+    await service.login('a@b.com', 'pw')
+
+    expect(redis.invalidateProfile).toHaveBeenCalledWith(USER_ID)
+    expect(redis.invalidateUsername).toHaveBeenCalledWith('someone')
   })
 
   it('cancels a pending deletion inside the grace period', async () => {

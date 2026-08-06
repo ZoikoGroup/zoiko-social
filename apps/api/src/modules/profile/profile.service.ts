@@ -448,6 +448,7 @@ export class ProfileService {
     // redaction is applied after retrieval so one cache entry serves everyone.
     const cached = await this.redis.getProfile<ProfileResponse>(id)
     if (cached) {
+      await this.assertProfileVisible(cached, currentUserId)
       return this.redactForViewer(cached, currentUserId)
     }
 
@@ -461,8 +462,51 @@ export class ProfileService {
     }
 
     const mapped = this.mapProfile(profile)
+    // Cached before the gate on purpose: the cache is viewer-agnostic, and
+    // gating on read means a hidden account still gets one entry rather than
+    // hitting PostgreSQL on every probe.
     await this.redis.setProfile(id, mapped)
+    await this.assertProfileVisible(mapped, currentUserId)
     return this.redactForViewer(mapped, currentUserId)
+  }
+
+  /**
+   * Only active accounts are visible to other people.
+   *
+   * Search already filtered on `state = 'active'`, and the feed and post grid
+   * gated on it too, but the profile lookup itself never did — so a
+   * deactivated, suspended, banned or pending-deletion account still answered
+   * 200 at /profiles/:id and /profiles/username/:username. For a ban that
+   * undercuts the enforcement: the account is removed from every listing and
+   * its posts 404, while its profile page stays up. Deactivation carries the
+   * same promise in its own wording — "everyone else stops seeing the member".
+   *
+   * 404 rather than 403, matching how posts handle it: refusing without
+   * confirming the account exists.
+   *
+   * Two exemptions. The owner keeps seeing their own profile, because
+   * deactivation is reversible and signing back in has to lead somewhere. Staff
+   * keep seeing it because reviewing a banned account is the point of banning
+   * one. The staff lookup only runs for a non-active profile viewed by a
+   * non-owner, so the common path costs nothing.
+   */
+  private async assertProfileVisible(
+    profile: ProfileResponse,
+    currentUserId?: string,
+  ): Promise<void> {
+    if (profile.state === 'active') return
+    if (currentUserId && profile.id === currentUserId) return
+
+    if (currentUserId) {
+      try {
+        await this.requireAdminOrModerator(currentUserId)
+        return
+      } catch {
+        // Not staff — fall through to the same 404 everyone else gets.
+      }
+    }
+
+    throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
   }
 
   /** Hide private-account details from non-owners. */
