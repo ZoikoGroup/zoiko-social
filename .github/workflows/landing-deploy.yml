@@ -12,20 +12,17 @@ name: Deploy Landing → Vercel
 # paths correctly. Root-level vercel.json is generated dynamically.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Automatic deploys disabled ───────────────────────────────────────────────
+# GCP VM is the production target (web-deploy-vm.yml). This path is kept
+# for manual use only — a fallback if the VM is unavailable, and so the
+# working setup notes above are not lost.
+#
+# Auto-triggers were removed because both paths fired on every merge to main,
+# deploying the same app twice to two different places. Run this from the
+# Actions tab (Deploy Landing → Vercel → Run workflow) if you ever need it.
+# ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/landing/**'
-      - 'packages/ui/**'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'apps/landing/**'
-      - 'packages/ui/**'
 
 concurrency:
   group: landing-${{ github.ref }}
