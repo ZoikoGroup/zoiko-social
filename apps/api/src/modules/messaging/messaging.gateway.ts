@@ -170,7 +170,13 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() body: { conversationId?: string; messageId?: string },
   ): Promise<void> {
     if (!client.data.userId || !body?.conversationId) return
-    await this.messagingService.markConversationRead(client.data.userId, body.conversationId, body.messageId)
+    // markConversationRead now rejects a non-member, and a message that is not
+    // in this conversation. Both payload fields come from the client, so a
+    // rejection is expected traffic rather than a fault — log it and move on
+    // instead of erroring the socket over a read receipt.
+    await this.messagingService
+      .markConversationRead(client.data.userId, body.conversationId, body.messageId)
+      .catch((err: Error) => this.logger.warn(`messages:read rejected: ${err.message}`))
   }
 
   @SubscribeMessage('presence:subscribe')
