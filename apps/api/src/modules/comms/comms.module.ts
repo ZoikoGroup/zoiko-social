@@ -4,8 +4,11 @@ import { ConfigService } from '../config/config.service'
 import { DatabaseModule } from '../database/database.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { CommsDecisionService } from './comms-decision.service'
+import { CommsLedgerService } from './comms-ledger.service'
+import { CommsSuppressionService } from './comms-suppression.service'
 import { CommsService } from './comms.service'
 import { ConsoleEmailProvider, EmailProvider, ResendEmailProvider } from './delivery/email-provider'
+import { ProviderWebhookController } from './delivery/provider-webhook.controller'
 
 /**
  * Communications platform (ZS-COMMS-EMAIL-001).
@@ -16,8 +19,11 @@ import { ConsoleEmailProvider, EmailProvider, ResendEmailProvider } from './deli
  */
 @Module({
   imports: [ConfigModule, PrismaModule, DatabaseModule],
+  controllers: [ProviderWebhookController],
   providers: [
     CommsDecisionService,
+    CommsLedgerService,
+    CommsSuppressionService,
     CommsService,
     ConsoleEmailProvider,
     ResendEmailProvider,
@@ -30,6 +36,6 @@ import { ConsoleEmailProvider, EmailProvider, ResendEmailProvider } from './deli
       inject: [ConfigService, ResendEmailProvider, ConsoleEmailProvider],
     },
   ],
-  exports: [CommsService, CommsDecisionService],
+  exports: [CommsService, CommsDecisionService, CommsLedgerService, CommsSuppressionService],
 })
 export class CommsModule {}
