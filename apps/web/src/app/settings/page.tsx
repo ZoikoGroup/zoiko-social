@@ -785,6 +785,9 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
     notifCommunities: true,
     notifNews: true,
     notifPromotions: false,
+    notifMessages: true,
+    notifAdoption: true,
+    notifAccountGuidance: true,
     emailDigest: true,
     emailMarketing: false,
     pushEnabled: true,
@@ -809,6 +812,9 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
             { label: 'Event Invitations', key: 'notifEvents' },
             { label: 'Community Activity', key: 'notifCommunities' },
             { label: 'News & Updates', key: 'notifNews' },
+            { label: 'Messages & Calls', key: 'notifMessages' },
+            { label: 'Adoption Enquiries', key: 'notifAdoption' },
+            { label: 'Getting Started Tips', key: 'notifAccountGuidance' },
             { label: 'Promotions & Tips', key: 'notifPromotions' },
           ]).map((item) => (
             <label key={item.key} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-container cursor-pointer transition-colors">
@@ -851,6 +857,15 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
           </label>
         ))}
       </div>
+
+      {/*
+        No Quiet Hours control here yet, deliberately. The columns and the API
+        accept a window (migration 064), but honouring it means *holding* mail
+        until the window closes, which needs the deferred queue that orchestration
+        builds. A switch reading "hold non-urgent email until morning" that
+        silently changed nothing would be the same dead control this module was
+        written to fix. It goes in with the enforcement.
+      */}
     </div>
   )
 }

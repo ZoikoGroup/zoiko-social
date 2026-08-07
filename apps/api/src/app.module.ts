@@ -4,6 +4,7 @@ import { AppService } from './app.service'
 import { ConfigModule } from './modules/config/config.module'
 import { DatabaseModule } from './modules/database/database.module'
 import { CommonModule } from './modules/common/common.module'
+import { CommsModule } from './modules/comms/comms.module'
 import { AuditLogModule } from './modules/common/audit-log/audit-log.module'
 import { ModerationModule } from './modules/common/moderation/moderation.module'
 import { AuthModule } from './modules/auth/auth.module'
@@ -48,6 +49,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
     RealtimeModule,
     QueueModule,
     CommonModule,
+    CommsModule,
     AuditLogModule,
     ModerationModule,
     AuthModule,

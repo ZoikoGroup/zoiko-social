@@ -341,9 +341,17 @@ export interface UserSettings {
   notifCommunities: boolean
   notifNews: boolean
   notifPromotions: boolean
+  notifMessages: boolean
+  notifAdoption: boolean
+  notifAccountGuidance: boolean
   emailDigest: boolean
   emailMarketing: boolean
   pushEnabled: boolean
+  // Quiet hours — minutes past local midnight; start > end wraps midnight
+  quietHoursEnabled: boolean
+  quietHoursStart: number
+  quietHoursEnd: number
+  timezone: string
   // Display preferences
   reducedMotion: boolean
   compactView: boolean

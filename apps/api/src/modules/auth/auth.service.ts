@@ -11,6 +11,7 @@ import type { SupabaseAdminClient } from '../database/database.providers'
 import { ConfigService } from '../config/config.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
+import { RedisService } from '../redis/redis.service'
 
 type OAuthProvider = 'google' | 'apple' | 'facebook'
 
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    private readonly redis: RedisService,
   ) {}
 
   async register(email: string, password: string, displayName?: string) {
@@ -177,6 +179,14 @@ export class AuthService {
       where: { id: userId },
       data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null },
     })
+    // The cached profile still says deactivated, and the profile read now gates
+    // on state — so without this the account comes back but its page keeps
+    // answering 404 until the entry expires. ProfileService.afterStateChange
+    // already does this on the way out; this is the matching step on the way
+    // back in. Cannot reuse that helper: ProfileModule imports AuthModule, so
+    // depending on it here would be circular. RedisModule is @Global.
+    await this.redis.invalidateProfile(userId)
+    await this.redis.invalidateUsername(profile.username)
     await this.auditLog.record({
       actorId: userId,
       action: profile.state === 'pending_deletion' ? 'account.deletion_cancelled' : 'account.reactivate',

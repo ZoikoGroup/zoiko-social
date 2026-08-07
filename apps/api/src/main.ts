@@ -5,8 +5,18 @@ import compress from '@fastify/compress'
 import { AppModule } from './app.module'
 import { Logger } from '@nestjs/common'
 import { ConfigService } from './modules/config/config.service'
+import { initSentry, captureServerError, closeSentry, isSentryEnabled } from './observability/sentry'
 
 async function bootstrap(): Promise<void> {
+  // Before anything else, so a failure during startup is still reported. Reads
+  // process.env directly rather than ConfigService, which does not exist yet;
+  // dotenv/config is imported at the top of this file. No DSN, no-op.
+  initSentry({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    release: process.env.GIT_SHA,
+  })
+
   // ── Crash safety net ──────────────────────────────────────────────────────
   // Node ≥15 kills the process on any unhandled promise rejection. A single
   // floating promise that rejects (e.g. a best-effort Redis write while the
@@ -16,6 +26,13 @@ async function bootstrap(): Promise<void> {
   process.on('unhandledRejection', (reason) => {
     const msg = reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)
     new Logger('UnhandledRejection').error(msg)
+    // These are the ones that used to take the process down, so they are worth
+    // reporting even though they carry no request context.
+    captureServerError(reason, {
+      requestId: 'unhandled-rejection',
+      method: '-',
+      url: 'process',
+    })
   })
 
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -89,6 +106,19 @@ async function bootstrap(): Promise<void> {
 
   logger.log(`ZoikoSocial API running on http://localhost:${port}/api/v1`)
   logger.log(`Environment: ${config.nodeEnv}`)
+  logger.log(
+    isSentryEnabled()
+      ? 'Error reporting active (SENTRY_DSN set)'
+      : 'Error reporting inactive — set SENTRY_DSN to enable',
+  )
+
+  // Without a flush, an event queued microseconds before exit is lost — which is
+  // precisely the event explaining why the process exited.
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => {
+      void closeSentry().finally(() => process.exit(0))
+    })
+  }
 }
 
 void bootstrap()

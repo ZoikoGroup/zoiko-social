@@ -7,8 +7,31 @@ import {
   Logger,
 } from '@nestjs/common'
 import { FastifyReply, FastifyRequest } from 'fastify'
+import { Prisma } from '@prisma/client'
 import { ZodError } from 'zod'
 import { AUTH_USER_KEY, type AuthenticatedUser } from '../../auth/guards/jwt-auth.guard'
+import { captureServerError } from '../../../observability/sentry'
+
+/**
+ * Prisma errors that are the caller's fault, not ours.
+ *
+ * Without this they all fell through to 500 INTERNAL_ERROR. The common one is
+ * P2023: any `:id` route given a non-UUID — `GET /posts/not-a-uuid` — answered
+ * 500 and wrote a stack trace, on four of five endpoints checked. That is the
+ * wrong status for bad input, and it let anyone fill the error log with a curl
+ * loop, burying real faults. Mapping them to 4xx also stops the logging, since
+ * only 5xx is logged.
+ */
+const PRISMA_CLIENT_ERRORS: Record<string, { status: HttpStatus; code: string; message: string }> = {
+  // "Inconsistent column data" — in practice a malformed UUID in a filter.
+  P2023: { status: HttpStatus.BAD_REQUEST, code: 'INVALID_ID', message: 'Malformed identifier' },
+  // Unique constraint — the caller is recreating something that exists.
+  P2002: { status: HttpStatus.CONFLICT, code: 'ALREADY_EXISTS', message: 'Resource already exists' },
+  // Foreign key constraint — the caller referenced something that does not exist.
+  P2003: { status: HttpStatus.BAD_REQUEST, code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' },
+  // update/delete matched no row.
+  P2025: { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND', message: 'Resource not found' },
+}
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -30,6 +53,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       code = 'VALIDATION_ERROR'
       message = 'Validation failed'
       errors = exception.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
+    } else if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      PRISMA_CLIENT_ERRORS[exception.code]
+    ) {
+      // A caller-caused database error. Deliberately does not echo Prisma's
+      // message, which names tables, columns and source files.
+      const mapped = PRISMA_CLIENT_ERRORS[exception.code]!
+      status = mapped.status
+      code = mapped.code
+      message = mapped.message
     } else if (exception instanceof HttpException) {
       status = exception.getStatus()
       const res = exception.getResponse()
@@ -66,6 +99,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `[${requestId}] ${where} — ${who} — ${detail}`,
         exception instanceof Error ? exception.stack : undefined,
       )
+
+      // Same context, forwarded to error reporting. No-op unless SENTRY_DSN is
+      // set, so this is free when it is not configured. Only 5xx: a 404 or a
+      // validation error is the API working, and paging on those trains people
+      // to ignore the alerts.
+      captureServerError(exception, {
+        requestId,
+        method: request?.method ?? '-',
+        url: request?.url ?? '-',
+        userId: user?.id,
+      })
     }
 
     response.status(status).send({

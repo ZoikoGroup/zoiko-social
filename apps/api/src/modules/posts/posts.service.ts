@@ -67,13 +67,19 @@ export interface PostPage {
 
 const MAX_PAGE = 30
 
+/**
+ * Must mirror postInclude() exactly. The two are declared separately, and that
+ * drift is how the account-state gate went missing on the direct post-by-id
+ * path: the query selected what the type described, and neither carried
+ * `state`. Change one, change the other.
+ */
 type PostWithRelations = Prisma.PostGetPayload<{
   include: {
     media: true
     author: {
       select: {
         id: true; username: true; displayName: true; avatarUrl: true
-        verificationTier: true; isPrivate: true
+        verificationTier: true; isPrivate: true; state: true
         professionalProfile: { select: { category: true } }
       }
     }
@@ -453,7 +459,13 @@ export class PostsService {
       isDeleted: boolean
       visibility?: string
       communityId?: string | null
-      author?: { isPrivate: boolean }
+      // `state` is required, not optional. Passing only `isPrivate` used to let
+      // the caller silently skip the account-state check inside
+      // assertCanViewAuthor — which is exactly how deactivated and banned
+      // authors' posts stayed readable by direct id. Every loader already
+      // selects it; making it required means the compiler catches the next one
+      // that does not.
+      author?: { isPrivate: boolean; state: string }
     },
     viewerId?: string,
   ): Promise<void> {
@@ -461,8 +473,8 @@ export class PostsService {
     if (post.isDeleted) throw notFound
     if (post.authorId === viewerId) return // own post — any visibility
 
-    // Account-level gate (block + private account → accepted followers only)
-    await this.assertCanViewAuthor(post.authorId, viewerId, post.author?.isPrivate)
+    // Account-level gate (state + block + private account → accepted followers only)
+    await this.assertCanViewAuthor(post.authorId, viewerId, post.author)
 
     // Per-post visibility gate (applies even when the author's account is public)
     const visibility = post.visibility ?? 'public'
@@ -488,7 +500,11 @@ export class PostsService {
     if (follow?.status !== 'active') throw notFound
   }
 
-  async assertCanViewAuthor(authorId: string, viewerId?: string, knownIsPrivate?: boolean): Promise<void> {
+  async assertCanViewAuthor(
+    authorId: string,
+    viewerId?: string,
+    knownAuthor?: { isPrivate: boolean; state: string },
+  ): Promise<void> {
     if (authorId === viewerId) return
 
     const notFound = new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' })
@@ -505,8 +521,15 @@ export class PostsService {
       if (blocked) throw notFound
     }
 
-    let isPrivate = knownIsPrivate
-    if (isPrivate === undefined) {
+    // The account-state gate runs on both paths. It used to run only on the
+    // lookup path, so any caller that already had `isPrivate` in hand skipped
+    // it — deactivating or banning an account hid it from the feed, search and
+    // the profile grid, but left every post reachable by direct id.
+    let isPrivate: boolean
+    if (knownAuthor) {
+      if (knownAuthor.state !== 'active') throw notFound
+      isPrivate = knownAuthor.isPrivate
+    } else {
       const author = await this.prisma.profile.findUnique({
         where: { id: authorId },
         select: { isPrivate: true, state: true },
@@ -537,6 +560,10 @@ export class PostsService {
           avatarUrl: true,
           verificationTier: true,
           isPrivate: true,
+          // `state` is not displayed — it is the account-level gate. Without it
+          // here, assertCanViewPost had no way to tell a deactivated or banned
+          // author from an active one on the direct post-by-id path.
+          state: true,
           professionalProfile: { select: { category: true } },
         },
       },
