@@ -134,3 +134,11 @@ export type SuppressionReason = (typeof SUPPRESSION_REASONS)[number]
 export type DeliveryDecision =
   | { send: true; stream: EmailStream }
   | { send: false; reason: SuppressionReason }
+
+/**
+ * The in-product equivalent. Carries the preference key rather than a
+ * SuppressionReason, because the only way an in-app notification is withheld is
+ * a member switching its category off — there is no address to bounce, no
+ * provider to fail, and no suppression list.
+ */
+export type InAppDecision = { deliver: true } | { deliver: false; reason: PreferenceKey }
