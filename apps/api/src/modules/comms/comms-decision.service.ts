@@ -34,10 +34,10 @@ import {
 /**
  * §14 preference key → the UserSettings column that backs it.
  *
- * Not every key has a column yet: messages.activity, adoption.activity and
- * account.guidance have no field. They default to enabled, which matches §14's
- * "on by default" for those categories. Adding the columns is a migration and a
- * settings-UI change, deliberately not bundled into this slice.
+ * Every configurable key in the registry now has a column. Migration 064 added
+ * the last three — messages.activity, adoption.activity and account.guidance
+ * previously fell through to "on", which meant a member could not switch off DM
+ * or adoption notifications at all.
  */
 export const PREFERENCE_COLUMN: Partial<Record<PreferenceKey, keyof UserSettingsRow>> = {
   [PREFERENCE_KEYS.socialReactions]: 'notifLikes',
@@ -49,6 +49,9 @@ export const PREFERENCE_COLUMN: Partial<Record<PreferenceKey, keyof UserSettings
   [PREFERENCE_KEYS.groupsInvitations]: 'notifCommunities',
   [PREFERENCE_KEYS.newsActivity]: 'notifNews',
   [PREFERENCE_KEYS.marketingProduct]: 'emailMarketing',
+  [PREFERENCE_KEYS.messagesActivity]: 'notifMessages',
+  [PREFERENCE_KEYS.adoptionActivity]: 'notifAdoption',
+  [PREFERENCE_KEYS.accountGuidance]: 'notifAccountGuidance',
 }
 
 interface UserSettingsRow {
@@ -60,6 +63,9 @@ interface UserSettingsRow {
   notifCommunities: boolean
   notifNews: boolean
   notifPromotions: boolean
+  notifMessages: boolean
+  notifAdoption: boolean
+  notifAccountGuidance: boolean
   emailDigest: boolean
   emailMarketing: boolean
   pushEnabled: boolean
@@ -205,6 +211,9 @@ export class CommsDecisionService {
         notifCommunities: true,
         notifNews: true,
         notifPromotions: true,
+        notifMessages: true,
+        notifAdoption: true,
+        notifAccountGuidance: true,
         emailDigest: true,
         emailMarketing: true,
         pushEnabled: true,

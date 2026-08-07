@@ -32,6 +32,20 @@ export const UpdateProfileSchema = z.object({
   currency: z.string().trim().min(2).max(8).optional(),
 })
 
+/**
+ * Asks the platform's own zone database rather than pattern-matching the name.
+ * "Europe/Atlantis" has the right shape and does not exist; a member who saved
+ * it would have quiet hours that throw when the window is next evaluated.
+ */
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export const UpdateSettingsSchema = z.object({
   // Privacy toggles
   showLastActive: z.boolean().optional(),
@@ -49,9 +63,25 @@ export const UpdateSettingsSchema = z.object({
   notifCommunities: z.boolean().optional(),
   notifNews: z.boolean().optional(),
   notifPromotions: z.boolean().optional(),
+  notifMessages: z.boolean().optional(),
+  notifAdoption: z.boolean().optional(),
+  notifAccountGuidance: z.boolean().optional(),
   emailDigest: z.boolean().optional(),
   emailMarketing: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
+
+  // Quiet hours (§06), as minutes past local midnight. Bounded here as well as
+  // by the database check, so a bad value is a 400 naming the field rather than
+  // a constraint violation surfacing as a 500.
+  quietHoursEnabled: z.boolean().optional(),
+  quietHoursStart: z.number().int().min(0).max(1439).optional(),
+  quietHoursEnd: z.number().int().min(0).max(1439).optional(),
+  // Validated against the runtime's own zone database rather than a regex, so
+  // an accepted value is one the formatter can actually use.
+  timezone: z
+    .string()
+    .refine(isValidTimeZone, { message: 'Must be an IANA time zone name, e.g. Europe/London' })
+    .optional(),
 
   // Display preferences
   reducedMotion: z.boolean().optional(),

@@ -32,6 +32,9 @@ const ALL_OFF = {
   notifCommunities: false,
   notifNews: false,
   notifPromotions: false,
+  notifMessages: false,
+  notifAdoption: false,
+  notifAccountGuidance: false,
   emailDigest: false,
   emailMarketing: false,
   pushEnabled: false,
@@ -131,7 +134,21 @@ describe('coverage of the settings screen', () => {
     }
 
     expect(gated).toEqual(
-      new Set(['notifLikes', 'notifComments', 'notifFollows', 'notifMentions', 'notifEvents', 'notifCommunities', 'notifNews']),
+      new Set([
+        'notifLikes',
+        'notifComments',
+        'notifFollows',
+        'notifMentions',
+        'notifEvents',
+        'notifCommunities',
+        'notifNews',
+        // Added by migration 064. Before it, these three categories had a
+        // registry key and no column, so a member could not mute DMs, adoption
+        // messages or onboarding guidance at all.
+        'notifMessages',
+        'notifAdoption',
+        'notifAccountGuidance',
+      ]),
     )
     // notifPromotions and emailDigest are deliberately absent: no marketing
     // event and no digest assembly exist yet, so both remain inert. They are

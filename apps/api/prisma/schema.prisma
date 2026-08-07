@@ -1827,6 +1827,19 @@ model UserSettings {
   emailMarketing   Boolean @default(false) @map("email_marketing")
   pushEnabled      Boolean @default(true) @map("push_enabled")
 
+  // §14 categories that previously had a registry key and no column, so they
+  // could not be switched off at all.
+  notifMessages         Boolean @default(true) @map("notif_messages")
+  notifAdoption         Boolean @default(true) @map("notif_adoption")
+  notifAccountGuidance  Boolean @default(true) @map("notif_account_guidance")
+
+  // Quiet hours (§06). Minutes past local midnight; start > end wraps midnight.
+  // Essential security ignores the window entirely.
+  quietHoursEnabled Boolean @default(false) @map("quiet_hours_enabled")
+  quietHoursStart   Int     @default(1320) @map("quiet_hours_start") @db.SmallInt
+  quietHoursEnd     Int     @default(420) @map("quiet_hours_end") @db.SmallInt
+  timezone          String  @default("UTC")
+
   // Display preferences
   reducedMotion Boolean @default(false) @map("reduced_motion")
   compactView   Boolean @default(false) @map("compact_view")
