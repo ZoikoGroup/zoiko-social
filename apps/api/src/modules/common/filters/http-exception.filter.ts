@@ -10,6 +10,7 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 import { Prisma } from '@prisma/client'
 import { ZodError } from 'zod'
 import { AUTH_USER_KEY, type AuthenticatedUser } from '../../auth/guards/jwt-auth.guard'
+import { captureServerError } from '../../../observability/sentry'
 
 /**
  * Prisma errors that are the caller's fault, not ours.
@@ -98,6 +99,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `[${requestId}] ${where} — ${who} — ${detail}`,
         exception instanceof Error ? exception.stack : undefined,
       )
+
+      // Same context, forwarded to error reporting. No-op unless SENTRY_DSN is
+      // set, so this is free when it is not configured. Only 5xx: a 404 or a
+      // validation error is the API working, and paging on those trains people
+      // to ignore the alerts.
+      captureServerError(exception, {
+        requestId,
+        method: request?.method ?? '-',
+        url: request?.url ?? '-',
+        userId: user?.id,
+      })
     }
 
     response.status(status).send({
