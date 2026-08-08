@@ -7,61 +7,61 @@ const footerSections = [
   {
     title: "Company",
     links: [
-      "About ZoikoSocial",
-      "Careers",
-      "Press & Media",
-      "Investor Relations",
-      "Brand Assets",
+      { label: "About ZoikoSocial", href: "/about-us" },
+      { label: "Careers", href: "#" },
+      { label: "Press & Media", href: "#" },
+      { label: "Investor Relations", href: "#" },
+      { label: "Brand Assets", href: "#" },
     ],
   },
   {
     title: "Platform",
     links: [
-      "Features",
-      "Premium Plans",
-      "Mobile Apps",
-      "Desktop App",
-      "API Documentation",
+      { label: "Features", href: "#" },
+      { label: "Premium Plans", href: "#" },
+      { label: "Mobile Apps", href: "#" },
+      { label: "Desktop App", href: "#" },
+      { label: "API Documentation", href: "#" },
     ],
   },
   {
     title: "Trust & Safety",
     links: [
-      "Community Standards",
-      "Transparency Reports",
-      "Appeals Process",
-      "Safety Center",
-      "Welfare Reporting",
+      { label: "Community Standards", href: "#" },
+      { label: "Transparency Reports", href: "#" },
+      { label: "Appeals Process", href: "#" },
+      { label: "Safety Center", href: "#" },
+      { label: "Welfare Reporting", href: "#" },
     ],
   },
   {
     title: "Support",
     links: [
-      "Help Center",
-      "Contact Us",
-      "System Status",
-      "Developer Support",
-      "Community Forums",
+      { label: "Help Center", href: "#" },
+      { label: "Contact Us", href: "#" },
+      { label: "System Status", href: "#" },
+      { label: "Developer Support", href: "#" },
+      { label: "Community Forums", href: "#" },
     ],
   },
   {
     title: "Legal",
     links: [
-      "Terms of Service",
-      "Privacy Policy",
-      "Cookie Policy",
-      "Accessibility",
-      "GDPR Compliance",
+      { label: "Terms of Service", href: "#" },
+      { label: "Privacy Policy", href: "#" },
+      { label: "Cookie Policy", href: "#" },
+      { label: "Accessibility", href: "#" },
+      { label: "GDPR Compliance", href: "#" },
     ],
   },
   {
     title: "Advertise",
     links: [
-      "Advertising Standards",
-      "Campaign Review",
-      "Sponsored Content",
-      "Professional Directory",
-      "Contact Sales",
+      { label: "Advertising Standards", href: "#" },
+      { label: "Campaign Review", href: "#" },
+      { label: "Sponsored Content", href: "#" },
+      { label: "Professional Directory", href: "#" },
+      { label: "Contact Sales", href: "#" },
     ],
   },
 ];
@@ -80,12 +80,12 @@ export default function Footer() {
 
               <ul className="space-y-4">
                 {section.links.map((link) => (
-                  <li key={link}>
+                  <li key={link.label}>
                     <Link
-                      href="#"
+                      href={link.href}
                       className="text-sm font-normal leading-6 text-[#9CA3AF] transition hover:text-white"
                     >
-                      {link}
+                      {link.label}
                     </Link>
                   </li>
                 ))}
