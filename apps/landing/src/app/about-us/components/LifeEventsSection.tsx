@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 export default function LifeEventsSection() {
   const events = [
@@ -31,7 +32,7 @@ export default function LifeEventsSection() {
               className="relative flex h-[176px] w-[192px] flex-col items-center rounded-xl bg-gray-50 pt-[32px] text-center outline outline-1 -outline-offset-1 outline-gray-200"
             >
               <div className="flex h-12 w-12 items-center justify-center">
-                <img src={event.icon} alt={event.title} className="h-full w-full object-contain" />
+                <Image src={event.icon} alt={event.title} width={40} height={40} className="h-full w-full object-contain" />
               </div>
               <div className="absolute top-[106px] w-full whitespace-pre-wrap px-2 font-inter text-sm font-semibold leading-5 text-gray-700">
                 {event.title}

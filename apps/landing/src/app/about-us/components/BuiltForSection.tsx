@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 export default function BuiltForSection() {
   return (
@@ -18,10 +19,12 @@ export default function BuiltForSection() {
         <div className="mt-12 flex w-full flex-col gap-6 lg:mt-16 lg:flex-row lg:gap-8">
           {/* Card 1 */}
           <div className="flex h-auto w-full flex-col items-center rounded-2xl bg-white px-8 pb-8 pt-[60px] text-center outline outline-1 -outline-offset-1 outline-gray-200 lg:h-[400px] lg:w-[405px]">
-            <img 
-              src="/images/individuals-icon.png" 
-              alt="Individuals" 
-              className="h-[60px] object-contain"
+            <Image
+              src="/images/individuals-icon.png"
+              alt="Individuals"
+              width={64}
+              height={64}
+              className="h-[60px] w-auto object-contain"
             />
             <h3 className="mt-12 font-inter text-xl font-bold leading-10 text-gray-900 md:text-2xl">
               For Individuals
@@ -37,10 +40,12 @@ export default function BuiltForSection() {
 
           {/* Card 2 */}
           <div className="flex h-auto w-full flex-col items-center rounded-2xl bg-white px-8 pb-8 pt-[60px] text-center outline outline-1 -outline-offset-1 outline-gray-200 lg:h-[400px] lg:w-[405px]">
-            <img 
-              src="/images/professionals-icon.png" 
-              alt="Professionals" 
-              className="h-[60px] object-contain"
+            <Image
+              src="/images/professionals-icon.png"
+              alt="Professionals"
+              width={64}
+              height={64}
+              className="h-[60px] w-auto object-contain"
             />
             <h3 className="mt-12 font-inter text-xl font-bold leading-10 text-gray-900 md:text-2xl">
               For Platform Users
@@ -57,10 +62,12 @@ export default function BuiltForSection() {
 
           {/* Card 3 */}
           <div className="flex h-auto w-full flex-col items-center rounded-2xl bg-white px-8 pb-8 pt-[60px] text-center outline outline-1 -outline-offset-1 outline-gray-200 lg:h-[400px] lg:w-[405px]">
-            <img 
-              src="/images/organizations-icon.png" 
-              alt="Organizations" 
-              className="h-[60px] object-contain"
+            <Image
+              src="/images/organizations-icon.png"
+              alt="Organizations"
+              width={64}
+              height={64}
+              className="h-[60px] w-auto object-contain"
             />
             <h3 className="mt-12 font-inter text-xl font-bold leading-10 text-gray-900 md:text-2xl">
               For Organizations
