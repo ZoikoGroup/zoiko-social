@@ -34,6 +34,15 @@ jobs:
               --network host \
               --env-file ~/zoiko-social/apps/api/.env \
               zoiko-api:latest
-            sleep 5
-            curl -sf http://127.0.0.1:4000/api/v1/health || exit 1
+            for i in $(seq 1 15); do
+              if curl -sf http://127.0.0.1:4000/api/v1/health > /dev/null; then
+                echo "Health check passed after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "Health check failed after 15 attempts (30s)"
+                exit 1
+              fi
+              sleep 2
+            done
             echo "Deploy successful – $(curl -s http://127.0.0.1:4000/api/v1/health/version)"
