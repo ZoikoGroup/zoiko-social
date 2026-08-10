@@ -26,7 +26,7 @@ export default function Header() {
       <div className="h-20 border-b border-gray-200">
         <div className="mx-auto flex h-full max-w-[1440px] items-center gap-12 px-4 xl:px-20">
           {/* Logo */}
-          <Link href="/home" className="flex shrink-0 items-center">
+          <Link href="/" className="flex shrink-0 items-center">
             <Image
               src="/images/zoiko-social-logo.png"
               alt="Zoiko Social"
@@ -67,7 +67,7 @@ export default function Header() {
       <div className="h-14">
         <div className="mx-auto flex h-full max-w-[1440px] px-6 xl:px-20">
           {navItems.map((item) => {
-            const href = item === "Home" ? "/home" : `/${item.toLowerCase()}`;
+            const href = item === "Home" ? "/" : `/${item.toLowerCase()}`;
             const isActive = pathname === href;
 
             return (
