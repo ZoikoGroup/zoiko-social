@@ -1,10 +1,10 @@
 # ── SECRETS — never commit these ──────────────────────────────────
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.staging
+# Deny every .env variant, then allow the template back. The previous list named
+# specific suffixes, so .env.bak / .env.push / .env.dbpush slipped through and
+# were committed with live credentials in them.
+.env*
+!.env.example
+!**/.env.example
 *.pem
 *.key
 *.p12

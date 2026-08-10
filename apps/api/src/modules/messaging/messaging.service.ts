@@ -7,11 +7,15 @@ import { MessagingPrivacyService } from './messaging-privacy.service'
 import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
 import type {
   ConversationResponse,
   SuggestionResponse,
   UnreadCountResponse,
 } from './dto/index'
+
+/** Pinned chats are always shown in full; this only stops a pathological case. */
+const PINNED_LIMIT = 50
 
 @Injectable()
 export class MessagingService {
@@ -26,6 +30,7 @@ export class MessagingService {
     private readonly privacy: MessagingPrivacyService,
     private readonly presence: PresenceService,
     private readonly profanity: ProfanityService,
+    private readonly aiAssistant: AiAssistantService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -34,114 +39,157 @@ export class MessagingService {
     const take = 21
     const decoded = cursor ? decodeCursor(cursor) : null
 
+    // Every member gets a thread with ZoikoSocial AI. Provisioned lazily on the
+    // first inbox load rather than at signup, so accounts that predate the
+    // assistant get one too. Only on the first page — deeper pages skip it.
+    if (!cursor) await this.ensureAiThread(userId)
+
+    // Pinned conversations belong at the top of the list, not the top of a page,
+    // so they are fetched whole on the first page and excluded from the
+    // paginated remainder. A member pins a handful of chats, so this is bounded.
+    const pinnedIds = (
+      await this.prisma.conversationSetting.findMany({
+        where: { userId, isPinned: true },
+        select: { conversationId: true },
+        take: PINNED_LIMIT,
+      })
+    ).map((s) => s.conversationId)
+
     const memberships = await this.prisma.conversationMember.findMany({
       where: {
         userId,
         isDeleted: false,
+        // Recency order is a property of the conversation, so the keyset runs
+        // against it rather than against when this member joined.
         ...(decoded
           ? {
-              OR: [
-                { joinedAt: { lt: new Date(decoded.createdAt) } },
-                { joinedAt: new Date(decoded.createdAt), conversationId: { lt: decoded.tiebreaker } },
-              ],
+              conversation: {
+                OR: [
+                  { lastMessageAt: { lt: new Date(decoded.createdAt) } },
+                  {
+                    lastMessageAt: new Date(decoded.createdAt),
+                    id: { lt: decoded.tiebreaker },
+                  },
+                ],
+              },
             }
           : {}),
+        ...(pinnedIds.length > 0 ? { conversationId: { notIn: pinnedIds } } : {}),
       },
       take: take + 1,
-      orderBy: [{ joinedAt: 'desc' }, { conversationId: 'desc' }],
-      include: {
-        conversation: {
-          include: {
-            members: {
-              where: { isDeleted: false },
-              include: {
-                user: {
-                  select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
-                },
-              },
-            },
-            messages: {
-              take: 1,
-              orderBy: { createdAt: 'desc' },
-              select: { body: true, senderId: true, createdAt: true, type: true },
-            },
-            settings: {
-              where: { userId },
-              take: 1,
-            },
-          },
-        },
-      },
+      orderBy: [
+        { conversation: { lastMessageAt: 'desc' } },
+        { conversationId: 'desc' },
+      ],
+      include: this.conversationListInclude(userId),
     })
 
     const hasMore = memberships.length > take
     const items = hasMore ? memberships.slice(0, take) : memberships
 
-    // One grouped query for all unread counts instead of a COUNT per conversation.
-    const unreadMap = await this.getUnreadCountsMap(userId)
+    // Pinned threads ride along on the first page only, ahead of everything else.
+    const pinned = !cursor && pinnedIds.length > 0
+      ? await this.prisma.conversationMember.findMany({
+          where: { userId, isDeleted: false, conversationId: { in: pinnedIds } },
+          orderBy: [
+            { conversation: { lastMessageAt: 'desc' } },
+            { conversationId: 'desc' },
+          ],
+          include: this.conversationListInclude(userId),
+        })
+      : []
 
-    const conversations = await Promise.all(
-      items.map(async (m) => {
-        const conv = m.conversation
-        const lastMsg = conv.messages[0] ?? null
-        const setting = conv.settings[0]
+    const rows = [...pinned, ...items]
 
-        const unreadCount = unreadMap.get(conv.id) ?? 0
+    // Two batched reads for the whole page instead of per-conversation queries:
+    // one grouped unread count, one pipelined presence lookup.
+    const otherParticipantIds = rows
+      .filter((m) => m.conversation.type === 'dm')
+      .map((m) => m.conversation.members.find((mem) => mem.userId !== userId)?.userId)
+      .filter((id): id is string => typeof id === 'string')
 
-        // If DM, find the other participant's presence
-        let isOnline = false
-        let lastSeen: string | null = null
-        if (conv.type === 'dm') {
-          const other = conv.members.find((mem) => mem.userId !== userId)
-          if (other) {
-            const pres = await this.presence.getPresence(other.userId)
-            isOnline = pres.isOnline
-            lastSeen = pres.lastSeen
-          }
-        }
+    const [unreadMap, presenceMap] = await Promise.all([
+      this.getUnreadCountsMap(userId),
+      this.presence.getPresenceMany(otherParticipantIds),
+    ])
 
-        return {
-          id: conv.id,
-          type: conv.type,
-          name: conv.name,
-          avatarUrl: conv.avatarUrl,
-          theme: conv.theme ?? null,
-          lastMessage: lastMsg
-            ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
-            : null,
-          unreadCount,
-          isOnline,
-          lastSeen,
-          participants: conv.members.map((mem) => ({
-            id: mem.user.id,
-            username: mem.user.username,
-            displayName: mem.user.displayName,
-            avatarUrl: mem.user.avatarUrl,
-            isVerified: mem.user.verificationTier === 'professional',
-          })),
-          isMuted: setting?.isMuted ?? false,
-          isPinned: setting?.isPinned ?? false,
-          isArchived: setting?.isArchived ?? false,
-          createdAt: conv.createdAt.toISOString(),
-          updatedAt: conv.updatedAt.toISOString(),
-        }
-      }),
-    )
+    const conversations = rows.map((m) => {
+      const conv = m.conversation
+      const lastMsg = conv.messages[0] ?? null
+      const setting = conv.settings[0]
 
-    // Sort: pinned first, then by lastMessageAt desc
-    conversations.sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
-      const aTime = a.lastMessage?.createdAt ?? a.createdAt
-      const bTime = b.lastMessage?.createdAt ?? b.createdAt
-      return bTime.localeCompare(aTime)
+      let isOnline = false
+      let lastSeen: string | null = null
+      if (conv.type === 'dm') {
+        const other = conv.members.find((mem) => mem.userId !== userId)
+        const pres = other ? presenceMap.get(other.userId) : undefined
+        isOnline = pres?.isOnline ?? false
+        lastSeen = pres?.lastSeen ?? null
+      }
+
+      return {
+        id: conv.id,
+        type: conv.type,
+        name: conv.name,
+        avatarUrl: conv.avatarUrl,
+        theme: conv.theme ?? null,
+        lastMessage: lastMsg
+          ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
+          : null,
+        unreadCount: unreadMap.get(conv.id) ?? 0,
+        isOnline,
+        lastSeen,
+        participants: conv.members.map((mem) => ({
+          id: mem.user.id,
+          username: mem.user.username,
+          displayName: mem.user.displayName,
+          avatarUrl: mem.user.avatarUrl,
+          isVerified: mem.user.verificationTier === 'professional',
+        })),
+        isMuted: setting?.isMuted ?? false,
+        isPinned: setting?.isPinned ?? false,
+        isArchived: setting?.isArchived ?? false,
+        createdAt: conv.createdAt.toISOString(),
+        updatedAt: conv.updatedAt.toISOString(),
+      }
     })
 
+    // No post-sort: the database already returned them in display order, which
+    // is what makes the order hold ACROSS pages rather than only within one.
+    const last = items[items.length - 1]
     return {
       data: conversations,
-      nextCursor: hasMore
-        ? encodeCursor(items[items.length - 1]!.joinedAt, items[items.length - 1]!.conversationId)
+      nextCursor: hasMore && last
+        ? encodeCursor(last.conversation.lastMessageAt, last.conversationId)
         : null,
       hasMore,
+    }
+  }
+
+  /** Shared shape for both halves of the conversation list (pinned + paged). */
+  private conversationListInclude(userId: string) {
+    return {
+      conversation: {
+        include: {
+          members: {
+            where: { isDeleted: false },
+            include: {
+              user: {
+                select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+              },
+            },
+          },
+          messages: {
+            take: 1,
+            orderBy: { createdAt: 'desc' as const },
+            select: { body: true, senderId: true, createdAt: true, type: true },
+          },
+          settings: {
+            where: { userId },
+            take: 1,
+          },
+        },
+      },
     }
   }
 
@@ -550,6 +598,17 @@ export class MessagingService {
       this.logger.warn(`post-send tasks failed for ${conversationId}: ${err.message}`),
     )
 
+    // When the recipient of this DM is ZoikoSocial AI, generate its reply. Also
+    // off the critical path: the sender's message is already delivered, and the
+    // reply arrives over the same socket moments later. The sender-is-AI guard is
+    // what stops the assistant replying to itself.
+    const recipientId = member.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
+    if (input.body && recipientId && this.aiAssistant.isAiProfile(recipientId) && !this.aiAssistant.isAiProfile(userId)) {
+      void this.dispatchAiReply(conversationId, userId, input.body).catch((err: Error) =>
+        this.logger.warn(`AI reply failed for ${conversationId}: ${err.message}`),
+      )
+    }
+
     return {
       id: message.id,
       conversationId: message.conversationId,
@@ -569,6 +628,68 @@ export class MessagingService {
       reactions: [],
       receipt: null,
       createdAt: message.createdAt.toISOString(),
+    }
+  }
+
+  /**
+   * Generates ZoikoSocial AI's reply and sends it as a normal message.
+   *
+   * The reply goes back through `sendMessage` with the assistant as sender, so it
+   * gets the same persistence, realtime delivery and notification handling as any
+   * human message — nothing about the assistant's messages is special-cased.
+   * Typing indicators bracket the model call using the existing `typing:update`
+   * event, so the member sees "typing…" while it thinks.
+   */
+  private async dispatchAiReply(conversationId: string, userId: string, text: string): Promise<void> {
+    const aiId = this.aiAssistant.getAiProfileId()
+    if (!aiId) return
+
+    await this.presence.setTyping(aiId, conversationId, true)
+    try {
+      const reply = await this.aiAssistant.generateReply(conversationId, userId, text)
+      await this.sendMessage(aiId, conversationId, { body: reply })
+    } finally {
+      // Always clear the indicator, or it sticks until the client's own timeout.
+      await this.presence.setTyping(aiId, conversationId, false).catch(() => undefined)
+    }
+  }
+
+  /**
+   * Ensures this member has their ZoikoSocial AI thread, seeded with a greeting.
+   *
+   * Creates the conversation directly rather than through `getOrCreateConversation`
+   * because that path enforces the follow/privacy gate and would turn this into a
+   * message request — the assistant is always reachable. Best-effort: a failure
+   * here must not stop the inbox from loading.
+   */
+  private async ensureAiThread(userId: string): Promise<void> {
+    const aiId = this.aiAssistant.getAiProfileId()
+    if (!aiId || aiId === userId) return
+
+    try {
+      const existing = await this.prisma.conversation.findFirst({
+        where: {
+          type: 'dm',
+          isDeleted: false,
+          AND: [{ members: { some: { userId } } }, { members: { some: { userId: aiId } } }],
+        },
+        select: { id: true },
+      })
+      if (existing) return
+
+      const conversation = await this.prisma.conversation.create({
+        data: {
+          type: 'dm',
+          createdBy: aiId,
+          members: { createMany: { data: [{ userId }, { userId: aiId }] } },
+        },
+        select: { id: true },
+      })
+
+      await this.sendMessage(aiId, conversation.id, { body: this.aiAssistant.greeting })
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      this.logger.warn(`Could not provision AI thread for ${userId}: ${reason}`)
     }
   }
 

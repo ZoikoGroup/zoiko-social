@@ -5,17 +5,20 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Heart, MessageCircle, Send, Bookmark, MoreHorizontal, ChevronLeft, ChevronRight,
-  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird, Flag, BarChart3,
+  Trash2, Link2, BadgeCheck, PawPrint, HeartPulse, HandHeart, Info, MapPin, Bird, Flag, BarChart3, UserMinus2,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
 import { Img } from '../Img'
 import { ShareModal } from './ShareModal'
 import { LikersModal } from './LikersModal'
-import { postsApi, moderationApi, type PostItem } from '@/lib/api'
+import { postsApi, networkApi, type PostItem } from '@/lib/api'
 import { trackPostEvent, type PostEventSurface } from '@/lib/analytics'
+import { reportPostView } from '@/lib/post-views'
 import { LocationLink } from '@/components/LocationLink'
 import { PostInsightsModal } from '@/components/analytics/PostInsightsModal'
+import { ReportContentModal } from '@/components/ReportContentModal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 
@@ -86,7 +89,7 @@ interface PostCardProps {
 export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): React.JSX.Element {
   const router = useRouter()
   const { user, profile } = useAuth()
-  const { success: toastSuccess, error: toastError } = useToast()
+  const { success: toastSuccess } = useToast()
   const [liked, setLiked] = useState(post.viewerLiked)
   const [saved, setSaved] = useState(post.viewerSaved)
   const [likesCount, setLikesCount] = useState(post.likesCount)
@@ -98,6 +101,8 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
   const [insightsOpen, setInsightsOpen] = useState(false)
   const [likersOpen, setLikersOpen] = useState(false)
   const [reported, setReported] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
   const lastTap = useRef(0)
   const cardRef = useRef<HTMLElement>(null)
 
@@ -128,6 +133,32 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
     observer.observe(el)
     return () => observer.disconnect()
   }, [trackable, post.id, surface])
+
+  // Seen-filter: report the post once it's actually on screen (any account,
+  // own posts excluded — they must always stay in the feed). Batched client-
+  // side; the API dedupes re-views via the composite PK.
+  useEffect(() => {
+    // Own posts are never seen-filtered in the feed query — skip reporting.
+    if (isOwn) return
+    // Detail is open by definition — report immediately, no observer needed.
+    if (surface === 'detail') {
+      reportPostView(post.id)
+      return
+    }
+    const el = cardRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          reportPostView(post.id)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [isOwn, post.id, surface])
 
   async function toggleLike(forceLike = false): Promise<void> {
     if (forceLike && liked) return
@@ -183,15 +214,10 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
     setMenuOpen(false)
   }
 
-  async function reportPost(): Promise<void> {
-    setMenuOpen(false)
-    try {
-      await moderationApi.report('post', post.id, 'other')
-      setReported(true)
-      toastSuccess('Post reported', "We'll review it shortly.")
-    } catch {
-      toastError('Report failed', 'Could not submit the report. Please try again.')
-    }
+  async function blockAuthor(): Promise<void> {
+    await networkApi.block(post.author.id)
+    toastSuccess('Blocked', `${post.author.displayName} can no longer see your profile or message you.`)
+    onDeleted?.(post.id)
   }
 
   const media = post.media
@@ -253,7 +279,15 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
               )}
               {!isOwn && (
                 <button
-                  onClick={reportPost}
+                  onClick={() => { setMenuOpen(false); setConfirmBlockOpen(true) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-red-500 hover:bg-red-50 cursor-pointer"
+                >
+                  <UserMinus2 className="w-4 h-4" />Block @{post.author.username}
+                </button>
+              )}
+              {!isOwn && (
+                <button
+                  onClick={() => { setMenuOpen(false); setReportOpen(true) }}
                   disabled={reported}
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-label-sm text-yellow-600 hover:bg-yellow-50 cursor-pointer disabled:opacity-50 disabled:cursor-default"
                 >
@@ -264,6 +298,24 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
           )}
         </div>
       </div>
+
+      {reportOpen && (
+        <ReportContentModal
+          targetType="post"
+          targetId={post.id}
+          onClose={() => setReportOpen(false)}
+          onReported={() => setReported(true)}
+        />
+      )}
+      {confirmBlockOpen && (
+        <ConfirmDialog
+          title={`Block @${post.author.username}?`}
+          body={`They won't be able to see your profile, follow you, or message you. Existing follows between you will be removed. You can unblock them anytime from Settings.`}
+          confirmLabel="Block"
+          onConfirm={blockAuthor}
+          onClose={() => setConfirmBlockOpen(false)}
+        />
+      )}
 
       {/* Media carousel */}
       {media.length > 0 && (

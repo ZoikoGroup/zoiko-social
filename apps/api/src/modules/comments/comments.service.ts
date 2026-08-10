@@ -13,6 +13,7 @@ import { PostsService } from '../posts/posts.service'
 import { parseMentions } from '../posts/caption-parser'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
 
 export interface CommentResponse {
   id: string
@@ -54,6 +55,7 @@ export class CommentsService {
     private readonly notifications: NotificationQueueService,
     private readonly postsService: PostsService,
     private readonly profanity: ProfanityService,
+    private readonly affinity: AffinityService,
   ) {}
 
   /** Run post-commit side effects without blocking the response. */
@@ -112,6 +114,8 @@ export class CommentsService {
         this.redis.invalidatePost(postId),
         this.realtime.publish(`post:${postId}`, 'comment:new', mapped),
       ])
+
+      await this.affinity.record(userId, post, AFFINITY_WEIGHTS.comment)
 
       const actor = await this.prisma.profile.findUnique({
         where: { id: userId },

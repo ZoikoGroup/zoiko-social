@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -12,6 +13,9 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { AuthService } from '../auth/auth.service'
+import { ConfigService } from '../config/config.service'
+import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase-storage.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 
@@ -27,6 +31,34 @@ export const UpdateProfileSchema = z.object({
   username: z.string().min(3).max(30).optional(),
   currency: z.string().trim().min(2).max(8).optional(),
 })
+
+export const UpdateSettingsSchema = z.object({
+  // Privacy toggles
+  showLastActive: z.boolean().optional(),
+  showEmail: z.boolean().optional(),
+  allowTagging: z.boolean().optional(),
+  showLocation: z.boolean().optional(),
+  allowMessaging: z.enum(['everyone', 'connections', 'none']).optional(),
+
+  // Notification preferences
+  notifLikes: z.boolean().optional(),
+  notifComments: z.boolean().optional(),
+  notifFollows: z.boolean().optional(),
+  notifMentions: z.boolean().optional(),
+  notifEvents: z.boolean().optional(),
+  notifCommunities: z.boolean().optional(),
+  notifNews: z.boolean().optional(),
+  notifPromotions: z.boolean().optional(),
+  emailDigest: z.boolean().optional(),
+  emailMarketing: z.boolean().optional(),
+  pushEnabled: z.boolean().optional(),
+
+  // Display preferences
+  reducedMotion: z.boolean().optional(),
+  compactView: z.boolean().optional(),
+})
+
+export type UpdateSettingsInput = z.infer<typeof UpdateSettingsSchema>
 
 export const SwitchProfessionalSchema = z.object({
   category: z.nativeEnum(ProfessionalCategory),
@@ -89,6 +121,8 @@ export interface ProfileResponse {
   id: string
   username: string
   displayName: string
+  firstName: string | null
+  lastName: string | null
   bio: string | null
   avatarUrl: string | null
   bannerUrl: string | null
@@ -103,6 +137,8 @@ export interface ProfileResponse {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  /** False until the person has been through /onboarding and named themselves. */
+  onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
   professionalProfile: ProfessionalProfileResponse | null
@@ -168,7 +204,7 @@ export const RESERVED_USERNAMES = new Set([
   'api', 'www', 'mail', 'app', 'web', 'dev', 'test', 'staging',
   'login', 'signup', 'register', 'logout', 'auth', 'settings', 'profile',
   'explore', 'notifications', 'messages', 'news', 'events', 'shop', 'adoption',
-  'about', 'contact', 'privacy', 'terms', 'security',
+  'about', 'contact', 'privacy', 'terms', 'security', 'onboarding',
 ])
 
 export interface UsernameAvailability {
@@ -176,6 +212,20 @@ export interface UsernameAvailability {
   available: boolean
   reason: 'invalid' | 'reserved' | 'taken' | null
 }
+
+/**
+ * What we ask an OAuth arrival for. No password — they have none — and no email,
+ * which the provider already vouched for.
+ */
+export const CompleteOnboardingSchema = z.object({
+  firstName: z.string().trim().min(1).max(40),
+  lastName: z.string().trim().max(40).optional(),
+  username: z.string().trim().min(3).max(30),
+  bio: z.string().trim().max(500).optional(),
+  avatarUrl: z.string().url().max(500).optional().nullable(),
+})
+
+export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>
 
 // ── Profile Service ────────────────────────────────────────────────────────
 
@@ -190,6 +240,9 @@ export class ProfileService {
     private readonly notifications: NotificationQueueService,
     private readonly auditLog: AuditLogService,
     private readonly profanity: ProfanityService,
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+    private readonly storage: SupabaseStorageService,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -220,6 +273,152 @@ export class ProfileService {
       select: { id: true },
     })
     return { username, available: !existing, reason: existing ? 'taken' : null }
+  }
+
+  /**
+   * Offer handles built from the name the provider gave us, in descending order
+   * of how much they look like a person's own choice. Only available ones come
+   * back, so anything the caller shows can be taken without a second round trip.
+   */
+  async suggestUsernames(firstName: string, lastName: string, limit = 5): Promise<string[]> {
+    const first = ProfileService.usernameToken(firstName)
+    const last = ProfileService.usernameToken(lastName)
+
+    const raw: string[] = []
+    if (first && last) {
+      raw.push(`${first}.${last}`, `${first}${last}`, `${first}_${last}`, `${first}.${last.slice(0, 1)}`)
+    }
+    if (first) raw.push(first)
+    if (last) raw.push(last)
+
+    // Numbered variants so a common name can still fill the list.
+    const seed = raw[0]
+    if (seed) {
+      for (let n = 1; n <= limit * 2; n++) raw.push(`${seed.slice(0, 27)}${n}`)
+    }
+
+    const candidates = [
+      ...new Set(
+        raw
+          .map((r) => ProfileService.normalizeUsernameCandidate(r))
+          .filter((u): u is string => u !== null),
+      ),
+    ]
+    if (candidates.length === 0) return []
+
+    const taken = new Set(
+      (
+        await this.prisma.profile.findMany({
+          where: { username: { in: candidates } },
+          select: { username: true },
+        })
+      ).map((p) => p.username),
+    )
+
+    return candidates.filter((u) => !taken.has(u)).slice(0, limit)
+  }
+
+  /** Reduce a display name to the letters and digits a handle can be built from. */
+  private static usernameToken(raw: string): string {
+    return (raw ?? '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '') // drop accents rather than the letter
+      .replace(/[^a-z0-9]/g, '')
+  }
+
+  /** Coerce a candidate to a legal handle, or null when nothing legal remains. */
+  private static normalizeUsernameCandidate(raw: string): string | null {
+    const trimmed = raw
+      .toLowerCase()
+      .replace(/[^a-z0-9._]/g, '')
+      .replace(/\.{2,}/g, '.')
+      .slice(0, 30)
+      .replace(/^\.+/, '')
+      .replace(/\.+$/, '')
+
+    if (!USERNAME_REGEX.test(trimmed)) return null
+    if (RESERVED_USERNAMES.has(trimmed)) return null
+    return trimmed
+  }
+
+  /**
+   * The one pass where a new OAuth account names itself. Deliberately NOT
+   * updateProfile: that stamps usernameChangedAt and starts the 30-day cooldown,
+   * which would spend the user's first rename on replacing a handle they never
+   * chose — the trigger derived it from their email address.
+   */
+  async completeOnboarding(
+    userId: string,
+    input: CompleteOnboardingInput,
+  ): Promise<ProfileResponse> {
+    const before = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { username: true, onboardingCompletedAt: true },
+    })
+    if (!before) {
+      throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+    }
+    if (before.onboardingCompletedAt) {
+      throw new ConflictException({
+        code: 'ONBOARDING_ALREADY_COMPLETE',
+        message: 'Onboarding has already been completed for this account.',
+      })
+    }
+
+    this.profanity.assertClean(input.firstName, { actorId: userId, entityType: 'profile.firstName' })
+    if (input.lastName) {
+      this.profanity.assertClean(input.lastName, { actorId: userId, entityType: 'profile.lastName' })
+    }
+    if (input.bio) {
+      this.profanity.assertClean(input.bio, { actorId: userId, entityType: 'profile.bio' })
+    }
+    this.profanity.assertClean(input.username, { actorId: userId, entityType: 'profile.username' })
+
+    const username = input.username.trim().toLowerCase()
+
+    // Keeping the provisional handle is legitimate — it is already theirs, and
+    // re-checking it would report it as taken by its own owner.
+    if (username !== before.username) {
+      const availability = await this.checkUsernameAvailability(username)
+      if (!availability.available) {
+        throw new ConflictException(
+          availability.reason === 'taken'
+            ? { code: 'USERNAME_TAKEN', message: 'This username is already taken.' }
+            : {
+                code: 'USERNAME_INVALID',
+                message:
+                  'Usernames are 3–30 characters: lowercase letters, numbers, underscores and periods.',
+              },
+        )
+      }
+    }
+
+    const firstName = input.firstName.trim()
+    const lastName = input.lastName?.trim() || null
+    const displayName = [firstName, lastName].filter(Boolean).join(' ')
+
+    const profile = await this.prisma.profile.update({
+      where: { id: userId },
+      data: {
+        firstName,
+        lastName,
+        displayName,
+        username,
+        bio: input.bio?.trim() || null,
+        avatarUrl: input.avatarUrl ?? undefined,
+        onboardingCompletedAt: new Date(),
+      },
+      include: { professionalProfile: true },
+    })
+
+    await this.redis.invalidateProfile(userId)
+    if (username !== before.username) {
+      await this.redis.invalidateUsername(before.username, username)
+    }
+    this.logger.log(`User ${userId} completed onboarding as @${username}`)
+
+    return this.mapProfile(profile)
   }
 
   // ── PERSONAL PROFILE ──────────────────────────────────────────────────────
@@ -770,6 +969,33 @@ export class ProfileService {
     }
   }
 
+  /**
+   * Short-lived read URL for a verification document.
+   *
+   * The documents live in a private bucket (migrations/055), so `documentUrl`
+   * holds a storage key rather than a fetchable URL — identity documents must
+   * not be readable by anyone who happens to have the link. Only the member who
+   * uploaded it and staff reviewing it can obtain a signed URL, and it expires
+   * in five minutes.
+   */
+  async getVerificationDocumentUrl(requesterId: string, documentId: string): Promise<string> {
+    const doc = await this.prisma.verificationDocument.findUnique({
+      where: { id: documentId },
+      select: { documentUrl: true, request: { select: { userId: true } } },
+    })
+    if (!doc) {
+      throw new NotFoundException({ code: 'DOCUMENT_NOT_FOUND', message: 'Document not found' })
+    }
+
+    if (doc.request.userId !== requesterId) {
+      // Throws ForbiddenException for non-staff, so a member cannot probe for
+      // other people's document ids.
+      await this.requireAdminOrModerator(requesterId)
+    }
+
+    return this.storage.createSignedDownloadUrl(VERIFICATION_BUCKET, doc.documentUrl)
+  }
+
   // ── RELATIONSHIP ENGINE ───────────────────────────────────────────────────
 
   async getRelationship(userId: string, targetUserId: string): Promise<RelationshipResponse> {
@@ -827,6 +1053,200 @@ export class ProfileService {
     }
   }
 
+  // ── DEACTIVATION AND DELETION ──────────────────────────────────────────────
+
+  /** Days a member has to sign back in and cancel a pending deletion. */
+  get deletionGraceDays(): number {
+    return this.config.env.ACCOUNT_DELETION_GRACE_DAYS ?? 30
+  }
+
+  /**
+   * Temporarily hide the account. Nothing is destroyed: signing back in restores
+   * it (see AuthService.restoreOnLogin). Everyone else stops seeing the member
+   * and their content for free, because profile visibility across feed, search,
+   * posts, comments and messaging is gated on `state = 'active'`.
+   */
+  async deactivateAccount(userId: string): Promise<{ state: string }> {
+    const profile = await this.loadForStateChange(userId)
+
+    await this.prisma.profile.update({
+      where: { id: userId },
+      data: { state: 'deactivated', deactivatedAt: new Date(), deletionRequestedAt: null },
+    })
+    await this.afterStateChange(userId, profile.username, 'account.deactivated')
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'account.deactivate',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username: profile.username },
+    })
+    // Sign every device out, so the account really does go quiet.
+    await this.revokeSessions(userId)
+
+    this.logger.log(`Account deactivated for ${userId}`)
+    return { state: 'deactivated' }
+  }
+
+  /**
+   * Schedule the account for deletion after the grace period.
+   *
+   * Deliberately does NOT touch Supabase Auth: the login has to keep working, or
+   * the member could never sign in to change their mind. The irreversible part
+   * happens later, in `purgeAccount` — either from the daily job or the moment an
+   * expired account tries to sign in.
+   */
+  async requestAccountDeletion(userId: string): Promise<{ scheduledFor: string; graceDays: number }> {
+    const profile = await this.loadForStateChange(userId)
+
+    const requestedAt = new Date()
+    const scheduledFor = new Date(requestedAt.getTime() + this.deletionGraceDays * 86_400_000)
+
+    await this.prisma.profile.update({
+      where: { id: userId },
+      data: { state: 'pending_deletion', deletionRequestedAt: requestedAt, deactivatedAt: null },
+    })
+    await this.afterStateChange(userId, profile.username, 'account.deletion_scheduled')
+    await this.auditLog.record({
+      actorId: userId,
+      action: 'account.deletion_requested',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username: profile.username, graceDays: this.deletionGraceDays, scheduledFor: scheduledFor.toISOString() },
+    })
+    await this.revokeSessions(userId)
+
+    this.logger.log(`Deletion scheduled for ${userId} at ${scheduledFor.toISOString()}`)
+    return { scheduledFor: scheduledFor.toISOString(), graceDays: this.deletionGraceDays }
+  }
+
+  /**
+   * Irreversibly delete the account. Deleting the Supabase auth user cascades the
+   * profile row away, so this is a hard delete despite the `deleted` state value.
+   *
+   * Everything after the auth call is best-effort: the irreversible part has
+   * already happened, so a failure in the tidy-up must not report failure to
+   * someone whose account is in fact gone.
+   */
+  async purgeAccount(userId: string, deletedBy: 'self' | 'grace_period_expired'): Promise<void> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true },
+    })
+    const username = profile?.username ?? null
+
+    try {
+      await this.authService.deleteAccount(userId)
+    } catch (error) {
+      this.logger.error(`Auth deletion failed for user ${userId}: ${(error as Error).message}`)
+      throw new BadRequestException({
+        code: 'ACCOUNT_DELETION_FAILED',
+        message: 'Failed to delete account. Please try again later.',
+      })
+    }
+
+    // The auth cascade normally removes this row already; if it survived, mark it.
+    try {
+      await this.prisma.profile.update({ where: { id: userId }, data: { state: 'deleted' } })
+    } catch {
+      this.logger.log(`Profile row for ${userId} was already removed by the auth cascade`)
+    }
+
+    try {
+      await this.redis.invalidateProfile(userId)
+      if (username) await this.redis.invalidateUsername(username)
+      await this.realtime.publishToProfile(userId, 'account.deleted', { userId })
+    } catch (error) {
+      this.logger.warn(`Post-deletion cleanup failed for ${userId}: ${(error as Error).message}`)
+    }
+
+    // actorId must be null: the profile it would reference no longer exists, and a
+    // non-null value fails the foreign key — which is why deletions previously
+    // left no trail at all. Identity is kept in entityId and newData, neither of
+    // which is a foreign key.
+    await this.auditLog.record({
+      actorId: null,
+      action: 'account.delete',
+      entityType: 'profile',
+      entityId: userId,
+      newData: { username, deletedBy },
+    })
+
+    this.logger.log(`Account purged for ${userId} (${deletedBy})`)
+  }
+
+  /** Rejects states that must not be changed by the member themselves. */
+  private async loadForStateChange(userId: string): Promise<{ username: string; state: string }> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      select: { username: true, state: true },
+    })
+    if (!profile) {
+      throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+    }
+    if (profile.state === 'deleted') {
+      throw new ConflictException({ code: 'ALREADY_DELETED', message: 'Account is already deleted' })
+    }
+    // A moderator's decision is not something the member can step around by
+    // deactivating and signing back in.
+    if (profile.state === 'suspended' || profile.state === 'banned') {
+      throw new ConflictException({
+        code: 'ACCOUNT_RESTRICTED',
+        message: 'This account is restricted. Contact support.',
+      })
+    }
+    return profile
+  }
+
+  private async afterStateChange(userId: string, username: string, event: string): Promise<void> {
+    try {
+      await this.redis.invalidateProfile(userId)
+      await this.redis.invalidateUsername(username)
+      await this.realtime.publishToProfile(userId, event, { userId })
+    } catch (error) {
+      this.logger.warn(`Cache/realtime update failed for ${userId}: ${(error as Error).message}`)
+    }
+  }
+
+  private async revokeSessions(userId: string): Promise<void> {
+    try {
+      await this.authService.logout(userId)
+    } catch (error) {
+      this.logger.warn(`Could not revoke sessions for ${userId}: ${(error as Error).message}`)
+    }
+  }
+
+  // ── USER SETTINGS ───────────────────────────────────────────────────────────
+
+  /**
+   * Get the user's settings — creates a row with defaults on first access.
+   */
+  async getSettings(userId: string) {
+    const existing = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    })
+    if (existing) return existing
+
+    // First access: create with defaults (model defaults match the settings page)
+    return this.prisma.userSettings.create({
+      data: { userId },
+    })
+  }
+
+  /**
+   * Update user settings — upserts so it works on first save too.
+   */
+  async updateSettings(userId: string, input: UpdateSettingsInput) {
+    const settings = await this.prisma.userSettings.upsert({
+      where: { userId },
+      create: { userId, ...input },
+      update: input,
+    })
+
+    await this.redis.invalidateProfile(userId)
+    return settings
+  }
+
   // ── PROFESSIONAL CATEGORIES ───────────────────────────────────────────────
 
   async getProfessionalCategories() {
@@ -864,6 +1284,8 @@ export class ProfileService {
       id: profile.id,
       username: profile.username,
       displayName: profile.displayName,
+      firstName: profile.firstName ?? null,
+      lastName: profile.lastName ?? null,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
       bannerUrl: profile.bannerUrl,
@@ -878,6 +1300,7 @@ export class ProfileService {
       trustScore: profile.trustScore,
       currency: profile.currency ?? null,
       usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
+      onboardingCompleted: profile.onboardingCompletedAt !== null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
       professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt

@@ -6,6 +6,7 @@ import { breedingApi, petsApi, type BreedingProfile, type NewBreedingProfile, ty
 import { LocationInput } from '@/components/LocationInput'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const SPECIES = ['dog', 'cat', 'bird', 'rabbit', 'other'] as const
 const TEMPERAMENTS = ['Friendly', 'Calm', 'Playful', 'Protective', 'Gentle', 'Energetic', 'Social', 'Independent', 'Trained']
@@ -132,7 +133,10 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">{editing ? 'Edit breeding profile' : 'List for breeding'}</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/marketplace-and-services#breeding-match" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto flex-1">

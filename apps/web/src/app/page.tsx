@@ -30,7 +30,7 @@ function FeedSkeleton(): React.JSX.Element {
 }
 
 export default function HomePage(): React.JSX.Element {
-  const { loading, isAuthenticated } = useAuth()
+  const { loading, isAuthenticated, needsOnboarding } = useAuth()
 
   // Fallback client redirect: if the server let us through but the client has no
   // session (e.g. cookie/session desync), go to login instead of a blank screen.
@@ -40,8 +40,13 @@ export default function HomePage(): React.JSX.Element {
     }
   }, [loading, isAuthenticated])
 
-  // Content-shaped skeleton while auth resolves (or during the redirect above) — never a blank page
-  if (loading || !isAuthenticated) {
+  // Content-shaped skeleton while auth resolves (or during the redirect above) — never a blank page.
+  //
+  // It also covers `needsOnboarding` being unresolved or true: an account that
+  // has not named itself yet is about to be sent to /onboarding, and rendering
+  // the feed underneath that first would flash a page the visitor never asked
+  // for. A failed profile fetch resolves to false, so this cannot hang.
+  if (loading || !isAuthenticated || needsOnboarding !== false) {
     return <FeedSkeleton />
   }
 

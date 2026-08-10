@@ -168,6 +168,8 @@ export interface Profile {
   id: string
   username: string
   displayName: string
+  firstName: string | null
+  lastName: string | null
   bio: string | null
   avatarUrl: string | null
   bannerUrl: string | null
@@ -182,6 +184,8 @@ export interface Profile {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  /** False until the person has been through /onboarding and named themselves. */
+  onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
   professionalProfile: ProfessionalProfile | null
@@ -224,6 +228,23 @@ export interface Relationship {
   blocked: boolean
   blockedBy: boolean
   muted: boolean
+}
+
+export interface BlockedUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  reason: string | null
+  blockedAt: string
+}
+
+export interface MutedUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  mutedAt: string
 }
 
 export interface FollowerItem {
@@ -273,7 +294,69 @@ export const profileApi = {
   switchToProfessional: (input: { category: string; businessName?: string; description?: string }) =>
     mutate<ProfessionalProfile>('/profiles/me/professional', { method: 'POST', body: JSON.stringify(input) }),
   revertToPersonal: () => mutate<{ message: string }>('/profiles/me/professional', { method: 'DELETE' }),
+  /** Temporarily hides the account. Signing in again restores it. */
+  deactivate: () => mutate<{ state: string; message: string }>('/profiles/me/deactivate', { method: 'POST' }),
+  /**
+   * Schedules deletion after a grace period rather than deleting immediately —
+   * signing in before `scheduledFor` cancels it.
+   */
+  deleteAccount: () =>
+    mutate<{ scheduledFor: string; graceDays: number; message: string }>('/profiles/me', { method: 'DELETE' }),
   getRelationship: (id: string) => request<Relationship>(`/profiles/${id}/relationship`),
+  checkUsername: (username: string) =>
+    request<{ username: string; available: boolean; reason: 'invalid' | 'reserved' | 'taken' | null }>(
+      `/profiles/username-available?username=${encodeURIComponent(username)}`,
+    ),
+  /** Free handles built from a name — already filtered, so any of them can be taken. */
+  suggestUsernames: (firstName: string, lastName: string) =>
+    request<{ suggestions: string[] }>(
+      `/profiles/username-suggestions?firstName=${encodeURIComponent(firstName)}&lastName=${encodeURIComponent(lastName)}`,
+    ),
+  completeOnboarding: (input: {
+    firstName: string
+    lastName?: string
+    username: string
+    bio?: string
+    avatarUrl?: string | null
+  }) => mutate<Profile>('/profiles/me/onboarding', { method: 'POST', body: JSON.stringify(input) }),
+}
+
+// ── User Settings API ─────────────────────────────────────────────────────────
+
+export interface UserSettings {
+  id: string
+  userId: string
+  // Privacy toggles
+  showLastActive: boolean
+  showEmail: boolean
+  allowTagging: boolean
+  showLocation: boolean
+  allowMessaging: 'everyone' | 'connections' | 'none'
+  // Notification preferences
+  notifLikes: boolean
+  notifComments: boolean
+  notifFollows: boolean
+  notifMentions: boolean
+  notifEvents: boolean
+  notifCommunities: boolean
+  notifNews: boolean
+  notifPromotions: boolean
+  emailDigest: boolean
+  emailMarketing: boolean
+  pushEnabled: boolean
+  // Display preferences
+  reducedMotion: boolean
+  compactView: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type UpdateSettingsInput = Partial<Omit<UserSettings, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>
+
+export const settingsApi = {
+  get: () => request<UserSettings>('/profiles/settings/me'),
+  update: (input: UpdateSettingsInput) =>
+    mutate<UserSettings>('/profiles/settings/me', { method: 'PUT', body: JSON.stringify(input) }),
 }
 
 // ── Posts / Feed / Comments Types ───────────────────────────────────────────
@@ -413,6 +496,11 @@ export interface Pet {
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
+  color: string | null
+  microchipId: string | null
+  /** null = not specified, distinct from a known false. */
+  neutered: boolean | null
+  adoptionDate: string | null
   isPublic: boolean
   createdAt: string
 }
@@ -425,7 +513,19 @@ export interface NewPet {
   avatarUrl?: string
   bio?: string
   birthdate?: string
+  color?: string
+  microchipId?: string
+  neutered?: boolean
+  adoptionDate?: string
   isPublic?: boolean
+}
+
+/**
+ * Update accepts explicit "clear this" values that create cannot: '' for dates
+ * and null for neutered. Omitting a key still means "leave unchanged".
+ */
+export type UpdatePet = Partial<Omit<NewPet, 'neutered'>> & {
+  neutered?: boolean | null
 }
 
 export interface DiaryEntry {
@@ -450,6 +550,8 @@ export interface HealthRecord {
   attachments: string[]
   recordDate: string | null
   nextDue: string | null
+  /** The clinic that wrote this record, when it came from a booking. */
+  provider: { id: string; name: string } | null
   createdAt: string
 }
 
@@ -457,7 +559,7 @@ export const petsApi = {
   mine: () => cachedGet<Pet[]>('/pets', 15_000),
   byProfile: (profileId: string) => cachedGet<Pet[]>(`/profiles/${profileId}/pets`, 30_000),
   create: (input: NewPet) => mutate<Pet>('/pets', { method: 'POST', body: JSON.stringify(input) }),
-  update: (id: string, input: Partial<NewPet>) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  update: (id: string, input: UpdatePet) => mutate<Pet>(`/pets/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/pets/${id}`, { method: 'DELETE' }),
   // Diary
   diary: (petId: string) => cachedGet<DiaryEntry[]>(`/pets/${petId}/diary`, 15_000),
@@ -485,7 +587,12 @@ export const petsApi = {
 }
 
 export interface PublicPassport {
-  pet: { name: string; species: string; breed: string | null; sex: string | null; avatarUrl: string | null; birthdate: string | null; ownerName: string | null }
+  pet: {
+    name: string; species: string; breed: string | null; sex: string | null
+    avatarUrl: string | null; birthdate: string | null
+    color: string | null; microchipId: string | null; neutered: boolean | null
+    ownerName: string | null
+  }
   records: HealthRecord[]
 }
 
@@ -522,6 +629,9 @@ export interface EventItem {
   location: string | null
   venueName: string | null
   visibility: string
+  inviteOnly: boolean
+  shareToken: string | null
+  shareLinkExtendsInvites: boolean
   isOnline: boolean
   coverUrl: string | null
   videoUrl: string | null
@@ -537,18 +647,36 @@ export interface EventItem {
   startsAt: string
   endsAt: string | null
   goingCount: number
+  tags: string[]
+  viewerInvited: boolean
   viewerGoing: boolean
+  /** Set when a community hosts this event. */
+  community: { id: string; slug: string; name: string } | null
 }
 export interface EventPage { data: EventItem[]; nextCursor: string | null; hasMore: boolean }
 
-export interface EventFilters { category?: string; free?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number }
+export interface EventFilters { category?: string; free?: boolean; q?: string; mine?: boolean; past?: boolean; nearLat?: number; nearLng?: number; communityId?: string; hostId?: string }
 export interface EventAttendee { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 export type EventInput = {
   title?: string; description?: string | null; location?: string | null; venueName?: string | null
-  isOnline?: boolean; visibility?: 'public' | 'followers'
+  isOnline?: boolean; visibility?: 'public' | 'followers'; inviteOnly?: boolean; invitees?: string[]
+  /** Host on behalf of a community you own or administer. */
+  communityId?: string
+  tags?: string[]
+  shareLinkExtendsInvites?: boolean
   coverUrl?: string | null; videoUrl?: string | null; category?: string | null; isFree?: boolean; price?: string | null
   bookingUrl?: string | null; capacity?: number | null; latitude?: number | null; longitude?: number | null
   startsAt?: string; endsAt?: string | null
+}
+
+export interface EventInvitee {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  isVerified: boolean
+  status: string
+  invitedAt: string
 }
 
 function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): string {
@@ -561,22 +689,50 @@ function eventQuery(cursor?: string | null, limit = 15, f: EventFilters = {}): s
   if (f.mine) p.set('mine', '1')
   if (f.past) p.set('past', '1')
   if (f.nearLat !== undefined && f.nearLng !== undefined) { p.set('nearLat', String(f.nearLat)); p.set('nearLng', String(f.nearLng)) }
+  if (f.communityId) p.set('communityId', f.communityId)
+  if (f.hostId) p.set('hostId', f.hostId)
   return p.toString()
 }
 
 export const eventsApi = {
   upcoming: (cursor?: string | null, limit = 15, filters: EventFilters = {}) =>
     request<EventPage>(`/events?${eventQuery(cursor, limit, filters)}`),
-  get: (id: string) => cachedGet<EventItem>(`/events/${id}`, 30_000),
-  attendees: (id: string) => cachedGet<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees`, 15_000),
+  get: (id: string, share?: string) =>
+    share
+      ? request<EventItem>(`/events/${id}?share=${encodeURIComponent(share)}`)
+      : cachedGet<EventItem>(`/events/${id}`, 30_000),
+  attendees: (id: string, share?: string) =>
+    share
+      ? request<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees?share=${encodeURIComponent(share)}`)
+      : cachedGet<{ going: EventAttendee[]; interested: EventAttendee[] }>(`/events/${id}/attendees`, 15_000),
   create: (input: EventInput & { title: string; startsAt: string }) =>
     mutate<EventItem>('/events', { method: 'POST', body: JSON.stringify(input) }),
   update: (id: string, input: EventInput) =>
     mutate<EventItem>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
-  rsvp: (id: string, status: 'going' | 'interested' = 'going') =>
-    mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'POST', body: JSON.stringify({ status }) }),
+  /** Join via a share link (token from the URL). */
+  join: (id: string, token: string) =>
+    mutate<EventItem>(`/events/${id}/join`, { method: 'POST', body: JSON.stringify({ token }) }),
+  /** Host share-link settings — toggle extends-invites and/or regenerate the token. */
+  shareLink: (id: string, input: { extendsInvites?: boolean; reset?: boolean }) =>
+    mutate<{ shareToken: string; shareLinkExtendsInvites: boolean }>(`/events/${id}/share-link`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  rsvp: (id: string, status: 'going' | 'interested' = 'going', share?: string) =>
+    mutate<{ going: boolean; goingCount: number }>(
+      `/events/${id}/rsvp${share ? `?share=${encodeURIComponent(share)}` : ''}`,
+      { method: 'POST', body: JSON.stringify({ status }) },
+    ),
   cancelRsvp: (id: string) =>
     mutate<{ going: boolean; goingCount: number }>(`/events/${id}/rsvp`, { method: 'DELETE' }),
+  invite: (id: string, userIds: string[]) =>
+    mutate<{ invited: number }>(`/events/${id}/invites`, { method: 'POST', body: JSON.stringify({ userIds }) }),
+  invites: (id: string) => cachedGet<EventInvitee[]>(`/events/${id}/invites`, 15_000),
+  /** Decline an invite — the event leaves the viewer's feed/list. */
+  declineInvite: (id: string) =>
+    mutate<{ declined: boolean; goingCount: number }>(`/events/${id}/invites/decline`, { method: 'POST' }),
+  removeInvite: (id: string, inviteeId: string) =>
+    mutate<{ success: boolean }>(`/events/${id}/invites/${inviteeId}`, { method: 'DELETE' }),
   remove: (id: string) => mutate<{ success: boolean }>(`/events/${id}`, { method: 'DELETE' }),
 }
 
@@ -605,6 +761,7 @@ export interface AdoptionListing {
   negotiable: boolean
   fee: number | null
   status: string
+  tags: string[]
   enquiriesCount: number
   createdAt: string
   viewerEnquiryStatus: string | null
@@ -629,6 +786,7 @@ export interface NewListing {
   description?: string; location?: string; latitude?: number; longitude?: number; coverUrl?: string; photos?: string[]
   vaccinated?: boolean; neutered?: boolean; goodWith?: string[]
   listingType?: 'adopt' | 'sale'; price?: number; negotiable?: boolean; fee?: number
+  tags?: string[]
 }
 
 export const adoptionApi = {
@@ -767,20 +925,30 @@ export interface LostFoundReport {
   contact: string | null
   reward: number | null
   status: string
+  tags: string[]
   sightingsCount: number
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /** Present when the reporter linked their own pet profile. */
+  pet: { id: string; name: string; avatarUrl: string | null } | null
   createdAt: string
 }
 export interface LostFoundSighting {
   id: string
   message: string | null
   location: string | null
+  latitude: number | null
+  longitude: number | null
+  /** Straight-line distance from where the animal was last seen. */
+  distanceKm: number | null
   createdAt: string
   reporter: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
 }
 export interface LostFoundPage { data: LostFoundReport[]; nextCursor: string | null; hasMore: boolean }
 export interface NewReport {
   kind: 'lost' | 'found'; petName?: string; species: string; breed?: string
+  /** Your own pet — blank fields are filled from its profile. */
+  petId?: string
+  tags?: string[]
   age?: string; color?: string; sex?: 'male' | 'female' | 'unknown'; size?: 'small' | 'medium' | 'large'
   microchipId?: string; collar?: string; neutered?: boolean; vaccinated?: boolean
   description?: string; lastSeenLocation?: string; lastSeenAt?: string
@@ -809,8 +977,14 @@ export const lostFoundApi = {
     mutate<LostFoundReport>(`/lost-found/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
   remove: (id: string) => mutate<{ success: boolean }>(`/lost-found/${id}`, { method: 'DELETE' }),
   sightings: (id: string) => request<LostFoundSighting[]>(`/lost-found/${id}/sightings`),
-  addSighting: (id: string, input: { message?: string; location?: string }) =>
+  addSighting: (id: string, input: { message?: string; location?: string; latitude?: number; longitude?: number }) =>
     mutate<{ id: string }>(`/lost-found/${id}/sightings`, { method: 'POST', body: JSON.stringify(input) }),
+  /**
+   * Open reports the signed-in owner has filed about one of their own pets, so
+   * the pet profile can show a "reported missing" banner rather than the owner
+   * having to remember.
+   */
+  forPet: (petId: string) => request<LostFoundReport[]>(`/lost-found/for-pet/${petId}`),
 }
 
 export interface NewsArticle {
@@ -886,6 +1060,7 @@ export interface Product {
   shipping: string | null
   location: string | null
   status: string
+  tags: string[]
   savesCount: number
   enquiriesCount: number
   createdAt: string
@@ -1101,6 +1276,19 @@ export const feedApi = {
     cachedGet<PostPage>(`/me/saved?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, 15_000),
 }
 
+// ── Post views (seen-filter) ────────────────────────────────────────────────
+// Fire-and-forget batch reporting; the API dedupes via the composite PK, so
+// duplicate ids (re-views) are free. Never uses `mutate` — this must not
+// clear the GET cache on every scroll.
+
+export const postViewsApi = {
+  report: (postIds: string[]) =>
+    request<{ recorded: number }>('/me/views', {
+      method: 'POST',
+      body: JSON.stringify({ postIds }),
+    }),
+}
+
 // ── Post analytics (professional accounts) ─────────────────────────────────
 
 export interface PostInsights {
@@ -1224,480 +1412,36 @@ export interface CommunityMember {
   joinedAt: string
 }
 
-// ── Stories Types ────────────────────────────────────────────────────────────
-
-export interface StoryAuthor {
-  id: string
-  username: string
-  displayName: string
-  avatarUrl: string | null
-  isVerified: boolean
+/**
+ * A tag page's non-post sections. Each is a small preview — the section header
+ * links through to that feature's own filtered browse view.
+ */
+export interface TagEverything {
+  tag: string
+  postsCount: number
+  adoption: AdoptionListing[]
+  lostFound: LostFoundReport[]
+  events: EventItem[]
+  products: Product[]
+  communities: CommunityCard[]
 }
 
-export interface StoryMediaItem {
-  id: string
-  type: string
-  imageUrl: string | null
-  hlsUrl: string | null
-  thumbnailUrl: string | null
-  previewUrl: string | null
-  blurhash: string | null
-  width: number | null
-  height: number | null
-  durationMs: number | null
-}
-
-export interface StoryItem {
-  id: string
-  author: StoryAuthor
-  type: string
-  status: string
-  privacy: string
-  caption: string | null
-  background: Record<string, unknown> | null
-  media: StoryMediaItem[]
-  refType: string | null
-  refId: string | null
-  durationMs: number
-  viewsCount: number
-  reactionsCount: number
-  repliesCount: number
-  allowReplies: boolean
-  allowReactions: boolean
-  createdAt: string
-  expiresAt: string | null
-  viewerSeen: boolean
-  viewerReacted: boolean
-}
-
-export interface UploadUrlResult {
-  uploadUrl: string
-  path: string
-}
-
-// ── Stories API ──────────────────────────────────────────────────────────────
-
-export interface StoryRefCard {
-  available: true
-  type: 'feed_post' | 'profile' | 'community_post' | 'product'
-  title: string
-  subtitle: string
-  thumbnailUrl: string | null
-  avatarUrl: string | null
-  deepLink: string
-}
-
-export interface UnavailableRefCard {
-  available: false
-  type: 'feed_post' | 'profile' | 'community_post' | 'product'
-}
-
-export type StoryRefResult = StoryRefCard | UnavailableRefCard
-
-export const storiesApi = {
-  uploadUrl: (kind: 'image' | 'video', mime: string) =>
-    request<UploadUrlResult>(`/stories/upload-url?kind=${kind}&mime=${encodeURIComponent(mime)}`),
-  create: (input: {
-    type: 'photo' | 'video' | 'text' | 'shared_post' | 'shared_professional_profile' | 'shared_community_post'
-    privacy?: 'public' | 'followers' | 'close_friends' | 'professional'
-    media?: { path: string; width?: number; height?: number; blurhash?: string; durationMs?: number }[]
-    caption?: string
-    background?: { gradient?: string; color?: string; font?: string; align?: string }
-    refType?: string
-    refId?: string
-    stickers?: { kind: string; payload: Record<string, unknown>; transform: { x: number; y: number } }[]
-    mentions?: string[]
-    hashtags?: string[]
-    music?: { trackId: string; startMs?: number; durationMs?: number; volume?: number }
-    allowReplies?: boolean
-    allowReactions?: boolean
-  }) => mutate<{ story: StoryItem; status: string }>('/stories', { method: 'POST', body: JSON.stringify(input) }),
-  get: (id: string) => cachedGet<StoryItem>(`/stories/${id}`, 15_000),
-  delete: (id: string) => mutate<{ success: boolean }>(`/stories/${id}`, { method: 'DELETE' }),
-  resolveRef: (refType: string, refId: string) =>
-    cachedGet<StoryRefResult>(`/stories/ref/${refType}/${refId}`, 30_000),
-}
-
-export interface TrayStorySummary {
-  id: string
-  type: string
-  posterUrl: string | null
-  blurhash: string | null
-  durationMs: number
-  seen: boolean
-}
-
-export interface TrayRing {
-  author: StoryAuthor
-  hasUnseen: boolean
-  latestStoryAt: string
-  stories: TrayStorySummary[]
-}
-
-export interface TrayResponse {
-  rings: TrayRing[]
-}
-
-export interface ViewerItem {
-  id: string
-  username: string
-  displayName: string
-  avatarUrl: string | null
-  isVerified: boolean
-  completionPct: number
-  viewedAt: string
-}
-
-export interface ViewerPage {
-  data: ViewerItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
-
-export const trayApi = {
-  get: () => cachedGet<TrayResponse>('/stories/tray', 15_000),
-  getUserRing: (userId: string) => cachedGet<TrayRing>(`/stories/user/${userId}`, 15_000),
-}
-
-export interface StoryInsights {
-  storyId: string
-  viewsCount: number
-  impressionsCount: number
-  reactionsCount: number
-  repliesCount: number
-  shareCount: number
-  profileVisitsCount: number
-  completionPctAvg: number
-  completionPctDistribution: { range: string; count: number }[]
-  reach: number | null
-  engagementRatePct: number | null
-}
-
-export interface ReactionItem {
-  id: string
-  kind: string
-  emoji: string | null
-  message: string | null
-  user: {
-    id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
-    isVerified: boolean
-  }
-  createdAt: string
-}
-
-export interface ReactionPage {
-  data: ReactionItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
-
-export interface ReactionCounts {
-  emoji: number
-  quickReply: number
-  share: number
-  total: number
-}
-
-export const reactionsApi = {
-  react: (storyId: string, kind: string, options?: { emoji?: string; message?: string }) =>
-    mutate<{ id: string }>(`/stories/${storyId}/react`, {
-      method: 'POST',
-      body: JSON.stringify({ kind, ...options }),
-    }),
-  report: (storyId: string, reason: string) =>
-    mutate<{ id: string }>(`/stories/${storyId}/report`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    }),
-  list: (storyId: string, cursor?: string | null, limit = 20, kind?: string) => {
-    const p = new URLSearchParams()
-    if (cursor) p.set('cursor', cursor)
-    p.set('limit', String(limit))
-    if (kind) p.set('kind', kind)
-    const qs = p.toString()
-    return cachedGet<ReactionPage>(
-      `/stories/${storyId}/reactions${qs ? `?${qs}` : ''}`,
-      15_000,
-    )
-  },
-  counts: (storyId: string) =>
-    cachedGet<ReactionCounts>(`/stories/${storyId}/reactions/counts`, 30_000),
-}
-
-export interface MentionItem {
-  id: string
-  storyId: string
-  storyAuthor: {
-    id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
-    isVerified: boolean
-  }
-  caption: string | null
-  type: string
-  createdAt: string
-}
-
-export interface MentionPage {
-  data: MentionItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
-
-export interface StoryMentionUser {
-  id: string
-  username: string
-  displayName: string
-  avatarUrl: string | null
-  isVerified: boolean
-}
-
-export interface StoryMentionItem {
-  id: string
-  mentionedUser: StoryMentionUser
-  actor: { id: string; username: string; displayName: string; avatarUrl: string | null }
-  createdAt: string
-}
-
-export interface StoryByTagItem {
-  id: string
-  type: string
-  caption: string | null
-  privacy: string
-  durationMs: number
-  posterUrl: string | null
-  blurhash: string | null
-  createdAt: string
-  author: StoryAuthor
-}
-
-export interface StoryByTagPage {
-  data: StoryByTagItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
-
-export const mentionsApi = {
-  getStoryMentions: (storyId: string) =>
-    cachedGet<StoryMentionItem[]>(`/stories/${storyId}/mentions`, 15_000),
-  getMyMentions: (cursor?: string | null) => {
-    const p = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
-    return cachedGet<MentionPage>(`/me/story-mentions${p}`, 15_000)
-  },
-}
-
-// Re-export under hashtagsApi for story tag browsing
 export const hashtagsApi = {
   trending: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/trending', 60_000),
+  /**
+   * Everything else carrying this tag. Posts keep their own paginated call; this
+   * is what turns a tag page from "posts about beagles" into "beagles".
+   */
+  everything: (tag: string) =>
+    cachedGet<TagEverything>(`/hashtags/${encodeURIComponent(tag)}/everything`, 30_000),
+  /** Personalized "Topics for you" rail — top tags by the viewer's affinity. */
+  forYou: () => cachedGet<{ tag: string; postsCount: number }[]>('/hashtags/for-you', 60_000),
   search: (q: string) => cachedGet<{ tag: string; postsCount: number }[]>(`/hashtags/search?q=${encodeURIComponent(q)}`, 30_000),
   posts: (tag: string, cursor?: string | null) =>
     cachedGet<PostPage & { tag: string; postsCount: number }>(
       `/hashtags/${encodeURIComponent(tag)}/posts${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
       30_000,
     ),
-  stories: (tag: string, cursor?: string | null) =>
-    cachedGet<StoryByTagPage>(
-      `/hashtags/${encodeURIComponent(tag)}/stories${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
-      30_000,
-    ),
-}
-
-export const viewsApi = {
-  record: (storyId: string, completionPct: number) =>
-    mutate<{ success: boolean }>(`/stories/${storyId}/view`, {
-      method: 'POST',
-      body: JSON.stringify({ completionPct }),
-    }),
-  list: (storyId: string, cursor?: string | null, limit = 20) =>
-    cachedGet<ViewerPage>(
-      `/stories/${storyId}/viewers${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}${!cursor ? `?limit=${limit}` : `&limit=${limit}`}`,
-      15_000,
-    ),
-  insights: (storyId: string) =>
-    cachedGet<StoryInsights>(`/stories/${storyId}/insights`, 30_000),
-  recordProfileVisit: (storyId: string) =>
-    mutate<{ success: boolean }>(`/stories/${storyId}/viewer/profile-visit`, { method: 'POST' }),
-}
-
-// ── Music API ───────────────────────────────────────────────────────────────
-
-export interface MusicTrackMeta {
-  id: string
-  title: string
-  artist: string
-  album: string | null
-  genre: string
-  mood: string
-  category: string
-  durationMs: number
-  coverUrl: string | null
-  previewUrl: string | null
-  audioUrl: string
-  license: string
-  attribution: string | null
-  provider: string
-  isActive: boolean
-  createdAt: string
-}
-
-export interface MusicSearchResult {
-  tracks: MusicTrackMeta[]
-  total: number
-}
-
-export interface MusicBrowseResult {
-  data: MusicTrackMeta[]
-  total: number
-  hasMore: boolean
-  nextOffset: number | null
-}
-
-export interface MusicTrendingItem {
-  track: MusicTrackMeta
-  usageCount: number
-}
-
-export const musicApi = {
-  /** Full-text search against title + artist with facet filters */
-  search: (opts: { q?: string; mood?: string; category?: string; genre?: string; page?: number; limit?: number } = {}) => {
-    const p = new URLSearchParams()
-    if (opts.q) p.set('q', opts.q)
-    if (opts.mood) p.set('mood', opts.mood)
-    if (opts.category) p.set('category', opts.category)
-    if (opts.genre) p.set('genre', opts.genre)
-    if (opts.page) p.set('page', String(opts.page))
-    if (opts.limit) p.set('limit', String(opts.limit))
-    const qs = p.toString()
-    return cachedGet<MusicSearchResult>(`/music/search${qs ? `?${qs}` : ''}`, 30_000)
-  },
-  /** Faceted browse without query text — offset-based cursor pagination */
-  browse: (opts: { mood?: string; category?: string; genre?: string; offset?: number; limit?: number } = {}) => {
-    const p = new URLSearchParams()
-    if (opts.mood) p.set('mood', opts.mood)
-    if (opts.category) p.set('category', opts.category)
-    if (opts.genre) p.set('genre', opts.genre)
-    if (opts.offset) p.set('offset', String(opts.offset))
-    if (opts.limit) p.set('limit', String(opts.limit))
-    const qs = p.toString()
-    return cachedGet<MusicBrowseResult>(`/music/browse${qs ? `?${qs}` : ''}`, 60_000)
-  },
-  /** Trending tracks — most-used in stories */
-  trending: (limit = 20) => cachedGet<MusicTrendingItem[]>(`/music/trending?limit=${limit}`, 60_000),
-  /** Single track metadata (24h cached) */
-  getTrack: (id: string) => cachedGet<MusicTrackMeta>(`/music/${id}`, 86_400_000),
-  /** Signed stream URL for composer preview */
-  streamUrl: (id: string) => request<{ url: string }>(`/music/${id}/stream`).then((r) => r.url),
-  /** Preview clip URL (30s trimmed preview) */
-  previewUrl: (id: string) => cachedGet<{ url: string }>(`/music/${id}/preview`, 86_400_000).then((r) => r.url),
-  /** Cover artwork URL */
-  coverUrl: (id: string) => cachedGet<{ url: string | null }>(`/music/${id}/cover`, 86_400_000).then((r) => r.url),
-}
-
-// ── Highlights API ──────────────────────────────────────────────────────────
-
-export interface HighlightItem {
-  id: string
-  highlightId: string
-  story: {
-    id: string
-    type: string
-    media: { previewUrl: string | null; thumbnailUrl: string | null; blurhash: string | null }[]
-    createdAt: string
-  }
-  position: number
-  addedAt: string
-}
-
-export interface HighlightResponse {
-  id: string
-  title: string
-  coverUrl: string | null
-  position: number
-  itemsCount: number
-  createdAt: string
-  updatedAt: string
-  items: HighlightItem[]
-}
-
-export interface HighlightSummary {
-  id: string
-  title: string
-  coverUrl: string | null
-  position: number
-  itemsCount: number
-  createdAt: string
-}
-
-export const highlightsApi = {
-  /** Create a new highlight collection */
-  create: (title: string, coverUrl?: string) =>
-    mutate<HighlightResponse>('/highlights', { method: 'POST', body: JSON.stringify({ title, coverUrl }) }),
-  /** Get a single highlight with its items */
-  get: (id: string) => cachedGet<HighlightResponse>(`/highlights/${id}`, 30_000),
-  /** Update highlight title/cover */
-  update: (id: string, data: { title?: string; coverUrl?: string | null }) =>
-    mutate<HighlightResponse>(`/highlights/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  /** Delete a highlight collection */
-  delete: (id: string) => mutate<{ success: boolean }>(`/highlights/${id}`, { method: 'DELETE' }),
-  /** Add a story to a highlight */
-  addItem: (id: string, archivedStoryId: string) =>
-    mutate<HighlightResponse>(`/highlights/${id}/items`, {
-      method: 'POST',
-      body: JSON.stringify({ archivedStoryId }),
-    }),
-  /** Remove a story from a highlight */
-  removeItem: (id: string, itemId: string) =>
-    mutate<{ success: boolean }>(`/highlights/${id}/items/${itemId}`, { method: 'DELETE' }),
-  /** Reorder items in a highlight */
-  reorder: (id: string, itemIds: string[]) =>
-    mutate<HighlightResponse>(`/highlights/${id}/reorder`, {
-      method: 'PATCH',
-      body: JSON.stringify({ itemIds }),
-    }),
-  /** Public highlights list for a profile page */
-  profileHighlights: (profileId: string) =>
-    cachedGet<HighlightSummary[]>(`/profiles/${profileId}/highlights`, 60_000),
-}
-
-// ── Archive API ─────────────────────────────────────────────────────────────
-
-export interface ArchiveItem {
-  storyId: string
-  story: {
-    id: string
-    type: string
-    caption: string | null
-    media: { previewUrl: string | null; thumbnailUrl: string | null; blurhash: string | null }[]
-    createdAt: string
-    expiresAt: string | null
-  }
-  archivedAt: string
-  purgeAfter: string
-}
-
-export interface ArchivePage {
-  data: ArchiveItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
-
-export const archiveApi = {
-  /** Owner-only list of archived stories, newest-first */
-  list: (cursor?: string | null, limit = 20) =>
-    request<ArchivePage>(`/me/archive?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
-  /** Restore an archived story to a highlight */
-  restore: (storyId: string, highlightId: string) =>
-    mutate<{ success: boolean }>(`/me/archive/${storyId}/restore`, {
-      method: 'POST',
-      body: JSON.stringify({ highlightId }),
-    }),
-  /** Permanently delete an archived story */
-  delete: (storyId: string) =>
-    mutate<{ success: boolean }>(`/me/archive/${storyId}`, { method: 'DELETE' }),
 }
 
 export const communitiesApi = {
@@ -1748,6 +1492,12 @@ export const communitiesApi = {
   approve: (id: string, userId: string) => mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/approve`, { method: 'POST' }),
   reject: (id: string, userId: string) => mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/reject`, { method: 'POST' }),
   mine: () => cachedGet<CommunityCard[]>('/me/communities', 30_000),
+  /**
+   * Another member's communities, for their profile. Public ones only —
+   * belonging to a private community is itself private.
+   */
+  forProfile: (profileId: string) =>
+    cachedGet<CommunityCard[]>(`/profiles/${profileId}/communities`, 60_000),
   // Invites
   inviteUser: (id: string, username: string) =>
     mutate<{ id: string; type: string; invitee: { username: string; displayName: string } | null; expiresAt: string | null }>(
@@ -1769,6 +1519,42 @@ export const communitiesApi = {
     ),
   acceptInvite: (code: string, acceptRules?: boolean) =>
     mutate<{ status: string; slug: string }>(`/invites/${code}/accept`, { method: 'POST', body: JSON.stringify({ acceptRules }) }),
+
+  // ── Moderation (owner / admin / moderator) ────────────────────────────────
+  // All of this existed on the API and had no caller, which meant a community
+  // owner could not moderate their own community from the web app at all.
+
+  /** Block a join request outright — rejects it and bans the requester. */
+  blockRequest: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/requests/${userId}/block`, { method: 'POST' }),
+  setRole: (id: string, userId: string, role: 'admin' | 'moderator' | 'member') =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/role`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/remove`, { method: 'POST' }),
+  banMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/ban`, { method: 'POST' }),
+  unbanMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/ban`, { method: 'DELETE' }),
+  muteMember: (id: string, userId: string, duration: '1h' | '24h' | '7d') =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/mute`, {
+      method: 'POST',
+      body: JSON.stringify({ duration }),
+    }),
+  unmuteMember: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/members/${userId}/mute`, { method: 'DELETE' }),
+  setRules: (id: string, rules: { title: string; body?: string }[]) =>
+    mutate<{ success: boolean }>(`/communities/${id}/rules`, {
+      method: 'PUT',
+      body: JSON.stringify({ rules }),
+    }),
+  transferOwnership: (id: string, userId: string) =>
+    mutate<{ success: boolean }>(`/communities/${id}/transfer-ownership`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
+    }),
 }
 
 // ── Notifications API ──────────────────────────────────────────────────────
@@ -1814,6 +1600,89 @@ export const networkApi = {
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/followers/${userId}?page=${page}&limit=${limit}`),
   getFollowing: (userId: string, page = 1, limit = 20) =>
     cachedGet<{ data: FollowerItem[]; total: number }>(`/network/following/${userId}?page=${page}&limit=${limit}`),
+  block: (userId: string, reason?: string) =>
+    mutate<{ success: boolean }>(`/network/block/${userId}`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  unblock: (userId: string) => mutate<{ success: boolean }>(`/network/block/${userId}`, { method: 'DELETE' }),
+  getBlocked: () => request<BlockedUserItem[]>('/network/blocked'),
+  mute: (userId: string) => mutate<{ success: boolean }>(`/network/mute/${userId}`, { method: 'POST' }),
+  unmute: (userId: string) => mutate<{ success: boolean }>(`/network/mute/${userId}`, { method: 'DELETE' }),
+  getMuted: () => request<MutedUserItem[]>('/network/muted'),
+}
+
+// ── Safety advisories (location-based pet welfare) ──────────────────────────
+
+export type AdvisorySeverity = 'info' | 'warning' | 'severe'
+
+export type AdvisoryKind =
+  | 'extreme_heat' | 'heat' | 'thunderstorm' | 'extreme_cold' | 'cold'
+  | 'snow_ice' | 'heavy_rain' | 'high_uv' | 'poor_air' | 'high_wind' | 'fog'
+
+export interface Advisory {
+  kind: AdvisoryKind
+  severity: AdvisorySeverity
+  title: string
+  message: string
+  docsPath: string
+}
+
+export interface AdvisoryResult {
+  /** Most serious first. Empty is normal — it means conditions are fine. */
+  advisories: Advisory[]
+  conditions: {
+    temperatureC: number
+    apparentTemperatureC: number
+    humidityPct: number
+    windSpeedKph: number
+    uvIndex: number
+    usAqi: number | null
+    observedAt: string
+  } | null
+}
+
+export const safetyApi = {
+  /** Cached for 15 minutes client-side; the server caches per ~11km grid square. */
+  advisories: (lat: number, lon: number) =>
+    cachedGet<AdvisoryResult>(`/safety/advisories?lat=${lat}&lon=${lon}`, 15 * 60_000),
+}
+
+// ── Unified search API ──────────────────────────────────────────────────────
+
+export interface SearchAllResult {
+  query: string
+  people: FollowSuggestion[]
+  hashtags: { tag: string; postsCount: number }[]
+  posts: PostItem[]
+  communities: CommunityCard[]
+  news: NewsArticle[]
+  products: Product[]
+  events: EventItem[]
+  adoption: AdoptionListing[]
+  lostFound: LostFoundReport[]
+  providers: Provider[]
+}
+
+export const searchApi = {
+  all: (q: string) => cachedGet<SearchAllResult>(`/search?q=${encodeURIComponent(q)}`, 15_000),
+  people: (q: string, limit = 20) =>
+    cachedGet<FollowSuggestion[]>(`/search/people?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  hashtags: (q: string, limit = 20) =>
+    cachedGet<{ tag: string; postsCount: number }[]>(`/search/hashtags?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  posts: (q: string, limit = 20) =>
+    cachedGet<PostItem[]>(`/search/posts?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  communities: (q: string, limit = 20) =>
+    cachedGet<CommunityCard[]>(`/search/communities?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  news: (q: string, limit = 20) =>
+    cachedGet<NewsArticle[]>(`/search/news?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  products: (q: string, limit = 20) =>
+    cachedGet<Product[]>(`/search/products?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  events: (q: string, limit = 20) =>
+    cachedGet<EventItem[]>(`/search/events?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  adoption: (q: string, limit = 20) =>
+    cachedGet<AdoptionListing[]>(`/search/adoption?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  lostFound: (q: string, limit = 20) =>
+    cachedGet<LostFoundReport[]>(`/search/lost-found?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
+  providers: (q: string, limit = 20) =>
+    cachedGet<Provider[]>(`/search/providers?q=${encodeURIComponent(q)}&limit=${limit}`, 15_000),
 }
 
 // ── Verification review API (admin) ─────────────────────────────────────────
@@ -1842,13 +1711,65 @@ export interface VerificationRequest {
   documents: VerificationDocument[]
 }
 
+export interface ProfessionalCategory {
+  slug: string
+  name: string
+  permissions: string[]
+}
+
+export type VerificationType = 'professional' | 'identity' | 'organization'
+
+export interface SubmitVerificationInput {
+  type: VerificationType
+  categorySlug?: string
+  notes?: string
+}
+
+// Every route lives under the `profiles` controller — including the admin ones.
+// Omitting that prefix is what made the admin review queue 404.
 export const verificationApi = {
+  /**
+   * The signed-in member's latest request, or null if they've never applied.
+   *
+   * `request` unwraps `{data: {data: x}}` to `x`, but a null `x` falls through
+   * its `??` and comes back as the inner `{data: null}` envelope — so normalise
+   * anything without an id to null.
+   */
+  myStatus: () =>
+    request<VerificationRequest | { data: null } | null>('/profiles/me/verification/status')
+      .then((r) => (r && 'id' in r ? r : null)),
+  submit: (input: SubmitVerificationInput) =>
+    mutate<VerificationRequest>('/profiles/me/verification', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  uploadDocument: (input: {
+    requestId: string
+    documentType: string
+    documentUrl: string
+    fileName?: string
+    fileSize?: number
+    mimeType?: string
+  }) =>
+    mutate<VerificationDocument>('/profiles/me/verification/documents', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  categories: () =>
+    cachedGet<ProfessionalCategory[]>('/profiles/professional-categories', 86_400_000),
+  /**
+   * Documents live in a private bucket, so a URL has to be signed on demand and
+   * expires in minutes — never cache it.
+   */
+  documentUrl: (documentId: string) =>
+    request<{ url: string }>(`/profiles/verification/documents/${documentId}/url`).then((r) => r.url),
+
   adminList: (status?: string) => {
     const qs = status ? `?status=${status}` : ''
-    return request<{ data: VerificationRequest[] }>(`/admin/verification-requests${qs}`).then((r) => r.data)
+    return request<VerificationRequest[]>(`/profiles/admin/verification-requests${qs}`)
   },
   adminReview: (id: string, approved: boolean, rejectionReason?: string) =>
-    mutate<VerificationRequest>(`/admin/verification-requests/${id}/review`, {
+    mutate<VerificationRequest>(`/profiles/admin/verification-requests/${id}/review`, {
       method: 'POST',
       body: JSON.stringify({ approved, rejectionReason }),
     }),
@@ -1856,7 +1777,10 @@ export const verificationApi = {
 
 // ── Moderation / Trust & Safety API ─────────────────────────────────────────
 
-export type ReportTargetType = 'post' | 'comment' | 'message' | 'user' | 'story'
+export type ReportTargetType =
+  | 'post' | 'comment' | 'message' | 'user'
+  | 'adoption_listing' | 'lost_found_report' | 'event' | 'product' | 'provider'
+  | 'breeding_profile' | 'community'
 export type ReportReason = 'spam' | 'harassment' | 'abuse' | 'animal_welfare' | 'impersonation' | 'other'
 export type ResolveAction = 'dismiss' | 'remove_content' | 'warn' | 'suspend' | 'ban'
 

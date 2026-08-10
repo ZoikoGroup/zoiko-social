@@ -10,6 +10,7 @@ import { PrismaService } from '../../prisma/prisma.service'
 import { RedisService } from '../../redis/redis.service'
 import { RealtimeService } from '../../realtime/realtime.service'
 import { NotificationQueueService } from '../../queue/notification-queue.service'
+import { AffinityService, AFFINITY_WEIGHTS } from '../../personalization/affinity.service'
 import { decodeCursor, encodeCursor } from '../../common/utils/cursor-pagination'
 
 export interface MemberItem {
@@ -33,6 +34,7 @@ export class MembershipService {
     private readonly redis: RedisService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationQueueService,
+    private readonly affinity: AffinityService,
   ) {}
 
   private effects(label: string, fn: () => Promise<unknown>): void {
@@ -91,6 +93,9 @@ export class MembershipService {
       await this.redis.invalidateCommunity(communityId)
       this.effects('join', async () => {
         await this.realtime.publish(`community:${communityId}`, 'community:member', { communityId, joined: true })
+        // Joining is a much stronger interest signal than a like, and the
+        // ranking engine was ignoring it entirely.
+        await this.affinity.recordCommunity(userId, communityId, AFFINITY_WEIGHTS.joinCommunity)
       })
       return { status: 'joined' }
     }
@@ -145,6 +150,13 @@ export class MembershipService {
     ])
     await this.redis.invalidateMembership(communityId, userId)
     if (wasActive) await this.redis.invalidateCommunity(communityId)
+    // Leaving withdraws the interest, mirroring how unfollow decrements author
+    // affinity — otherwise a community you quit keeps shaping your feed.
+    if (wasActive) {
+      this.effects('leave.affinity', () =>
+        this.affinity.recordCommunity(userId, communityId, -AFFINITY_WEIGHTS.joinCommunity),
+      )
+    }
   }
 
   // ── REQUESTS (private communities) ────────────────────────────────────────

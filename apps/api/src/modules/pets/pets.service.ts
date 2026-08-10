@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client'
 import { nanoid } from 'nanoid'
 import { PrismaService } from '../prisma/prisma.service'
+import { ProfanityService } from '../common/moderation/profanity.service'
 import type {
   CreatePetInput, UpdatePetInput, CreateDiaryEntryInput, UpdateDiaryEntryInput,
   CreateHealthRecordInput, UpdateHealthRecordInput,
@@ -29,6 +30,8 @@ export interface HealthRecordResponse {
   attachments: string[]
   recordDate: string | null
   nextDue: string | null
+  /** The clinic that wrote this record, when it came from a booking. */
+  provider: { id: string; name: string } | null
   createdAt: string
 }
 
@@ -42,6 +45,10 @@ export interface PetResponse {
   avatarUrl: string | null
   bio: string | null
   birthdate: string | null
+  color: string | null
+  microchipId: string | null
+  neutered: boolean | null
+  adoptionDate: string | null
   isPublic: boolean
   createdAt: string
 }
@@ -54,6 +61,11 @@ export interface PublicPassportResponse {
     sex: string | null
     avatarUrl: string | null
     birthdate: string | null
+    color: string | null
+    // Included deliberately: the passport link is owner-issued and revocable,
+    // and the chip number is exactly what a vet or shelter needs to identify a pet.
+    microchipId: string | null
+    neutered: boolean | null
     ownerName: string | null
   }
   records: HealthRecordResponse[]
@@ -63,7 +75,10 @@ type PetRow = Prisma.PetGetPayload<Record<string, never>>
 
 @Injectable()
 export class PetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly profanity: ProfanityService,
+  ) {}
 
   /** The signed-in user's pets (all, public + private). */
   async listMine(ownerId: string): Promise<PetResponse[]> {
@@ -84,6 +99,8 @@ export class PetsService {
   }
 
   async create(ownerId: string, input: CreatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     const pet = await this.prisma.pet.create({
       data: {
         ownerId,
@@ -94,6 +111,10 @@ export class PetsService {
         ...(input.avatarUrl ? { avatarUrl: input.avatarUrl } : {}),
         ...(input.bio ? { bio: input.bio } : {}),
         ...(input.birthdate ? { birthdate: new Date(input.birthdate) } : {}),
+        ...(input.color ? { color: input.color } : {}),
+        ...(input.microchipId ? { microchipId: input.microchipId } : {}),
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.adoptionDate ? { adoptionDate: new Date(input.adoptionDate) } : {}),
         ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
       },
     })
@@ -101,6 +122,8 @@ export class PetsService {
   }
 
   async update(id: string, ownerId: string, input: UpdatePetInput): Promise<PetResponse> {
+    // Free-text screening, same gate posts and comments go through.
+    this.profanity.assertCleanFields({ name: input.name, breed: input.breed, bio: input.bio, color: input.color }, { actorId: ownerId, entityType: 'pet' })
     await this.assertOwner(id, ownerId)
     const pet = await this.prisma.pet.update({
       where: { id },
@@ -112,6 +135,11 @@ export class PetsService {
         ...(input.avatarUrl !== undefined ? { avatarUrl: input.avatarUrl || null } : {}),
         ...(input.bio !== undefined ? { bio: input.bio || null } : {}),
         ...(input.birthdate !== undefined ? { birthdate: input.birthdate ? new Date(input.birthdate) : null } : {}),
+        ...(input.color !== undefined ? { color: input.color || null } : {}),
+        ...(input.microchipId !== undefined ? { microchipId: input.microchipId || null } : {}),
+        // Tri-state: null clears it back to "not specified", false means "not neutered".
+        ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
+        ...(input.adoptionDate !== undefined ? { adoptionDate: input.adoptionDate ? new Date(input.adoptionDate) : null } : {}),
         ...(input.isPublic !== undefined ? { isPublic: input.isPublic } : {}),
       },
     })
@@ -198,6 +226,7 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return records.map((r) => this.mapHealth(r))
   }
@@ -212,6 +241,7 @@ export class PetsService {
         ...(input.recordDate ? { recordDate: new Date(input.recordDate) } : {}),
         ...(input.nextDue ? { nextDue: new Date(input.nextDue) } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -230,6 +260,7 @@ export class PetsService {
         ...(input.recordDate !== undefined ? { recordDate: input.recordDate ? new Date(input.recordDate) : null } : {}),
         ...(input.nextDue !== undefined ? { nextDue: input.nextDue ? new Date(input.nextDue) : null } : {}),
       },
+      include: this.healthInclude(),
     })
     return this.mapHealth(r)
   }
@@ -239,13 +270,21 @@ export class PetsService {
     await this.prisma.petHealthRecord.deleteMany({ where: { id: recordId, petId, ownerId } })
   }
 
-  private mapHealth(r: Prisma.PetHealthRecordGetPayload<Record<string, never>>): HealthRecordResponse {
+  private mapHealth(
+    r: Prisma.PetHealthRecordGetPayload<{ include: { provider: { select: { id: true; name: true } } } }>,
+  ): HealthRecordResponse {
     return {
       id: r.id, petId: r.petId, type: r.type, title: r.title, notes: r.notes, attachments: r.attachments,
       recordDate: r.recordDate ? r.recordDate.toISOString().slice(0, 10) : null,
       nextDue: r.nextDue ? r.nextDue.toISOString().slice(0, 10) : null,
+      provider: r.provider ? { id: r.provider.id, name: r.provider.name } : null,
       createdAt: r.createdAt.toISOString(),
     }
+  }
+
+  /** Health records always carry their clinic, so the UI can link back to it. */
+  private healthInclude() {
+    return { provider: { select: { id: true, name: true } } }
   }
 
   // ── PUBLIC SHARE (vet card) ─────────────────────────────────────────────────
@@ -271,6 +310,7 @@ export class PetsService {
       where: { healthShareToken: token },
       select: {
         id: true, name: true, species: true, breed: true, sex: true, avatarUrl: true, birthdate: true,
+        color: true, microchipId: true, neutered: true,
         owner: { select: { displayName: true } },
       },
     })
@@ -278,12 +318,16 @@ export class PetsService {
     const records = await this.prisma.petHealthRecord.findMany({
       where: { petId: pet.id },
       orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
+      include: this.healthInclude(),
     })
     return {
       pet: {
         name: pet.name, species: pet.species, breed: pet.breed, sex: pet.sex,
         avatarUrl: pet.avatarUrl,
         birthdate: pet.birthdate ? pet.birthdate.toISOString().slice(0, 10) : null,
+        color: pet.color,
+        microchipId: pet.microchipId,
+        neutered: pet.neutered,
         ownerName: pet.owner?.displayName ?? null,
       },
       records: records.map((r) => this.mapHealth(r)),
@@ -301,6 +345,10 @@ export class PetsService {
       avatarUrl: p.avatarUrl,
       bio: p.bio,
       birthdate: p.birthdate ? p.birthdate.toISOString().slice(0, 10) : null,
+      color: p.color,
+      microchipId: p.microchipId,
+      neutered: p.neutered,
+      adoptionDate: p.adoptionDate ? p.adoptionDate.toISOString().slice(0, 10) : null,
       isPublic: p.isPublic,
       createdAt: p.createdAt.toISOString(),
     }

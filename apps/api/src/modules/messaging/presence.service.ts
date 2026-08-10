@@ -106,6 +106,74 @@ export class PresenceService {
     }
   }
 
+  /**
+   * Presence for many users at once.
+   *
+   * The conversation list needs the other participant's presence for every DM on
+   * the page, which used to mean one `getPresence` round trip per conversation.
+   * This pipelines the Redis reads and resolves whatever Redis didn't answer for
+   * with a single `IN` query, so an inbox page costs two round trips instead of
+   * twenty-one.
+   */
+  async getPresenceMany(
+    userIds: string[],
+  ): Promise<Map<string, { status: string; lastSeen: string | null; isOnline: boolean }>> {
+    const result = new Map<string, { status: string; lastSeen: string | null; isOnline: boolean }>()
+    const unique = [...new Set(userIds)]
+    if (unique.length === 0) return result
+
+    const missing: string[] = []
+    const client = this.redis.rawClient
+    if (client) {
+      try {
+        const pipeline = client.pipeline()
+        for (const id of unique) pipeline.hgetall(`${PRESENCE_KEY_PREFIX}user:${id}`)
+        const replies = await pipeline.exec()
+        unique.forEach((id, i) => {
+          const [err, value] = replies?.[i] ?? [new Error('no reply'), null]
+          const hash = !err && value ? (value as Record<string, string>) : null
+          if (hash?.status) {
+            result.set(id, {
+              status: hash.status,
+              lastSeen: hash.lastSeen ?? null,
+              isOnline: hash.status !== 'offline',
+            })
+          } else {
+            missing.push(id)
+          }
+        })
+      } catch {
+        // Redis unavailable — everything falls through to the DB below.
+        missing.push(...unique.filter((id) => !result.has(id)))
+      }
+    } else {
+      missing.push(...unique)
+    }
+
+    if (missing.length > 0) {
+      const rows = await this.prisma.userPresence.findMany({
+        where: { userId: { in: missing } },
+        select: { userId: true, status: true, lastSeen: true },
+      })
+      const byUser = new Map(rows.map((r) => [r.userId, r]))
+      for (const id of missing) {
+        const row = byUser.get(id)
+        // Same staleness rule as getPresence: an `online` row older than the
+        // Redis TTL means the process died without writing setOffline.
+        const isStale =
+          !row?.lastSeen || Date.now() - row.lastSeen.getTime() > PRESENCE_TTL_SECONDS * 1000
+        const isOnline = row?.status === 'online' && !isStale
+        result.set(id, {
+          status: isOnline ? (row?.status ?? 'offline') : 'offline',
+          lastSeen: row?.lastSeen?.toISOString() ?? null,
+          isOnline,
+        })
+      }
+    }
+
+    return result
+  }
+
   async isUserOnline(userId: string): Promise<boolean> {
     const presence = await this.getPresence(userId)
     return presence.isOnline

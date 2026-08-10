@@ -237,7 +237,7 @@ export class CommunitiesService {
 
   async browse(
     viewerId: string | undefined,
-    opts: { q?: string; category?: string; sort?: string; cursor?: string | null; limit?: number },
+    opts: { q?: string; category?: string; sort?: string; cursor?: string | null; limit?: number; tag?: string },
   ): Promise<CommunityPage> {
     const take = Math.min(opts.limit ?? 18, MAX_PAGE)
     const q = opts.q?.trim().toLowerCase()
@@ -249,6 +249,11 @@ export class CommunitiesService {
           isDeleted: false,
           searchDoc: { contains: q },
           ...(opts.category ? { category: { slug: opts.category } } : {}),
+          // Private/invite-only communities are only discoverable via search to active members.
+          OR: [
+            { privacy: 'public' },
+            ...(viewerId ? [{ members: { some: { userId: viewerId, status: 'active' as const } } }] : []),
+          ],
         },
         include: { category: { select: { slug: true } } },
         orderBy: { membersCount: 'desc' },
@@ -268,6 +273,9 @@ export class CommunitiesService {
       where: {
         isDeleted: false,
         ...(opts.category ? { category: { slug: opts.category } } : {}),
+        // communities.tags predates the shared tag system but uses the same
+        // shape, so the unified tag page can query it directly.
+        ...(opts.tag ? { tags: { has: opts.tag } } : {}),
         ...(decoded && opts.sort === 'newest'
           ? {
               OR: [
@@ -317,6 +325,46 @@ export class CommunitiesService {
         isVerified: m.community.isVerified,
         viewerStatus: m.status,
       }))
+  }
+
+  /**
+   * Communities another member belongs to, for their profile.
+   *
+   * Public communities only. Belonging to a private or invite-only community is
+   * itself private information — a support group for owners of a dying animal,
+   * a breeder circle — and a profile page is exactly where it would leak to
+   * people who were never admitted. The viewer's own memberships come from
+   * getMyCommunities instead, which has no such restriction.
+   *
+   * `viewerStatus` is deliberately null here: it describes the profile owner's
+   * membership, not the viewer's, and returning theirs would be misleading.
+   */
+  async getPublicCommunitiesFor(profileId: string, limit = 12): Promise<CommunityCard[]> {
+    const memberships = await this.prisma.communityMember.findMany({
+      where: {
+        userId: profileId,
+        status: 'active',
+        community: { isDeleted: false, privacy: 'public' },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 50),
+      include: { community: { include: { category: { select: { slug: true } } } } },
+    })
+
+    return memberships.map((m) => ({
+      id: m.community.id,
+      slug: m.community.slug,
+      name: m.community.name,
+      description: m.community.description,
+      avatarUrl: m.community.avatarUrl,
+      coverUrl: m.community.coverUrl,
+      category: m.community.category?.slug ?? null,
+      membersCount: m.community.membersCount,
+      postsCount: m.community.postsCount,
+      privacy: m.community.privacy,
+      isVerified: m.community.isVerified,
+      viewerStatus: null,
+    }))
   }
 
   // ── UPDATE / DELETE ───────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ import { CommunityCard } from '@/components/communities/CommunityCard'
 import { CreateCommunityModal } from '@/components/communities/CreateCommunityModal'
 import { communitiesApi, type CommunityCard as CommunityCardData, type CommunityCategory } from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 function GridSkeleton(): React.JSX.Element {
   return (
@@ -75,13 +76,16 @@ export default function CommunitiesPage(): React.JSX.Element {
               <h1 className="font-headline text-headline-lg text-on-surface">Communities</h1>
               <p className="text-label-sm text-outline">Find your people — by species, cause, or expertise</p>
             </div>
-            <button
-              onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Create</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <DocsHelpLink href="/docs/community-and-events#communities" />
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Create</span>
+              </button>
+            </div>
           </div>
 
           {/* Search + sort */}

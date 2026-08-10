@@ -6,6 +6,7 @@ import { NotificationQueueService } from '../queue/notification-queue.service'
 import { PostsService } from '../posts/posts.service'
 import { MessagingService } from '../messaging/messaging.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
+import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
 
 export interface LikerItem {
   id: string
@@ -32,6 +33,7 @@ export class EngagementService {
     private readonly notifications: NotificationQueueService,
     private readonly postsService: PostsService,
     private readonly messaging: MessagingService,
+    private readonly affinity: AffinityService,
   ) {}
 
   // ── LIKE / UNLIKE ─────────────────────────────────────────────────────────
@@ -55,6 +57,12 @@ export class EngagementService {
         VALUES (${userId}::uuid, ${postId}::uuid)
         ON CONFLICT (user_id, post_id) DO NOTHING
         RETURNING 1
+      ),
+      seen AS (
+        -- Liking implies the post was seen: it must never reappear in the feed
+        INSERT INTO post_views (user_id, post_id)
+        VALUES (${userId}::uuid, ${postId}::uuid)
+        ON CONFLICT (user_id, post_id) DO NOTHING
       )
       UPDATE posts
       SET likes_count = likes_count + (SELECT COUNT(*)::int FROM ins)
@@ -70,6 +78,7 @@ export class EngagementService {
           this.redis.invalidatePost(postId),
           this.realtime.publish(`post:${postId}`, 'post:liked', { postId, likesCount }),
         ])
+        await this.affinity.record(userId, post, AFFINITY_WEIGHTS.like)
         if (post.authorId !== userId) {
           const liker = await this.prisma.profile.findUnique({
             where: { id: userId },
@@ -112,6 +121,8 @@ export class EngagementService {
           this.redis.invalidatePost(postId),
           this.realtime.publish(`post:${postId}`, 'post:unliked', { postId, likesCount }),
         ])
+        // Negative signal — walk the like back out of the affinity profile
+        await this.affinity.record(userId, post, -AFFINITY_WEIGHTS.like)
         // No notification on unlike — Instagram parity
       })
     }
@@ -210,11 +221,14 @@ export class EngagementService {
       WHERE id = ${postId}::uuid
     `
 
-    this.effects('save', () => this.redis.invalidatePost(postId))
+    this.effects('save', async () => {
+      await this.redis.invalidatePost(postId)
+      await this.affinity.record(userId, post, AFFINITY_WEIGHTS.save)
+    })
     return { saved: true }
-  }
+  }  async unsave(userId: string, postId: string): Promise<{ saved: boolean }> {
+    const post = await this.postsService.loadPostSlim(postId)
 
-  async unsave(userId: string, postId: string): Promise<{ saved: boolean }> {
     await this.prisma.$executeRaw`
       WITH del AS (
         DELETE FROM saved_posts
@@ -226,7 +240,11 @@ export class EngagementService {
       WHERE id = ${postId}::uuid
     `
 
-    this.effects('unsave', () => this.redis.invalidatePost(postId))
+    this.effects('unsave', async () => {
+      await this.redis.invalidatePost(postId)
+      // Negative signal — unsaving walks the save back out of the profile
+      await this.affinity.record(userId, post, -AFFINITY_WEIGHTS.save)
+    })
     return { saved: false }
   }
 
@@ -269,6 +287,7 @@ export class EngagementService {
     // Delivery + cache + author notice all run without blocking the response
     this.effects('share', async () => {
       await this.redis.invalidatePost(postId)
+      await this.affinity.record(userId, post, AFFINITY_WEIGHTS.share)
       const sharer = await this.prisma.profile.findUnique({
         where: { id: userId },
         select: { username: true, displayName: true },

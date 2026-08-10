@@ -11,9 +11,14 @@ import {
   CalendarDays, Scale, Syringe, Pill, AlertTriangle, FileText, Share2, Printer, Cake, Bell, LayoutGrid, Clock, Check,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { petsApi, postsApi, type Pet, type DiaryEntry, type HealthRecord } from '@/lib/api'
+import { petsApi, postsApi, type DiaryEntry, type HealthRecord } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { PetAbout } from '@/components/PetAbout'
+import { AddPetModal } from '@/components/AddPetModal'
+import { ageOf } from '@/lib/pet'
+import { usePets } from '@/hooks/use-pets'
 
 interface KindMeta { value: string; label: string; Icon: LucideIcon; node: string; tint: string }
 const KINDS: KindMeta[] = [
@@ -37,13 +42,6 @@ const MILESTONE_TEMPLATES = ['Gotcha Day', 'First walk', 'Birthday', 'Learned a 
 function initials(n: string): string { return n.slice(0, 2).toUpperCase() }
 function fmtDate(iso: string): string { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
 function monthKey(iso: string): string { return new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) }
-function ageOf(birthdate: string | null): string | null {
-  if (!birthdate) return null
-  const months = Math.max(0, Math.floor((Date.now() - new Date(birthdate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
-  if (months < 12) return `${months} mo`
-  const y = Math.floor(months / 12)
-  return `${y} yr${y > 1 ? 's' : ''}`
-}
 function daysUntil(iso: string): number { return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) }
 function allPhotos(e: DiaryEntry): string[] { return [...(e.photoUrl ? [e.photoUrl] : []), ...e.photoUrls] }
 
@@ -51,31 +49,27 @@ type View = 'timeline' | 'photos' | 'weight'
 
 export default function PetDiaryPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
-  const [pets, setPets] = useState<Pet[]>([])
-  const [activePet, setActivePet] = useState<string | null>(null)
+  const { pets, loading: loadingPets, patchPet } = usePets()
+  const [selectedPet, setSelectedPet] = useState<string | null>(null)
   const [entries, setEntries] = useState<DiaryEntry[]>([])
   const [health, setHealth] = useState<HealthRecord[]>([])
-  const [loadingPets, setLoadingPets] = useState(true)
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState<View>('timeline')
   const [filter, setFilter] = useState('all')
   const [showHealth, setShowHealth] = useState(true)
   const [modal, setModal] = useState<{ entry: DiaryEntry | null } | null>(null)
   const [logWeight, setLogWeight] = useState(false)
+  const [editPet, setEditPet] = useState(false)
   const [sharedId, setSharedId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
   }, [authLoading, isAuthenticated])
 
-  useEffect(() => {
-    let cancelled = false
-    petsApi.mine()
-      .then((data) => { if (cancelled) return; setPets(data); setActivePet((prev) => prev ?? data[0]?.id ?? null) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoadingPets(false) })
-    return () => { cancelled = true }
-  }, [])
+  // Derived rather than synced through an effect: the selection stays valid for
+  // free as the list loads or changes underneath us (the assistant can add or
+  // edit a pet from the chat thread), with no cascading render.
+  const activePet = selectedPet && pets.some((p) => p.id === selectedPet) ? selectedPet : (pets[0]?.id ?? null)
 
   const load = useCallback((petId: string) => {
     setLoading(true)
@@ -187,12 +181,15 @@ export default function PetDiaryPage(): React.JSX.Element {
                   <p className="text-label-sm text-outline">Moments, milestones &amp; memories</p>
                 </div>
               </div>
-              {pet && (
-                <div className="flex items-center gap-1.5">
-                  <button onClick={() => window.print()} title="Save as PDF" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Printer className="w-4 h-4" /></button>
-                  <button onClick={() => setModal({ entry: null })} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90"><Plus className="w-4 h-4" />New entry</button>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <DocsHelpLink href="/docs/profile-and-pets#pet-diary" />
+                {pet && (
+                  <>
+                    <button onClick={() => window.print()} title="Save as PDF" className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><Printer className="w-4 h-4" /></button>
+                    <button onClick={() => setModal({ entry: null })} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90"><Plus className="w-4 h-4" />New entry</button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Pet selector */}
@@ -207,7 +204,7 @@ export default function PetDiaryPage(): React.JSX.Element {
             ) : (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-3 flex items-center gap-2 overflow-x-auto no-scrollbar no-print">
                 {pets.map((p) => (
-                  <button key={p.id} onClick={() => setActivePet(p.id)}
+                  <button key={p.id} onClick={() => setSelectedPet(p.id)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full flex-shrink-0 transition-colors cursor-pointer ${activePet === p.id ? 'bg-primary text-white' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}`}>
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold overflow-hidden ${activePet === p.id ? 'bg-white/20' : 'bg-primary/10 text-primary'}`}>
                       {p.avatarUrl ? (
@@ -243,6 +240,14 @@ export default function PetDiaryPage(): React.JSX.Element {
                   </div>
                   {stats.since && <div className="text-right flex-shrink-0 hidden sm:block"><p className="text-[10px] uppercase tracking-wide text-outline">Since</p><p className="text-label-sm font-semibold text-on-surface">{stats.since}</p></div>}
                 </div>
+
+                {/* About */}
+                <PetAbout
+                  pet={pet}
+                  latestWeightKg={weights.length > 0 ? weights[weights.length - 1]!.value : undefined}
+                  onEdit={() => setEditPet(true)}
+                  className="mt-3"
+                />
 
                 {/* Coming up */}
                 {comingUp.length > 0 && (
@@ -330,6 +335,13 @@ export default function PetDiaryPage(): React.JSX.Element {
 
       {modal && activePet && <EntryModal petId={activePet} entry={modal.entry} onClose={() => setModal(null)} onSaved={onSaved} />}
       {logWeight && activePet && <LogWeightModal petId={activePet} onClose={() => setLogWeight(false)} onSaved={(r) => { setHealth((prev) => [r, ...prev]); setLogWeight(false) }} />}
+      <AddPetModal
+        open={editPet && !!pet}
+        pet={pet ?? null}
+        onClose={() => setEditPet(false)}
+        onAdded={patchPet}
+      />
+
     </>
   )
 }

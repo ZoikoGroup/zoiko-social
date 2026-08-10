@@ -11,6 +11,7 @@ import { PendingInvitations } from '@/components/PendingInvitations'
 import { RightPanel } from '@/components/RightPanel'
 import { networkApi, type FollowSuggestion } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 const CATEGORY_FILTERS = [
   { slug: 'all', label: 'All' },
@@ -150,6 +151,7 @@ export default function NetworkPage(): React.JSX.Element {
                     className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-label-md focus:border-primary focus:outline-none transition-colors"
                   />
                 </div>
+                <DocsHelpLink href="/docs/community-and-events#following-and-connections" />
                 <button
                   onClick={() => setShowFilters((f) => !f)}
                   className="lg:hidden flex items-center gap-2 px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"

@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 type Tier = 'institutional' | 'verified' | 'community'
 
@@ -128,6 +129,7 @@ export default function NewsPage(): React.JSX.Element {
                 <h1 className="font-headline text-headline-md font-bold text-on-surface">Verified News</h1>
                 <p className="text-label-sm text-outline">Curated, fact-checked animal &amp; conservation news</p>
               </div>
+              <DocsHelpLink href="/docs/news" />
               {isAuthenticated && (
                 <button onClick={() => setComposeOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                   <PenSquare className="w-4 h-4" /><span className="hidden sm:inline">Write</span>
@@ -367,7 +369,10 @@ function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPu
       <div className="bg-surface-container-lowest rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-outline-variant/20 sticky top-0 bg-surface-container-lowest">
           <h2 className="text-label-md font-bold text-on-surface">Write an Article</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/news#our-approach-to-news" />
+            <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         <div className="p-5 space-y-3">
           <label className="block">

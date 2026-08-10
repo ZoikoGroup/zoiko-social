@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
+
 export const CreatePetSchema = z.object({
   name: z.string().trim().min(1).max(60),
   species: z.string().trim().min(1).max(40),
@@ -7,13 +9,28 @@ export const CreatePetSchema = z.object({
   sex: z.enum(['male', 'female', 'unknown']).optional(),
   avatarUrl: z.string().url().max(600).optional(),
   bio: z.string().trim().max(500).optional(),
-  birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD').optional(),
+  birthdate: DATE.optional(),
+  // About details. No weight here — it is tracked over time as a health record
+  // of type 'weight' so the growth chart stays the single source of truth.
+  color: z.string().trim().max(60).optional(),
+  microchipId: z.string().trim().max(60).optional(),
+  neutered: z.boolean().optional(),
+  adoptionDate: DATE.optional(),
   isPublic: z.boolean().optional(),
 })
 
-export const UpdatePetSchema = CreatePetSchema.partial()
+/**
+ * On update, a date or tri-state must be clearable back to "not set". An empty
+ * string (dates) and null (neutered) mean "unset this"; omitting the key means
+ * "leave it alone". Without these, a cleared field would silently stay put.
+ */
+const CLEARABLE_DATE = z.union([DATE, z.literal('')])
 
-const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
+export const UpdatePetSchema = CreatePetSchema.partial().extend({
+  birthdate: CLEARABLE_DATE.optional(),
+  adoptionDate: CLEARABLE_DATE.optional(),
+  neutered: z.boolean().nullable().optional(),
+})
 
 export const CreateDiaryEntrySchema = z
   .object({

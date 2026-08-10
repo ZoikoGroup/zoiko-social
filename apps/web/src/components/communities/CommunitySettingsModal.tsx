@@ -5,6 +5,7 @@ import { X, Loader2, Camera, Globe, Lock, Mail, Users, Trash2, ImagePlus } from 
 import { communitiesApi, type Community } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 interface CommunitySettingsModalProps {
   open: boolean
@@ -95,9 +96,12 @@ function SettingsForm({ community, onClose, onSaved, onDeleted }: Omit<Community
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">Community settings</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/community-and-events#community-roles" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto flex-1">

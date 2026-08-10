@@ -6,6 +6,7 @@ import { profileApi, ApiError, type Profile } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { ImageCropper } from '@/components/ImageCropper'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
 
 // Baked output sizes for the crop editor — kept small for tiny, fast-loading files
 const AVATAR_OUTPUT = 400 // square
@@ -190,9 +191,12 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-headline-md text-on-surface">Edit profile</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/profile-and-pets#your-profile" />
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container transition-colors cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto flex-1">

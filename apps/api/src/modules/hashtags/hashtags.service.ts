@@ -1,33 +1,38 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { $Enums, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
 import { decodeCursor } from '../common/utils/cursor-pagination'
+import { AffinityService } from '../personalization/affinity.service'
+import { AdoptionService, type ListingResponse } from '../adoption/adoption.service'
+import { EventsService, type EventResponse } from '../events/events.service'
+import { LostFoundService, type ReportResponse } from '../lost-found/lost-found.service'
+import { ShopService, type ProductResponse } from '../shop/shop.service'
+import { CommunitiesService, type CommunityCard } from '../communities/communities.service'
+import { normalizeTag } from '../common/utils/tags'
 
-export interface StoryByTagItem {
-  id: string
-  type: string
-  caption: string | null
-  privacy: string
-  durationMs: number
-  posterUrl: string | null
-  blurhash: string | null
-  createdAt: string
-  author: {
-    id: string
-    username: string
-    displayName: string
-    avatarUrl: string | null
-    isVerified: boolean
-  }
+/**
+ * Everything carrying one tag, across every entity type that can carry tags.
+ *
+ * A tag used to reach posts only, so #beagle found people talking about beagles
+ * and never the beagle up for adoption, the beagle meetup or the beagle someone
+ * was looking for. Each section is fetched through the owning
+ * service so its visibility rules apply unchanged — this endpoint widens
+ * discovery, it does not widen access.
+ */
+export interface TagEverythingResult {
+  tag: string
+  postsCount: number
+  adoption: ListingResponse[]
+  lostFound: ReportResponse[]
+  events: EventResponse[]
+  products: ProductResponse[]
+  communities: CommunityCard[]
 }
 
-export interface StoryByTagPage {
-  data: StoryByTagItem[]
-  nextCursor: string | null
-  hasMore: boolean
-}
+/** Enough to show a section is worth opening, few enough to stay one screen. */
+const SECTION_LIMIT = 6
 
 @Injectable()
 export class HashtagsService {
@@ -35,7 +40,46 @@ export class HashtagsService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly postsService: PostsService,
+    private readonly affinity: AffinityService,
+    private readonly adoptionService: AdoptionService,
+    private readonly eventsService: EventsService,
+    private readonly lostFoundService: LostFoundService,
+    private readonly shopService: ShopService,
+    private readonly communitiesService: CommunitiesService,
   ) {}
+
+  /**
+   * The non-post half of a tag page.
+   *
+   * Kept separate from postsByTag so the existing paginated post grid is
+   * untouched: this returns a small preview of each other section, and each
+   * section links through to its own filtered browse page.
+   */
+  async everythingByTag(tag: string, viewerId?: string): Promise<TagEverythingResult> {
+    const normalized = normalizeTag(tag) ?? ''
+    if (!normalized) {
+      return { tag: '', postsCount: 0, adoption: [], lostFound: [], events: [], products: [], communities: [] }
+    }
+
+    const [hashtag, adoption, lostFound, events, products, communities] = await Promise.all([
+      this.prisma.hashtag.findUnique({ where: { tag: normalized }, select: { postsCount: true } }),
+      this.adoptionService.browse(viewerId, { tag: normalized }, null, SECTION_LIMIT),
+      this.lostFoundService.browse({ tag: normalized }, null, SECTION_LIMIT),
+      this.eventsService.list(viewerId, null, SECTION_LIMIT, { tag: normalized }),
+      this.shopService.browse({ tag: normalized }, viewerId, null, SECTION_LIMIT),
+      this.communitiesService.browse(viewerId, { tag: normalized, limit: SECTION_LIMIT }),
+    ])
+
+    return {
+      tag: normalized,
+      postsCount: hashtag?.postsCount ?? 0,
+      adoption: adoption.data,
+      lostFound: lostFound.data,
+      events: events.data,
+      products: products.data,
+      communities: communities.data,
+    }
+  }
 
   async trending(): Promise<{ tag: string; postsCount: number }[]> {
     const top = await this.redis.trendTop(10)
@@ -57,13 +101,41 @@ export class HashtagsService {
     return rows
   }
 
-  async search(q: string): Promise<{ tag: string; postsCount: number }[]> {
+  /**
+   * "Topics for you" — the viewer's top tags by affinity, decorated with live
+   * post counts (same enrichment as trending). Falls back to trending when the
+   * viewer has no affinity profile yet (cold start).
+   */
+  async forYou(viewerId: string, limit = 12): Promise<{ tag: string; postsCount: number }[]> {
+    const top = await this.affinity.getTopTags(viewerId, limit)
+    if (top.length === 0) {
+      return this.trending()
+    }
+    const rows = await this.prisma.hashtag.findMany({
+      where: { tag: { in: top } },
+      select: { tag: true, postsCount: true },
+    })
+    const counts = new Map(rows.map((r) => [r.tag, r.postsCount]))
+    // Drop stale affinity tags that no longer have live posts (they persist up
+    // to 60 days in the profile, but the posts may be gone) and cap at limit.
+    const decorated = top
+      .map((tag) => ({ tag, postsCount: counts.get(tag) ?? 0 }))
+      .filter((t) => t.postsCount > 0)
+      .slice(0, limit)
+    // If every affinity tag is stale, fall back to trending so the rail stays populated.
+    if (decorated.length === 0) {
+      return this.trending()
+    }
+    return decorated
+  }
+
+  async search(q: string, limit = 15): Promise<{ tag: string; postsCount: number }[]> {
     const query = q.trim().toLowerCase().replace(/^#/, '')
     if (query.length < 2) return []
     return this.prisma.hashtag.findMany({
       where: { tag: { contains: query }, postsCount: { gt: 0 } },
       orderBy: { postsCount: 'desc' },
-      take: 15,
+      take: Math.min(limit, 30),
       select: { tag: true, postsCount: true },
     })
   }
@@ -127,96 +199,5 @@ export class HashtagsService {
 
     const page = await this.postsService.buildPage(posts, take, viewerId)
     return { ...page, tag: normalized, postsCount: hashtag.postsCount }
-  }
-
-  // ── STORIES BY TAG ────────────────────────────────────────────────────────
-
-  /**
-   * Active stories for a hashtag. Privacy-gated: only stories the viewer
-   * can see (public, or followers if viewer follows). Blended with posts
-   * in the same tag feed on the client.
-   */
-  async storiesByTag(
-    tag: string,
-    viewerId: string | undefined,
-    cursor: string | null,
-    limit = 12,
-  ): Promise<StoryByTagPage> {
-    const normalized = tag.trim().toLowerCase().replace(/^#/, '')
-    const hashtag = await this.prisma.hashtag.findUnique({ where: { tag: normalized } })
-    if (!hashtag) {
-      throw new NotFoundException({ code: 'HASHTAG_NOT_FOUND', message: 'Hashtag not found' })
-    }
-
-    const take = Math.min(limit, 30)
-
-    // Privacy: public stories, or private-author stories where viewer follows
-    const stories = await this.prisma.story.findMany({
-      where: {
-        isDeleted: false,
-        status: 'ready',
-        expiresAt: { gt: new Date() },
-        hashtags: { some: { hashtagId: hashtag.id } },
-        author: {
-          state: 'active',
-          ...(viewerId
-            ? {
-                blockedUsers: { none: { blockedId: viewerId } },
-                blockedByUsers: { none: { blockerId: viewerId } },
-              }
-            : { isPrivate: false }),
-        },
-        ...(viewerId
-          ? {
-              OR: [
-                { privacy: 'public' },
-                { authorId: viewerId },
-                {
-                  privacy: { in: ['followers', 'professional'] as $Enums.StoryPrivacy[] },
-                  author: { followsAsFollowing: { some: { followerId: viewerId, status: 'active' } } },
-                },
-              ],
-            }
-          : {}),
-      },
-      take: take + 1,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      orderBy: { createdAt: 'desc' },
-      include: {
-        author: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
-        },
-        media: {
-          take: 1,
-          orderBy: { createdAt: 'asc' },
-          select: { imageUrl: true, thumbnailUrl: true, blurhash: true },
-        },
-      },
-    })
-
-    const hasMore = stories.length > take
-    const items = hasMore ? stories.slice(0, take) : stories
-
-    return {
-      data: items.map((s) => ({
-        id: s.id,
-        type: s.type,
-        caption: s.caption,
-        privacy: s.privacy,
-        durationMs: s.durationMs,
-        posterUrl: s.media[0]?.thumbnailUrl ?? s.media[0]?.imageUrl ?? null,
-        blurhash: s.media[0]?.blurhash ?? null,
-        createdAt: s.createdAt.toISOString(),
-        author: {
-          id: s.author.id,
-          username: s.author.username,
-          displayName: s.author.displayName,
-          avatarUrl: s.author.avatarUrl,
-          isVerified: s.author.verificationTier === 'professional',
-        },
-      })),
-      nextCursor: hasMore ? items[items.length - 1].id : null,
-      hasMore,
-    }
   }
 }

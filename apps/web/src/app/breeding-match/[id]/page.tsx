@@ -17,6 +17,8 @@ import { BreedingChat } from '@/components/breeding/BreedingChat'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { ReportButton } from '@/components/ReportButton'
 
 const HEAT_LABELS: Record<string, string> = { in_season: 'In season now', due_soon: 'Heat due soon', resting: 'Resting' }
 const DNA_TONE: Record<string, string> = { clear: 'bg-emerald-500/10 text-emerald-600', carrier: 'bg-amber-500/10 text-amber-600', affected: 'bg-red-500/10 text-red-600' }
@@ -123,7 +125,11 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
                 {profile.status !== 'available' && <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-[10px] font-semibold text-red-600 capitalize">{profile.status}</span>}
               </div>
 
-              <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight">{profile.petName}</h1>
+              <div className="flex items-start justify-between gap-3">
+                <h1 className="font-headline text-headline-lg font-bold text-on-surface leading-tight">{profile.petName}</h1>
+                {/* Welfare concerns about breeding practice need a route in. */}
+                <ReportButton targetType="breeding_profile" targetId={profile.id} variant="icon" className="flex-shrink-0" />
+              </div>
               <p className="text-label-md text-on-surface-variant mt-0.5 capitalize">{profile.breed}{profile.age ? ` · ${profile.age}` : ''}</p>
               <div className="flex flex-wrap items-center gap-3 mt-1 text-label-sm text-outline">
                 {profile.location && <LocationLink location={profile.location} iconClassName="w-4 h-4" />}
@@ -294,7 +300,10 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
           <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-label-md font-bold text-on-surface">Request a match</h2>
-              <button onClick={() => setRequestOpen(false)} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+              <div className="flex items-center gap-1">
+                <DocsHelpLink href="/docs/marketplace-and-services#breeding-match" />
+                <button onClick={() => setRequestOpen(false)} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+              </div>
             </div>
             <p className="text-label-sm text-outline mb-3">Introduce yourself and your pet to {profile.owner.displayName}. You&apos;ll chat privately — no personal details are shared automatically.</p>
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} rows={4} placeholder="Tell them about your pet, health tests, and intentions…"
@@ -344,7 +353,10 @@ function LitterModal({ requestId, onClose, onSaved }: { requestId: string; onClo
       <div className="bg-surface-container-lowest rounded-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-label-md font-bold text-on-surface">Record litter</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1">
+            <DocsHelpLink href="/docs/marketplace-and-services#breeding-match" />
+            <button onClick={onClose} className="p-1.5 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
         {done ? (
           <div className="py-4 text-center space-y-2">

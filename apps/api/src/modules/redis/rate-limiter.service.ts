@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { RedisService } from './redis.service'
+import { LocalRateLimiter } from './local-rate-limiter'
 
 export interface RateLimitResult {
   allowed: boolean
@@ -18,16 +19,51 @@ export interface RateLimitResult {
  *   - Remaining members are counted (ZCARD)
  *   - If count > limit → reject
  *
- * Degraded mode: when Redis is unavailable every check returns allowed(true)
- * with remaining = 1 and total = limit, so the API never blocks traffic
- * due to a Redis outage.
+ * Degraded mode: when Redis cannot answer, checks fall back to an in-process
+ * sliding window (see LocalRateLimiter) rather than allowing everything. This
+ * previously returned allowed(true) on any Redis error, which meant an exhausted
+ * Redis quota switched rate limiting off across the entire API — silently, and at
+ * precisely the moment a limiter matters. Per-pod accounting is a weaker bound
+ * than a shared one, but it is a bound.
  */
 @Injectable()
 export class RateLimiterService {
   private readonly logger = new Logger(RateLimiterService.name)
   private readonly KEY_PREFIX = 'rl'
+  private readonly local = new LocalRateLimiter()
+  /** Redis failures are per-request; without throttling this logs on every one. */
+  private lastDegradedLogAt = 0
 
   constructor(private readonly redis: RedisService) {}
+
+  /** Logs the fall-back at most once a minute, so an outage cannot flood the logs. */
+  private noteDegraded(context: string, message: string): void {
+    const now = Date.now()
+    if (now - this.lastDegradedLogAt > 60_000) {
+      this.lastDegradedLogAt = now
+      this.logger.warn(`Rate limiter ${context} falling back to in-process limits: ${message}`)
+    }
+  }
+
+  /** Applies the in-process window and shapes it like a Redis result. */
+  private localResult(
+    prefix: string,
+    identifier: string,
+    limit: number,
+    windowSeconds: number,
+  ): RateLimitResult {
+    const { allowed, remaining } = this.local.consume(
+      `${this.KEY_PREFIX}:${prefix}:${identifier}`,
+      limit,
+      windowSeconds,
+    )
+    return {
+      allowed,
+      remaining,
+      resetTime: Math.floor(Date.now() / 1000) + windowSeconds,
+      total: limit,
+    }
+  }
 
   /**
    * Check if a request should be allowed under the sliding-window limit.
@@ -45,13 +81,14 @@ export class RateLimiterService {
     windowSeconds: number,
   ): Promise<RateLimitResult> {
     if (!this.redis.isEnabled) {
-      return { allowed: true, remaining: 1, resetTime: 0, total: limit }
+      // No Redis configured at all — local limiting is the only option.
+      return this.localResult(prefix, identifier, limit, windowSeconds)
     }
 
     try {
       const redis = this.redis.rawClient
       if (!redis) {
-        return { allowed: true, remaining: 1, resetTime: 0, total: limit }
+        return this.localResult(prefix, identifier, limit, windowSeconds)
       }
 
       const now = Math.floor(Date.now() / 1000)
@@ -67,7 +104,7 @@ export class RateLimiterService {
       const results = await multi.exec()
 
       if (!results) {
-        return { allowed: true, remaining: 1, resetTime: 0, total: limit }
+        return this.localResult(prefix, identifier, limit, windowSeconds)
       }
 
       const count = (results[2]?.[1] as number) ?? 0
@@ -77,8 +114,8 @@ export class RateLimiterService {
 
       return { allowed, remaining, resetTime, total: limit }
     } catch (err) {
-      this.logger.warn(`Rate limiter check failed (degrading open): ${(err as Error).message}`)
-      return { allowed: true, remaining: 1, resetTime: 0, total: limit }
+      this.noteDegraded('check', (err as Error).message)
+      return this.localResult(prefix, identifier, limit, windowSeconds)
     }
   }
 
@@ -103,12 +140,13 @@ export class RateLimiterService {
   async checkMany(
     checks: { prefix: string; identifier: string; limit: number; windowSeconds: number }[],
   ): Promise<RateLimitResult[]> {
-    const allowAll = (): RateLimitResult[] =>
-      checks.map((c) => ({ allowed: true, remaining: 1, resetTime: 0, total: c.limit }))
+    // Same reasoning as check(): a Redis failure must not mean no limit at all.
+    const localAll = (): RateLimitResult[] =>
+      checks.map((c) => this.localResult(c.prefix, c.identifier, c.limit, c.windowSeconds))
 
     if (checks.length === 0) return []
     const redis = this.redis.rawClient
-    if (!this.redis.isEnabled || !redis) return allowAll()
+    if (!this.redis.isEnabled || !redis) return localAll()
 
     try {
       const now = Math.floor(Date.now() / 1000)
@@ -123,7 +161,7 @@ export class RateLimiterService {
       }
 
       const results = await multi.exec()
-      if (!results) return allowAll()
+      if (!results) return localAll()
 
       return checks.map((c, i) => {
         // 4 commands per check; ZCARD is the 3rd (offset 2)
@@ -136,8 +174,8 @@ export class RateLimiterService {
         }
       })
     } catch (err) {
-      this.logger.warn(`Rate limiter checkMany failed (degrading open): ${(err as Error).message}`)
-      return allowAll()
+      this.noteDegraded('checkMany', (err as Error).message)
+      return localAll()
     }
   }
 }

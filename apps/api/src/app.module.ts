@@ -20,7 +20,6 @@ import { EngagementModule } from './modules/engagement/engagement.module'
 import { CommentsModule } from './modules/comments/comments.module'
 import { HashtagsModule } from './modules/hashtags/hashtags.module'
 import { CommunitiesModule } from './modules/communities/communities.module'
-import { StoriesModule } from './modules/stories/stories.module'
 import { PetsModule } from './modules/pets/pets.module'
 import { EventsModule } from './modules/events/events.module'
 import { AdoptionModule } from './modules/adoption/adoption.module'
@@ -36,6 +35,9 @@ import { R2Module } from './modules/storage/r2.module'
 import { ModerationOpsModule } from './modules/moderation/moderation.module'
 import { PaymentsModule } from './modules/payments/payments.module'
 import { AnalyticsModule } from './modules/analytics/analytics.module'
+import { SearchModule } from './modules/search/search.module'
+import { SafetyModule } from './modules/safety/safety.module'
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
 
 @Module({
   imports: [
@@ -58,7 +60,6 @@ import { AnalyticsModule } from './modules/analytics/analytics.module'
     CommentsModule,
     HashtagsModule,
     CommunitiesModule,
-    StoriesModule,
     PetsModule,
     EventsModule,
     AdoptionModule,
@@ -74,6 +75,9 @@ import { AnalyticsModule } from './modules/analytics/analytics.module'
     R2Module,
     ModerationOpsModule,
     PaymentsModule,
+    SearchModule,
+    SafetyModule,
+    AiAssistantModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -18,10 +18,14 @@ import {
   SwitchProfessionalSchema,
   UpdateProfessionalSchema,
   SubmitVerificationSchema,
+  UpdateSettingsSchema,
+  CompleteOnboardingSchema,
+  type CompleteOnboardingInput,
   type UpdateProfileInput,
   type SwitchProfessionalInput,
   type UpdateProfessionalInput,
   type SubmitVerificationInput,
+  type UpdateSettingsInput,
 } from './profile.service'
 
 const UploadDocumentSchema = z.object({
@@ -53,6 +57,19 @@ export class ProfileController {
   async checkUsername(@Query('username') username: string) {
     const result = await this.profileService.checkUsernameAvailability(username ?? '')
     return { data: result }
+  }
+
+  /** Handles built from a name, already filtered to the ones still free. */
+  @Get('username-suggestions')
+  async suggestUsernames(
+    @Query('firstName') firstName?: string,
+    @Query('lastName') lastName?: string,
+  ) {
+    const suggestions = await this.profileService.suggestUsernames(
+      firstName ?? '',
+      lastName ?? '',
+    )
+    return { data: { suggestions } }
   }
 
   // ── PROFILE CRUD ───────────────────────────────────────────────────────────
@@ -102,6 +119,22 @@ export class ProfileController {
     @Body(new ZodValidationPipe(UpdateProfileSchema)) body: UpdateProfileInput,
   ) {
     const profile = await this.profileService.updateProfile(user.id, body)
+    return { data: profile }
+  }
+
+  /**
+   * The single naming pass a new OAuth account goes through. Separate from
+   * PUT me so it does not spend the 30-day username cooldown on replacing a
+   * handle the signup trigger derived from their email address.
+   */
+  @Post('me/onboarding')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async completeOnboarding(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(CompleteOnboardingSchema)) body: CompleteOnboardingInput,
+  ) {
+    const profile = await this.profileService.completeOnboarding(user.id, body)
     return { data: profile }
   }
 
@@ -190,6 +223,21 @@ export class ProfileController {
     return { data: result }
   }
 
+  /**
+   * Signed read URL for one uploaded document. Available to the member who
+   * uploaded it and to reviewing staff — the bucket itself is private, so this
+   * is the only way to see the file.
+   */
+  @Get('verification/documents/:id/url')
+  @UseGuards(JwtAuthGuard)
+  async getVerificationDocumentUrl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    const url = await this.profileService.getVerificationDocumentUrl(user.id, id)
+    return { data: { url } }
+  }
+
   // ── ADMIN VERIFICATION REVIEW ──────────────────────────────────────────────
 
   @Get('admin/verification-requests')
@@ -213,6 +261,62 @@ export class ProfileController {
     await this.profileService.requireAdminOrModerator(user.id)
     const result = await this.profileService.reviewVerificationRequest(id, user.id, body.approved, body.rejectionReason)
     return { data: result }
+  }
+
+  // ── USER SETTINGS ───────────────────────────────────────────────────────────
+
+  @Get('settings/me')
+  @UseGuards(JwtAuthGuard)
+  async getMySettings(@CurrentUser() user: AuthenticatedUser) {
+    const settings = await this.profileService.getSettings(user.id)
+    return { data: settings }
+  }
+
+  @Put('settings/me')
+  @UseGuards(JwtAuthGuard)
+  async updateMySettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(UpdateSettingsSchema)) body: UpdateSettingsInput,
+  ) {
+    const settings = await this.profileService.updateSettings(user.id, body)
+    return { data: settings }
+  }
+
+  // ── ACCOUNT DELETION ───────────────────────────────────────────────────────
+
+  /**
+   * Temporarily hide the account. Reversible by signing back in — there is no
+   * authenticated "reactivate" route because JwtAuthGuard rejects every request
+   * from a non-active account.
+   */
+  @Post('me/deactivate')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deactivateAccount(@CurrentUser() user: AuthenticatedUser) {
+    const result = await this.profileService.deactivateAccount(user.id)
+    return {
+      data: {
+        ...result,
+        message: 'Your account is now hidden. Sign in again whenever you want it back.',
+      },
+    }
+  }
+
+  /**
+   * Schedule deletion after the grace period. Nothing is destroyed yet: signing
+   * in before the deadline cancels it.
+   */
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async deleteAccount(@CurrentUser() user: AuthenticatedUser) {
+    const result = await this.profileService.requestAccountDeletion(user.id)
+    return {
+      data: {
+        ...result,
+        message: `Your account is scheduled for deletion in ${result.graceDays} days. Sign in before then to cancel it.`,
+      },
+    }
   }
 
   // ── RELATIONSHIP ───────────────────────────────────────────────────────────

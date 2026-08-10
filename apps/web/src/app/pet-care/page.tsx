@@ -16,6 +16,8 @@ import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
 import { LocationInput } from '@/components/LocationInput'
 import { AddProviderModal } from '@/components/ServiceDirectory'
+import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { SafetyBanner } from '@/components/SafetyBanner'
 
 export default function PetCarePage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
@@ -51,6 +53,9 @@ export default function PetCarePage(): React.JSX.Element {
     <>
       <Header />
       <main className="pt-20 min-h-screen bg-background">
+        {/* Weather matters most where someone is about to walk, board or
+            go looking for an animal — not only on the home feed. */}
+        <SafetyBanner />
         <div className="max-w-container-max mx-auto px-2 md:px-5 py-4 flex flex-col lg:grid lg:grid-cols-12 gap-gutter">
           <div className="lg:col-span-3 space-y-gutter hidden lg:block">
             <ProfileCard />
@@ -70,6 +75,7 @@ export default function PetCarePage(): React.JSX.Element {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <DocsHelpLink href="/docs/marketplace-and-services#booking-a-provider" />
                 <Link href="/pet-care/my-bookings" className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-outline-variant/40 text-label-sm text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
                   <Calendar className="w-4 h-4" /> My Bookings
                 </Link>

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 export const CreateListingSchema = z.object({
+  /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
+  tags: z.array(z.string().trim().max(40)).max(10).optional(),
   name: z.string().trim().min(1).max(80),
   species: z.string().trim().min(1).max(40),
   breed: z.string().trim().max(60).optional(),
