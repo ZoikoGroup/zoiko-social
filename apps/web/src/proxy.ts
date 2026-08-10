@@ -37,7 +37,7 @@ const PROTECTED_ROUTES = [
 // Auth pages — redirect to app if already signed in
 const AUTH_ROUTES = ['/login', '/signup', '/register', '/forgot-password', '/reset-password']
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
 
   let response: NextResponse
@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     response = result.response
     isAuthenticated = !!result.user
   } catch (error) {
-    console.error('[middleware] updateSession failed:', error)
+    console.error('[proxy] updateSession failed:', error)
     response = NextResponse.next({ request })
   }
 
