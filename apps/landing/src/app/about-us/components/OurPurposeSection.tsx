@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 export default function OurPurposeSection() {
   return (
@@ -36,9 +37,11 @@ export default function OurPurposeSection() {
         <div className="flex w-full flex-col gap-6 lg:w-[480px] lg:pt-[53px]">
           {/* Card 1 */}
           <div className="flex min-h-[208px] flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 pb-6 pt-10 outline outline-1 -outline-offset-1 outline-gray-200">
-            <img 
-              src="/images/global-reach.png" 
-              alt="Global Reach" 
+            <Image
+              src="/images/global-reach.png"
+              alt="Global Reach"
+              width={48}
+              height={48}
               className="h-[56px] w-[56px] object-contain"
             />
 
@@ -54,9 +57,11 @@ export default function OurPurposeSection() {
 
           {/* Card 2 */}
           <div className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 pb-6 pt-10 outline outline-1 -outline-offset-1 outline-gray-200">
-            <img 
-              src="/images/built-on-trust.png" 
-              alt="Built on Trust" 
+            <Image
+              src="/images/built-on-trust.png"
+              alt="Built on Trust"
+              width={48}
+              height={48}
               className="h-[56px] w-[56px] object-contain"
             />
 
@@ -70,9 +75,11 @@ export default function OurPurposeSection() {
 
           {/* Card 3 */}
           <div className="flex min-h-[176px] flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 pb-6 pt-10 outline outline-1 -outline-offset-1 outline-gray-200">
-            <img 
-              src="/images/purpose-built.png" 
-              alt="Purpose Built" 
+            <Image
+              src="/images/purpose-built.png"
+              alt="Purpose Built"
+              width={48}
+              height={48}
               className="h-[56px] w-[56px] object-contain"
             />
 

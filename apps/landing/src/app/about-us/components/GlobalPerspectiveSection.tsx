@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 export default function GlobalPerspectiveSection() {
   return (
@@ -35,9 +36,12 @@ export default function GlobalPerspectiveSection() {
 
         {/* Right Image */}
         <div className="mt-12 flex w-full flex-col items-center lg:mt-0 lg:w-[582px]">
-          <img 
-            src="/images/global-care.png" 
-            alt="Global Perspective, Local Care" 
+          <Image
+            src="/images/global-care.png"
+            alt="Global Perspective, Local Care"
+            width={1746}
+            height={1638}
+            sizes="(min-width: 1024px) 582px, 100vw"
             className="h-auto w-full object-contain lg:h-[546px] lg:w-[582px]"
           />
           <p className="mt-[10px] text-center font-inter text-base font-semibold leading-6 text-gray-600">
