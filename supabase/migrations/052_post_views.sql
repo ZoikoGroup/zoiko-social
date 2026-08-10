@@ -22,6 +22,9 @@ CREATE INDEX IF NOT EXISTS post_views_user_viewed_idx
 
 ALTER TABLE public.post_views ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "post_views_select_own" ON public.post_views;
 CREATE POLICY "post_views_select_own" ON public.post_views FOR SELECT USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "post_views_insert_own" ON public.post_views;
 CREATE POLICY "post_views_insert_own" ON public.post_views FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "post_views_delete_own" ON public.post_views;
 CREATE POLICY "post_views_delete_own" ON public.post_views FOR DELETE USING (user_id = auth.uid());

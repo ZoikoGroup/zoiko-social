@@ -139,33 +139,50 @@ ALTER TABLE public.post_hashtags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mentions      ENABLE ROW LEVEL SECURITY;
 
 -- Media follows its post's visibility (posts_select policy governs posts)
+DROP POLICY IF EXISTS "post_media_select" ON public.post_media;
 CREATE POLICY "post_media_select" ON public.post_media FOR SELECT USING (
   EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_media.post_id)
 );
+DROP POLICY IF EXISTS "post_media_insert_own" ON public.post_media;
 CREATE POLICY "post_media_insert_own" ON public.post_media FOR INSERT WITH CHECK (
   EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_media.post_id AND p.author_id = auth.uid())
 );
 
+DROP POLICY IF EXISTS "likes_select" ON public.likes;
 CREATE POLICY "likes_select"      ON public.likes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "likes_insert_own" ON public.likes;
 CREATE POLICY "likes_insert_own"  ON public.likes FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "likes_delete_own" ON public.likes;
 CREATE POLICY "likes_delete_own"  ON public.likes FOR DELETE USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "comments_select" ON public.comments;
 CREATE POLICY "comments_select"     ON public.comments FOR SELECT USING (is_deleted = false OR author_id = auth.uid());
+DROP POLICY IF EXISTS "comments_insert_own" ON public.comments;
 CREATE POLICY "comments_insert_own" ON public.comments FOR INSERT WITH CHECK (author_id = auth.uid());
+DROP POLICY IF EXISTS "comments_update_own" ON public.comments;
 CREATE POLICY "comments_update_own" ON public.comments FOR UPDATE USING (author_id = auth.uid());
 
+DROP POLICY IF EXISTS "comment_likes_select" ON public.comment_likes;
 CREATE POLICY "comment_likes_select"     ON public.comment_likes FOR SELECT USING (true);
+DROP POLICY IF EXISTS "comment_likes_insert_own" ON public.comment_likes;
 CREATE POLICY "comment_likes_insert_own" ON public.comment_likes FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "comment_likes_delete_own" ON public.comment_likes;
 CREATE POLICY "comment_likes_delete_own" ON public.comment_likes FOR DELETE USING (user_id = auth.uid());
 
 -- Saves are strictly private
+DROP POLICY IF EXISTS "saved_posts_select_own" ON public.saved_posts;
 CREATE POLICY "saved_posts_select_own" ON public.saved_posts FOR SELECT USING (user_id = auth.uid());
+DROP POLICY IF EXISTS "saved_posts_insert_own" ON public.saved_posts;
 CREATE POLICY "saved_posts_insert_own" ON public.saved_posts FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "saved_posts_delete_own" ON public.saved_posts;
 CREATE POLICY "saved_posts_delete_own" ON public.saved_posts FOR DELETE USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "hashtags_select" ON public.hashtags;
 CREATE POLICY "hashtags_select"      ON public.hashtags      FOR SELECT USING (true);
+DROP POLICY IF EXISTS "post_hashtags_select" ON public.post_hashtags;
 CREATE POLICY "post_hashtags_select" ON public.post_hashtags FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "mentions_select_own" ON public.mentions;
 CREATE POLICY "mentions_select_own" ON public.mentions FOR SELECT USING (
   mentioned_user_id = auth.uid() OR actor_id = auth.uid()
 );
