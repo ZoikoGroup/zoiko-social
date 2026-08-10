@@ -1,13 +1,34 @@
 "use client";
 
-const cards = [
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
+
+// The professional and organization cards have no hrefs: verification,
+// practice listings, fundraising and partnership have no route in the app
+// yet, so those actions stay inert rather than pointing at a 404.
+type Card = {
+  title: string;
+  description: string;
+  primary: string;
+  primaryHref?: string;
+  secondary: string;
+  secondaryHref?: string;
+  tertiary: string;
+  tertiaryHref?: string;
+  primaryText: string;
+};
+
+const cards: Card[] = [
   {
     title: "For Individuals",
     description:
       "Connect, share, and care for animals in your life.",
     primary: "Join Free",
+    primaryHref: APP_LINKS.signUp,
     secondary: "Explore Communities",
+    secondaryHref: APP_LINKS.communities,
     tertiary: "Watch Animal News",
+    tertiaryHref: APP_LINKS.news,
     primaryText: "text-sky-500",
   },
   {
@@ -29,6 +50,26 @@ const cards = [
     primaryText: "text-cyan-500",
   },
 ];
+
+/** A link into the app, or a plain button when there is nowhere to go yet. */
+function Action({
+  href,
+  className,
+  children,
+}: {
+  href?: string;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if (!href) {
+    return <button className={className}>{children}</button>;
+  }
+  return (
+    <Link href={href} className={`block text-center ${className}`}>
+      {children}
+    </Link>
+  );
+}
 
 export default function CTASection() {
   return (
@@ -53,19 +94,26 @@ export default function CTASection() {
                 {card.description}
               </p>
 
-              <button
+              <Action
+                href={card.primaryHref}
                 className={`mt-10 w-full rounded-xl bg-white py-4 font-inter text-base font-bold ${card.primaryText} transition hover:scale-[1.02]`}
               >
                 {card.primary}
-              </button>
+              </Action>
 
-              <button className="mt-5 w-full rounded-xl border border-white/30 py-4 font-inter text-base font-bold text-white transition hover:bg-white/10">
+              <Action
+                href={card.secondaryHref}
+                className="mt-5 w-full rounded-xl border border-white/30 py-4 font-inter text-base font-bold text-white transition hover:bg-white/10"
+              >
                 {card.secondary}
-              </button>
+              </Action>
 
-              <button className="mt-5 w-full rounded-xl border border-white/30 py-4 font-inter text-base font-bold text-white transition hover:bg-white/10">
+              <Action
+                href={card.tertiaryHref}
+                className="mt-5 w-full rounded-xl border border-white/30 py-4 font-inter text-base font-bold text-white transition hover:bg-white/10"
+              >
                 {card.tertiary}
-              </button>
+              </Action>
             </div>
           ))}
         </div>

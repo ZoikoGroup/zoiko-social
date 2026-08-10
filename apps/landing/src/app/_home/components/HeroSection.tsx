@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CheckCircle, BadgeCheck, Shield } from "lucide-react";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function HeroSection() {
   return (
@@ -31,14 +32,14 @@ export default function HeroSection() {
 
           <div className="mt-12 flex gap-4">
             <Link
-              href="#"
+              href={APP_LINKS.signUp}
               className="flex h-14 w-[300px] items-center justify-center rounded-xl bg-white text-lg font-bold text-[#066879] transition hover:bg-gray-100"
             >
               Join Free
             </Link>
 
             <Link
-              href="#"
+              href={APP_LINKS.communities}
               className="flex h-14 w-[235px] items-center justify-center rounded-xl bg-white text-center text-lg font-bold text-[#066879] transition hover:bg-gray-100"
             >
               Explore Communities

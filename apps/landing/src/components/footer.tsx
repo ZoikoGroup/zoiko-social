@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 
 const footerSections = [
@@ -30,14 +31,14 @@ const footerSections = [
       { label: "Community Standards", href: "#" },
       { label: "Transparency Reports", href: "#" },
       { label: "Appeals Process", href: "#" },
-      { label: "Safety Center", href: "#" },
+      { label: "Safety Center", href: APP_LINKS.safety },
       { label: "Welfare Reporting", href: "#" },
     ],
   },
   {
     title: "Support",
     links: [
-      { label: "Help Center", href: "#" },
+      { label: "Help Center", href: APP_LINKS.docs },
       { label: "Contact Us", href: "#" },
       { label: "System Status", href: "#" },
       { label: "Developer Support", href: "#" },
@@ -47,8 +48,8 @@ const footerSections = [
   {
     title: "Legal",
     links: [
-      { label: "Terms of Service", href: "#" },
-      { label: "Privacy Policy", href: "#" },
+      { label: "Terms of Service", href: APP_LINKS.terms },
+      { label: "Privacy Policy", href: APP_LINKS.privacy },
       { label: "Cookie Policy", href: "#" },
       { label: "Accessibility", href: "#" },
       { label: "GDPR Compliance", href: "#" },

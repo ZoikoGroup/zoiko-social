@@ -4,18 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, Plus } from "lucide-react";
-
-const navItems = [
-  "Home",
-  "Discover",
-  "Communities",
-  "News",
-  "Events",
-  "Adopt",
-  "Market",
-  "Premium",
-  "Safety",
-];
+import { APP_LINKS, NAV_LINKS } from "@/lib/app-links";
 
 export default function Header() {
   const pathname = usePathname();
@@ -51,14 +40,20 @@ export default function Header() {
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-4">
-            <button className="flex h-10 w-28 items-center justify-center gap-2 rounded-xl bg-gray-100 font-semibold text-gray-700 transition hover:bg-gray-200">
+            <Link
+              href={APP_LINKS.home}
+              className="flex h-10 w-28 items-center justify-center gap-2 rounded-xl bg-gray-100 font-semibold text-gray-700 transition hover:bg-gray-200"
+            >
               <Plus size={18} />
               Create
-            </button>
+            </Link>
 
-            <button className="flex h-10 w-28 items-center justify-center rounded-xl bg-cyan-800 font-bold text-white transition hover:bg-cyan-900">
+            <Link
+              href={APP_LINKS.signUp}
+              className="flex h-10 w-28 items-center justify-center rounded-xl bg-cyan-800 font-bold text-white transition hover:bg-cyan-900"
+            >
               Join Free
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -66,13 +61,12 @@ export default function Header() {
       {/* Navigation */}
       <div className="h-14">
         <div className="mx-auto flex h-full max-w-[1440px] px-6 xl:px-20">
-          {navItems.map((item) => {
-            const href = item === "Home" ? "/" : `/${item.toLowerCase()}`;
+          {NAV_LINKS.map(({ label, href }) => {
             const isActive = pathname === href;
 
             return (
               <Link
-                key={item}
+                key={label}
                 href={href}
                 className={`flex h-full flex-1 items-center justify-center border-b-2 text-base font-semibold transition-all ${
                   isActive
@@ -80,7 +74,7 @@ export default function Header() {
                     : "border-transparent text-gray-600 hover:border-cyan-800 hover:bg-[#F6FDFF] hover:text-cyan-800"
                 }`}
               >
-                {item}
+                {label}
               </Link>
             );
           })}
