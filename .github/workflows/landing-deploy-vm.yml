@@ -1,0 +1,43 @@
+name: Deploy Landing to VM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/landing/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/landing-deploy-vm.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GCP_SSH_HOST }}
+          username: ${{ secrets.GCP_SSH_USER }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/zoiko-social-frontend
+            git pull origin main
+            cd apps/landing
+            pnpm install --frozen-lockfile
+            pnpm build
+            pm2 restart zoiko-landing
+            pm2 save
+            for i in $(seq 1 15); do
+              if curl -sf http://127.0.0.1:3001 > /dev/null; then
+                echo "Health check passed after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "Health check failed after 15 attempts (30s)"
+                exit 1
+              fi
+              sleep 2
+            done
+            echo "Landing deploy successful"
