@@ -272,6 +272,13 @@ export const IN_APP_ONLY_TYPES: ReadonlySet<string> = new Set([
   'shared_post',
   'shared_with_you',
   'order_paid',
+  // Reversals are in-app for the same reason `order_paid` is: §24 T requires an
+  // approved sender boundary per commercial domain, and no marketplace
+  // commercial sender exists yet. Silence would be worse — a seller told their
+  // item sold and never told it was refunded.
+  'order_refunded',
+  'order_disputed',
+  'order_dispute_resolved',
   'product_enquiry',
   'pet_care_booking',
   'pet_care_booking_update',

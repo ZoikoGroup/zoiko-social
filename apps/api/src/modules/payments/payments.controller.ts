@@ -14,6 +14,12 @@ const CheckoutSchema = z.object({ quantity: z.number().int().positive().max(20).
 /** Request augmented with the raw request body — see main.ts's content-type parser override. */
 type RequestWithRawBody = FastifyRequest & { rawBody?: Buffer }
 
+/** Stripe returns related objects as either a bare ID or an expanded object. */
+function stripeId(ref: string | { id: string } | null | undefined): string | null {
+  if (!ref) return null
+  return typeof ref === 'string' ? ref : ref.id
+}
+
 @Controller()
 export class PaymentsController {
   private readonly logger = new Logger(PaymentsController.name)
@@ -70,13 +76,46 @@ export class PaymentsController {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent?.id ?? null)
-        await this.orders.markPaidBySessionId(session.id, paymentIntentId)
+        await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
         break
       }
       case 'checkout.session.expired': {
         const session = event.data.object as Stripe.Checkout.Session
         await this.orders.markCancelledBySessionId(session.id)
+        break
+      }
+      // Reversals arrive keyed by payment intent, not checkout session, and can
+      // originate outside the product entirely (a refund issued from the Stripe
+      // dashboard). Without these, an order stays `paid` forever after the money
+      // has gone back — ZSOC-COM-REV-001 §17, §29 FIN-03.
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge
+        await this.orders.recordRefund({
+          eventId: event.id,
+          paymentIntentId: stripeId(charge.payment_intent),
+          chargeId: charge.id,
+          amountRefundedCents: charge.amount_refunded,
+          currency: charge.currency.toUpperCase(),
+          fullyRefunded: charge.refunded,
+          reason: charge.refunds?.data[0]?.reason ?? null,
+          occurredAt: new Date(event.created * 1000),
+        })
+        break
+      }
+      case 'charge.dispute.created':
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object as Stripe.Dispute
+        await this.orders.recordDispute({
+          eventId: event.id,
+          paymentIntentId: stripeId(dispute.payment_intent),
+          disputeId: dispute.id,
+          amountCents: dispute.amount,
+          currency: dispute.currency.toUpperCase(),
+          reason: dispute.reason ?? null,
+          status: dispute.status,
+          closed: event.type === 'charge.dispute.closed',
+          occurredAt: new Date(event.created * 1000),
+        })
         break
       }
       default:

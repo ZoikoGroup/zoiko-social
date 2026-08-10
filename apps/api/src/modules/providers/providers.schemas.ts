@@ -92,7 +92,20 @@ export const CreateBookingSchema = z.object({
   consultMode: z.enum(['in_clinic', 'home_visit', 'video']).optional(),
   reason: z.string().trim().max(500).optional(),
   notes: z.string().trim().max(1000).optional(),
-  paymentMethod: z.enum(['pay_at_visit', 'pay_now']).optional(),
+  /**
+   * `pay_now` is deliberately not accepted. Nothing in the booking flow ever
+   * charged for it — the booking was created `unpaid` and no payment route
+   * exists — so offering it told the seeker they had paid online when they had
+   * not. ZSOC-COM-REV-001 §12 H1 requires a service offer version, quote and
+   * payment route to exist BEFORE a booking takes payment, and §12 H2 notes
+   * that 1:1 services carry their own app-store routing rules rather than
+   * reusing a product checkout.
+   *
+   * Restored when a booking payment route is approved, not before. Existing
+   * `pay_now` rows are left as they are: they are accurate history of what was
+   * chosen, and all of them are `unpaid`, which is also accurate.
+   */
+  paymentMethod: z.literal('pay_at_visit').optional(),
 })
 
 export const UpdateBookingStatusSchema = z.object({

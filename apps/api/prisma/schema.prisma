@@ -47,6 +47,22 @@ enum VerificationTier {
   @@map("verification_tier")
 }
 
+/// ZSOC-COM-REV-001 §26. Environment does not decide whether an account is
+/// billable — this does. See supabase/migrations/066 for the back-fill policy.
+enum CommercialClassification {
+  commercial_free
+  commercial_premium
+  partner_contract
+  pilot_non_billable
+  internal
+  demo
+  sandbox
+  qa_automation
+  legacy_review
+
+  @@map("commercial_classification")
+}
+
 enum VerificationState {
   unverified
   pending
@@ -333,6 +349,9 @@ model Profile {
   deletionRequestedAt   DateTime?        @map("deletion_requested_at")
   role                  UserRole         @default(user)
   verificationTier      VerificationTier @default(none) @map("verification_tier")
+  /// Commercial standing, deliberately separate from `verificationTier` and
+  /// from `role` (§26). Never sufficient on its own to authorize a charge.
+  commercialClassification CommercialClassification @default(commercial_free) @map("commercial_classification")
   isPrivate             Boolean          @default(false) @map("is_private")
   followersCount        Int              @default(0) @map("followers_count")
   followingCount        Int              @default(0) @map("following_count")
@@ -2480,16 +2499,83 @@ model Order {
   quantity                Int      @default(1)
   amountCents             Int      @map("amount_cents")
   currency                String   @default("USD")
-  status                  String   @default("pending") // pending | paid | fulfilled | cancelled | refunded
+  status                  OrderStatus @default(pending)
   stripeCheckoutSessionId String?  @unique @map("stripe_checkout_session_id")
   stripePaymentIntentId   String?  @map("stripe_payment_intent_id")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
+  paymentEvents OrderPaymentEvent[]
+
   @@index([buyerId, createdAt(sort: Desc)])
   @@index([sellerId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([stripePaymentIntentId])
   @@map("orders")
+}
+
+/// Operational state of a Shop order (ZSOC-COM-REV-001 §31). Legal transitions
+/// live in apps/api/src/modules/payments/order-status.ts — the enum constrains
+/// the values, the table constrains the moves between them.
+///
+/// Not yet §31's canonical vocabulary (AWAITING_PAYMENT / CONFIRMED / …); see
+/// supabase/migrations/067 for why renaming waits.
+enum OrderStatus {
+  pending
+  paid
+  fulfilled
+  cancelled
+  refunded
+  disputed
+
+  @@map("order_status")
+}
+
+/// Refunds, disputes and chargebacks against a Shop order.
+///
+/// A reversal is a new linked fact event, never a destructive edit of the
+/// original charge — `Order.amountCents` is the amount authorized and stays
+/// untouched forever. What actually came back is reconstructed by replaying
+/// these rows. See supabase/migrations/065 for the full rationale.
+model OrderPaymentEvent {
+  id      String  @id @default(uuid())
+  /// Nullable on purpose: an event whose payment intent matches no order is a
+  /// reconciliation exception to be resolved, not evidence to discard.
+  orderId String? @map("order_id")
+
+  /// refund | dispute_opened | dispute_closed
+  kind String
+
+  /// Idempotency claim — Stripe retries carry the same event ID, so the unique
+  /// index is what makes the webhook handler replay-safe.
+  stripeEventId String @unique @map("stripe_event_id")
+  /// The charge or dispute this event is about.
+  stripeObjectId String? @map("stripe_object_id")
+  /// Retained even once orderId resolves, so unmatched rows stay reconcilable.
+  stripePaymentIntentId String? @map("stripe_payment_intent_id")
+
+  /// Refund: the charge's CUMULATIVE amount_refunded, not the delta — Stripe
+  /// reports it that way, so the latest row is the answer without summing.
+  /// Dispute: the amount under dispute.
+  amountCents Int    @default(0) @map("amount_cents")
+  currency    String
+
+  /// Whether the charge is now fully refunded; drives the order status change.
+  fullyRefunded Boolean @default(false) @map("fully_refunded")
+
+  reason String?
+  /// Stripe dispute status on close: won | lost | warning_closed | …
+  outcome String?
+
+  /// When the provider says it happened, distinct from when we stored it.
+  occurredAt DateTime @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, occurredAt(sort: Desc)])
+  @@index([stripePaymentIntentId])
+  @@map("order_payment_events")
 }
 
 model BreedingProfile {
