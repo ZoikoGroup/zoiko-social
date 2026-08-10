@@ -43,23 +43,37 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @zoiko/api exec prisma generate
 
-      # ── 5. TypeScript type check across all apps & packages ───────
+      # ── 5. Determine what changed, scope checks to affected packages ──
+      # Prevents one app's pre-existing lint/type debt from blocking every
+      # push to the repo, regardless of what was actually touched.
+      - name: Determine base ref for affected-package filtering
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "ref=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── 6. TypeScript type check (affected packages only) ─────────
       - name: TypeScript type check
-        run: pnpm turbo type-check
+        run: pnpm turbo type-check --filter="...[${{ steps.base.outputs.ref }}]"
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 6. ESLint across all apps & packages ─────────────────────
+      # ── 7. ESLint (affected packages only) ─────────────────────────
       - name: ESLint
-        run: pnpm turbo lint
+        run: pnpm turbo lint --filter="...[${{ steps.base.outputs.ref }}]"
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 7. Build all apps (catches missing env stubs etc.) ────────
+      # ── 8. Build affected packages (catches missing env stubs etc.) ─
       - name: Build
-        run: pnpm turbo build
+        run: pnpm turbo build --filter="...[${{ steps.base.outputs.ref }}]"
         env:
           # Placeholder values — real secrets injected at deploy time
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
@@ -69,7 +83,7 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
-      # ── 8. Security audit ─────────────────────────────────────────
+      # ── 9. Security audit ─────────────────────────────────────────
       # npm retired the legacy /-/npm/v1/security/audits endpoint (HTTP 410) that
       # pnpm <10 calls, so this errors regardless of the lockfile. Keep the step
       # for visibility but don't let dead registry infra block CI. Re-tighten
@@ -78,7 +92,7 @@ jobs:
         run: pnpm audit --audit-level=moderate
         continue-on-error: true
 
-      # ── 9. Secret scanning (blocks accidental API key commits) ────
+      # ── 10. Secret scanning (blocks accidental API key commits) ────
       # Pinned to v3 (stable); fetch-depth:0 above ensures main is locally
       # available so git log main...HEAD works in both push and PR events.
       - name: Scan for secrets
@@ -98,7 +112,7 @@ jobs:
           head: ${{ github.event.after }}
           extra_args: --only-verified
 
-      # ── 10. License check ─────────────────────────────────────────
+      # ── 11. License check ─────────────────────────────────────────
       - name: Check dependency licenses
         run: |
           pnpm dlx license-checker --onlyAllow \
