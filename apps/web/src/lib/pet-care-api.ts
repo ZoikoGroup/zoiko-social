@@ -114,7 +114,8 @@ export interface NewBooking {
   consultMode?: 'in_clinic' | 'home_visit' | 'video'
   reason?: string
   notes?: string
-  paymentMethod?: 'pay_at_visit' | 'pay_now'
+  /** `pay_now` is not accepted — no booking payment route exists yet. */
+  paymentMethod?: 'pay_at_visit'
 }
 
 export interface VisitSummaryInput {

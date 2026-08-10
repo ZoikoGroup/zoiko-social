@@ -12,6 +12,7 @@ import {
 import type { Server, Socket } from 'socket.io'
 import { RealtimeService } from './realtime.service'
 import { JwtVerificationService } from '../auth/jwt-verification.service'
+import { registerSocketAuth } from './socket-auth.middleware'
 
 interface AuthenticatedSocket extends Socket {
   data: { userId?: string }
@@ -46,30 +47,28 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
 
   afterInit(server: Server): void {
     this.realtimeService.bindServer(server)
+    // Resolve the caller before any event can be dispatched — see
+    // socket-auth.middleware.ts for the race this closes.
+    registerSocketAuth(server, this.jwtVerification, this.logger)
     this.logger.log('Socket.IO gateway initialised')
   }
 
   async handleConnection(client: AuthenticatedSocket): Promise<void> {
-    const token =
-      (client.handshake.auth?.token as string | undefined) ??
-      client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '')
-
-    if (!token) {
-      client.emit('error', { code: 'UNAUTHENTICATED', message: 'Access token required' })
+    // Identity is already resolved by the auth middleware; this only enforces it
+    // and does the post-auth setup. No second verify.
+    const userId = client.data.userId
+    if (!userId) {
+      const reason = (client.data as { authError?: string }).authError
+      client.emit('error', {
+        code: reason === 'Access token required' ? 'UNAUTHENTICATED' : 'AUTH_FAILED',
+        message: reason ?? 'Invalid or expired token',
+      })
       client.disconnect(true)
       return
     }
 
-    try {
-      const user = await this.jwtVerification.verify(token)
-      client.data.userId = user.id
-      await client.join(`user:${user.id}`)
-      client.emit('connected', { userId: user.id })
-    } catch (err) {
-      this.logger.error(`Socket auth failed: ${(err as Error).message}`)
-      client.emit('error', { code: 'AUTH_FAILED', message: 'Invalid or expired token' })
-      client.disconnect(true)
-    }
+    await client.join(`user:${userId}`)
+    client.emit('connected', { userId })
   }
 
   handleDisconnect(client: AuthenticatedSocket): void {

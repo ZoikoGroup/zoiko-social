@@ -965,7 +965,30 @@ export class MessagingService {
 
   // ── MARK AS READ ───────────────────────────────────────────────────────────
 
+  /**
+   * Mark a conversation read up to a message.
+   *
+   * The member row update was always safe — it filters on both ids, so a
+   * non-member simply matched nothing. The receipt upsert was not: it keyed on
+   * `messageId` and `userId` alone and never looked at `conversationId`, so any
+   * authenticated caller could write a `read` receipt against *any* message id
+   * in the system, for a conversation they had no part in. Reachable from both
+   * `POST /messaging/conversations/:id/read` and the `messages:read` socket
+   * event, whose payloads are caller-controlled — the Zod schema checked that
+   * the id was a UUID, not that it was theirs.
+   *
+   * Nothing reads `MessageReceipt` back yet, so the damage was a polluted table
+   * plus a message-existence oracle (the FK to Message rejects ids that do not
+   * exist). The moment a "Seen by" surface is built on it, it would have become
+   * a forged read receipt on someone else's private thread.
+   *
+   * Two checks now, matching how the rest of this service and PetsService guard
+   * nested records: the caller must be a member, and the message must belong to
+   * this conversation.
+   */
   async markConversationRead(userId: string, conversationId: string, lastReadMessageId?: string): Promise<void> {
+    await this.assertMember(userId, conversationId)
+
     const now = new Date()
     await this.prisma.conversationMember.updateMany({
       where: { conversationId, userId },
@@ -973,6 +996,13 @@ export class MessagingService {
     })
 
     if (lastReadMessageId) {
+      const message = await this.prisma.message.findFirst({
+        where: { id: lastReadMessageId, conversationId },
+        select: { id: true },
+      })
+      if (!message) {
+        throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+      }
       await this.prisma.messageReceipt.upsert({
         where: { messageId_userId: { messageId: lastReadMessageId, userId } },
         create: { messageId: lastReadMessageId, userId, status: 'read', readAt: now },

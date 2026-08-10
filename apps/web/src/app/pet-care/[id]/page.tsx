@@ -568,7 +568,10 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   const [petBreed, setPetBreed] = useState('')
   const [petWeight, setPetWeight] = useState('')
   const [notes, setNotes] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'pay_at_visit' | 'pay_now'>('pay_at_visit')
+  // Only one route exists. "Pay Now" used to be offered here and charged
+  // nothing — the booking was created unpaid and no payment flow ran — so it
+  // told people they had paid online when they had not.
+  const paymentMethod = 'pay_at_visit' as const
   const [location, setLocation] = useState(provider.address ?? provider.location ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -752,26 +755,16 @@ function BookingModal({ provider, services, selectedService, onClose }: {
                 </div>
 
                 <div>
-                  <label className="text-label-sm font-medium text-on-surface block mb-2">Payment Method</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => setPaymentMethod('pay_at_visit')}
-                      className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                        paymentMethod === 'pay_at_visit' ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/40'
-                      }`}
-                    >
-                      <CreditCard className="w-5 h-5 mx-auto mb-1 text-outline" />
+                  <label className="text-label-sm font-medium text-on-surface block mb-2">Payment</label>
+                  <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-primary bg-primary/5">
+                    <CreditCard className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" />
+                    <div>
                       <div className="text-label-sm font-semibold text-on-surface">Pay at Visit</div>
-                      <div className="text-[10px] text-outline mt-0.5">Pay when service is delivered</div>
-                    </button>
-                    <button onClick={() => setPaymentMethod('pay_now')}
-                      className={`p-4 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                        paymentMethod === 'pay_now' ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/40'
-                      }`}
-                    >
-                      <CreditCard className="w-5 h-5 mx-auto mb-1 text-primary" />
-                      <div className="text-label-sm font-semibold text-on-surface">Pay Now</div>
-                      <div className="text-[10px] text-outline mt-0.5">Secure online payment</div>
-                    </button>
+                      <div className="text-[11px] text-outline mt-0.5">
+                        You pay the provider directly when the service is delivered. Booking through
+                        ZoikoSocial doesn’t charge you anything now.
+                      </div>
+                    </div>
                   </div>
                 </div>
 

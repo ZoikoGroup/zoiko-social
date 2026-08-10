@@ -45,9 +45,11 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 | **Auth (JWT)** | User authentication | **Yes** | Supabase Auth | see §6 — decision needed |
 | **LiveKit** | Audio/video calls (WebRTC SFU) | Optional (calls feature) | LiveKit Cloud | LiveKit Cloud or self-hosted |
 | **Stripe** | Payments / subscriptions | Optional (payments feature) | Stripe | Stripe (unchanged) |
-| **ffmpeg** | Video transcode/HLS (Stories) | **Yes** (in container) | in Docker image | in Docker image |
+| **ffmpeg** | ~~Video transcode/HLS (Stories)~~ — no longer used; Stories were removed and transcoding went with them | No | — | — |
 
-**Planned but not yet wired in code** (env placeholders exist in `.env.example`, no SDK in `apps/api` yet — safe to ignore for first deploy): **Mux** (video), **Resend** (email), **OneSignal** (push), **Sentry** (monitoring).
+**Sentry** is wired in `apps/api` and off by default: set `SENTRY_DSN` and the API reports 5xx and unhandled rejections, each tagged with the request id that also appears in the access log and in the error response body. Leave it unset and nothing initialises. There is no error reporting at all without it.
+
+**Planned but not yet wired in code** (env placeholders exist in `.env.example`, no SDK in `apps/api` yet — safe to ignore for first deploy): **Mux** (video), **Resend** (email), **OneSignal** (push).
 
 ---
 
@@ -75,7 +77,8 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` | Media object storage (uploads/CDN) |
 | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Audio/video calls |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Payments |
-| *(planned)* `MUX_*`, `RESEND_API_KEY` + `EMAIL_FROM`, `ONESIGNAL_*`, `SENTRY_DSN` | video / email / push / monitoring |
+| `SENTRY_DSN` | Error reporting. Unset = no reporting; the API logs to stdout only. |
+| *(planned)* `MUX_*`, `RESEND_API_KEY` + `EMAIL_FROM`, `ONESIGNAL_*` | video / email / push |
 
 ### `apps/web` (and `apps/landing`)
 | Var | Purpose |

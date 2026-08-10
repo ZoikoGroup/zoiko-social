@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   ShoppingBag, Bookmark, CreditCard, Package, Send, Stethoscope, Star, Dna, ShieldCheck,
+  RotateCcw, Scale,
 } from 'lucide-react'
 import { DocHeader, JumpLinks, H2, P, Strong, Callout, Steps, FeatureGrid } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
@@ -22,6 +23,7 @@ export default function MarketplaceAndServicesPage(): React.JSX.Element {
         items={[
           { href: '#shopping', label: 'Shopping' },
           { href: '#checkout-and-orders', label: 'Checkout & orders' },
+          { href: '#refunds-and-cancellations', label: 'Refunds & cancellations' },
           { href: '#selling-in-the-shop', label: 'Selling in the Shop' },
           { href: '#finding-a-provider', label: 'Finding a provider' },
           { href: '#booking-a-provider', label: 'Booking a provider' },
@@ -54,6 +56,29 @@ export default function MarketplaceAndServicesPage(): React.JSX.Element {
         ]}
       />
 
+      <H2 id="refunds-and-cancellations">Refunds &amp; cancellations</H2>
+      <P>
+        If you start a checkout and don’t finish paying, the order is cancelled on its own and nothing
+        is charged. Once an order has been paid for, its status keeps up with what happened to the
+        money — so your order history stays accurate even when a payment is reversed after the fact.
+      </P>
+      <FeatureGrid
+        items={[
+          { icon: RotateCcw, title: 'Refunded', body: 'The payment was returned. A partial refund leaves the order open, since part of the payment still stands.' },
+          { icon: Scale, title: 'Disputed', body: 'You raised a dispute with your bank or card issuer. The order stays in this state until the dispute is settled.' },
+        ]}
+      />
+      <P>
+        To ask for a refund, <Strong>message the seller first</Strong> — most issues are quickest to
+        sort out directly. There’s no self-service refund button yet: refunds are issued by the seller
+        or by our support team, and your order history updates once the payment has actually been
+        returned, not when it’s requested.
+      </P>
+      <Callout variant="note" title="How you’ll hear about it">
+        You’ll get an in-app notification when an order is refunded. We don’t send a refund email yet,
+        so your order history is the place to check for the full details and the current status.
+      </Callout>
+
       <H2 id="selling-in-the-shop">Selling in the Shop</H2>
       <P>
         Create a listing with photos, a description, and a price. Buyers can message you directly with
@@ -62,6 +87,12 @@ export default function MarketplaceAndServicesPage(): React.JSX.Element {
       <Callout variant="note">
         Listings go through the same profanity-free and safety review as every other piece of content —
         deceptive claims or prohibited items aren’t allowed, animal welfare products included.
+      </Callout>
+      <Callout variant="warning" title="If a sale is refunded or disputed">
+        You’ll get an in-app notification when a sale is refunded, when a buyer disputes a payment,
+        and when that dispute is settled. A refunded item is <Strong>not</Strong> put back on sale
+        automatically — you may already have shipped it — so create a new listing if you want to sell
+        it again.
       </Callout>
 
       <H2 id="finding-a-provider">Finding a provider</H2>

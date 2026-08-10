@@ -1,7 +1,7 @@
-export default function LandingPage(): React.JSX.Element {
-  return (
-    <main>
-      {/* New landing page content goes here */}
-    </main>
-  )
+import { redirect } from "next/navigation";
+
+export default function LandingPage(): never {
+  // The landing content lives at /home, which is also where the header's
+  // "Home" link points. Redirect until a distinct root page is built.
+  redirect("/home");
 }

@@ -7,12 +7,15 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { RealtimeModule } from '../realtime/realtime.module'
 import { ConfigModule } from '../config/config.module'
 import { ProfileModule } from '../profile/profile.module'
+import { CommsModule } from '../comms/comms.module'
 
 @Global()
 @Module({
   // ProfileModule for the nightly account purge. No cycle: ProfileModule only
   // imports AuthModule, and this module is @Global so nothing imports it back.
-  imports: [PrismaModule, RealtimeModule, ConfigModule, ProfileModule],
+  // CommsModule for notification preferences; it imports only Config, Prisma
+  // and Database, so it cannot reach back here either.
+  imports: [PrismaModule, RealtimeModule, ConfigModule, ProfileModule, CommsModule],
   providers: [
     NotificationQueueService,
     NotificationWriterService,

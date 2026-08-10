@@ -19,7 +19,12 @@ import { RATE_LIMIT_KEY, type RateLimitMetadata } from '../decorators/rate-limit
  * Per-route limits can be set with:
  *   @RateLimit({ limit: 10, windowSeconds: 60 })
  *
- * Graceful degradation: if Redis is unavailable, all requests pass through.
+ * Graceful degradation: if Redis is unavailable the limiter does NOT switch
+ * off — RateLimiterService falls back to a per-instance in-process window, so
+ * an outage loosens the ceiling (each pod counts separately) rather than
+ * removing it. This comment used to say "all requests pass through", which was
+ * true once and is exactly the kind of stale claim that gets a reviewer to wave
+ * through a real fail-open later.
  */
 /**
  * In-process fixed-window counter for read-only requests. Per-instance rather
