@@ -32,11 +32,24 @@ jobs:
             set -e
             cd ~/zoiko-social-frontend
             git pull origin main
-            pnpm install
+            pnpm install --frozen-lockfile
             pnpm turbo build --filter=@zoiko/web
             pm2 restart zoiko-web || pm2 start npm --name zoiko-web -- start --cwd ~/zoiko-social-frontend/apps/web
             pm2 save
-            sleep 3
-            curl -sf -o /dev/null http://127.0.0.1:3000 || exit 1
+            # Poll rather than sleeping a fixed interval. A single check after 3s
+            # reports a false failure whenever Next takes longer than that to
+            # start serving — the same problem d7dc137 fixed for the API, where a
+            # 5s wait failed against a ~9s boot.
+            for i in $(seq 1 15); do
+              if curl -sf http://127.0.0.1:3000 > /dev/null; then
+                echo "Health check passed after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "Health check failed after 15 attempts (30s)"
+                exit 1
+              fi
+              sleep 2
+            done
             echo "Frontend deploy successful"
             pm2 status zoiko-web
