@@ -26,17 +26,29 @@ export default function Header() {
           </Link>
 
           {/* Search */}
-          <div className="relative w-[600px] shrink-0">
+          {/* A plain GET form rather than a click handler: the app is a separate
+              origin, so this has to be a full navigation anyway, and `q` is the
+              parameter its /search page already reads. `required` keeps an empty
+              submit from navigating to an empty result set. */}
+          <form
+            action={APP_LINKS.search}
+            method="get"
+            role="search"
+            className="relative w-[600px] shrink-0"
+          >
             <Search
               size={18}
               className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
             />
             <input
-              type="text"
-              placeholder=""
+              type="search"
+              name="q"
+              required
+              aria-label="Search ZoikoSocial"
+              placeholder="Search pets, vets, rescues, services..."
               className="h-11 w-full rounded-full border border-gray-300 bg-gray-50 pl-11 pr-4 text-sm outline-none transition focus:border-cyan-700"
             />
-          </div>
+          </form>
 
           {/* Actions */}
           <div className="flex shrink-0 items-center gap-4">

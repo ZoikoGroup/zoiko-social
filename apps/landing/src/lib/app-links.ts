@@ -42,6 +42,11 @@ export const APP_LINKS = {
   home: appUrl('/'),
   communities: appUrl('/communities'),
   news: appUrl('/news'),
+  /**
+   * Search results. Public in the app — no sign-in needed — and it reads the
+   * query from `?q=`, so the header search can submit straight to it.
+   */
+  search: appUrl('/search'),
   /** Help centre — the app's documentation index. */
   docs: appUrl('/docs'),
   safety: appUrl('/docs/safety-and-trust'),
