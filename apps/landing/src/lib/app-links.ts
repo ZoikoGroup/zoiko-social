@@ -6,8 +6,16 @@
  * Vercel deploy uses; it must be inlined statically for Next to substitute it
  * at build time, so it is read once here rather than through a helper.
  */
+// Falling back to localhost unconditionally shipped 19 links pointing at
+// http://localhost:3000 to production, because NEXT_PUBLIC_APP_URL is not set on
+// the deploy host. The fallback is now per-environment, so an unset variable
+// degrades to the right origin instead of one that only resolves on a laptop.
+// NEXT_PUBLIC_APP_URL still overrides both.
 const APP_URL = (
-  process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  process.env.NEXT_PUBLIC_APP_URL ??
+  (process.env.NODE_ENV === 'production'
+    ? 'https://app.zoikosocial.com'
+    : 'http://localhost:3000')
 ).replace(/\/$/, '')
 
 /** Absolute URL for a path in the main app. */
