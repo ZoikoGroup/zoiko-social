@@ -9,6 +9,15 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/web-deploy-vm.yml'
 
+# Shares a group with landing-deploy-vm.yml on purpose: both deploys check out
+# the same working tree (~/zoiko-social-frontend) and run `git pull` in it, so
+# running them at once races on the ref lock. Both watch packages/** and
+# pnpm-lock.yaml, so any change to either fires both. Queue rather than cancel —
+# a cancelled run is a deploy that silently never happened.
+concurrency:
+  group: frontend-vm-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

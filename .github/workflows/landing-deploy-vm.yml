@@ -10,6 +10,14 @@ on:
       - '.github/workflows/landing-deploy-vm.yml'
   workflow_dispatch:
 
+# Shares a group with web-deploy-vm.yml on purpose: both deploys check out the
+# same working tree (~/zoiko-social-frontend) and run `git pull` in it, so
+# running them at once races on the ref lock — which is exactly how the
+# 687c72a deploy failed: "cannot lock ref 'refs/remotes/origin/main'".
+concurrency:
+  group: frontend-vm-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
