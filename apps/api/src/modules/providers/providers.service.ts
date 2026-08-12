@@ -88,6 +88,8 @@ export interface ServiceResponse {
   priceDisplay: string
   durationMinutes: number | null
   category: string
+  /** Animals this service is for. Empty means unstated, never "no pets". */
+  species: string[]
   isActive: boolean
   createdAt: string
 }
@@ -442,6 +444,7 @@ export class ProvidersService {
       description: s.description, priceCents: s.priceCents,
       priceDisplay: this.formatPrice(s.priceCents),
       durationMinutes: s.durationMinutes, category: s.category,
+      species: s.species,
       isActive: s.isActive, createdAt: s.createdAt.toISOString(),
     }
   }
@@ -467,6 +470,7 @@ export class ProvidersService {
         name: input.name, description: input.description ?? null,
         priceCents: input.priceCents, durationMinutes: input.durationMinutes ?? null,
         category: input.category ?? 'other',
+        species: input.species ?? [],
       },
     })
     return this.mapService(s)

@@ -63,6 +63,10 @@ export const CreateServiceSchema = z.object({
   priceCents: z.number().int().min(0).max(10_000_000),
   durationMinutes: z.number().int().min(5).max(1440).optional(),
   category: ServiceCategoryEnum.optional(),
+  // Which animals this particular service is for. A groomer may take dogs and
+  // cats yet offer a large-breed groom that is dogs only. Empty means unstated
+  // and is never used to block a booking.
+  species: strList(15).optional(),
 })
 
 export const UpdateServiceSchema = z.object({
@@ -71,6 +75,7 @@ export const UpdateServiceSchema = z.object({
   priceCents: z.number().int().min(0).max(10_000_000).optional(),
   durationMinutes: z.number().int().min(5).max(1440).optional(),
   category: ServiceCategoryEnum.optional(),
+  species: strList(15).optional(),
   isActive: z.boolean().optional(),
 })
 

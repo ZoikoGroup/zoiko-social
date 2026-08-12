@@ -778,6 +778,8 @@ model PetCareService {
   priceCents      Int      @map("price_cents")
   durationMinutes Int?     @map("duration_minutes")
   category        String   @default("other") // grooming | boarding | walking | training | sitting | daycare | vet_escort | other
+  /// Animals this service is for. Empty means unstated, never "no pets".
+  species         String[] @default([])
   isActive        Boolean  @default(true) @map("is_active")
   isDeleted       Boolean  @default(false) @map("is_deleted")
   createdAt       DateTime @default(now()) @map("created_at")

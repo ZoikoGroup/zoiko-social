@@ -16,11 +16,24 @@ export interface PetCareService {
   priceDisplay: string
   durationMinutes: number | null
   category: string
+  /** Animals this service is for. Empty means unstated, never "no pets". */
+  species: string[]
   isActive: boolean
   createdAt: string
 }
 
 export type ServiceCategory = 'grooming' | 'boarding' | 'walking' | 'training' | 'sitting' | 'daycare' | 'vet_escort' | 'other'
+
+/**
+ * Animals a provider or an individual service can be offered for. Matches the
+ * list AddPetModal uses, so "pets served" lines up with the species people
+ * actually record on their pets. Selecting none means unstated — it is never
+ * used to restrict who may book, since people book for a friend's or a
+ * neighbour's animal too.
+ */
+export const PET_SPECIES_OPTIONS = [
+  'Dog', 'Cat', 'Bird', 'Parrot', 'Rabbit', 'Fish', 'Reptile', 'Horse', 'Other',
+] as const
 
 /**
  * What a pet care business can say it offers, in the order it is presented.
@@ -59,6 +72,8 @@ export interface NewService {
   priceCents: number
   durationMinutes?: number
   category?: ServiceCategory | string  // pet-care categories or vet categories (see lib/vet)
+  /** Animals this service is for. Omitted or empty means unstated. */
+  species?: string[]
 }
 
 export interface UpdateServiceInput {

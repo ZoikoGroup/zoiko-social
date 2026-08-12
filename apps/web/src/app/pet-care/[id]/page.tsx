@@ -15,7 +15,7 @@ import { providersApi, petsApi, type Provider, type Pet } from '@/lib/api'
 import {
   petCareApi, type PetCareService, type PetCareBooking, type ProviderReview,
   type AvailabilitySlot, type ServiceCategory, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
-  PET_CARE_SERVICE_OPTIONS,
+  PET_CARE_SERVICE_OPTIONS, PET_SPECIES_OPTIONS,
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, PAYMENT_METHOD_LABELS, DAY_LABELS,
 } from '@/lib/pet-care-api'
 import { Header } from '@/components/Header'
@@ -320,6 +320,13 @@ function ServicesTab({ services, isOwner, onBook, onAdd }: {
                       {SERVICE_CATEGORY_LABELS[service.category as keyof typeof SERVICE_CATEGORY_LABELS] ?? service.category}
                     </span>
                     {!service.isActive && <span className="text-[10px] font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Inactive</span>}
+                    {/* Only shown when stated. An empty list means "any pet",
+                        so rendering nothing is the honest representation. */}
+                    {service.species.map((s) => (
+                      <span key={s} className="text-[10px] font-semibold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
+                        {s}
+                      </span>
+                    ))}
                   </div>
                   {service.description && <p className="text-label-sm text-on-surface-variant mt-1 line-clamp-2">{service.description}</p>}
                   {service.durationMinutes && (
@@ -1061,6 +1068,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
   const [priceDollars, setPriceDollars] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [category, setCategory] = useState<string>('grooming')
+  const [species, setSpecies] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -1077,6 +1085,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
         priceCents,
         ...(durationMinutes ? { durationMinutes } : {}),
         category: category as ServiceCategory,
+        ...(species.length > 0 ? { species } : {}),
       })
       onAdded(); onClose()
     } catch (e) {
@@ -1101,9 +1110,41 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
             <input type="number" min={5} step={5} value={durationMinutes} onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 60)} className={input} />
           </div>
         </div>
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={input}>
-          {Object.entries(SERVICE_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        <div>
+          <label className="text-label-sm text-outline block mb-1">Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className={input}>
+            {Object.entries(SERVICE_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </div>
+
+        {/* Per-service, not per-business: a groomer who takes dogs and cats may
+            still offer a large-breed groom that is dogs only. Leaving it blank
+            means unstated, and never blocks a booking. */}
+        <div>
+          <label className="text-label-sm text-outline block mb-1">
+            Pet types <span className="text-outline">(optional — blank means any)</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PET_SPECIES_OPTIONS.map((s) => {
+              const selected = species.includes(s)
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSpecies(selected ? species.filter((v) => v !== s) : [...species, s])}
+                  className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                    selected
+                      ? 'bg-primary text-white border-primary'
+                      : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                  }`}
+                >
+                  {s}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         {error && <p className="text-label-sm text-red-500">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>

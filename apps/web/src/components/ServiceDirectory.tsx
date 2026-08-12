@@ -15,10 +15,7 @@ import { providersApi, type Provider, type NewProvider } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
-
-// Matches the list AddPetModal offers, so a provider's "pets served" lines up
-// with the species people actually record on their pets.
-const SPECIES_OPTIONS = ['Dog', 'Cat', 'Bird', 'Parrot', 'Rabbit', 'Fish', 'Reptile', 'Horse', 'Other'] as const
+import { PET_SPECIES_OPTIONS } from '@/lib/pet-care-api'
 
 interface ServiceDirectoryProps {
   category: 'vet' | 'pet_care'
@@ -282,7 +279,7 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
               Pets served <span className="text-outline font-normal">(optional)</span>
             </label>
             <div className="flex flex-wrap gap-2">
-              {SPECIES_OPTIONS.map((s) => {
+              {PET_SPECIES_OPTIONS.map((s) => {
                 const selected = (form.species ?? []).includes(s)
                 return (
                   <button
