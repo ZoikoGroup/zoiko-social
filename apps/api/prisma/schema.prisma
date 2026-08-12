@@ -709,6 +709,8 @@ model ServiceProvider {
   rating              Float     @default(0)
   reviewCount         Int       @default(0) @map("review_count")
   availableForBooking Boolean   @default(true) @map("available_for_booking")
+  /// Concurrent bookings allowed per slot. 1 means one at a time.
+  slotCapacity        Int       @default(1) @map("slot_capacity")
   // ── Vet-clinic profile fields (Vet Finder) ──
   logoUrl             String?   @map("logo_url")
   photoUrls           String[]  @default([]) @map("photo_urls")

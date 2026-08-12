@@ -82,6 +82,7 @@ export interface UpdateServiceInput {
   priceCents?: number
   durationMinutes?: number
   category?: ServiceCategory | string
+  species?: string[]
   isActive?: boolean
 }
 
@@ -185,6 +186,16 @@ export interface AvailabilitySlot {
   kind: string
 }
 
+/** One bookable slot, sized by the chosen service's duration. */
+export interface BookingSlot {
+  startAt: string
+  endAt: string
+  capacity: number
+  booked: number
+  available: number
+  isFull: boolean
+}
+
 export interface NewAvailabilitySlot {
   providerId: string
   dayOfWeek?: number
@@ -285,6 +296,16 @@ export const petCareApi = {
   /** List availability slots for a provider */
   listAvailability: (providerId: string) =>
     cachedGet<AvailabilitySlot[]>(`/providers/${providerId}/availability`, 30_000),
+
+  /**
+   * Bookable slots for a service on a date. Cached briefly only — a slot filling
+   * up is exactly the kind of change a booker needs to see.
+   */
+  listSlots: (providerId: string, serviceId: string, date: string) =>
+    cachedGet<BookingSlot[]>(
+      `/providers/${providerId}/slots?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`,
+      5_000,
+    ),
 
   /** Create an availability slot (provider only) */
   createAvailability: (input: NewAvailabilitySlot) =>

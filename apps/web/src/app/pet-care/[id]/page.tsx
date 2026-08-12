@@ -15,7 +15,7 @@ import { providersApi, petsApi, type Provider, type Pet } from '@/lib/api'
 import {
   petCareApi, type PetCareService, type PetCareBooking, type ProviderReview,
   type AvailabilitySlot, type ServiceCategory, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
-  PET_CARE_SERVICE_OPTIONS, PET_SPECIES_OPTIONS,
+  PET_CARE_SERVICE_OPTIONS, PET_SPECIES_OPTIONS, type BookingSlot,
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, PAYMENT_METHOD_LABELS, DAY_LABELS,
 } from '@/lib/pet-care-api'
 import { Header } from '@/components/Header'
@@ -36,6 +36,7 @@ export default function ProviderDetailPage(): React.JSX.Element {
   const [bookingOpen, setBookingOpen] = useState(false)
   const [selectedService, setSelectedService] = useState<PetCareService | null>(null)
   const [addServiceOpen, setAddServiceOpen] = useState(false)
+  const [editingService, setEditingService] = useState<PetCareService | null>(null)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [servicesKey, setServicesKey] = useState(0)
   const [reviewsKey] = useState(0)
@@ -205,6 +206,7 @@ export default function ProviderDetailPage(): React.JSX.Element {
                 isOwner={isOwner ?? false}
                 onBook={(s) => { setSelectedService(s); setBookingOpen(true) }}
                 onAdd={() => setAddServiceOpen(true)}
+                onEdit={(s) => setEditingService(s)}
               />
             )}
 
@@ -247,6 +249,15 @@ export default function ProviderDetailPage(): React.JSX.Element {
         />
       )}
 
+      {editingService && (
+        <EditServiceModal
+          providerId={id}
+          service={editingService}
+          onClose={() => setEditingService(null)}
+          onSaved={() => { setEditingService(null); refreshServices() }}
+        />
+      )}
+
       {editProfileOpen && provider && (
         <EditProfileModal
           provider={provider}
@@ -255,6 +266,118 @@ export default function ProviderDetailPage(): React.JSX.Element {
         />
       )}
     </>
+  )
+}
+
+// ── Edit Service ─────────────────────────────────────────────────────────────
+
+function EditServiceModal({ providerId, service, onClose, onSaved }: {
+  providerId: string
+  service: PetCareService
+  onClose: () => void
+  onSaved: () => void
+}): React.JSX.Element {
+  const [name, setName] = useState(service.name)
+  const [description, setDescription] = useState(service.description ?? '')
+  const [priceDollars, setPriceDollars] = useState((service.priceCents / 100).toFixed(2))
+  const [durationMinutes, setDurationMinutes] = useState(service.durationMinutes ?? 60)
+  const [category, setCategory] = useState<string>(service.category)
+  const [species, setSpecies] = useState<string[]>(service.species)
+  const [isActive, setIsActive] = useState(service.isActive)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const input = 'w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none'
+
+  async function submit(): Promise<void> {
+    const priceCents = Math.round(parseFloat(priceDollars || '0') * 100)
+    if (!name.trim() || priceCents <= 0 || saving) return
+    setSaving(true); setError('')
+    try {
+      // species is sent whether or not it has entries: an empty array is how the
+      // owner clears a restriction, and omitting it would leave the old value.
+      await petCareApi.updateService(providerId, service.id, {
+        name: name.trim(),
+        description: description.trim(),
+        priceCents,
+        durationMinutes,
+        category: category as ServiceCategory,
+        species,
+        isActive,
+      })
+      onSaved()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save service')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+        <h3 className="font-headline text-headline-md text-on-surface">Edit Service</h3>
+        <div>
+          <label className="text-label-sm text-outline block mb-1">Service name *</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} className={input} />
+        </div>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-label-sm text-outline block mb-1">Price ($)</label>
+            <input type="number" min={0} step="0.01" value={priceDollars} onChange={(e) => setPriceDollars(e.target.value)} className={input} />
+          </div>
+          <div>
+            <label className="text-label-sm text-outline block mb-1">Duration (min)</label>
+            <input type="number" min={5} step={5} value={durationMinutes} onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 60)} className={input} />
+          </div>
+        </div>
+        <div>
+          <label className="text-label-sm text-outline block mb-1">Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className={input}>
+            {Object.entries(SERVICE_CATEGORY_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="text-label-sm text-outline block mb-1">
+            Pet types <span className="text-outline">(blank means any)</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PET_SPECIES_OPTIONS.map((s) => {
+              const selected = species.includes(s)
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => setSpecies(selected ? species.filter((v) => v !== s) : [...species, s])}
+                  className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                    selected ? 'bg-primary text-white border-primary' : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                  }`}
+                >
+                  {s}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        {/* Withdrawing rather than deleting: existing bookings still reference
+            the service, so it has to stay readable. */}
+        <label className="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4 accent-primary cursor-pointer" />
+          <span className="text-label-sm text-on-surface">
+            Available to book
+            <span className="block text-label-sm text-outline">Uncheck to withdraw it without losing past bookings</span>
+          </span>
+        </label>
+        {error && <p className="text-label-sm text-red-500">{error}</p>}
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>
+          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
+          >{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save Changes</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -281,11 +404,12 @@ function LoadingSkeleton(): React.JSX.Element {
 
 // ── Services Tab ─────────────────────────────────────────────────────────────
 
-function ServicesTab({ services, isOwner, onBook, onAdd }: {
+function ServicesTab({ services, isOwner, onBook, onAdd, onEdit }: {
   services: PetCareService[]
   isOwner: boolean
   onBook: (s: PetCareService) => void
   onAdd: () => void
+  onEdit: (s: PetCareService) => void
 }): React.JSX.Element {
   const { format } = useCurrency()
   return (
@@ -342,6 +466,14 @@ function ServicesTab({ services, isOwner, onBook, onAdd }: {
                   <button onClick={() => onBook(service)}
                     className="mt-2 px-4 py-1.5 rounded-lg bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 transition-all active:scale-[0.97] cursor-pointer"
                   >Book</button>
+                )}
+                {/* There was no way to change a service once created — price,
+                    duration and category were all write-once, and a service
+                    could not be withdrawn either. */}
+                {isOwner && (
+                  <button onClick={() => onEdit(service)}
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-outline-variant/40 text-[11px] font-semibold text-outline hover:text-primary hover:border-primary/40 transition-colors cursor-pointer flex items-center gap-1.5"
+                  ><Pencil className="w-3 h-3" /> Edit</button>
                 )}
               </div>
             </div>
@@ -414,6 +546,17 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
   const [newEnd, setNewEnd] = useState('17:00')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [capacity, setCapacity] = useState(provider.slotCapacity)
+  const [savingCapacity, setSavingCapacity] = useState(false)
+
+  async function saveCapacity(): Promise<void> {
+    if (savingCapacity) return
+    setSavingCapacity(true)
+    try {
+      await providersApi.update(providerId, { slotCapacity: capacity })
+      onRefresh()
+    } catch { /* the number stays as typed so it can be retried */ } finally { setSavingCapacity(false) }
+  }
 
   async function addSlot(): Promise<void> {
     if (saving) return
@@ -466,6 +609,38 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
               </button>
             )}
           </div>
+
+          {/* How many bookings may share one slot. Sits with business hours
+              because together they define the schedule: hours say when, this
+              says how many at once. */}
+          {isOwner && (
+            <div className="mb-4 p-4 rounded-xl bg-surface-container-low border border-outline-variant/30">
+              <label className="text-[11px] font-semibold text-on-surface block mb-1">
+                Bookings at the same time
+              </label>
+              <p className="text-[10px] text-outline mb-2">
+                How many pets you can take in one slot. A slot shows how much room is
+                left and reads Full when it runs out.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={capacity}
+                  onChange={(e) => setCapacity(Math.max(1, Math.min(50, parseInt(e.target.value, 10) || 1)))}
+                  className={`${input} w-24`}
+                />
+                <button
+                  onClick={() => void saveCapacity()}
+                  disabled={savingCapacity || capacity === provider.slotCapacity}
+                  className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] font-semibold disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
+                >
+                  {savingCapacity && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Inline add form */}
           {isOwner && showForm && (
@@ -607,6 +782,16 @@ function BookingModal({ provider, services, selectedService, onClose }: {
 
   const selectedSvc = services.find((s) => s.id === serviceId)
 
+  // Slots depend on both the service (they are its duration long) and the date.
+  // The fetcher guards rather than the key: useCachedValue runs it on every key
+  // change regardless, so an empty key would still call the endpoint without a
+  // serviceId or date and take a 400.
+  const { data: slotsData, isLoading: slotsLoading } = useCachedValue<BookingSlot[]>(
+    `slots:${provider.id}:${serviceId}:${date}`,
+    () => (serviceId && date ? petCareApi.listSlots(provider.id, serviceId, date) : Promise.resolve([])),
+  )
+  const slots = useMemo(() => slotsData ?? [], [slotsData])
+
   const { data: myPetsData } = useCachedValue<Pet[]>('pets:mine', () => petsApi.mine())
   const myPets = useMemo(() => myPetsData ?? [], [myPetsData])
 
@@ -738,9 +923,50 @@ function BookingModal({ provider, services, selectedService, onClose }: {
                   <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]} className={input} />
                 </div>
+                {/* A free time input let anyone book 03:00 against 09:00–17:00
+                    hours, and two people book the same minute. These are the
+                    provider's real slots, sized by this service's duration. */}
                 <div>
                   <label className="text-label-sm font-medium text-on-surface block mb-1.5">Time</label>
-                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={input} />
+                  {!date ? (
+                    <p className="text-label-sm text-outline">Pick a date to see available times.</p>
+                  ) : slotsLoading ? (
+                    <div className="flex items-center gap-2 text-label-sm text-outline">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading times…
+                    </div>
+                  ) : slots.length === 0 ? (
+                    <p className="text-label-sm text-outline">
+                      No times available on this date. The provider may not work this day —
+                      try another.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {slots.map((s) => {
+                        const label = new Date(s.startAt).toISOString().slice(11, 16)
+                        const selected = time === label
+                        return (
+                          <button
+                            key={s.startAt}
+                            type="button"
+                            disabled={s.isFull}
+                            onClick={() => setTime(label)}
+                            className={`px-2 py-2 rounded-xl border-2 text-center transition-all ${
+                              s.isFull
+                                ? 'border-outline-variant/20 text-outline/50 cursor-not-allowed'
+                                : selected
+                                  ? 'border-primary bg-primary/5 cursor-pointer'
+                                  : 'border-outline-variant/30 hover:border-primary/40 cursor-pointer'
+                            }`}
+                          >
+                            <span className="block text-label-md font-semibold text-on-surface">{label}</span>
+                            <span className="block text-[10px] text-outline">
+                              {s.isFull ? 'Full' : s.capacity > 1 ? `${s.available} left` : 'Available'}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-label-sm font-medium text-on-surface block mb-1.5">Location (optional)</label>

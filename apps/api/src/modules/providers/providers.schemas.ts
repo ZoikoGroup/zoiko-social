@@ -19,6 +19,9 @@ export const CreateProviderSchema = z.object({
   serviceType: z.string().trim().max(200).optional(),
   description: z.string().trim().max(2000).optional(),
   location: z.string().trim().max(120).optional(),
+  // Concurrent bookings allowed per slot. Mirrors the CHECK added in migration
+  // 071, so an out-of-range value is rejected here rather than by the database.
+  slotCapacity: z.number().int().min(1).max(50).optional(),
   address: z.string().trim().max(300).optional(),
   phone: z.string().trim().max(40).optional(),
   website: z.string().url().max(300).optional(),

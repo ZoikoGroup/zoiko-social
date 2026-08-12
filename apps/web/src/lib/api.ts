@@ -860,6 +860,8 @@ export interface Provider {
   availableForBooking: boolean
   /** Active, non-deleted services. 0 means there is nothing to book. */
   activeServiceCount: number
+  /** Concurrent bookings allowed per slot. 1 means one at a time. */
+  slotCapacity: number
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }
@@ -876,6 +878,8 @@ export interface NewProvider {
   facilities?: string[]; consultModes?: string[]; languages?: string[]
   emergencyAvailable?: boolean; is24x7?: boolean; acceptsWalkins?: boolean
   hours?: HoursEntry[]; licenseNo?: string
+  /** Concurrent bookings allowed per slot. 1 means one at a time. */
+  slotCapacity?: number
 }
 export interface ProviderFilters {
   q?: string; location?: string; emergency?: boolean; openNow?: boolean
