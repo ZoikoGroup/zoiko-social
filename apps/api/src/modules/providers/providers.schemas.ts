@@ -13,7 +13,10 @@ const strList = (max: number, itemMax = 40) => z.array(z.string().trim().min(1).
 export const CreateProviderSchema = z.object({
   category: z.enum(['vet', 'pet_care']),
   name: z.string().trim().min(1).max(120),
-  serviceType: z.string().trim().max(60).optional(),
+  // Holds a joined summary of specialties now that a provider can offer several
+  // services, so 60 was too tight — all eight labels joined is 78 characters and
+  // saving would have failed validation. The column is unbounded text.
+  serviceType: z.string().trim().max(200).optional(),
   description: z.string().trim().max(2000).optional(),
   location: z.string().trim().max(120).optional(),
   address: z.string().trim().max(300).optional(),

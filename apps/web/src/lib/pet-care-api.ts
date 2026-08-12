@@ -22,6 +22,15 @@ export interface PetCareService {
 
 export type ServiceCategory = 'grooming' | 'boarding' | 'walking' | 'training' | 'sitting' | 'daycare' | 'vet_escort' | 'other'
 
+/**
+ * What a pet care business can say it offers, in the order it is presented.
+ * The same vocabulary as the bookable service records, so a provider's profile
+ * and its services do not describe the same work in different words.
+ */
+export const PET_CARE_SERVICE_OPTIONS: readonly ServiceCategory[] = [
+  'grooming', 'boarding', 'walking', 'training', 'sitting', 'daycare', 'vet_escort', 'other',
+]
+
 export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   grooming: 'Grooming',
   boarding: 'Boarding',

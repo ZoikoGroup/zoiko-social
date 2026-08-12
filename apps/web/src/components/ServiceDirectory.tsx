@@ -127,7 +127,14 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-bold text-label-md text-on-surface truncate">{p.name}</h3>
-                        {p.serviceType && <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">{p.serviceType}</span>}
+                        {/* One chip per service. Older records only have the
+                            joined string, so fall back to splitting it. */}
+                        {(p.specialties.length > 0
+                          ? p.specialties
+                          : (p.serviceType ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+                        ).slice(0, 3).map((t) => (
+                          <span key={t} className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">{t}</span>
+                        ))}
                       </div>
                       {p.description && <p className="text-label-sm text-on-surface-variant mt-1 line-clamp-2">{p.description}</p>}
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-outline">
@@ -160,7 +167,9 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
   onClose: () => void; onAdded: (p: Provider) => void
 }): React.JSX.Element {
   const { profile } = useAuth()
-  const [form, setForm] = useState<NewProvider>({ category, name: '', serviceType: serviceTypes[0] ?? '' })
+  // Starts empty rather than defaulting to the first option: a silent default
+  // is how every listing ended up tagged "Grooming".
+  const [form, setForm] = useState<NewProvider>({ category, name: '', serviceType: '', specialties: [] })
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -228,9 +237,42 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
               className={input}
             />
           </div>
-          <select value={form.serviceType} onChange={(e) => set('serviceType', e.target.value)} className={input}>
-            {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          {/* A pet care business rarely does one thing. The single serviceType
+              field forced a choice, and people worked around it by typing
+              "Boarding, Grooming, Day Care" into a 60-character box. These write
+              to specialties[], which already existed with a working filter and
+              was never populated; serviceType keeps a joined copy so older
+              records and the free-text search keep working. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Services offered <span className="text-outline font-normal">(pick any)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {serviceTypes.map((t) => {
+                const selected = (form.specialties ?? []).includes(t)
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      const next = selected
+                        ? (form.specialties ?? []).filter((v) => v !== t)
+                        : [...(form.specialties ?? []), t]
+                      setForm((f) => ({ ...f, specialties: next, serviceType: next.join(', ') }))
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Describes the provider, and is never used to restrict who may book:
               people book for a friend's or a neighbour's animal too. The API has

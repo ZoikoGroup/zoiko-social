@@ -15,6 +15,7 @@ import { providersApi, petsApi, type Provider, type Pet } from '@/lib/api'
 import {
   petCareApi, type PetCareService, type PetCareBooking, type ProviderReview,
   type AvailabilitySlot, type ServiceCategory, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
+  PET_CARE_SERVICE_OPTIONS,
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS, PAYMENT_METHOD_LABELS, DAY_LABELS,
 } from '@/lib/pet-care-api'
 import { Header } from '@/components/Header'
@@ -127,12 +128,15 @@ export default function ProviderDetailPage(): React.JSX.Element {
                     </div>
                     <div className="pb-1">
                       <h1 className="font-headline text-headline-md text-on-surface">{provider.name}</h1>
-                      <div className="flex items-center gap-2 mt-1">
-                        {provider.serviceType && (
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
-                            {provider.serviceType}
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {(provider.specialties.length > 0
+                          ? provider.specialties
+                          : (provider.serviceType ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+                        ).map((t) => (
+                          <span key={t} className="text-[11px] font-semibold uppercase tracking-wide text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
+                            {t}
                           </span>
-                        )}
+                        ))}
                         <div className="flex items-center gap-1 text-amber-500">
                           <Star className="w-3.5 h-3.5 fill-current" />
                           <span className="text-label-sm font-semibold text-on-surface">{avgRating}</span>
@@ -884,7 +888,13 @@ function EditProfileModal({ provider, onClose, onSaved }: {
   onSaved: () => void
 }): React.JSX.Element {
   const [name, setName] = useState(provider.name)
-  const [serviceType, setServiceType] = useState(provider.serviceType ?? '')
+  // Older records only have the joined serviceType string, so split it back into
+  // chips rather than losing what the owner had already written.
+  const [specialties, setSpecialties] = useState<string[]>(
+    provider.specialties.length > 0
+      ? provider.specialties
+      : (provider.serviceType ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  )
   const [description, setDescription] = useState(provider.description ?? '')
   const [phone, setPhone] = useState(provider.phone ?? '')
   const [website, setWebsite] = useState(provider.website ?? '')
@@ -902,7 +912,10 @@ function EditProfileModal({ provider, onClose, onSaved }: {
     try {
       await providersApi.update(provider.id, {
         name: name.trim(),
-        ...(serviceType.trim() ? { serviceType: serviceType.trim() } : {}),
+        // serviceType keeps a joined copy so the card badge and the free-text
+        // search (which matches on serviceType) keep working unmigrated.
+        specialties,
+        serviceType: specialties.join(', '),
         ...(description.trim() ? { description: description.trim() } : {}),
         ...(phone.trim() ? { phone: phone.trim() } : {}),
         ...(website.trim() ? { website: website.trim() } : {}),
@@ -935,11 +948,36 @@ function EditProfileModal({ provider, onClose, onSaved }: {
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your business name" className={input} />
           </div>
 
-          {/* Service Type */}
+          {/* Services offered — a business usually does several. Same vocabulary
+              as the bookable service records, so a profile and its services do
+              not describe the same work with different words. */}
           <div>
-            <label className="text-label-sm font-medium text-on-surface block mb-1.5">Service Type</label>
-            <input value={serviceType} onChange={(e) => setServiceType(e.target.value)}
-              placeholder="e.g. Dog Grooming, Pet Boarding" className={input} />
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Services offered <span className="text-outline font-normal">(pick any)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {PET_CARE_SERVICE_OPTIONS.map((c) => {
+                const label = SERVICE_CATEGORY_LABELS[c]
+                const selected = specialties.includes(label)
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setSpecialties(
+                      selected ? specialties.filter((v) => v !== label) : [...specialties, label],
+                    )}
+                    className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                    }`}
+                  >
+                    {SERVICE_CATEGORY_ICONS[c]} {label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* Description */}
