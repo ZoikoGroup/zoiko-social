@@ -16,6 +16,10 @@ import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
+// Matches the list AddPetModal offers, so a provider's "pets served" lines up
+// with the species people actually record on their pets.
+const SPECIES_OPTIONS = ['Dog', 'Cat', 'Bird', 'Parrot', 'Rabbit', 'Fish', 'Reptile', 'Horse', 'Other'] as const
+
 interface ServiceDirectoryProps {
   category: 'vet' | 'pet_care'
   title: string
@@ -207,10 +211,57 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
             </div>
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickCover} />
-          <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={120} placeholder="Name" className={input} />
+          {/* Every other field says "(optional)", so the one required field has
+              to say so too — otherwise the disabled submit button has no
+              visible cause. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              maxLength={120}
+              required
+              aria-required="true"
+              placeholder="Business or provider name"
+              className={input}
+            />
+          </div>
           <select value={form.serviceType} onChange={(e) => set('serviceType', e.target.value)} className={input}>
             {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
+
+          {/* Describes the provider, and is never used to restrict who may book:
+              people book for a friend's or a neighbour's animal too. The API has
+              filtered on species all along; nothing ever collected it. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Pets served <span className="text-outline font-normal">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {SPECIES_OPTIONS.map((s) => {
+                const selected = (form.species ?? []).includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => set('species', selected
+                      ? (form.species ?? []).filter((v) => v !== s)
+                      : [...(form.species ?? []), s])}
+                    className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
           <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={120} placeholder="Location / city" className={input} />
           <input value={form.address ?? ''} onChange={(e) => set('address', e.target.value)} maxLength={300} placeholder="Address (optional)" className={input} />

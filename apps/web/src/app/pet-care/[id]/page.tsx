@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -11,7 +11,7 @@ import {
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { useCachedValue } from '@/hooks/use-cache'
-import { providersApi, type Provider } from '@/lib/api'
+import { providersApi, petsApi, type Provider, type Pet } from '@/lib/api'
 import {
   petCareApi, type PetCareService, type PetCareBooking, type ProviderReview,
   type AvailabilitySlot, type ServiceCategory, SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_ICONS,
@@ -63,6 +63,13 @@ export default function ProviderDetailPage(): React.JSX.Element {
   }, [authLoading, isAuthenticated, router])
 
   const isOwner = provider && profile && provider.addedBy.id === profile.id
+  // Only what a visitor can actually book. A listing can exist with no services
+  // at all, or with every service deactivated, and offering "Book Now" then
+  // opens a booking flow whose first step has nothing to choose from.
+  const bookableServices = (services ?? []).filter((s) => s.isActive)
+  // The API flag also carries the owner's own pause switch, which the service
+  // list alone cannot tell us about — so both have to agree before we offer it.
+  const canBook = (provider?.availableForBooking ?? false) && bookableServices.length > 0
   const avgRating = reviews && reviews.length > 0
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : '—'
@@ -135,13 +142,18 @@ export default function ProviderDetailPage(): React.JSX.Element {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {!isOwner && (
+                    {!isOwner && canBook && (
                       <button
                         onClick={() => { setSelectedService(null); setBookingOpen(true) }}
                         className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-bold hover:bg-primary/90 transition-all active:scale-[0.97] shadow-sm cursor-pointer flex items-center gap-2"
                       >
                         <Calendar className="w-4 h-4" /> Book Now
                       </button>
+                    )}
+                    {!isOwner && !canBook && (
+                      <span className="px-4 py-2.5 rounded-xl bg-surface-container text-label-sm font-semibold text-outline">
+                        {bookableServices.length === 0 ? 'No services to book yet' : 'Not taking bookings'}
+                      </span>
                     )}
                     <ReportButton targetType="provider" targetId={provider.id} variant="icon" />
                   </div>
@@ -555,7 +567,6 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   selectedService: PetCareService | null
   onClose: () => void
 }): React.JSX.Element {
-  const { profile } = useAuth()
   const { format } = useCurrency()
   const [step, setStep] = useState<'service' | 'datetime' | 'details' | 'confirm'>(
     selectedService ? 'datetime' : 'service',
@@ -563,6 +574,12 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   const [serviceId, setServiceId] = useState(selectedService?.id ?? '')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
+  // null means the visitor has not chosen yet, so the first pet on the account
+  // is offered as the default. '' is an explicit choice of "not one of mine" — a
+  // friend's or a neighbour's animal — which stays a first-class option, never a
+  // restriction. Choosing one of your own sends petId, and the provider then
+  // sees that pet's passport and health record instead of a typed-in name.
+  const [petChoice, setPetChoice] = useState<string | null>(null)
   const [petName, setPetName] = useState('')
   const [petSpecies, setPetSpecies] = useState('')
   const [petBreed, setPetBreed] = useState('')
@@ -579,15 +596,13 @@ function BookingModal({ provider, services, selectedService, onClose }: {
 
   const selectedSvc = services.find((s) => s.id === serviceId)
 
-  // Pre-fill pet name from user's display name
-  useEffect(() => {
-    if (!petName && profile?.displayName) {
-      const firstName = profile.displayName.split(' ')[0]
-      const t = setTimeout(() => setPetName(`${firstName}'s pet`), 0)
-      return () => clearTimeout(t)
-    }
-    return undefined
-  }, [profile, petName])
+  const { data: myPetsData } = useCachedValue<Pet[]>('pets:mine', () => petsApi.mine())
+  const myPets = useMemo(() => myPetsData ?? [], [myPetsData])
+
+  // Derived, not stored in an effect: the default falls out of the pet list as
+  // soon as it loads. Guessing "Vignesh's pet" as a name was never useful, and a
+  // real pet carries its records with it.
+  const petId = petChoice ?? myPets[0]?.id ?? ''
 
   async function submit(): Promise<void> {
     if (!serviceId || !date || !time || saving) return
@@ -597,9 +612,12 @@ function BookingModal({ provider, services, selectedService, onClose }: {
       const booking = await petCareApi.createBooking({
         providerId: provider.id, serviceId, scheduledAt,
         ...(location ? { location } : {}),
-        ...(petName ? { petName } : {}),
-        ...(petSpecies ? { petSpecies } : {}),
-        ...(petBreed ? { petBreed } : {}),
+        // The API verifies ownership and snapshots name/species/breed from the
+        // record, so those are not sent alongside it.
+        ...(petId ? { petId } : {}),
+        ...(!petId && petName ? { petName } : {}),
+        ...(!petId && petSpecies ? { petSpecies } : {}),
+        ...(!petId && petBreed ? { petBreed } : {}),
         ...(petWeight ? { petWeightKg: parseFloat(petWeight) } : {}),
         ...(notes ? { notes } : {}),
         paymentMethod,
@@ -658,7 +676,28 @@ function BookingModal({ provider, services, selectedService, onClose }: {
               ))}
             </div>
 
-            {step === 'service' && (
+            {step === 'service' && services.filter((s) => s.isActive).length === 0 && (
+              // Reachable if the last active service is withdrawn between the
+              // page loading and the modal opening. Without this the step renders
+              // as a heading over nothing, with no way forward and no reason given.
+              <div className="py-8 text-center">
+                <HeartHandshake className="w-10 h-10 text-outline/40 mx-auto mb-3" />
+                <p className="text-label-md font-semibold text-on-surface">
+                  This provider hasn&apos;t listed any services yet
+                </p>
+                <p className="text-label-sm text-outline mt-1">
+                  There is nothing to book here for now. Try another provider, or check back later.
+                </p>
+                <button
+                  onClick={onClose}
+                  className="mt-5 px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+
+            {step === 'service' && services.filter((s) => s.isActive).length > 0 && (
               <div className="space-y-3">
                 <p className="text-label-sm text-outline">Choose a service to book</p>
                 {services.filter((s) => s.isActive).map((s) => (
@@ -704,7 +743,56 @@ function BookingModal({ provider, services, selectedService, onClose }: {
 
             {step === 'details' && (
               <div className="space-y-4">
-                <p className="text-label-sm text-outline">Tell us about your pet</p>
+                <p className="text-label-sm text-outline">Who is this booking for?</p>
+
+                {myPets.length > 0 && (
+                  <div className="space-y-2">
+                    {myPets.map((pet) => (
+                      <button
+                        key={pet.id}
+                        type="button"
+                        onClick={() => setPetChoice(pet.id)}
+                        className={`w-full p-3 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center gap-3 ${
+                          petId === pet.id ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/40'
+                        }`}
+                      >
+                        <UserAvatar name={pet.name} image={pet.avatarUrl ?? undefined} size="md" />
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-label-md text-on-surface truncate">{pet.name}</span>
+                          <span className="block text-label-sm text-outline truncate">
+                            {[pet.species, pet.breed].filter(Boolean).join(' · ')}
+                          </span>
+                        </span>
+                        {petId === pet.id && <Check className="w-4 h-4 text-primary ml-auto flex-shrink-0" />}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPetChoice('')}
+                      className={`w-full p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        petId === '' ? 'border-primary bg-primary/5' : 'border-outline-variant/30 hover:border-primary/40'
+                      }`}
+                    >
+                      <span className="block font-semibold text-label-md text-on-surface">Another pet</span>
+                      <span className="block text-label-sm text-outline">
+                        A friend&apos;s or neighbour&apos;s animal — enter the details yourself
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {petId !== '' && (
+                  // Deliberately does not promise the provider access to the
+                  // health record: pets.service.ts gates every record read on
+                  // ownership, so no such access exists yet. It says only what
+                  // linking actually does today.
+                  <p className="text-label-sm text-outline">
+                    Booked against this pet&apos;s passport, so their name, species and breed
+                    come from the record rather than being typed in.
+                  </p>
+                )}
+
+                {petId === '' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className="text-label-sm font-medium text-on-surface block mb-1.5">Pet Name</label>
@@ -722,10 +810,14 @@ function BookingModal({ provider, services, selectedService, onClose }: {
                     <label className="text-label-sm font-medium text-on-surface block mb-1.5">Breed (optional)</label>
                     <input value={petBreed} onChange={(e) => setPetBreed(e.target.value)} placeholder="e.g. Golden Retriever" className={input} />
                   </div>
-                  <div>
-                    <label className="text-label-sm font-medium text-on-surface block mb-1.5">Weight (kg, optional)</label>
-                    <input type="number" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} placeholder="e.g. 25" className={input} />
-                  </div>
+                </div>
+                )}
+
+                {/* Asked for either way: weight changes between visits, so the
+                    stored record is not necessarily current. */}
+                <div>
+                  <label className="text-label-sm font-medium text-on-surface block mb-1.5">Weight (kg, optional)</label>
+                  <input type="number" value={petWeight} onChange={(e) => setPetWeight(e.target.value)} placeholder="e.g. 25" className={input} />
                 </div>
                 <div>
                   <label className="text-label-sm font-medium text-on-surface block mb-1.5">Notes (optional)</label>

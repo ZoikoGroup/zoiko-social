@@ -856,7 +856,10 @@ export interface Provider {
   longitude: number | null
   rating: number
   reviewCount: number
+  /** True only when the owner allows bookings AND at least one service is active. */
   availableForBooking: boolean
+  /** Active, non-deleted services. 0 means there is nothing to book. */
+  activeServiceCount: number
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }

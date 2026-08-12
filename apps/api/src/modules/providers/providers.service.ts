@@ -15,7 +15,10 @@ import type {
 // ── Provider types ───────────────────────────────────────────────────────────
 
 type ProviderRow = Prisma.ServiceProviderGetPayload<{
-  include: { addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: {
+    addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    _count: { select: { services: true } }
+  }
 }>
 
 export interface HoursEntry { day: number; open: string; close: string; closed?: boolean }
@@ -50,7 +53,10 @@ export interface ProviderResponse {
   longitude: number | null
   rating: number
   reviewCount: number
+  /** True only when the owner allows bookings AND at least one service is active. */
   availableForBooking: boolean
+  /** Active, non-deleted services. Lets a client explain why booking is unavailable. */
+  activeServiceCount: number
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }
@@ -177,7 +183,13 @@ export class ProvidersService {
   // ════════════════════════════════════════════════════════════════════════════
 
   private providerInclude() {
-    return { addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return {
+      addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      // Counted so availableForBooking can reflect whether anything is actually
+      // bookable. The stored column defaults to true, so a listing created with
+      // no services still advertised itself as open for bookings.
+      _count: { select: { services: { where: { isActive: true, isDeleted: false } } } },
+    }
   }
 
   private parseHours(raw: unknown): HoursEntry[] | null {
@@ -229,7 +241,12 @@ export class ProvidersService {
       hours, licenseNo: p.licenseNo, isVerified: p.isVerified,
       openNow: this.computeOpenNow(hours, p.is24x7), distanceKm,
       latitude: p.latitude, longitude: p.longitude,
-      rating: p.rating, reviewCount: p.reviewCount, availableForBooking: p.availableForBooking,
+      rating: p.rating, reviewCount: p.reviewCount,
+      // Both conditions matter: the owner can pause bookings with the stored
+      // flag, and a listing with no active service has nothing to book even
+      // when the flag says otherwise.
+      availableForBooking: p.availableForBooking && p._count.services > 0,
+      activeServiceCount: p._count.services,
       addedBy: {
         id: p.addedByUser.id, username: p.addedByUser.username, displayName: p.addedByUser.displayName,
         avatarUrl: p.addedByUser.avatarUrl, isVerified: p.addedByUser.verificationTier === 'professional',
