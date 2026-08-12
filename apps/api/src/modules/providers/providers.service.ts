@@ -527,11 +527,19 @@ export class ProvidersService {
   ): Promise<BookingPage> {
     const take = Math.min(limit, MAX)
     const decoded = cursor ? decodeCursor(cursor) : null
+    // Accepts one status or a comma-separated set, so the client can filter by a
+    // group ("upcoming" is pending + confirmed + in_progress) in the query rather
+    // than paging everything back and discarding rows it did not want.
+    const statuses = status
+      ? status.split(',').map((s) => s.trim()).filter(Boolean)
+      : []
     const where: Prisma.PetCareBookingWhereInput = {
       isDeleted: false,
       ...(role === 'seeker' ? { seekerId: userId } : {}),
       ...(role === 'provider' ? { provider: { addedBy: userId } } : {}),
-      ...(status ? { status } : {}),
+      ...(statuses.length
+        ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } }
+        : {}),
       ...(decoded
         ? { OR: [
             { createdAt: { lt: new Date(decoded.createdAt) } },

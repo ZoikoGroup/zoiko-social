@@ -6,6 +6,7 @@ import {
   Calendar, Clock, MapPin, Loader2, X, Check, AlertCircle,
   PawPrint, Star, MoreHorizontal, Ban, User,
 } from 'lucide-react'
+import { providersApi } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { Header } from '@/components/Header'
@@ -18,6 +19,18 @@ import {
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
 } from '@/lib/pet-care-api'
+
+// The six raw statuses were more filters than the row could fit — the last was
+// clipped behind a scrollbar. These group them by the question someone actually
+// asks: is it still happening, is it over, or did it fall through. Each card
+// still carries its exact status badge, so no detail is lost. "All" stays as the
+// default so a page of only completed bookings never looks empty.
+const STATUS_GROUPS: ReadonlyArray<{ label: string; value: string }> = [
+  { label: 'All', value: '' },
+  { label: 'Upcoming', value: 'pending,confirmed,in_progress' },
+  { label: 'Past', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
+]
 
 export default function MyBookingsPage(): React.JSX.Element {
   const router = useRouter()
@@ -33,23 +46,38 @@ export default function MyBookingsPage(): React.JSX.Element {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [reviewBooking, setReviewBooking] = useState<PetCareBooking | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  // Most people never list a service, and for them "As Provider" is a tab that
+  // can only ever be empty. Only offer the choice to someone who has a listing.
+  const [isProvider, setIsProvider] = useState(false)
+
+  // Derived rather than stored: the toggle only renders for a provider, so
+  // someone who stops being one cannot be left stranded in the provider view.
+  const viewRole = isProvider ? role : 'seeker'
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/login')
   }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return
+    providersApi.mine()
+      .then((mine) => setIsProvider(mine.length > 0))
+      .catch(() => setIsProvider(false)) // a failed check just hides the toggle
+  }, [authLoading, isAuthenticated])
+
+
+  useEffect(() => {
     if (authLoading || !isAuthenticated) return undefined
     const t = setTimeout(() => {
       setLoading(true)
       setError('')
-      petCareApi.listBookings(role, statusFilter || undefined)
+      petCareApi.listBookings(viewRole, statusFilter || undefined)
         .then((page) => setBookings(page.data))
         .catch((e) => setError(e.message || 'Failed to load bookings'))
         .finally(() => setLoading(false))
     }, 0)
     return () => clearTimeout(t)
-  }, [authLoading, isAuthenticated, role, statusFilter, refreshKey])
+  }, [authLoading, isAuthenticated, viewRole, statusFilter, refreshKey])
 
   async function handleCancel(bookingId: string): Promise<void> {
     if (cancelling) return
@@ -81,9 +109,17 @@ export default function MyBookingsPage(): React.JSX.Element {
 
   if (authLoading || !isAuthenticated) return <LoadingSkeleton />
 
-  const tabClass = (active: boolean) =>
-    `px-4 py-2 rounded-full text-label-sm font-semibold transition-all cursor-pointer ${
-      active ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface hover:bg-surface-container'
+  // Two different questions, so two different controls. The role segmented box
+  // asks who you are; the underlined tabs ask which bookings to show. They read
+  // as one filter row when both are pills.
+  const roleClass = (active: boolean) =>
+    `px-4 py-2 rounded-lg text-label-sm font-semibold transition-all cursor-pointer ${
+      active ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'
+    }`
+
+  const statusClass = (active: boolean) =>
+    `px-1 pb-2 text-label-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+      active ? 'border-primary text-primary' : 'border-transparent text-outline hover:text-on-surface'
     }`
 
   return (
@@ -110,27 +146,31 @@ export default function MyBookingsPage(): React.JSX.Element {
               </button>
             </div>
 
-            {/* Role + Status filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex gap-1.5 bg-surface-container-low rounded-xl p-1">
-                <button onClick={() => setRole('seeker')} className={tabClass(role === 'seeker')}>
-                  <PawPrint className="w-3.5 h-3.5 inline mr-1" /> As Customer
-                </button>
-                <button onClick={() => setRole('provider')} className={tabClass(role === 'provider')}>
-                  <User className="w-3.5 h-3.5 inline mr-1" /> As Provider
-                </button>
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {['', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={tabClass(statusFilter === s)}
-                  >
-                    {s ? BOOKING_STATUS_LABELS[s] ?? s : 'All'}
+            {/* Only a provider has two sets of bookings to switch between. */}
+            {isProvider && (
+              <div className="flex items-center gap-3">
+                <span className="text-label-sm text-outline shrink-0">Viewing as</span>
+                <div className="flex gap-1 bg-surface-container-low rounded-xl p-1">
+                  <button onClick={() => setRole('seeker')} className={roleClass(viewRole === 'seeker')}>
+                    <PawPrint className="w-3.5 h-3.5 inline mr-1" /> Customer
                   </button>
-                ))}
+                  <button onClick={() => setRole('provider')} className={roleClass(viewRole === 'provider')}>
+                    <User className="w-3.5 h-3.5 inline mr-1" /> Provider
+                  </button>
+                </div>
               </div>
+            )}
+
+            <div className="flex gap-5 border-b border-outline-variant/30">
+              {STATUS_GROUPS.map((g) => (
+                <button
+                  key={g.label}
+                  onClick={() => setStatusFilter(g.value)}
+                  className={statusClass(statusFilter === g.value)}
+                >
+                  {g.label}
+                </button>
+              ))}
             </div>
 
             {error && (
@@ -148,11 +188,13 @@ export default function MyBookingsPage(): React.JSX.Element {
                 <Calendar className="w-10 h-10 text-outline/40 mx-auto mb-3" />
                 <h3 className="text-label-md font-bold text-on-surface">No bookings found</h3>
                 <p className="text-label-sm text-outline mt-1 mb-4">
-                  {role === 'seeker' ? 'You haven\'t booked any services yet.' : 'No one has booked your services yet.'}
+                  {viewRole === 'seeker' ? 'You haven\'t booked any services yet.' : 'No one has booked your services yet.'}
                 </p>
-                {role === 'seeker' && (
+                {viewRole === 'seeker' && (
                   <button onClick={() => router.push('/pet-care')} className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold cursor-pointer">
-                    Browse Services
+                    {/* Same label as the header button — both land on /pet-care,
+                        and two names for one destination read as two places. */}
+                    Book a Service
                   </button>
                 )}
               </div>
@@ -162,7 +204,7 @@ export default function MyBookingsPage(): React.JSX.Element {
                   <BookingCard
                     key={booking.id}
                     booking={booking}
-                    role={role}
+                    role={viewRole}
                     onCancel={() => setCancelId(booking.id)}
                     onStatusUpdate={(status) => void handleStatusUpdate(booking.id, status)}
                     actionLoading={actionLoading === booking.id}
