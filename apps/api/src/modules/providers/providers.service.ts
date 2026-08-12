@@ -693,13 +693,18 @@ export class ProvidersService {
     })
     const bookedAt = new Map(taken.map((t) => [t.scheduledAt.toISOString(), t._count._all]))
 
-    const slots: SlotResponse[] = []
+    // Keyed by start time so overlapping or repeated windows cannot offer the
+    // same slot twice. Nothing stops two identical weekly rows existing, and
+    // without this a duplicated window doubles every time in the picker.
+    const byStart = new Map<string, SlotResponse>()
     for (const [startMin, endMin] of this.windowsFor(rows, date)) {
       for (let m = startMin; m + step <= endMin; m += step) {
         const startAt = new Date(date.getTime() + m * 60_000)
-        const booked = bookedAt.get(startAt.toISOString()) ?? 0
-        slots.push({
-          startAt: startAt.toISOString(),
+        const key = startAt.toISOString()
+        if (byStart.has(key)) continue
+        const booked = bookedAt.get(key) ?? 0
+        byStart.set(key, {
+          startAt: key,
           endAt: new Date(startAt.getTime() + step * 60_000).toISOString(),
           capacity: provider.slotCapacity,
           booked,
@@ -708,7 +713,7 @@ export class ProvidersService {
         })
       }
     }
-    return slots.sort((a, b) => a.startAt.localeCompare(b.startAt))
+    return [...byStart.values()].sort((a, b) => a.startAt.localeCompare(b.startAt))
   }
 
   async createBooking(userId: string, input: CreateBookingInput): Promise<BookingResponse> {

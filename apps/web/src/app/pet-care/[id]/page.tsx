@@ -27,6 +27,17 @@ import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ReportButton } from '@/components/ReportButton'
 
+// Shortcuts for the shapes a week usually takes. Indices match DAY_LABELS and
+// getUTCDay(), so 0 is Sunday. "Mon–Sat" and "Sun–Fri" are the two ways to drop
+// a single weekend day, which is more common than dropping both.
+const DAY_PRESETS: ReadonlyArray<{ label: string; days: readonly number[] }> = [
+  { label: 'Every day', days: [0, 1, 2, 3, 4, 5, 6] },
+  { label: 'Mon–Sat (no Sun)', days: [1, 2, 3, 4, 5, 6] },
+  { label: 'Sun–Fri (no Sat)', days: [0, 1, 2, 3, 4, 5] },
+  { label: 'Mon–Fri', days: [1, 2, 3, 4, 5] },
+  { label: 'Weekends', days: [0, 6] },
+]
+
 export default function ProviderDetailPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -541,9 +552,12 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
 }): React.JSX.Element {
   const weeklySlots = availability.filter((a) => a.kind === 'weekly')
   const [showForm, setShowForm] = useState(false)
-  const [newDay, setNewDay] = useState('0')
+  // Mon–Fri by default: the common case is a business that works weekdays, and
+  // pre-selecting it means one press for most listers.
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5])
   const [newStart, setNewStart] = useState('09:00')
   const [newEnd, setNewEnd] = useState('17:00')
+  const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [capacity, setCapacity] = useState(provider.slotCapacity)
@@ -559,18 +573,34 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
   }
 
   async function addSlot(): Promise<void> {
-    if (saving) return
-    setSaving(true)
+    if (saving || selectedDays.length === 0) return
+    if (newEnd <= newStart) {
+      setFormError('The end time has to be after the start time.')
+      return
+    }
+    setSaving(true); setFormError('')
     try {
-      await petCareApi.createAvailability({
-        providerId,
-        dayOfWeek: parseInt(newDay, 10),
-        startTime: newStart,
-        endTime: newEnd,
-      })
+      // Clear the selected days first. Appending would leave two windows on one
+      // day, and the booking picker would then offer the same slot twice.
+      const stale = weeklySlots.filter((a) => a.dayOfWeek !== null && selectedDays.includes(a.dayOfWeek))
+      for (const a of stale) await petCareApi.removeAvailability(a.id)
+
+      for (const day of [...selectedDays].sort((a, b) => a - b)) {
+        await petCareApi.createAvailability({
+          providerId,
+          dayOfWeek: day,
+          startTime: newStart,
+          endTime: newEnd,
+        })
+      }
       setShowForm(false)
       onRefresh()
-    } catch { /* ignore */ } finally { setSaving(false) }
+    } catch (e) {
+      // Reported rather than swallowed: a half-applied week is worth knowing
+      // about, since some days may now have hours and others none.
+      setFormError(e instanceof Error ? e.message : 'Could not save those hours')
+      onRefresh()
+    } finally { setSaving(false) }
   }
 
   async function removeSlot(id: string): Promise<void> {
@@ -582,7 +612,6 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
   }
 
   const input = 'w-full px-3 py-1.5 rounded-lg border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none'
-  const select = `${input} appearance-none`
 
   return (
     <div className="space-y-4">
@@ -642,17 +671,50 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
             </div>
           )}
 
-          {/* Inline add form */}
+          {/* One form for both cases: tick a single day, or tick several and set
+              them in one go. Setting each day separately meant seven passes
+              through the same form for hours that are usually identical. */}
           {isOwner && showForm && (
             <div className="mb-4 p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
-              <p className="text-[11px] font-semibold text-primary">Add Weekly Hours</p>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] text-outline block mb-1">Day</label>
-                  <select value={newDay} onChange={(e) => setNewDay(e.target.value)} className={select}>
-                    {DAY_LABELS.map((label, idx) => <option key={idx} value={idx}>{label}</option>)}
-                  </select>
+              <p className="text-[11px] font-semibold text-primary">Set Weekly Hours</p>
+
+              <div>
+                <label className="text-[10px] text-outline block mb-1.5">Days</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {DAY_LABELS.map((label, idx) => {
+                    const on = selectedDays.includes(idx)
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => setSelectedDays(
+                          on ? selectedDays.filter((d) => d !== idx) : [...selectedDays, idx],
+                        )}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors cursor-pointer ${
+                          on ? 'bg-primary text-white border-primary' : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
                 </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {DAY_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setSelectedDays([...p.days])}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 transition-colors cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] text-outline block mb-1">Start</label>
                   <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} className={input} />
@@ -662,13 +724,24 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
                   <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} className={input} />
                 </div>
               </div>
+
+              {/* Replacing rather than appending: two windows on one day would
+                  generate the same slot twice in the booking picker. */}
+              <p className="text-[10px] text-outline">
+                Replaces any hours already set on the days you pick.
+              </p>
+              {formError && <p className="text-[11px] text-red-500">{formError}</p>}
               <button
                 onClick={() => void addSlot()}
-                disabled={saving || !newStart || !newEnd}
+                disabled={saving || !newStart || !newEnd || selectedDays.length === 0}
                 className="w-full py-2 rounded-lg bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5"
               >
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                {saving ? 'Adding…' : 'Add Slot'}
+                {saving
+                  ? 'Saving…'
+                  : selectedDays.length === 0
+                    ? 'Pick at least one day'
+                    : `Set hours for ${selectedDays.length} day${selectedDays.length === 1 ? '' : 's'}`}
               </button>
             </div>
           )}
