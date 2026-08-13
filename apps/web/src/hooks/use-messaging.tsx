@@ -276,8 +276,17 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         })
       }
 
-      // Listen for connection state changes
-      const onDisconnect = () => {
+      // Listen for connection state changes.
+      //
+      // The reason matters. Signing out calls disconnectSocket(), which emits
+      // 'io client disconnect' \u2014 we asked for it, so warning that the visitor is
+      // offline is wrong, and it fired on every sign-out. 'io server disconnect'
+      // is excluded too: Socket.IO does not auto-reconnect after either, so
+      // "Trying to reconnect\u2026" would be untrue. Everything else \u2014 transport
+      // close, ping timeout \u2014 is a real drop that does retry.
+      const DELIBERATE = new Set(['io client disconnect', 'io server disconnect'])
+      const onDisconnect = (reason: string) => {
+        if (DELIBERATE.has(reason)) return
         if (!wasOfflineRef.current) {
           wasOfflineRef.current = true
           toastWarning('You\'re offline', 'Trying to reconnect\u2026')
