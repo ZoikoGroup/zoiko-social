@@ -272,6 +272,15 @@ export const PROFESSIONAL_CATEGORY_LABELS: Record<string, string> = {
 
 // ── Profile API ────────────────────────────────────────────────────────────
 
+export const authApi = {
+  /**
+   * Ends every session for the account, this device included. Supabase's
+   * admin.signOut is all-or-nothing — there is no per-session revoke behind it,
+   * which is why Security offers this rather than a per-device list.
+   */
+  logoutEverywhere: () => mutate<{ success: boolean }>('/auth/logout', { method: 'POST' }),
+}
+
 export const profileApi = {
   getMe: () => request<Profile>('/profiles/me'),
   getById: (id: string) => cachedGet<Profile>(`/profiles/${id}`),

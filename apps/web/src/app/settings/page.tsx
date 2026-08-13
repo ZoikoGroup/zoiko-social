@@ -10,7 +10,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { useToast } from '@/hooks/use-toast'
 import { CURRENCIES } from '@/lib/currency'
-import { profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
+import { authApi, profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
@@ -59,7 +59,10 @@ const SECTION_DOCS_LINK: Partial<Record<SettingsTab, string>> = {
 
 // ── ACCOUNT ─────────────────────────────────────────────────
 
-function AccountSettings(): React.JSX.Element {
+function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
+  autoOpenPassword?: boolean
+  onAutoOpenHandled?: () => void
+} = {}): React.JSX.Element {
   const { profile, user, updateEmail, changePassword, signOut } = useAuth()
   // Deactivation revokes sessions, so this should normally be 'active' whenever
   // settings is reachable. Read anyway: an access token outlives the revoke, and
@@ -105,7 +108,7 @@ function AccountSettings(): React.JSX.Element {
   const [emailSent, setEmailSent] = useState(false)
 
   // ── Password change state
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(autoOpenPassword)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -221,6 +224,7 @@ function AccountSettings(): React.JSX.Element {
 
   // ── Shared modal backdrop click
   const closeAllModals = (): void => {
+    onAutoOpenHandled?.()
     setShowDeleteConfirm(false)
     setShowDeactivateConfirm(false)
     setShowEmailModal(false)
@@ -715,8 +719,35 @@ function PrivacySettings({ settings, loading, patch }: SettingsContextValue): Re
 
 // ── SECURITY ────────────────────────────────────────────────
 
-function SecuritySettings(): React.JSX.Element {
-  const [twoFactor, setTwoFactor] = useState(false)
+/**
+ * Everything here used to be a mock: the Change button had no handler, "Last
+ * changed 3 months ago" was a literal, and the two sessions — "Chrome on
+ * Windows", "Safari on iPhone", both in San Francisco — were a hardcoded array
+ * whose Revoke buttons had no handler either. Nothing was wired to anything.
+ *
+ * What the backend actually supports is all-or-nothing: admin.signOut(userId)
+ * ends every session for the account. There is no per-session listing or
+ * per-session revoke, so this offers the real capability instead of inventing
+ * devices to list.
+ */
+function SecuritySettings({ onChangePassword }: { onChangePassword: () => void }): React.JSX.Element {
+  const toast = useToast()
+  const [signingOutAll, setSigningOutAll] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
+
+  const handleSignOutEverywhere = async (): Promise<void> => {
+    setSigningOutAll(true)
+    setSignOutError(null)
+    try {
+      await authApi.logoutEverywhere()
+      toast.success('Signed out everywhere', 'All devices have been signed out.')
+      // This device included — the token here is revoked too.
+      window.location.href = '/login'
+    } catch (err) {
+      setSignOutError(err instanceof Error ? err.message : 'Could not sign out other devices')
+      setSigningOutAll(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -729,10 +760,16 @@ function SecuritySettings(): React.JSX.Element {
             </div>
             <div>
               <h4 className="text-label-md font-semibold text-on-surface">Password</h4>
-              <p className="text-[11px] text-outline">Last changed 3 months ago</p>
+              {/* No "last changed" line: nothing records when a password was
+                  last set, so the old text was a fixed string that read
+                  "3 months ago" the moment after you changed it. */}
+              <p className="text-[11px] text-outline">Change the password you use to sign in</p>
             </div>
           </div>
-          <button className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
+          <button
+            onClick={onChangePassword}
+            className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
             Change
           </button>
         </div>
@@ -750,18 +787,13 @@ function SecuritySettings(): React.JSX.Element {
               <p className="text-[11px] text-outline">Add an extra layer of security to your account</p>
             </div>
           </div>
-          <button
-            onClick={() => setTwoFactor((t) => !t)}
-            role="switch"
-            aria-checked={twoFactor}
-            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 cursor-pointer ${
-              twoFactor ? 'bg-primary' : 'bg-outline-variant'
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-              twoFactor ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
+          {/* Was a toggle backed only by local state — it moved, persisted
+              nothing, and left the impression 2FA was on. Nothing in the API
+              enrols or verifies a second factor, so it says so rather than
+              pretending. */}
+          <span className="px-2.5 py-1 rounded-full bg-surface-container text-[11px] font-semibold text-outline flex-shrink-0">
+            Not available yet
+          </span>
         </div>
       </div>
 
@@ -773,25 +805,25 @@ function SecuritySettings(): React.JSX.Element {
           </div>
           <div>
             <h4 className="text-label-md font-semibold text-on-surface">Active Sessions</h4>
-            <p className="text-[11px] text-outline">You&apos;re logged in on 2 devices</p>
+            <p className="text-[11px] text-outline">
+              Signed out somewhere you no longer use? End every session at once.
+            </p>
           </div>
         </div>
-        <div className="space-y-2">
-          {[
-            { device: 'Chrome on Windows', location: 'San Francisco, CA', active: 'Active now' },
-            { device: 'Safari on iPhone', location: 'San Francisco, CA', active: '2 hours ago' },
-          ].map((s) => (
-            <div key={s.device} className="flex items-center justify-between p-2.5 rounded-lg bg-surface-container">
-              <div>
-                <p className="text-label-sm font-semibold text-on-surface">{s.device}</p>
-                <p className="text-[10px] text-outline">{s.location} · {s.active}</p>
-              </div>
-              <button className="text-[11px] text-red-500 hover:text-red-600 font-semibold cursor-pointer">
-                Revoke
-              </button>
-            </div>
-          ))}
-        </div>
+        {signOutError && (
+          <p className="mb-2 text-[11px] text-red-500">{signOutError}</p>
+        )}
+        <button
+          onClick={() => void handleSignOutEverywhere()}
+          disabled={signingOutAll}
+          className="w-full px-4 py-2 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {signingOutAll && <Loader2 className="w-4 h-4 animate-spin" />}
+          {signingOutAll ? 'Signing out…' : 'Sign out of all devices'}
+        </button>
+        <p className="mt-2 text-[10px] text-outline">
+          This signs out this device too, so you will need to sign in again.
+        </p>
       </div>
     </div>
   )
@@ -1220,6 +1252,9 @@ function HelpSettings(): React.JSX.Element {
 
 export default function SettingsPage(): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsTab>('account')
+  // Security's Change button lives in a different section from the modal that
+  // does the work, so it switches tabs and asks Account to open it.
+  const [openPasswordOnAccount, setOpenPasswordOnAccount] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const { signOut } = useAuth()
@@ -1234,7 +1269,12 @@ export default function SettingsPage(): React.JSX.Element {
   const renderActiveSection = (): React.JSX.Element => {
     switch (activeSection) {
       case 'account':
-        return <AccountSettings />
+        return (
+          <AccountSettings
+            autoOpenPassword={openPasswordOnAccount}
+            onAutoOpenHandled={() => setOpenPasswordOnAccount(false)}
+          />
+        )
       case 'privacy':
         return <PrivacySettings {...sharedSettings} />
       case 'blocked':
@@ -1242,7 +1282,11 @@ export default function SettingsPage(): React.JSX.Element {
       case 'verification':
         return <VerificationSettings />
       case 'security':
-        return <SecuritySettings />
+        return (
+          <SecuritySettings
+            onChangePassword={() => { setOpenPasswordOnAccount(true); setActiveSection('account') }}
+          />
+        )
       case 'notifications':
         return <NotificationSettings {...sharedSettings} />
       case 'preferences':
