@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast'
 import { CURRENCIES } from '@/lib/currency'
 import { profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
+import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
@@ -173,8 +174,9 @@ function AccountSettings(): React.JSX.Element {
       setPasswordError('Please enter your current password')
       return
     }
-    if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters')
+    const policyError = validatePassword(newPassword)
+    if (policyError) {
+      setPasswordError(policyError)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -471,9 +473,14 @@ function AccountSettings(): React.JSX.Element {
                     type="password"
                     value={newPassword}
                     onChange={(e) => { setNewPassword(e.target.value); setPasswordError(null) }}
-                    placeholder="At least 8 characters"
+                    minLength={PASSWORD_MIN}
+                    maxLength={PASSWORD_MAX}
+                    placeholder={`${PASSWORD_MIN}–${PASSWORD_MAX} characters`}
                     className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all"
                   />
+                  {/* Stated up front rather than only on failure — the rules were
+                      previously invisible until a submit was rejected. */}
+                  <p className="mt-1 text-[11px] text-outline">{PASSWORD_HINT}</p>
                 </div>
                 <div>
                   <label className="block text-label-sm font-semibold text-on-surface mb-1">Confirm New Password</label>
@@ -481,6 +488,8 @@ function AccountSettings(): React.JSX.Element {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(null) }}
+                    minLength={PASSWORD_MIN}
+                    maxLength={PASSWORD_MAX}
                     placeholder="Re-enter new password"
                     className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all"
                   />

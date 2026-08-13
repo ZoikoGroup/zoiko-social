@@ -17,9 +17,23 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
+// ── Password policy ────────────────────────────────────────────────────────
+// Mirrors apps/web/src/lib/password-policy.ts. Enforced here as well so the
+// rule holds for any client, not only the one that renders the hint.
+//
+// 72 is the ceiling because bcrypt hashes at most 72 bytes and silently drops
+// the rest — two passwords sharing their first 72 bytes would both work.
+const PasswordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters.')
+  .max(72, 'Password must be 72 characters or fewer.')
+  .refine((v) => /[a-z]/.test(v), 'Password must include a lowercase letter.')
+  .refine((v) => /[A-Z]/.test(v), 'Password must include an uppercase letter.')
+  .refine((v) => /[0-9]/.test(v), 'Password must include a number.')
+
 const RegisterSchema = z.object({
   email: z.string().email('Valid email is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: PasswordSchema,
   displayName: z.string().min(1).max(50).optional(),
 })
 
@@ -46,7 +60,7 @@ const ForgotPasswordSchema = z.object({
 
 const ResetPasswordSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  newPassword: PasswordSchema,
 })
 
 const OAuthCallbackSchema = z.object({

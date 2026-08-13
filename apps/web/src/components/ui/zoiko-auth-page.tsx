@@ -2,6 +2,7 @@
 
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -297,6 +298,12 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
         setIsLoading(false)
         return
       }
+      const policyError = validatePassword(password)
+      if (policyError) {
+        setError(policyError)
+        setIsLoading(false)
+        return
+      }
       const result = await signUp(email, password, displayName || undefined, username)
       if (result.error) {
         setError(result.error)
@@ -567,7 +574,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        minLength={isLogin ? undefined : 8}
+                        minLength={isLogin ? undefined : PASSWORD_MIN}
+                        maxLength={isLogin ? undefined : PASSWORD_MAX}
                         className="h-[52px] w-full rounded-xl border border-gray-200 bg-gray-50/60 pl-11 pr-11 text-[15px] text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/15"
                       />
                       <button
@@ -579,6 +587,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                         {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                       </button>
                     </div>
+                    {/* Shown while choosing a password, not after it is refused. */}
+                    {!isLogin && <p className="mt-1 text-xs text-gray-500">{PASSWORD_HINT}</p>}
                   </div>
 
                   {isLogin && (
