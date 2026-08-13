@@ -35,7 +35,15 @@ const PROTECTED_ROUTES = [
 ]
 
 // Auth pages — redirect to app if already signed in
-const AUTH_ROUTES = ['/login', '/signup', '/register', '/forgot-password', '/reset-password']
+// Signed-in visitors are bounced off these to the app — being on them already
+// authenticated means they took a wrong turn.
+//
+// /reset-password is deliberately absent. Arriving there with a session is the
+// normal case, not a wrong turn: the visitor may already be signed in in this
+// browser, and the recovery flow itself establishes a session so the new
+// password can be set. Listing it sent everyone who followed a reset link
+// straight to the feed instead of the form.
+const AUTH_ROUTES = ['/login', '/signup', '/register', '/forgot-password']
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl
