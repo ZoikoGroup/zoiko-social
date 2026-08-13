@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react'
+import { useTranslations } from 'next-intl'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
@@ -16,6 +17,7 @@ import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/l
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
+import { LanguageSwitcher } from '@/components/settings/LanguageSwitcher'
 
 type SettingsTab =
   | 'account'
@@ -27,22 +29,21 @@ type SettingsTab =
   | 'preferences'
   | 'help'
 
+// Label and description come from the catalog at render time, keyed by id.
 interface SettingsSection {
   id: SettingsTab
-  label: string
   icon: typeof User
-  description: string
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: 'account',       label: 'Account',       icon: User,      description: 'Profile info, email, password' },
-  { id: 'privacy',       label: 'Privacy',        icon: Lock,      description: 'Who can see your activity' },
-  { id: 'blocked',       label: 'Blocked & Muted', icon: UserX,    description: 'Manage accounts you\'ve blocked or muted' },
-  { id: 'verification',  label: 'Verification',   icon: BadgeCheck,description: 'Apply for a verified badge' },
-  { id: 'security',      label: 'Security',       icon: Shield,    description: 'Login, 2FA, active sessions' },
-  { id: 'notifications', label: 'Notifications',  icon: Bell,      description: 'Push, email, in-app alerts' },
-  { id: 'preferences',   label: 'Preferences',    icon: Sliders,   description: 'Theme, language, accessibility' },
-  { id: 'help',          label: 'Help & About',   icon: HelpCircle,description: 'Support, terms, version info' },
+  { id: 'account',       icon: User },
+  { id: 'privacy',       icon: Lock },
+  { id: 'blocked',       icon: UserX },
+  { id: 'verification',  icon: BadgeCheck },
+  { id: 'security',      icon: Shield },
+  { id: 'notifications', icon: Bell },
+  { id: 'preferences',   icon: Sliders },
+  { id: 'help',          icon: HelpCircle },
 ]
 
 // Where each tab's matching Help Center article lives. 'help' is omitted —
@@ -997,22 +998,7 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
           <Globe className="w-4 h-4 text-primary" />
           Language & Region
         </h4>
-        {/* The picker offered six languages and changed none of them. There is
-            no i18n library in the app, no translated strings, and the chosen
-            value was only ever written to localStorage and read back to
-            repopulate this control — nothing consumed it. Rather than keep a
-            control that cannot do what it says, it states where things stand.
-            Restore the select once translations exist and something reads the
-            preference. */}
-        <div className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 rounded-lg text-label-md flex items-center justify-between gap-3">
-          <span className="text-on-surface">English</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container text-[11px] font-semibold text-outline flex-shrink-0">
-            Only language available
-          </span>
-        </div>
-        <p className="mt-2 text-[11px] text-outline">
-          ZoikoSocial is English-only for now. More languages are planned.
-        </p>
+        <LanguageSwitcher />
       </div>
 
       <hr className="border-outline-variant/30" />
@@ -1238,6 +1224,7 @@ function HelpSettings(): React.JSX.Element {
 // ── RENDER SWITCH ───────────────────────────────────────────
 
 export default function SettingsPage(): React.JSX.Element {
+  const t = useTranslations('settings')
   const [activeSection, setActiveSection] = useState<SettingsTab>('account')
   // Security's Change button lives in a different section from the modal that
   // does the work, so it switches tabs and asks Account to open it.
@@ -1316,7 +1303,7 @@ export default function SettingsPage(): React.JSX.Element {
                 >
                   <span className="flex items-center gap-2">
                     <activeSectionMeta.icon className="w-4 h-4 text-primary" />
-                    {activeSectionMeta.label}
+                    {t(`sections.${activeSectionMeta.id}`)}
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -1335,9 +1322,9 @@ export default function SettingsPage(): React.JSX.Element {
                           <section.icon className="w-4 h-4" />
                           <div>
                             <p className={`text-label-sm font-semibold ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                              {section.label}
+                              {t(`sections.${section.id}`)}
                             </p>
-                            <p className="text-[10px] text-outline">{section.description}</p>
+                            <p className="text-[10px] text-outline">{t(`sections.${section.id}Desc`)}</p>
                           </div>
                         </button>
                       )
@@ -1366,9 +1353,9 @@ export default function SettingsPage(): React.JSX.Element {
                       <section.icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-outline group-hover:text-on-surface'}`} />
                       <div>
                         <p className={`text-label-sm font-semibold ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                          {section.label}
+                          {t(`sections.${section.id}`)}
                         </p>
-                        <p className="text-[10px] text-outline">{section.description}</p>
+                        <p className="text-[10px] text-outline">{t(`sections.${section.id}Desc`)}</p>
                       </div>
                     </button>
                   )
@@ -1396,8 +1383,8 @@ export default function SettingsPage(): React.JSX.Element {
                       <activeSectionMeta.icon className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-label-md font-bold text-on-surface">{activeSectionMeta.label}</h2>
-                      <p className="text-[11px] text-outline">{activeSectionMeta.description}</p>
+                      <h2 className="text-label-md font-bold text-on-surface">{t(`sections.${activeSectionMeta.id}`)}</h2>
+                      <p className="text-[11px] text-outline">{t(`sections.${activeSectionMeta.id}Desc`)}</p>
                     </div>
                     {SECTION_DOCS_LINK[activeSection] && (
                       <DocsHelpLink href={SECTION_DOCS_LINK[activeSection]!} />

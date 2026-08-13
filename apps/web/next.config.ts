@@ -1,5 +1,9 @@
 import path from 'path'
 import type { NextConfig } from 'next'
+import createNextIntlPlugin from 'next-intl/plugin'
+
+// Points the plugin at the request config that resolves the locale per render.
+const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 
 // The API URL in ws form for Socket.IO — http://x → ws://x, https://x → wss://x
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? ''
@@ -97,4 +101,4 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@supabase/ssr'],
 }
 
-export default nextConfig
+export default withNextIntl(nextConfig)

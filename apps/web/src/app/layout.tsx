@@ -3,6 +3,8 @@ import { Inter, Source_Serif_4 } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
+import { NextIntlClientProvider } from 'next-intl'
+import { getLocale, getMessages } from 'next-intl/server'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -25,13 +27,19 @@ export const metadata: Metadata = {
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL
 const SUPABASE_ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
-}): React.JSX.Element {
+}): Promise<React.JSX.Element> {
+  // Resolved per request from the cookie, falling back to Accept-Language.
+  // lang has to follow it: screen readers and browser translation both read it,
+  // and a German page announcing lang="en" is read with English pronunciation.
+  const locale = await getLocale()
+  const messages = await getMessages()
+
   return (
-    <html lang="en" className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
+    <html lang={locale} className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
       <head>
         {/* ── Resource Hints ────────────────────────────────────────────────
          * Preconnect early origins so the browser starts the TLS handshake
@@ -52,9 +60,11 @@ export default function RootLayout({
           suppressed; child hydration mismatches still surface normally. */}
       <body className="font-body antialiased bg-background text-on-surface" suppressHydrationWarning>
         <ServiceWorkerRegister />
-        <Providers>
-          {children}
-        </Providers>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers>
+            {children}
+          </Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   )
