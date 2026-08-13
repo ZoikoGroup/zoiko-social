@@ -120,7 +120,11 @@ export default function ShopPage(): React.JSX.Element {
               </select>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+            {/* Wraps rather than scrolls. Eight chips do not fit the column, and
+                with the scrollbar hidden by no-scrollbar the ones past the edge
+                read as broken labels — "Beds & Crates" showed as "Beds & Cra" —
+                rather than as content to scroll to. */}
+            <div className="flex flex-wrap gap-2 pb-1">
               {CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => setCategory(cat.id)}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>

@@ -146,7 +146,10 @@ export default function NewsPage(): React.JSX.Element {
                 className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50" />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+            {/* Wraps for the same reason the Marketplace bar does: seven chips
+                do not fit, and no-scrollbar hides any sign that the row scrolls,
+                so "Climate & Habitat" reads as a broken label. */}
+            <div className="flex flex-wrap gap-2 pb-1">
               {CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => setCategory(cat.id)}
                   className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
