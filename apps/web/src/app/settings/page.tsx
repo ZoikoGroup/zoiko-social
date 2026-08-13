@@ -60,7 +60,12 @@ const SECTION_DOCS_LINK: Partial<Record<SettingsTab, string>> = {
 // ── ACCOUNT ─────────────────────────────────────────────────
 
 function AccountSettings(): React.JSX.Element {
-  const { profile, user, updateEmail, changePassword } = useAuth()
+  const { profile, user, updateEmail, changePassword, signOut } = useAuth()
+  // Deactivation revokes sessions, so this should normally be 'active' whenever
+  // settings is reachable. Read anyway: an access token outlives the revoke, and
+  // offering "disable" on an already-disabled account is how the loop appeared.
+  const isDeactivated = profile?.state === 'deactivated'
+  const isPendingDeletion = profile?.state === 'pending_deletion'
 
   // ── Delete state
   const [deleting, setDeleting] = useState(false)
@@ -77,7 +82,12 @@ function AccountSettings(): React.JSX.Element {
     setDeactivateError(null)
     try {
       await profileApi.deactivate()
-      // Sessions are revoked server-side, so land them on the public site.
+      // Revoking server-side only kills the refresh token; the access token in
+      // this browser stays valid until it expires, so without clearing the local
+      // session the visitor still looks signed in, can walk back into settings,
+      // and is offered "Temporarily Disable" on an account that is already
+      // disabled. signOut also drops the socket and the cached profile.
+      await signOut()
       window.location.href = '/'
     } catch (err) {
       setDeactivateError(err instanceof Error ? err.message : 'Failed to disable account')
@@ -294,13 +304,26 @@ function AccountSettings(): React.JSX.Element {
         <p className="text-[11px] text-red-500 dark:text-red-400/70 mb-3">
           Take a break by hiding your account, or schedule it for deletion. Both are reversible by signing back in.
         </p>
+        {/* Says what the account already is instead of offering the same action
+            again. Signing in is what restores it, so there is nothing to press
+            here — an enabled "Temporarily Disable" on a disabled account only
+            invites a second attempt the guard would reject. */}
+        {(isDeactivated || isPendingDeletion) && (
+          <p className="mb-3 text-[11px] font-semibold text-red-600 dark:text-red-400">
+            {isDeactivated
+              ? 'This account is currently disabled. Signing out and back in restores it.'
+              : 'This account is scheduled for deletion. Signing out and back in cancels it.'}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => { setShowDeactivateConfirm(true); setDeactivateError(null) }}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
-          >
-            Temporarily Disable
-          </button>
+          {!isDeactivated && !isPendingDeletion && (
+            <button
+              onClick={() => { setShowDeactivateConfirm(true); setDeactivateError(null) }}
+              className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+            >
+              Temporarily Disable
+            </button>
+          )}
           <button
             onClick={() => { setShowDeleteConfirm(true); setDeleteError(null); setDeleteConfirmText('') }}
             className="px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-label-sm font-semibold hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
