@@ -177,6 +177,20 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
   })
   const [langOpen, setLangOpen] = useState(false)
 
+  // Social sign-in leaves the page for the provider, so handleSocial never
+  // clears its spinner on the success path — there is normally nothing left to
+  // clear. Coming back with the browser's back button is the exception: the page
+  // is restored from the back/forward cache with React state intact, so the
+  // spinner is still running and, because it disables all three buttons, the
+  // visitor cannot retry. pageshow fires on that restore with persisted set.
+  useEffect(() => {
+    function handleRestore(e: PageTransitionEvent) {
+      if (e.persisted) setSocialLoading(null)
+    }
+    window.addEventListener('pageshow', handleRestore)
+    return () => window.removeEventListener('pageshow', handleRestore)
+  }, [])
+
   // Keep in sync when the language is changed from the settings page (other tab)
   useEffect(() => {
     function handle(e: StorageEvent) {
