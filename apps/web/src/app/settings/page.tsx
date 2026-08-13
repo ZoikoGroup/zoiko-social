@@ -950,25 +950,8 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
   const { theme, setTheme } = useTheme()
   const { currency, setCurrency, ratesLive, ratesUpdatedAt } = useCurrency()
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
-  const [language, setLanguage] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem('zoiko-language') ?? 'en'
-      } catch {
-        return 'en'
-      }
-    }
-    return 'en'
-  })
-
-  function handleLanguageChange(code: string) {
-    setLanguage(code)
-    try {
-      localStorage.setItem('zoiko-language', code)
-    } catch {
-      // localStorage unavailable
-    }
-  }
+  // The language state and its handler lived here only to drive the picker
+  // below. Nothing read the stored value, so both went with it.
 
   const activeTheme = mounted ? theme ?? 'system' : undefined
 
@@ -1014,18 +997,22 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
           <Globe className="w-4 h-4 text-primary" />
           Language & Region
         </h4>
-        <select
-          value={language}
-          onChange={(e) => handleLanguageChange(e.target.value)}
-          className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all appearance-none cursor-pointer"
-        >
-          <option value="en">US English</option>
-          <option value="en-GB">UK English</option>
-          <option value="es">Español</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="pt">Português</option>
-        </select>
+        {/* The picker offered six languages and changed none of them. There is
+            no i18n library in the app, no translated strings, and the chosen
+            value was only ever written to localStorage and read back to
+            repopulate this control — nothing consumed it. Rather than keep a
+            control that cannot do what it says, it states where things stand.
+            Restore the select once translations exist and something reads the
+            preference. */}
+        <div className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 rounded-lg text-label-md flex items-center justify-between gap-3">
+          <span className="text-on-surface">English</span>
+          <span className="px-2 py-0.5 rounded-full bg-surface-container text-[11px] font-semibold text-outline flex-shrink-0">
+            Only language available
+          </span>
+        </div>
+        <p className="mt-2 text-[11px] text-outline">
+          ZoikoSocial is English-only for now. More languages are planned.
+        </p>
       </div>
 
       <hr className="border-outline-variant/30" />
