@@ -132,9 +132,14 @@ export function MessagingPrivacySettings(): React.JSX.Element {
               privacy[t.key] ? 'bg-primary' : 'bg-surface-container-high'
             }`}
           >
+            {/* left-0.5 pins the knob to the track. Without a left, the span is
+                absolute with left:auto, so it sits at its static position —
+                horizontally centred, because a button centres its content — and
+                the translate then pushed it out past the right edge.
+                Travel is 20px: 44 track − 20 knob − 2 padding each side. */}
             <span
-              className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                privacy[t.key] ? 'translate-x-[22px]' : 'translate-x-0.5'
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                privacy[t.key] ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>

@@ -107,7 +107,9 @@ export default function NetworkPage(): React.JSX.Element {
                     onClick={() => setVerifiedOnly((v) => !v)}
                     className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${verifiedOnly ? 'bg-primary' : 'bg-outline-variant'}`}
                   >
-                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${verifiedOnly ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    {/* left-0.5 anchors the knob — see EditProfileModal for why
+                        an unanchored absolute span lands centred and overflows. */}
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${verifiedOnly ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
                 </label>
 
