@@ -72,10 +72,19 @@ describe('ProfileService.deactivateAccount', () => {
     expect(authService.deleteAccount).not.toHaveBeenCalled()
   })
 
-  it('signs every device out', async () => {
+  // Supabase revokes by JWT — admin.signOut takes "a valid, logged-in JWT" and
+  // there is no revoke-by-id. This previously asserted the user id was passed,
+  // which is exactly why every logout failed.
+  it('signs every device out using the caller token', async () => {
+    const { service, authService } = build()
+    await service.deactivateAccount(USER_ID, 'jwt-token')
+    expect(authService.logout).toHaveBeenCalledWith('jwt-token')
+  })
+
+  it('skips the revoke when there is no token rather than calling with nothing', async () => {
     const { service, authService } = build()
     await service.deactivateAccount(USER_ID)
-    expect(authService.logout).toHaveBeenCalledWith(USER_ID)
+    expect(authService.logout).not.toHaveBeenCalled()
   })
 
   it('audits the deactivation', async () => {

@@ -197,10 +197,28 @@ export class AuthService {
     this.logger.log(`Account restored on login for ${userId} (was ${profile.state})`)
   }
 
-  async logout(userId: string) {
-    const { error } = await this.supabaseAdmin.auth.admin.signOut(userId)
+  /**
+   * Ends every session for the caller.
+   *
+   * Takes the caller's JWT, not their id: admin.signOut is documented as taking
+   * "a valid, logged-in JWT" and GoTrueAdminApi has no revoke-by-id at all. This
+   * was passing a user id, so Supabase rejected every call and logout always
+   * answered LOGOUT_FAILED — which also meant deactivating an account never
+   * actually signed the other devices out.
+   *
+   * Scope 'global' rather than the default, since the point is other devices.
+   */
+  async logout(accessToken: string | undefined) {
+    if (!accessToken) {
+      throw new UnauthorizedException({
+        code: 'LOGOUT_FAILED',
+        message: 'Failed to log out',
+      })
+    }
+
+    const { error } = await this.supabaseAdmin.auth.admin.signOut(accessToken, 'global')
     if (error) {
-      this.logger.error(`Logout failed for user ${userId}: ${error.message}`)
+      this.logger.error(`Logout failed: ${error.message}`)
       throw new UnauthorizedException({
         code: 'LOGOUT_FAILED',
         message: 'Failed to log out',

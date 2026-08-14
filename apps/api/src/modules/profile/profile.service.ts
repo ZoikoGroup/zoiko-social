@@ -1140,7 +1140,7 @@ export class ProfileService {
    * and their content for free, because profile visibility across feed, search,
    * posts, comments and messaging is gated on `state = 'active'`.
    */
-  async deactivateAccount(userId: string): Promise<{ state: string }> {
+  async deactivateAccount(userId: string, accessToken?: string): Promise<{ state: string }> {
     const profile = await this.loadForStateChange(userId)
 
     await this.prisma.profile.update({
@@ -1156,7 +1156,7 @@ export class ProfileService {
       newData: { username: profile.username },
     })
     // Sign every device out, so the account really does go quiet.
-    await this.revokeSessions(userId)
+    await this.revokeSessions(accessToken)
 
     this.logger.log(`Account deactivated for ${userId}`)
     return { state: 'deactivated' }
@@ -1170,7 +1170,7 @@ export class ProfileService {
    * happens later, in `purgeAccount` — either from the daily job or the moment an
    * expired account tries to sign in.
    */
-  async requestAccountDeletion(userId: string): Promise<{ scheduledFor: string; graceDays: number }> {
+  async requestAccountDeletion(userId: string, accessToken?: string): Promise<{ scheduledFor: string; graceDays: number }> {
     const profile = await this.loadForStateChange(userId)
 
     const requestedAt = new Date()
@@ -1188,7 +1188,7 @@ export class ProfileService {
       entityId: userId,
       newData: { username: profile.username, graceDays: this.deletionGraceDays, scheduledFor: scheduledFor.toISOString() },
     })
-    await this.revokeSessions(userId)
+    await this.revokeSessions(accessToken)
 
     this.logger.log(`Deletion scheduled for ${userId} at ${scheduledFor.toISOString()}`)
     return { scheduledFor: scheduledFor.toISOString(), graceDays: this.deletionGraceDays }
@@ -1282,11 +1282,19 @@ export class ProfileService {
     }
   }
 
-  private async revokeSessions(userId: string): Promise<void> {
+  /**
+   * Best effort: the state change has already committed, and failing to reach
+   * Supabase should not undo it. Takes the caller's JWT because that is what
+   * admin.signOut accepts — it was being handed a user id, so this never
+   * actually revoked anything and the warning was never logged either, since
+   * the id was rejected rather than throwing here.
+   */
+  private async revokeSessions(accessToken?: string): Promise<void> {
+    if (!accessToken) return
     try {
-      await this.authService.logout(userId)
+      await this.authService.logout(accessToken)
     } catch (error) {
-      this.logger.warn(`Could not revoke sessions for ${userId}: ${(error as Error).message}`)
+      this.logger.warn(`Could not revoke sessions: ${(error as Error).message}`)
     }
   }
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
@@ -147,9 +147,15 @@ export class HashtagsService {
     limit = 12,
   ): Promise<PostPage & { tag: string; postsCount: number }> {
     const normalized = tag.trim().toLowerCase().replace(/^#/, '')
+    // A hashtag row only exists once something has been posted with it, so a tag
+    // nobody has used yet is empty rather than missing. Throwing 404 here made
+    // the home feed's topic tabs — Local, Rescue, Vet Advice, Lost & Found — all
+    // fail on a young platform, because those tags are fixed in the UI and only
+    // gain a row when a post first uses them. An empty page reads correctly and
+    // starts working by itself as soon as someone posts.
     const hashtag = await this.prisma.hashtag.findUnique({ where: { tag: normalized } })
     if (!hashtag) {
-      throw new NotFoundException({ code: 'HASHTAG_NOT_FOUND', message: 'Hashtag not found' })
+      return { data: [], nextCursor: null, hasMore: false, tag: normalized, postsCount: 0 }
     }
 
     const take = Math.min(limit, 30)

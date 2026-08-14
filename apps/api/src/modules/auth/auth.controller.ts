@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { OptionalAuthGuard } from './guards/optional-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
 import type { AuthenticatedUser } from './guards/jwt-auth.guard'
+import { AccessToken } from './decorators/access-token.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
@@ -111,8 +112,8 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async logout(@CurrentUser() user: AuthenticatedUser) {
-    await this.authService.logout(user.id)
+  async logout(@AccessToken() accessToken: string | undefined) {
+    await this.authService.logout(accessToken)
     return { success: true }
   }
 

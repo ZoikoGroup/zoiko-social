@@ -45,6 +45,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { AccessToken } from '../auth/decorators/access-token.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
 @Controller('profiles')
@@ -292,8 +293,8 @@ export class ProfileController {
   @Post('me/deactivate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async deactivateAccount(@CurrentUser() user: AuthenticatedUser) {
-    const result = await this.profileService.deactivateAccount(user.id)
+  async deactivateAccount(@CurrentUser() user: AuthenticatedUser, @AccessToken() accessToken?: string) {
+    const result = await this.profileService.deactivateAccount(user.id, accessToken)
     return {
       data: {
         ...result,
@@ -309,8 +310,8 @@ export class ProfileController {
   @Delete('me')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async deleteAccount(@CurrentUser() user: AuthenticatedUser) {
-    const result = await this.profileService.requestAccountDeletion(user.id)
+  async deleteAccount(@CurrentUser() user: AuthenticatedUser, @AccessToken() accessToken?: string) {
+    const result = await this.profileService.requestAccountDeletion(user.id, accessToken)
     return {
       data: {
         ...result,
