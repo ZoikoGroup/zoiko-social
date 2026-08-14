@@ -3,6 +3,7 @@
 import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -286,6 +287,14 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
         router.push('/')
       }
     } else {
+      // type="email" lets a bare hostname through — test@test and user@domain
+      // both pass it — so the address is checked here before an account is made
+      // that can never receive its confirmation mail.
+      if (!isValidEmail(email)) {
+        setError(EMAIL_INVALID_MESSAGE)
+        setIsLoading(false)
+        return
+      }
       if (!validateUsernameFormat(username)) {
         setError(
           'Please choose a valid username (3–30 characters: lowercase letters, numbers, underscores and periods).',

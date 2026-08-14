@@ -14,6 +14,7 @@ import { CURRENCIES } from '@/lib/currency'
 import { authApi, profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
@@ -144,8 +145,10 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
   // ── Email change
   const handleEmailChange = async (): Promise<void> => {
     const trimmed = newEmail.trim()
-    if (!trimmed || !trimmed.includes('@')) {
-      setEmailError('Please enter a valid email address')
+    // Was only checking for an "@", so "a@b" passed and the confirmation mail
+    // could never arrive.
+    if (!isValidEmail(trimmed)) {
+      setEmailError(EMAIL_INVALID_MESSAGE)
       return
     }
     if (trimmed === email) {
