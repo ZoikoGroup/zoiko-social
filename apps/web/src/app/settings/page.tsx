@@ -1225,7 +1225,26 @@ function HelpSettings(): React.JSX.Element {
 
 export default function SettingsPage(): React.JSX.Element {
   const t = useTranslations('settings')
-  const [activeSection, setActiveSection] = useState<SettingsTab>('account')
+  // Kept in the URL so it survives leaving the page. Help & About links out to
+  // real routes (/privacy, /terms, /docs); coming back with the browser's back
+  // button remounts settings, and with the section held only in state it always
+  // came back on Account rather than the tab that was open.
+  const [activeSection, setActiveSection] = useState<SettingsTab>(() => {
+    if (typeof window === 'undefined') return 'account'
+    const requested = new URLSearchParams(window.location.search).get('section')
+    return SECTIONS.some((s) => s.id === requested) ? (requested as SettingsTab) : 'account'
+  })
+
+  // replaceState rather than push: switching tabs should not make the back
+  // button walk through every tab visited before leaving the page.
+  const selectSection = useCallback((id: SettingsTab): void => {
+    setActiveSection(id)
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.set('section', id)
+      window.history.replaceState(window.history.state, '', url)
+    }
+  }, [])
   // Security's Change button lives in a different section from the modal that
   // does the work, so it switches tabs and asks Account to open it.
   const [openPasswordOnAccount, setOpenPasswordOnAccount] = useState(false)
@@ -1258,7 +1277,7 @@ export default function SettingsPage(): React.JSX.Element {
       case 'security':
         return (
           <SecuritySettings
-            onChangePassword={() => { setOpenPasswordOnAccount(true); setActiveSection('account') }}
+            onChangePassword={() => { setOpenPasswordOnAccount(true); selectSection('account') }}
           />
         )
       case 'notifications':
@@ -1314,7 +1333,7 @@ export default function SettingsPage(): React.JSX.Element {
                       return (
                         <button
                           key={section.id}
-                          onClick={() => { setActiveSection(section.id); setMobileMenuOpen(false) }}
+                          onClick={() => { selectSection(section.id); setMobileMenuOpen(false) }}
                           className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
                             isActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container'
                           }`}
@@ -1343,7 +1362,7 @@ export default function SettingsPage(): React.JSX.Element {
                   return (
                     <button
                       key={section.id}
-                      onClick={() => setActiveSection(section.id)}
+                      onClick={() => selectSection(section.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer group ${
                         isActive
                           ? 'bg-primary/10 text-primary border-r-2 border-primary'

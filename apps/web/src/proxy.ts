@@ -66,7 +66,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   })
   if (isProtected && !isAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
-    redirectUrl.searchParams.set('next', pathname)
+    // Query included, not just the path: several pages carry their state there —
+    // /settings?section=help is the one that shows it — and signing in used to
+    // drop it, landing people on the default tab instead of where they were sent.
+    redirectUrl.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(redirectUrl)
   }
 
