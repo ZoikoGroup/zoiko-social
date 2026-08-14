@@ -30,7 +30,8 @@ function formatCount(n: number): string {
 function HeaderSkeleton(): React.JSX.Element {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
-      <div className="h-28 sm:h-40 bg-surface-container animate-pulse" />
+      {/* Same 4:1 as the real banner, so the layout does not jump on load. */}
+      <div className="aspect-[4/1] bg-surface-container animate-pulse" />
       <div className="px-5 sm:px-8 pb-6">
         <div className="-mt-10 sm:-mt-14 w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-surface-container-high ring-4 ring-surface-container-lowest animate-pulse" />
         <div className="mt-4 space-y-3">
@@ -257,7 +258,13 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
       {/* Banner-style header (LinkedIn-inspired): cover, overlapping avatar, pill actions */}
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
         {/* Cover banner — user image when set, brand gradient fallback */}
-        <div className="relative h-28 sm:h-40 bg-gradient-to-r from-primary via-teal-700 to-emerald-600 overflow-hidden">
+        {/* 4:1 to match what the crop editor produces. It was a fixed height with
+            a fluid width, so the display box was 4:1 at exactly one window size
+            and something else everywhere else — object-cover then trimmed the
+            banner a second time, and differently per screen, which is why a
+            carefully positioned crop still came out cut. Now the frame the
+            visitor cropped inside is the frame they get. */}
+        <div className="relative aspect-[4/1] bg-gradient-to-r from-primary via-teal-700 to-emerald-600 overflow-hidden">
           {profile.bannerUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={profile.bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />

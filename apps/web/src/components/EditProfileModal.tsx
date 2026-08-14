@@ -8,10 +8,19 @@ import { useToast } from '@/hooks/use-toast'
 import { ImageCropper } from '@/components/ImageCropper'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
-// Baked output sizes for the crop editor — kept small for tiny, fast-loading files
+// Baked output sizes for the crop editor.
+//
+// The banner renders about 600 CSS px wide (six columns of a 1280px container),
+// so a 2x display already wants ~1200 device px and 1280 left no headroom at
+// all — every banner was being drawn at close to 1:1 and looked soft. 1600 gives
+// room on dense screens without the file getting silly.
+//
+// 0.7 WebP was visibly blocky on photographs, which is most banners. 0.85 is the
+// usual point where artefacts stop being obvious; a 1600x400 banner still lands
+// well under 300 KB.
 const AVATAR_OUTPUT = 400 // square
-const BANNER_OUTPUT = { width: 1280, height: 320 } // 4:1
-const IMAGE_QUALITY = 0.7 // aggressive WebP compression
+const BANNER_OUTPUT = { width: 1600, height: 400 } // 4:1, matched by ProfileHeader
+const IMAGE_QUALITY = 0.85
 
 type CropTarget = { src: string; kind: 'avatar' | 'banner' }
 
