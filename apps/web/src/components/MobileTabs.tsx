@@ -48,7 +48,11 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
         <div className="md:hidden fixed inset-0 z-40" onClick={() => setTrayOpen(false)}>
           <div className="absolute inset-0 bg-black/30" />
           <div
-            className="absolute bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 bg-surface-container-lowest border-t border-outline-variant rounded-t-2xl p-4 z-50"
+            /* Anchored to the bottom and grows upward, so on a short screen — a
+               phone in landscape, or a small window — the top rows would go
+               off-screen with no way to reach them. Fewer rows than the desktop
+               panel, but the same failure, so the same cap. */
+            className="absolute bottom-[calc(4rem+env(safe-area-inset-bottom))] left-0 right-0 max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain bg-surface-container-lowest border-t border-outline-variant rounded-t-2xl p-4 z-50"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">

@@ -350,8 +350,14 @@ export function Header(): React.JSX.Element {
               <span className={`text-[10.5px] leading-none ${menuOpen || isOnModulePage ? 'font-bold' : 'font-medium'}`}>More</span>
             </button>
 
+            {/* Eighteen modules across three columns is six rows, which can be
+                taller than the space under a 64px fixed header. The panel is
+                absolutely positioned inside that fixed header, so anything past
+                the viewport was simply unreachable — scrolling the page could not
+                bring it back, and overflow-hidden clipped it silently. Capped to
+                the space available and scrolled instead. */}
             {menuOpen && (
-              <div className="absolute right-0 top-[calc(100%+4px)] w-72 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-50">
+              <div className="absolute right-0 top-[calc(100%+4px)] w-72 max-h-[calc(100vh-5rem)] bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-y-auto overflow-x-hidden overscroll-contain z-50">
                 <div className="px-4 py-3 border-b border-outline-variant/20">
                   <p className="text-label-md font-bold text-on-surface">Explore ZoikoSocial</p>
                   <p className="text-[11px] text-outline mt-0.5">All platform modules</p>
