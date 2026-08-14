@@ -31,7 +31,20 @@ import {
 const UploadDocumentSchema = z.object({
   requestId: z.string().uuid(),
   documentType: z.string().min(1).max(50),
-  documentUrl: z.string().url().max(500),
+  /**
+   * A storage key such as "<userId>/verification/<uuid>.pdf", not a URL — the
+   * bucket is private and reviewers get a short-lived signed URL instead (see
+   * getVerificationDocumentUrl). This was `.url()`, which rejected every key and
+   * returned 400, so no upload ever registered.
+   *
+   * A scheme is refused rather than merely unrequired: storing a fetchable URL
+   * here would put an identity document behind a link instead of behind auth.
+   */
+  documentUrl: z
+    .string()
+    .min(1)
+    .max(500)
+    .refine((v) => !/^[a-z][a-z0-9+.-]*:\/\//i.test(v), 'Expected a storage key, not a URL'),
   fileName: z.string().max(255).optional(),
   fileSize: z.number().int().positive().max(50 * 1024 * 1024).optional(),
   mimeType: z.string().max(100).optional(),
