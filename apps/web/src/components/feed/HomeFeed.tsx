@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUp, PawPrint, SlidersHorizontal, ChevronDown, MapPin } from 'lucide-react'
+import { ArrowUp, PawPrint, ChevronDown, MapPin } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
 import { feedApi, lostFoundApi, type PostItem, type LostFoundReport } from '@/lib/api'
@@ -42,9 +42,11 @@ function FeedTabs(): React.JSX.Element {
       >
         More <ChevronDown className="w-3.5 h-3.5" />
       </Link>
-      <button className="ml-auto flex-shrink-0 flex items-center justify-center size-8 rounded-full text-outline hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer" aria-label="Filter feed">
-        <SlidersHorizontal className="w-4 h-4" />
-      </button>
+      {/* A "Filter feed" button used to sit here with no handler. Nothing backs
+          it: GET /feed takes cursor and limit and no filter parameter at all,
+          and the topic tabs to its left are the only filtering that exists. A
+          control that cannot do what its label says is worse than no control,
+          so it is gone until there is a filter to attach it to. */}
     </div>
   )
 }
