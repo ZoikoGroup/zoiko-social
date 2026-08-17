@@ -289,7 +289,7 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={submit} disabled={saving || !form.petName.trim() || !form.breed.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}{editing ? 'Save changes' : 'Publish profile'}
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{editing ? 'Save changes' : 'Publish profile'}</span>
           </button>
         </div>
       </div>
@@ -300,7 +300,7 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }): React.JSX.Element {
   return (
     <button onClick={onClick} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${on ? 'bg-primary text-white border-primary' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/40'}`}>
-      {on && <Check className="w-3 h-3" />}{label}
+      {on && <Check className="w-3 h-3" />}<span>{label}</span>
     </button>
   )
 }

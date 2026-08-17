@@ -823,7 +823,7 @@ function SecuritySettings({ onChangePassword }: { onChangePassword: () => void }
           className="w-full px-4 py-2 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {signingOutAll && <Loader2 className="w-4 h-4 animate-spin" />}
-          {signingOutAll ? 'Signing out…' : 'Sign out of all devices'}
+          <span>{signingOutAll ? 'Signing out…' : 'Sign out of all devices'}</span>
         </button>
         <p className="mt-2 text-[10px] text-outline">
           This signs out this device too, so you will need to sign in again.
@@ -1163,7 +1163,7 @@ function BlockedAndMutedSettings(): React.JSX.Element {
                 className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-outline-variant/40 text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50"
               >
                 {busyId === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {tab === 'blocked' ? 'Unblock' : 'Unmute'}
+                <span>{tab === 'blocked' ? 'Unblock' : 'Unmute'}</span>
               </button>
             </div>
           ))}
@@ -1390,7 +1390,7 @@ export default function SettingsPage(): React.JSX.Element {
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors text-label-sm font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                   >
                     {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                    {signingOut ? 'Signing out…' : 'Sign Out'}
+                    <span>{signingOut ? 'Signing out…' : 'Sign Out'}</span>
                   </button>
                 </div>
               </div>

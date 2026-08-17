@@ -66,7 +66,7 @@ export function ConfirmDialog({ title, body, confirmLabel, onConfirm, onClose, d
             }`}
           >
             {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-            {confirmLabel}
+            <span>{confirmLabel}</span>
           </button>
         </div>
       </div>

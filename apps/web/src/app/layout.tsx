@@ -35,6 +35,15 @@ export default async function RootLayout({
   // Resolved per request from the cookie, falling back to Accept-Language.
   // lang has to follow it: screen readers and browser translation both read it,
   // and a German page announcing lang="en" is read with English pronunciation.
+  //
+  // The flip side, and the reason for the <span>s wrapped around button labels
+  // across this app: because lang now varies, the browser offers to translate
+  // pages whose declared language differs from the reader's own. Accepting that
+  // replaces our text nodes with the translator's, and React then throws
+  // NotFoundError from insertBefore the next time it renders a spinner beside
+  // one — the label it wants to insert before is no longer its child. A label
+  // inside its own element is translated in place, so React keeps a child it
+  // still recognises. Those wrappers look redundant; they are not.
   const locale = await getLocale()
   const messages = await getMessages()
 

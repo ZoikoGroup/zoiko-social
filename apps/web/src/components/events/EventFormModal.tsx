@@ -139,13 +139,13 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
           <div className="flex gap-2">
             <label className="flex-1 relative h-24 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
               {coverUrl ? <Img src={coverUrl} alt="" className="w-full h-full object-cover" /> : (
-                <span className="flex flex-col items-center gap-1 text-outline text-[11px]">{uploading === 'cover' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}{uploading === 'cover' ? 'Uploading…' : 'Cover image'}</span>
+                <span className="flex flex-col items-center gap-1 text-outline text-[11px]">{uploading === 'cover' ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}<span>{uploading === 'cover' ? 'Uploading…' : 'Cover image'}</span></span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
             </label>
             <label className="flex-1 relative h-24 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
               {videoUrl ? <video src={videoUrl} muted className="w-full h-full object-cover"><track kind="captions" /></video> : (
-                <span className="flex flex-col items-center gap-1 text-outline text-[11px]">{uploading === 'video' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Film className="w-5 h-5" />}{uploading === 'video' ? 'Uploading…' : 'Video (optional)'}</span>
+                <span className="flex flex-col items-center gap-1 text-outline text-[11px]">{uploading === 'video' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Film className="w-5 h-5" />}<span>{uploading === 'video' ? 'Uploading…' : 'Video (optional)'}</span></span>
               )}
               <input type="file" accept="video/*" onChange={handleVideo} className="hidden" />
             </label>
@@ -223,7 +223,7 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
           </div>
 
           <button onClick={() => setIsOnline((v) => !v)} className="flex items-center gap-2 text-label-sm text-on-surface-variant cursor-pointer">
-            {isOnline ? <Globe className="w-4 h-4 text-primary" /> : <MapPin className="w-4 h-4" />}{isOnline ? 'Online event' : 'In-person'}
+            {isOnline ? <Globe className="w-4 h-4 text-primary" /> : <MapPin className="w-4 h-4" />}<span>{isOnline ? 'Online event' : 'In-person'}</span>
           </button>
           {!isOnline && (
             <>
@@ -257,7 +257,7 @@ export function EventFormModal({ event, communityId, onClose, onSaved }: {
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={submit} disabled={saving || !!uploading || !title.trim() || !startsAt}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}{editing ? 'Save changes' : 'Create event'}
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{editing ? 'Save changes' : 'Create event'}</span>
           </button>
         </div>
       </div>

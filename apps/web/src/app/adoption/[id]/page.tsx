@@ -185,7 +185,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
                 {listing.status === 'available' || listing.status === 'pending' ? (
                   <button onClick={startChat} disabled={starting} className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
                     {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                    {listing.listingType === 'sale' ? 'Chat with seller' : 'Chat with owner'}
+                    <span>{listing.listingType === 'sale' ? 'Chat with seller' : 'Chat with owner'}</span>
                   </button>
                 ) : (
                   <div className="w-full text-center py-2.5 rounded-xl bg-surface-container text-outline text-label-md font-semibold">Not available</div>

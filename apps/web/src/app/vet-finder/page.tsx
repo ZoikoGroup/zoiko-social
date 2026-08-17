@@ -148,7 +148,7 @@ export default function VetFinderPage(): React.JSX.Element {
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={toggleNear} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${near ? 'bg-primary text-white border-primary' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/40 hover:border-primary'}`}>
                   {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}
-                  {near ? 'Near me: on' : 'Near me'}
+                  <span>{near ? 'Near me: on' : 'Near me'}</span>
                 </button>
                 <button onClick={() => setOpenNow((v) => !v)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${openNow ? 'bg-green-600 text-white border-green-600' : 'bg-surface-container-low text-on-surface-variant border-outline-variant/40 hover:border-green-600'}`}>
                   <Clock className="w-3.5 h-3.5" />Open now

@@ -30,7 +30,7 @@ function SexBadge({ sex }: { sex: string }): React.JSX.Element {
   const female = sex === 'female'
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${female ? 'bg-pink-500/10 text-pink-600' : 'bg-blue-500/10 text-blue-600'}`}>
-      {female ? <Venus className="w-3 h-3" /> : <Mars className="w-3 h-3" />}{female ? 'Female' : 'Male'}
+      {female ? <Venus className="w-3 h-3" /> : <Mars className="w-3 h-3" />}<span>{female ? 'Female' : 'Male'}</span>
     </span>
   )
 }
@@ -182,7 +182,7 @@ function DiscoverTab({ onOpen }: { onOpen: (id: string) => void }): React.JSX.El
           <option value="female">Female</option>
         </select>
         <button onClick={toggleNear} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border ${near ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/40'}`}>
-          {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}Near me
+          {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}<span>Near me</span>
         </button>
         <button onClick={() => setHealthTested((v) => !v)} className={`px-3 py-1.5 rounded-full text-[12px] font-semibold border ${healthTested ? 'bg-green-600 text-white border-green-600' : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/40'}`}>Health-tested</button>
         <button onClick={() => setRegistered((v) => !v)} className={`px-3 py-1.5 rounded-full text-[12px] font-semibold border ${registered ? 'bg-primary text-white border-primary' : 'bg-surface-container-lowest text-on-surface-variant border-outline-variant/40'}`}>Registered</button>

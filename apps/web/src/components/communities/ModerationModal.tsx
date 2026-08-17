@@ -507,7 +507,7 @@ function RulesTab({
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          {saving ? 'Saving…' : 'Save rules'}
+          <span>{saving ? 'Saving…' : 'Save rules'}</span>
         </button>
       </div>
     </div>

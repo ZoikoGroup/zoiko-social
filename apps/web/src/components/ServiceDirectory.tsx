@@ -313,7 +313,7 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={submit} disabled={saving || !form.name.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}Add listing
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Add listing</span>
           </button>
         </div>
       </div>

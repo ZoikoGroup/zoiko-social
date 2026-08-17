@@ -236,7 +236,7 @@ function PetForm({
             className="flex items-center gap-2 text-label-sm text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
           >
             {isPublic ? <Globe className="w-4 h-4 text-primary" /> : <Lock className="w-4 h-4" />}
-            {isPublic ? 'Visible on your profile' : 'Private (only you)'}
+            <span>{isPublic ? 'Visible on your profile' : 'Private (only you)'}</span>
           </button>
 
           {error && <p className="text-label-sm text-red-500">{error}</p>}
@@ -252,7 +252,7 @@ function PetForm({
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {saving ? (isEdit ? 'Saving…' : 'Adding…') : (isEdit ? 'Save changes' : 'Add pet')}
+            <span>{saving ? (isEdit ? 'Saving…' : 'Adding…') : (isEdit ? 'Save changes' : 'Add pet')}</span>
           </button>
         </div>
       </div>
