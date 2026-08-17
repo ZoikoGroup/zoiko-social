@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
@@ -154,6 +155,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
   const unreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0)
   const { warning: toastWarning, success: toastSuccess } = useToast()
+  const tm = useTranslations('messaging')
   const wasOfflineRef = useRef(false)
   // Live mirror of the open conversation for use inside the stable socket
   // handler below. Previously a plain object was created inside that effect
@@ -289,14 +291,14 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         if (DELIBERATE.has(reason)) return
         if (!wasOfflineRef.current) {
           wasOfflineRef.current = true
-          toastWarning('You\'re offline', 'Trying to reconnect\u2026')
+          toastWarning(tm('offline'), tm('reconnecting'))
         }
       }
 
       const onConnect = () => {
         if (wasOfflineRef.current) {
           wasOfflineRef.current = false
-          toastSuccess('Connected', 'Back online')
+          toastSuccess(tm('connected'), tm('backOnline'))
         }
       }
 

@@ -11,6 +11,7 @@ import {
   User, Settings, LogOut, Loader2, MoreHorizontal, HelpCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/hooks/use-auth'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useCurrency } from '@/hooks/use-currency'
@@ -21,31 +22,34 @@ import { UserAvatar } from './UserAvatar'
 
 const DROPDOWN_PREVIEW = 3
 
-const MODULES: { name: string; Icon: LucideIcon; color: string; href: string }[] = [
-  { name: 'Dashboard',         Icon: LayoutDashboard, color: 'text-primary', href: '/dashboard'    },
-  { name: 'Communities',       Icon: Users,       color: 'text-primary',   href: '/communities'    },
-  { name: 'Verified News',     Icon: Newspaper,   color: 'text-primary',   href: '/news'           },
-  { name: 'Events',            Icon: Calendar,    color: 'text-secondary', href: '/events'         },
-  { name: 'Lost & Found',      Icon: MapPin,      color: 'text-secondary', href: '/lost-found'     },
-  { name: 'Adoption & Rescue', Icon: PawPrint,    color: 'text-primary',   href: '/adoption'       },
-  { name: 'Shop',              Icon: ShoppingBag, color: 'text-tertiary',  href: '/shop'           },
-  { name: 'Pet Care',          Icon: HandHeart,   color: 'text-primary',   href: '/pet-care'       },
-  { name: 'Vet Finder',        Icon: Stethoscope, color: 'text-secondary', href: '/vet-finder'     },
-  { name: 'Breeding Match',    Icon: Dna,         color: 'text-tertiary',  href: '/breeding-match' },
-  { name: 'Pet Diary',         Icon: PawPrint,    color: 'text-primary',   href: '/pet-diary'      },
-  { name: 'Health Passport',   Icon: HandHeart,   color: 'text-secondary', href: '/health-passport'},
-  { name: 'Settings',          Icon: PawPrint,    color: 'text-tertiary',  href: '/settings'       },
-  { name: 'Help Center',       Icon: HelpCircle,  color: 'text-tertiary',  href: '/docs'           },
+// `key` is a translation key into the `modules` namespace, not display text —
+// these arrays sit at module scope where no hook can run, so the lookup happens
+// at render time instead.
+const MODULES: { key: string; Icon: LucideIcon; color: string; href: string }[] = [
+  { key: 'dashboard',      Icon: LayoutDashboard, color: 'text-primary', href: '/dashboard'    },
+  { key: 'communities',    Icon: Users,       color: 'text-primary',   href: '/communities'    },
+  { key: 'news',           Icon: Newspaper,   color: 'text-primary',   href: '/news'           },
+  { key: 'events',         Icon: Calendar,    color: 'text-secondary', href: '/events'         },
+  { key: 'lostFound',      Icon: MapPin,      color: 'text-secondary', href: '/lost-found'     },
+  { key: 'adoption',       Icon: PawPrint,    color: 'text-primary',   href: '/adoption'       },
+  { key: 'shop',           Icon: ShoppingBag, color: 'text-tertiary',  href: '/shop'           },
+  { key: 'petCare',        Icon: HandHeart,   color: 'text-primary',   href: '/pet-care'       },
+  { key: 'vetFinder',      Icon: Stethoscope, color: 'text-secondary', href: '/vet-finder'     },
+  { key: 'breedingMatch',  Icon: Dna,         color: 'text-tertiary',  href: '/breeding-match' },
+  { key: 'petDiary',       Icon: PawPrint,    color: 'text-primary',   href: '/pet-diary'      },
+  { key: 'healthPassport', Icon: HandHeart,   color: 'text-secondary', href: '/health-passport'},
+  { key: 'settings',       Icon: PawPrint,    color: 'text-tertiary',  href: '/settings'       },
+  { key: 'helpCenter',     Icon: HelpCircle,  color: 'text-tertiary',  href: '/docs'           },
 ]
 
 const MODULE_HREFS = MODULES.map((m) => m.href)
 
 // Primary top-nav: icon-above-label items (+ More menu)
-const NAV_ITEMS: { name: string; Icon: LucideIcon; href: string; always?: boolean; badge?: 'alerts' | 'messages' }[] = [
-  { name: 'Home',     Icon: Home,          href: '/',              always: true },
-  { name: 'Network',  Icon: Users,         href: '/network'                     },
-  { name: 'Messages', Icon: MessageSquare, href: '/messages',      badge: 'messages' },
-  { name: 'Alerts',   Icon: Bell,          href: '/notifications', badge: 'alerts', always: true },
+const NAV_ITEMS: { labelKey: string; Icon: LucideIcon; href: string; always?: boolean; badge?: 'alerts' | 'messages' }[] = [
+  { labelKey: 'home',     Icon: Home,          href: '/',              always: true },
+  { labelKey: 'network',  Icon: Users,         href: '/network'                     },
+  { labelKey: 'messages', Icon: MessageSquare, href: '/messages',      badge: 'messages' },
+  { labelKey: 'alerts',   Icon: Bell,          href: '/notifications', badge: 'alerts', always: true },
 ]
 
 export function Header(): React.JSX.Element {
@@ -60,6 +64,9 @@ export function Header(): React.JSX.Element {
   const { unreadCount: notifUnreadCount } = useNotifications()
   const { unreadCount: msgUnreadCount } = useMessaging()
   const { format: formatMoney } = useCurrency()
+  const t = useTranslations('nav')
+  const tm = useTranslations('modules')
+  const tc = useTranslations('common')
   const [searchTerm, setSearchTerm] = useState('')
   const [searchDismissed, setSearchDismissed] = useState(false)
   const [searchResults, setSearchResults] = useState<SearchAllResult | null>(null)
@@ -161,7 +168,7 @@ export function Header(): React.JSX.Element {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4" />
             <input
               className="pl-11 pr-4 py-2.5 w-full bg-surface-container border border-transparent focus:border-primary/40 focus:bg-surface-container-lowest focus:shadow-sm focus:outline-none rounded-full text-label-md transition-all placeholder:text-outline/70 placeholder:font-normal"
-              placeholder="Search pets, vets, rescues, services…"
+              placeholder={t('searchPlaceholder')}
               type="text"
               aria-label="Search"
               value={searchTerm}
@@ -313,7 +320,7 @@ export function Header(): React.JSX.Element {
             const badgeCount = item.badge === 'alerts' ? notifUnreadCount : item.badge === 'messages' ? msgUnreadCount : 0
             return (
               <Link
-                key={item.name}
+                key={item.labelKey}
                 href={item.href}
                 className={`${item.always ? 'flex' : 'hidden sm:flex'} flex-col items-center justify-center gap-1 min-w-[52px] lg:min-w-[60px] h-full cursor-pointer transition-colors duration-200 ${
                   active
@@ -329,7 +336,7 @@ export function Header(): React.JSX.Element {
                     </span>
                   )}
                 </span>
-                <span className={`text-[10.5px] leading-none ${active ? 'font-bold' : 'font-medium'}`}>{item.name}</span>
+                <span className={`text-[10.5px] leading-none ${active ? 'font-bold' : 'font-medium'}`}>{t(item.labelKey)}</span>
               </Link>
             )
           })}
@@ -347,7 +354,7 @@ export function Header(): React.JSX.Element {
               aria-expanded={menuOpen}
             >
               <MoreHorizontal className="w-[22px] h-[22px]" strokeWidth={menuOpen || isOnModulePage ? 2.4 : 1.9} />
-              <span className={`text-[10.5px] leading-none ${menuOpen || isOnModulePage ? 'font-bold' : 'font-medium'}`}>More</span>
+              <span className={`text-[10.5px] leading-none ${menuOpen || isOnModulePage ? 'font-bold' : 'font-medium'}`}>{t('more')}</span>
             </button>
 
             {/* Eighteen modules across three columns is six rows, which can be
@@ -367,7 +374,7 @@ export function Header(): React.JSX.Element {
                     const modActive = isActive(mod.href)
                     return (
                       <Link
-                        key={mod.name}
+                        key={mod.key}
                         href={mod.href}
                         className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all duration-200 cursor-pointer group ${
                           modActive ? 'bg-primary/10 ring-1 ring-primary/20' : 'hover:bg-surface-container'
@@ -383,7 +390,7 @@ export function Header(): React.JSX.Element {
                         </div>
                         <span className={`text-[10px] text-center leading-tight transition-colors ${
                           modActive ? 'text-primary font-semibold' : 'text-on-surface-variant group-hover:text-on-surface'
-                        }`}>{mod.name}</span>
+                        }`}>{tm(mod.key)}</span>
                       </Link>
                     )
                   })}
@@ -451,7 +458,7 @@ export function Header(): React.JSX.Element {
                 className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-on-surface hover:bg-surface-container transition-colors"
               >
                 <User className="w-4 h-4 text-outline" />
-                View Profile
+                {t('viewProfile')}
               </Link>
               <Link
                 href="/settings"
@@ -459,7 +466,7 @@ export function Header(): React.JSX.Element {
                 className="flex items-center gap-3 px-4 py-2.5 text-[13px] font-medium text-on-surface hover:bg-surface-container transition-colors"
               >
                 <Settings className="w-4 h-4 text-outline" />
-                Settings
+                {tm('settings')}
               </Link>
               <div className="border-t border-outline-variant/20 my-1" />
               <button
@@ -468,7 +475,7 @@ export function Header(): React.JSX.Element {
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] font-semibold text-red-500 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-wait"
               >
                 {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                {signingOut ? 'Signing out…' : 'Sign Out'}
+                <span>{signingOut ? tc('signingOut') : tc('signOut')}</span>
               </button>
             </div>
           )}

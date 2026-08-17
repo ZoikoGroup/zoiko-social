@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { usePagedList } from '@/hooks/use-cache'
 import { Img } from '@/components/Img'
 import { Header } from '@/components/Header'
@@ -19,15 +20,17 @@ import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',         label: 'All Products',   icon: '🛍️' },
-  { id: 'food',        label: 'Food & Treats',  icon: '🍖' },
-  { id: 'toys',        label: 'Toys & Play',    icon: '🧸' },
-  { id: 'health',      label: 'Health & Meds',  icon: '💊' },
-  { id: 'grooming',    label: 'Grooming',       icon: '✂️' },
-  { id: 'accessories', label: 'Accessories',    icon: '🧣' },
-  { id: 'beds',        label: 'Beds & Crates',  icon: '🛏️' },
-  { id: 'tech',        label: 'Tech & Gadgets', icon: '📱' },
+// `id` doubles as the key into shop.categories, so the label is looked up at
+// render rather than stored here.
+const CATEGORIES: { id: string; icon: string }[] = [
+  { id: 'all',         icon: '🛍️' },
+  { id: 'food',        icon: '🍖' },
+  { id: 'toys',        icon: '🧸' },
+  { id: 'health',      icon: '💊' },
+  { id: 'grooming',    icon: '✂️' },
+  { id: 'accessories', icon: '🧣' },
+  { id: 'beds',        icon: '🛏️' },
+  { id: 'tech',        icon: '📱' },
 ]
 
 const SORTS: { id: string; label: string }[] = [
@@ -57,6 +60,7 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 }
 
 export default function ShopPage(): React.JSX.Element {
+  const ts = useTranslations('shop')
   const { format } = useCurrency()
   const { isAuthenticated } = useAuth()
   const [category, setCategory] = useState('all')
@@ -128,7 +132,7 @@ export default function ShopPage(): React.JSX.Element {
               {CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => setCategory(cat.id)}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
-                  <span>{cat.icon}</span>{cat.label}
+                  <span>{cat.icon}</span><span>{ts(`categories.${cat.id}`)}</span>
                 </button>
               ))}
             </div>
@@ -140,7 +144,7 @@ export default function ShopPage(): React.JSX.Element {
             ) : products.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4"><Package className="w-7 h-7 text-outline" /></div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No products yet</h3>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">{ts('noProducts')}</h3>
                 <p className="text-label-sm text-outline mb-4">Be the first to list an item in the marketplace.</p>
                 {isAuthenticated && <button onClick={() => setSellOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Sell an Item</button>}
               </div>
@@ -182,7 +186,7 @@ export default function ShopPage(): React.JSX.Element {
                 {hasMore && (
                   <div className="text-center pt-4">
                     <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
-                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More
+                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load More</span>
                     </button>
                   </div>
                 )}
@@ -200,6 +204,7 @@ export default function ShopPage(): React.JSX.Element {
 }
 
 function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: Product) => void }): React.JSX.Element {
+  const ts = useTranslations('shop')
   const { profile } = useAuth()
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
@@ -258,7 +263,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
                 <img src={coverUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}{uploading ? 'Uploading…' : 'Add product photo'}
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}<span>{uploading ? 'Uploading…' : 'Add product photo'}</span>
                 </span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
@@ -274,7 +279,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           </div>
           <div className="flex gap-2">
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex-1 px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
-              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{ts(`categories.${c.id}`)}</option>)}
             </select>
             <select value={condition} onChange={(e) => setCondition(e.target.value)} className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
               <option value="new">New</option>
@@ -292,7 +297,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           {error && <p className="text-label-sm text-red-500">{error}</p>}
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Listing…' : 'List Item'}
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{posting ? 'Listing…' : 'List Item'}</span>
           </button>
         </div>
       </div>

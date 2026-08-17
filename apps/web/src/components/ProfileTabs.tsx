@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link2, Calendar, AtSign, Briefcase, FileText, PawPrint, Bookmark, Grid3X3, Images, UsersRound, Lock } from 'lucide-react'
 import Link from 'next/link'
-import { profileApi, feedApi, petsApi, eventsApi, communitiesApi, type Profile, type PostItem, type Pet, type EventItem, type CommunityCard, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import { profileApi, feedApi, petsApi, eventsApi, communitiesApi, type Profile, type PostItem, type Pet, type EventItem, type CommunityCard } from '@/lib/api'
 import { ageOf } from '@/lib/pet'
 import { useAuth } from '@/hooks/use-auth'
 import { PostGrid } from './feed/PostGrid'
+import { useDateFormat } from '@/hooks/use-date-format'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
+import { useTranslations } from 'next-intl'
 
 type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events' | 'communities'
 
@@ -23,12 +26,15 @@ function EmptyState({ Icon, title, hint }: { Icon: typeof FileText; title: strin
 }
 
 function AboutTab({ profile }: { profile: Profile | null }): React.JSX.Element {
+  const tpr = useTranslations('profile')
+  const profLabel = useProfessionalLabel()
+  const { date: formatDate } = useDateFormat()
   if (!profile) {
-    return <EmptyState Icon={FileText} title="No details yet" hint="Profile information will appear here." />
+    return <EmptyState Icon={FileText} title={tpr('noDetails')} hint={tpr('noDetailsBody')} />
   }
 
   const categoryLabel = profile.professionalProfile
-    ? (PROFESSIONAL_CATEGORY_LABELS[profile.professionalProfile.category] ?? profile.professionalProfile.category)
+    ? profLabel(profile.professionalProfile.category)
     : null
 
   return (
@@ -56,21 +62,21 @@ function AboutTab({ profile }: { profile: Profile | null }): React.JSX.Element {
           )}
           <div className="flex items-center gap-3">
             <Calendar className="w-4 h-4 text-outline flex-shrink-0" />
-            Joined {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            Joined {formatDate(profile.createdAt, 'monthYearLong')}
           </div>
         </div>
       </section>
 
       {profile.bio && (
         <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
-          <h3 className="text-label-md font-bold text-on-surface mb-3">Bio</h3>
+          <h3 className="text-label-md font-bold text-on-surface mb-3">{tpr('bio')}</h3>
           <p className="text-body-md text-on-surface-variant leading-relaxed whitespace-pre-line">{profile.bio}</p>
         </section>
       )}
 
       {profile.professionalProfile?.description && (
         <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
-          <h3 className="text-label-md font-bold text-on-surface mb-3">About the business</h3>
+          <h3 className="text-label-md font-bold text-on-surface mb-3">{tpr('aboutBusiness')}</h3>
           <p className="text-body-md text-on-surface-variant leading-relaxed">{profile.professionalProfile.description}</p>
         </section>
       )}
@@ -136,6 +142,7 @@ interface ProfileTabsProps {
 }
 
 export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): React.JSX.Element {
+  const tpr = useTranslations('profile')
   const { profile: myProfile } = useAuth()
   const [active, setActive] = useState<Tab>('posts')
   const [fetched, setFetched] = useState<Profile | null>(initialProfile ?? null)
@@ -168,14 +175,14 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
   )
 
   const TABS: { id: Tab; label: string; Icon: typeof Grid3X3 }[] = [
-    { id: 'posts', label: 'Posts', Icon: Grid3X3 },
-    { id: 'media', label: 'Media', Icon: Images },
-    ...(isOwn ? [{ id: 'saved' as Tab, label: 'Saved', Icon: Bookmark }] : []),
-    { id: 'pets', label: 'Pets', Icon: PawPrint },
+    { id: 'posts', label: tpr('tabPosts'), Icon: Grid3X3 },
+    { id: 'media', label: tpr('tabMedia'), Icon: Images },
+    ...(isOwn ? [{ id: 'saved' as Tab, label: tpr('tabSaved'), Icon: Bookmark }] : []),
+    { id: 'pets', label: tpr('tabPets'), Icon: PawPrint },
     // What someone organises says as much about them as what they post.
-    { id: 'events', label: 'Events', Icon: Calendar },
-    { id: 'communities', label: 'Communities', Icon: UsersRound },
-    { id: 'about', label: 'About', Icon: FileText },
+    { id: 'events', label: tpr('tabEvents'), Icon: Calendar },
+    { id: 'communities', label: tpr('tabCommunities'), Icon: UsersRound },
+    { id: 'about', label: tpr('tabAbout'), Icon: FileText },
   ]
 
   return (
@@ -204,22 +211,22 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
       {active === 'posts' && (
         <GridTab
           fetcher={postsFetcher}
-          emptyTitle="No posts yet"
-          emptyHint={isOwn ? 'Share your first post from the home feed.' : 'Posts will appear here once shared.'}
+          emptyTitle={tpr('noPosts')}
+          emptyHint={isOwn ? tpr('noPostsOwn') : tpr('noPostsOther')}
         />
       )}
       {active === 'media' && (
         <GridTab
           fetcher={mediaFetcher}
-          emptyTitle="No media yet"
-          emptyHint="Photo posts will appear here."
+          emptyTitle={tpr('noMedia')}
+          emptyHint={tpr('noMediaBody')}
         />
       )}
       {active === 'saved' && isOwn && (
         <GridTab
           fetcher={savedFetcher}
-          emptyTitle="Nothing saved yet"
-          emptyHint="Save posts with the bookmark icon — only you can see this tab."
+          emptyTitle={tpr('nothingSaved')}
+          emptyHint={tpr('nothingSavedBody')}
         />
       )}
       {active === 'about' && <AboutTab profile={profile} />}
@@ -241,6 +248,7 @@ export function ProfileTabs({ profileId, initialProfile }: ProfileTabsProps): Re
  * hidden from other people without any filtering here.
  */
 function PetsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const tpr = useTranslations('profile')
   const [pets, setPets] = useState<Pet[] | null>(null)
 
   useEffect(() => {
@@ -265,10 +273,8 @@ function PetsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: b
     return (
       <EmptyState
         Icon={PawPrint}
-        title="No pets added yet"
-        hint={isOwn
-          ? 'Add a pet to start a diary and a Health Passport for them.'
-          : 'Pet profiles will appear here once added.'}
+        title={tpr('noPets')}
+        hint={isOwn ? tpr('noPetsOwn') : tpr('noPetsOther')}
       />
     )
   }
@@ -309,6 +315,8 @@ function PetsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: b
  * because it is listed on a profile.
  */
 function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const tpr = useTranslations('profile')
+  const { date: formatDate } = useDateFormat()
   const [events, setEvents] = useState<EventItem[] | null>(null)
 
   useEffect(() => {
@@ -332,8 +340,8 @@ function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn:
     return (
       <EmptyState
         Icon={Calendar}
-        title="No upcoming events"
-        hint={isOwn ? 'Events you host will show up here.' : 'Events this member hosts will show up here.'}
+        title={tpr('noEvents')}
+        hint={isOwn ? tpr('noEventsOwn') : tpr('noEventsOther')}
       />
     )
   }
@@ -350,14 +358,14 @@ function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn:
           >
             <div className="w-12 h-12 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
               <span className="text-[10px] font-bold uppercase text-primary leading-none">
-                {when.toLocaleDateString('en-GB', { month: 'short' })}
+                {formatDate(when, 'month')}
               </span>
               <span className="text-label-md font-bold text-primary leading-tight">{when.getDate()}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-label-sm font-semibold text-on-surface truncate">{e.title}</p>
               <p className="text-[11px] text-outline truncate">
-                {when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                {formatDate(when, 'timePadded')}
                 {e.community ? ` · ${e.community.name}` : ''}
                 {e.isOnline ? ' · Online' : e.venueName ? ` · ${e.venueName}` : ''}
               </p>
@@ -381,6 +389,7 @@ function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn:
  * note below explains the difference rather than letting it look like a bug.
  */
 function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const tpr = useTranslations('profile')
   const [communities, setCommunities] = useState<CommunityCard[] | null>(null)
 
   useEffect(() => {
@@ -403,10 +412,8 @@ function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; i
     return (
       <EmptyState
         Icon={UsersRound}
-        title="No communities yet"
-        hint={isOwn
-          ? 'Communities you join will show up here.'
-          : 'Public communities this member belongs to will show up here.'}
+        title={tpr('noCommunities')}
+        hint={isOwn ? tpr('noCommunitiesOwn') : tpr('noCommunitiesOther')}
       />
     )
   }
@@ -434,7 +441,7 @@ function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; i
       {!isOwn && (
         <p className="flex items-center gap-1.5 text-[11px] text-outline">
           <Lock className="w-3 h-3" />
-          Only public communities are shown.
+          {tpr('onlyPublicShown')}
         </p>
       )}
     </div>

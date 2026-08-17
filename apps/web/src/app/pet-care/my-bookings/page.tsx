@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import {
   Calendar, Clock, MapPin, Loader2, X, Check, AlertCircle,
@@ -19,20 +20,23 @@ import {
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
 } from '@/lib/pet-care-api'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 // The six raw statuses were more filters than the row could fit — the last was
 // clipped behind a scrollbar. These group them by the question someone actually
 // asks: is it still happening, is it over, or did it fall through. Each card
 // still carries its exact status badge, so no detail is lost. "All" stays as the
 // default so a page of only completed bookings never looks empty.
-const STATUS_GROUPS: ReadonlyArray<{ label: string; value: string }> = [
-  { label: 'All', value: '' },
-  { label: 'Upcoming', value: 'pending,confirmed,in_progress' },
-  { label: 'Past', value: 'completed' },
-  { label: 'Cancelled', value: 'cancelled' },
+// labelKey indexes petCare.status — resolved at render.
+const STATUS_GROUPS: ReadonlyArray<{ labelKey: string; value: string }> = [
+  { labelKey: 'all', value: '' },
+  { labelKey: 'upcoming', value: 'pending,confirmed,in_progress' },
+  { labelKey: 'past', value: 'completed' },
+  { labelKey: 'cancelled', value: 'cancelled' },
 ]
 
 export default function MyBookingsPage(): React.JSX.Element {
+  const tp = useTranslations('petCare')
   const router = useRouter()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [role, setRole] = useState<'seeker' | 'provider'>('seeker')
@@ -135,27 +139,27 @@ export default function MyBookingsPage(): React.JSX.Element {
           <div className="lg:col-span-6 space-y-gutter pb-20">
             <div className="flex items-center justify-between px-1">
               <div>
-                <h1 className="font-headline text-headline-md text-on-surface leading-tight">My Bookings</h1>
-                <p className="text-label-sm text-outline">Manage your pet care appointments</p>
+                <h1 className="font-headline text-headline-md text-on-surface leading-tight">{tp('myBookings')}</h1>
+                <p className="text-label-sm text-outline">{tp('myBookingsSubtitle')}</p>
               </div>
               <button
                 onClick={() => router.push('/pet-care')}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary/10 text-primary text-label-sm font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
               >
-                <Calendar className="w-4 h-4" /> Book a Service
+                <Calendar className="w-4 h-4" /> <span>{tp('bookService')}</span>
               </button>
             </div>
 
             {/* Only a provider has two sets of bookings to switch between. */}
             {isProvider && (
               <div className="flex items-center gap-3">
-                <span className="text-label-sm text-outline shrink-0">Viewing as</span>
+                <span className="text-label-sm text-outline shrink-0">{tp('viewingAs')}</span>
                 <div className="flex gap-1 bg-surface-container-low rounded-xl p-1">
                   <button onClick={() => setRole('seeker')} className={roleClass(viewRole === 'seeker')}>
-                    <PawPrint className="w-3.5 h-3.5 inline mr-1" /> Customer
+                    <PawPrint className="w-3.5 h-3.5 inline mr-1" /> <span>{tp('asCustomer')}</span>
                   </button>
                   <button onClick={() => setRole('provider')} className={roleClass(viewRole === 'provider')}>
-                    <User className="w-3.5 h-3.5 inline mr-1" /> Provider
+                    <User className="w-3.5 h-3.5 inline mr-1" /> <span>{tp('asProvider')}</span>
                   </button>
                 </div>
               </div>
@@ -164,11 +168,11 @@ export default function MyBookingsPage(): React.JSX.Element {
             <div className="flex gap-5 border-b border-outline-variant/30">
               {STATUS_GROUPS.map((g) => (
                 <button
-                  key={g.label}
+                  key={g.labelKey}
                   onClick={() => setStatusFilter(g.value)}
                   className={statusClass(statusFilter === g.value)}
                 >
-                  {g.label}
+                  {tp(`status.${g.labelKey}`)}
                 </button>
               ))}
             </div>
@@ -186,9 +190,9 @@ export default function MyBookingsPage(): React.JSX.Element {
             ) : bookings.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
                 <Calendar className="w-10 h-10 text-outline/40 mx-auto mb-3" />
-                <h3 className="text-label-md font-bold text-on-surface">No bookings found</h3>
+                <h3 className="text-label-md font-bold text-on-surface">{tp('noBookingsFound')}</h3>
                 <p className="text-label-sm text-outline mt-1 mb-4">
-                  {viewRole === 'seeker' ? 'You haven\'t booked any services yet.' : 'No one has booked your services yet.'}
+                  {viewRole === 'seeker' ? tp('noBookingsSeeker') : tp('noBookingsProvider')}
                 </p>
                 {viewRole === 'seeker' && (
                   <button onClick={() => router.push('/pet-care')} className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold cursor-pointer">
@@ -235,7 +239,7 @@ export default function MyBookingsPage(): React.JSX.Element {
               <button onClick={() => setCancelId(null)} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Keep Booking</button>
               <button onClick={() => void handleCancel(cancelId)} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}Cancel Booking
+                {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}<span>Cancel Booking</span>
               </button>
             </div>
           </div>
@@ -266,6 +270,7 @@ function BookingCard({
   actionLoading: boolean
   onReview?: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { format } = useCurrency()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -317,11 +322,11 @@ function BookingCard({
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-outline">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                {datetime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                {formatDate(datetime, 'weekdayDayMonth')}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {datetime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                {formatDate(datetime, 'timePadded')}
               </span>
               {booking.location && (
                 <span className="flex items-center gap-1">
@@ -362,7 +367,7 @@ function BookingCard({
                     {action === 'in_progress' && <Clock className="w-3.5 h-3.5 text-purple-500" />}
                     {action === 'completed' && <Star className="w-3.5 h-3.5 text-green-500" />}
                     {action === 'cancelled' && <Ban className="w-3.5 h-3.5 text-red-500" />}
-                    {action === 'confirmed' && 'Confirm'}
+                    <span>{action === 'confirmed' && 'Confirm'}</span>
                     {action === 'in_progress' && 'Start Service'}
                     {action === 'completed' && 'Mark Completed'}
                     {action === 'cancelled' && 'Cancel'}
@@ -400,6 +405,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
   onClose: () => void
   onSubmitted: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [body, setBody] = useState('')
@@ -453,7 +459,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
               </div>
               <div className="min-w-0">
                 <p className="text-label-sm font-semibold text-on-surface truncate">{booking.service.name}</p>
-                <p className="text-[11px] text-outline">{booking.provider.name} · {new Date(booking.scheduledAt).toLocaleDateString()}</p>
+                <p className="text-[11px] text-outline">{booking.provider.name} · {formatDate(booking.scheduledAt, 'dayMonthYear')}</p>
               </div>
             </div>
 
@@ -498,7 +504,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 hover:bg-primary/90"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {saving ? 'Submitting…' : 'Submit Review'}
+                <span>{saving ? 'Submitting…' : 'Submit Review'}</span>
               </button>
             </div>
           </>

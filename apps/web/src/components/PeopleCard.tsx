@@ -5,19 +5,21 @@ import Link from 'next/link'
 import { Users, AtSign } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import { FollowButton, initialFollowState } from './FollowButton'
-import { PROFESSIONAL_CATEGORY_LABELS, type FollowSuggestion } from '@/lib/api'
+import { type FollowSuggestion } from '@/lib/api'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
 interface PeopleCardProps {
   suggestion: FollowSuggestion
 }
 
 export function PeopleCard({ suggestion }: PeopleCardProps): React.JSX.Element {
+  const profLabel = useProfessionalLabel()
   const [dismissed, setDismissed] = useState(false)
 
   if (dismissed) return <></>
 
   const categoryLabel = suggestion.professionalCategory
-    ? (PROFESSIONAL_CATEGORY_LABELS[suggestion.professionalCategory] ?? suggestion.professionalCategory)
+    ? profLabel(suggestion.professionalCategory)
     : null
 
   return (

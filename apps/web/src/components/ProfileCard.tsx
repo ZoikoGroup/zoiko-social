@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { AtSign, BadgeCheck, MapPin } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { UserAvatar } from './UserAvatar'
-import { PROFESSIONAL_CATEGORY_LABELS, type Profile } from '@/lib/api'
+import { type Profile } from '@/lib/api'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
 function strength(p: Profile): number {
   let s = 40
@@ -21,6 +23,8 @@ function compact(n: number): string {
 }
 
 export function ProfileCard(): React.JSX.Element {
+  const profLabel = useProfessionalLabel()
+  const t = useTranslations('profileCard')
   const { profile } = useAuth()
 
   if (!profile) {
@@ -41,15 +45,15 @@ export function ProfileCard(): React.JSX.Element {
   const headline =
     profile.bio ||
     (profile.professionalProfile
-      ? PROFESSIONAL_CATEGORY_LABELS[profile.professionalProfile.category] ?? profile.professionalProfile.category
+      ? profLabel(profile.professionalProfile.category)
       : null)
   const location = profile.professionalProfile?.businessAddress ?? null
   const pct = strength(profile)
 
   const stats = [
-    { label: 'Connections', value: compact(profile.followersCount) },
-    { label: 'Following', value: compact(profile.followingCount) },
-    { label: 'Posts', value: compact(profile.postsCount) },
+    { label: t('connections'), value: compact(profile.followersCount) },
+    { label: t('following'), value: compact(profile.followingCount) },
+    { label: t('posts'), value: compact(profile.postsCount) },
   ]
 
   return (
@@ -88,7 +92,7 @@ export function ProfileCard(): React.JSX.Element {
         {/* Profile strength */}
         <div className="mt-3">
           <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-on-surface-variant font-medium">Profile Strength</span>
+            <span className="text-on-surface-variant font-medium">{t('profileStrength')}</span>
             <span className="font-semibold text-primary">{pct}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-surface-container overflow-hidden">

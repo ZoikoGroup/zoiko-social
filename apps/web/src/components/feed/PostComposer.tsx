@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { postsApi, type PostItem, type NewPostMedia, type PostKind, type PostMetadata } from '@/lib/api'
 import { processImage } from '@/lib/image'
 import { createClient } from '@/lib/supabase/client'
+import { useTranslations } from 'next-intl'
 
 interface PendingImage {
   preview: string
@@ -27,6 +28,8 @@ interface PostComposerProps {
 }
 
 export function PostComposer({ onPosted, communityId, showLauncher = false }: PostComposerProps): React.JSX.Element {
+  const t = useTranslations('composer')
+  const tm = useTranslations('modules')
   const { profile } = useAuth()
   const [caption, setCaption] = useState('')
   const [images, setImages] = useState<PendingImage[]>([])
@@ -154,18 +157,18 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
       setSpecies(''); setCondition(''); setSupportNeeded(''); setPetName(''); setLastSeen('')
       onPosted?.(post)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to publish post')
+      setError(e instanceof Error ? e.message : t('publishFailed'))
     } finally {
       setPosting(false)
     }
   }
 
   const actions: { name: string; Icon: LucideIcon; ring: string; onClick?: () => void; href?: string }[] = [
-    { name: 'Post',        Icon: Pencil,      ring: 'bg-primary',    onClick: () => setExpanded(true) },
-    { name: 'Rescue',      Icon: PawPrint,    ring: 'bg-red-500',    onClick: () => { setKind('rescue_case'); setExpanded(true) } },
-    { name: 'Vet Tip',     Icon: Stethoscope, ring: 'bg-primary',    onClick: () => { setKind('vet_tip'); setExpanded(true) } },
-    { name: 'Lost Nearby', Icon: MapPin,      ring: 'bg-secondary',  href: '/lost-found' },
-    { name: 'Wildlife',    Icon: Bird,        ring: 'bg-emerald-500', onClick: () => { setKind('wildlife'); setExpanded(true) } },
+    { name: t('post'),        Icon: Pencil,      ring: 'bg-primary',    onClick: () => setExpanded(true) },
+    { name: t('rescue'),      Icon: PawPrint,    ring: 'bg-red-500',    onClick: () => { setKind('rescue_case'); setExpanded(true) } },
+    { name: t('vetTip'),      Icon: Stethoscope, ring: 'bg-primary',    onClick: () => { setKind('vet_tip'); setExpanded(true) } },
+    { name: t('lostNearby'),  Icon: MapPin,      ring: 'bg-secondary',  href: '/lost-found' },
+    { name: t('wildlife'),    Icon: Bird,        ring: 'bg-emerald-500', onClick: () => { setKind('wildlife'); setExpanded(true) } },
   ]
 
   return (
@@ -173,7 +176,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
       {/* Live Animal Updates — home-only quick-action launcher */}
       {showLauncher && (
         <>
-          <h2 className="font-headline text-headline-md font-bold text-on-surface">Live Animal Updates</h2>
+          <h2 className="font-headline text-headline-md font-bold text-on-surface">{t('liveUpdates')}</h2>
           <div className="flex items-start justify-around gap-1 pb-1">
             {actions.map((a) => {
               const inner = (
@@ -209,7 +212,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
             onFocus={() => setExpanded(true)}
             maxLength={2200}
             rows={expanded ? 3 : 1}
-            placeholder={communityId ? 'Share something with this community…' : 'Share an update…'}
+            placeholder={communityId ? t('shareCommunity') : t('shareUpdate')}
             className="w-full pl-4 pr-11 py-2.5 bg-surface-container-low rounded-2xl text-label-md border border-outline-variant/20 focus:border-primary focus:outline-none transition-all resize-none"
           />
           <button
@@ -217,7 +220,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
             onClick={() => fileInputRef.current?.click()}
             disabled={images.length >= 10}
             className="absolute right-3 top-2.5 p-1 text-outline hover:text-primary transition-colors cursor-pointer disabled:opacity-40"
-            aria-label="Add photo"
+            aria-label={t('addPhoto')}
           >
             <ImageIcon className="w-5 h-5" />
           </button>
@@ -249,25 +252,25 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
         <div className="rounded-xl border border-outline-variant/40 bg-surface-container-low p-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wide text-primary">
-              {kind === 'rescue_case' ? 'Rescue Case' : kind === 'vet_tip' ? 'Vet Tip' : kind === 'lost_found' ? 'Lost & Found' : 'Wildlife Sighting'}
+              {kind === 'rescue_case' ? t('rescueCase') : kind === 'vet_tip' ? t('vetTip') : kind === 'lost_found' ? tm('lostFound') : t('wildlifeSighting')}
             </span>
-            <button onClick={() => setKind('standard')} className="text-[11px] text-outline hover:text-on-surface cursor-pointer">Clear</button>
+            <button onClick={() => setKind('standard')} className="text-[11px] text-outline hover:text-on-surface cursor-pointer">{t('clear')}</button>
           </div>
           {kind === 'rescue_case' && (
             <>
-              <input value={species} onChange={(e) => setSpecies(e.target.value)} placeholder="Species (e.g. Cat · Domestic Shorthair)" maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
-              <input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="Condition (e.g. Recovering from malnutrition)" maxLength={300} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
-              <input value={supportNeeded} onChange={(e) => setSupportNeeded(e.target.value)} placeholder="Support needed (comma-separated: Foster home, Vet checkups)" maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={species} onChange={(e) => setSpecies(e.target.value)} placeholder={t('speciesPlaceholder')} maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder={t('conditionPlaceholder')} maxLength={300} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={supportNeeded} onChange={(e) => setSupportNeeded(e.target.value)} placeholder={t('supportPlaceholder')} maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
             </>
           )}
           {kind === 'lost_found' && (
             <>
-              <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder="Pet name & breed (e.g. Friendly Golden Retriever)" maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
-              <input value={lastSeen} onChange={(e) => setLastSeen(e.target.value)} placeholder="Last seen (e.g. 16th Ave & Judah St, SF)" maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={petName} onChange={(e) => setPetName(e.target.value)} placeholder={t('petNamePlaceholder')} maxLength={120} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
+              <input value={lastSeen} onChange={(e) => setLastSeen(e.target.value)} placeholder={t('lastSeenPlaceholder')} maxLength={200} className="w-full px-3 py-1.5 bg-surface-container-lowest rounded-lg text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
             </>
           )}
           {kind === 'vet_tip' && (
-            <p className="text-[11px] text-outline">An educational disclaimer is added automatically to vet tips.</p>
+            <p className="text-[11px] text-outline">{t('vetDisclaimer')}</p>
           )}
         </div>
       )}
@@ -302,7 +305,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
           <button
             onClick={() => setVisibility((v) => (v === 'public' ? 'followers' : 'public'))}
             className="flex items-center gap-1.5 text-label-sm text-on-surface-variant hover:bg-surface-container px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-            title={visibility === 'public' ? 'Visible to everyone' : 'Followers only'}
+            title={visibility === 'public' ? t('visibleEveryone') : t('followersOnly')}
           >
             {visibility === 'public' ? <Globe className="w-4 h-4" /> : <Users className="w-4 h-4" />}
             <span className="capitalize">{visibility}</span>
@@ -313,7 +316,7 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
             className="px-5 py-2 rounded-full bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center gap-2"
           >
             {posting && <Loader2 className="w-4 h-4 animate-spin" />}
-            {posting ? 'Publishing…' : 'Post'}
+            <span>{posting ? t('publishing') : t('post')}</span>
           </button>
         </div>
       )}

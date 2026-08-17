@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Loader2 } from 'lucide-react'
 import { messagingApi, type MessagingPrivacy, type PrivacyAudience } from '@/lib/messaging-api'
 import { useToast } from '@/hooks/use-toast'
@@ -35,16 +36,19 @@ const CHOICES: { key: keyof MessagingPrivacy; label: string; hint: string }[] = 
   { key: 'whoCanSeeLastSeen', label: 'Who can see when you were last active', hint: '' },
 ]
 
-const TOGGLES: { key: 'showReadReceipts' | 'showTypingIndicator'; label: string; hint: string }[] = [
-  {
-    key: 'showReadReceipts',
-    label: 'Read receipts',
-    hint: 'When off, you also stop seeing whether other people have read yours.',
-  },
-  { key: 'showTypingIndicator', label: 'Typing indicator', hint: 'Show others when you are typing.' },
+// labelKey/hintKey index the `messaging` namespace — resolved at render, since
+// this array lives at module scope where no hook can run.
+const TOGGLES: {
+  key: 'showReadReceipts' | 'showTypingIndicator'
+  labelKey: string
+  hintKey: string
+}[] = [
+  { key: 'showReadReceipts', labelKey: 'readReceipts', hintKey: 'readReceiptsDesc' },
+  { key: 'showTypingIndicator', labelKey: 'typingIndicator', hintKey: 'typingIndicatorDesc' },
 ]
 
 export function MessagingPrivacySettings(): React.JSX.Element {
+  const tm = useTranslations('messaging')
   const toast = useToast()
   const [privacy, setPrivacy] = useState<MessagingPrivacy | null>(null)
   const [saving, setSaving] = useState<string | null>(null)
@@ -114,22 +118,22 @@ export function MessagingPrivacySettings(): React.JSX.Element {
         </div>
       ))}
 
-      {TOGGLES.map((t) => (
+      {TOGGLES.map((toggle) => (
         <div
-          key={t.key}
+          key={toggle.key}
           className="flex items-start gap-3 rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-4"
         >
           <div className="flex-1">
-            <p className="text-label-sm font-semibold text-on-surface">{t.label}</p>
-            <p className="text-[11px] text-outline mt-0.5">{t.hint}</p>
+            <p className="text-label-sm font-semibold text-on-surface">{tm(toggle.labelKey)}</p>
+            <p className="text-[11px] text-outline mt-0.5">{tm(toggle.hintKey)}</p>
           </div>
           <button
             role="switch"
-            aria-checked={privacy[t.key]}
-            aria-label={t.label}
-            onClick={() => void save({ [t.key]: !privacy[t.key] }, t.key)}
+            aria-checked={privacy[toggle.key]}
+            aria-label={tm(toggle.labelKey)}
+            onClick={() => void save({ [toggle.key]: !privacy[toggle.key] }, toggle.key)}
             className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 cursor-pointer ${
-              privacy[t.key] ? 'bg-primary' : 'bg-surface-container-high'
+              privacy[toggle.key] ? 'bg-primary' : 'bg-surface-container-high'
             }`}
           >
             {/* left-0.5 pins the knob to the track. Without a left, the span is
@@ -139,7 +143,7 @@ export function MessagingPrivacySettings(): React.JSX.Element {
                 Travel is 20px: 44 track − 20 knob − 2 padding each side. */}
             <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                privacy[t.key] ? 'translate-x-5' : 'translate-x-0'
+                privacy[toggle.key] ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>

@@ -6,6 +6,7 @@ import {
   Pin, PinOff, Bell, BellOff, Archive, ArchiveRestore,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { UserAvatar } from '@/components/UserAvatar'
 import { GroupInvitations } from '@/components/messaging/GroupInvitations'
 import { useMessaging } from '@/hooks/use-messaging'
@@ -15,6 +16,8 @@ import type { Conversation } from '@/hooks/use-messaging'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { messagingApi } from '@/lib/messaging-api'
 import { MessageRequestsPanel } from '@/components/messaging/MessageRequestsPanel'
+import { formatDateTime } from '@/lib/datetime'
+import { useTranslations } from 'next-intl'
 
 export type ChatTab = 'all' | 'groups' | 'communities'
 
@@ -27,7 +30,7 @@ interface ConnectedConversationListProps {
   unreadCount: number
 }
 
-function formatTime(dateStr: string): string {
+function formatTime(dateStr: string, locale: string, nowLabel: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -35,21 +38,21 @@ function formatTime(dateStr: string): string {
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
 
-  if (diffMins < 1) return 'Now'
+  if (diffMins < 1) return nowLabel
   if (diffMins < 60) return `${diffMins}m`
   if (diffHours < 24) return `${diffHours}h`
   if (diffDays < 7) return `${diffDays}d`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateTime(date, locale, 'dayMonth')
 }
 
 // A shared post is delivered as a DM whose body is just the post permalink —
 // show a friendly label in the list instead of a raw URL (Instagram-style).
 const SHARED_POST_URL = /^https?:\/\/\S+\/p\/[0-9a-f-]{16,}\/?$/i
 
-function truncateMessage(body: string | null, senderId: string, currentUserId: string): string {
-  if (!body) return 'Sent a message'
-  const prefix = senderId === currentUserId ? 'You: ' : ''
-  if (SHARED_POST_URL.test(body.trim())) return `${prefix}Sent a post`
+function truncateMessage(body: string | null, senderId: string, currentUserId: string, sentLabel: string, youPrefix: string, postLabel: string): string {
+  if (!body) return sentLabel
+  const prefix = senderId === currentUserId ? `${youPrefix} ` : ''
+  if (SHARED_POST_URL.test(body.trim())) return `${prefix}${postLabel}`
   const cleaned = body.replace(/\n/g, ' ')
   return cleaned.length > 60 ? `${prefix}${cleaned.slice(0, 60)}…` : `${prefix}${cleaned}`
 }
@@ -62,6 +65,7 @@ export function ConnectedConversationList({
   onNewMessage,
   unreadCount,
 }: ConnectedConversationListProps): React.JSX.Element {
+  const t = useTranslations('messaging')
   const { conversations, isLoadingConversations, conversationsError, retryFetchConversations, markAllRead } = useMessaging()
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
@@ -93,9 +97,9 @@ export function ConnectedConversationList({
   }, [conversations, activeTab, searchQuery])
 
   const TABS: { id: ChatTab; label: string; badge?: number }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'groups', label: 'Groups' },
-    { id: 'communities', label: 'Communities' },
+    { id: 'all', label: t('all') },
+    { id: 'groups', label: t('groups') },
+    { id: 'communities', label: t('communities') },
   ]
 
   return (
@@ -103,14 +107,14 @@ export function ConnectedConversationList({
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex-shrink-0">
         <div className="hidden md:flex items-center justify-between mb-4">
-          <h2 className="text-[22px] font-bold tracking-tight text-on-surface">Messages</h2>
+          <h2 className="text-[22px] font-bold tracking-tight text-on-surface">{t('title')}</h2>
           <div className="flex items-center gap-1.5">
             <DocsHelpLink href="/docs/messaging-and-calls#starting-a-conversation" />
             {unreadCount > 0 && (
               <button
                 onClick={() => void markAllRead()}
                 className="flex items-center justify-center size-9 rounded-full text-outline hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                title="Mark all as read"
+                title={t('markAllRead')}
               >
                 <CheckCheck className="w-4 h-4" />
               </button>
@@ -118,7 +122,7 @@ export function ConnectedConversationList({
             <button
               onClick={onNewMessage}
               className="flex items-center justify-center size-9 rounded-full bg-primary text-white shadow-sm hover:bg-primary/90 active:scale-95 transition-all cursor-pointer"
-              title="New message"
+              title={t('newMessage')}
             >
               <Plus className="w-4.5 h-4.5" />
             </button>
@@ -129,7 +133,7 @@ export function ConnectedConversationList({
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search conversations…"
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-10 pr-4 py-2.5 bg-surface-container rounded-full text-[13.5px] font-medium border border-transparent focus:border-primary/40 focus:bg-surface-container-lowest focus:shadow-sm focus:outline-none transition-all placeholder:text-outline/60 placeholder:font-normal"
           />
         </div>
@@ -185,9 +189,9 @@ export function ConnectedConversationList({
             <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
               <Users className="w-5 h-5 text-outline" />
             </div>
-            <p className="text-label-md text-outline mb-1">No communities</p>
+            <p className="text-label-md text-outline mb-1">{t('noCommunities')}</p>
             <p className="text-[11px] text-primary font-semibold hover:underline">
-              Join a community
+              {t('joinCommunity')}
             </p>
           </Link>
         ) : conversationsError && !searchQuery ? (
@@ -198,9 +202,9 @@ export function ConnectedConversationList({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
               </svg>
             </div>
-            <p className="text-label-md font-semibold text-on-surface mb-1">Service Unavailable</p>
+            <p className="text-label-md font-semibold text-on-surface mb-1">{t('serviceUnavailable')}</p>
             <p className="text-[11px] text-outline mb-2 max-w-[220px] mx-auto leading-relaxed">
-              The messaging server is not running. Other parts of the app still work.
+              {t('serverDown')}
             </p>
             <p className="text-[10px] text-outline/60 mb-4 font-mono">{conversationsError}</p>
             <div className="flex items-center justify-center gap-2">
@@ -211,7 +215,7 @@ export function ConnectedConversationList({
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Try Again
+                {t('tryAgain')}
               </button>
             </div>
           </div>
@@ -221,10 +225,10 @@ export function ConnectedConversationList({
               <MessageSquare className="w-5 h-5 text-outline" />
             </div>
             <p className="text-label-md text-outline mb-1">
-              {searchQuery ? 'No conversations found' : activeTab === 'all' ? 'No conversations yet' : `No ${activeTab} yet`}
+              {searchQuery ? t('noConversationsFound') : t('noConversations')}
             </p>
             <p className="text-[11px] text-outline">
-              {searchQuery ? 'Try a different search term' : 'Start a new conversation'}
+              {searchQuery ? t('tryDifferentSearch') : t('startConversation')}
             </p>
           </div>
         ) : (
@@ -280,6 +284,8 @@ function ConversationItem({
   currentUserId: string
   onSelect: (id: string) => void
 }): React.JSX.Element {
+  const t = useTranslations('messaging')
+  const { locale } = useDateFormat()
   const { subscribePresence, unsubscribePresence, getPresence, isUserTyping } = usePresence()
 
   useEffect(() => {
@@ -295,12 +301,12 @@ function ConversationItem({
   const otherUserId = otherParticipant?.id
   const presence = otherUserId ? getPresence(otherUserId) : null
   const isOnline = presence?.isOnline ?? conv.isOnline
-  const displayName = conv.name ?? otherParticipant?.displayName ?? 'Unknown'
+  const displayName = conv.name ?? otherParticipant?.displayName ?? t('unknown')
   const avatarUrl = conv.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const lastMsg = conv.lastMessage
-  const lastMsgText = lastMsg ? truncateMessage(lastMsg.body, lastMsg.senderId, currentUserId) : 'No messages yet'
-  const timeStr = lastMsg ? formatTime(lastMsg.createdAt) : ''
+  const lastMsgText = lastMsg ? truncateMessage(lastMsg.body, lastMsg.senderId, currentUserId, t('sentAMessage'), t('youPrefix'), t('sentAPost')) : t('noMessagesYet')
+  const timeStr = lastMsg ? formatTime(lastMsg.createdAt, locale, t('now')) : ''
   const showOnline = isDM && isOnline
   const isTyping = otherUserId && conv.id ? isUserTyping(otherUserId, conv.id) : false
 
@@ -360,6 +366,7 @@ function ConversationItem({
 }
 
 function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Element {
+  const t = useTranslations('messaging')
   // Same refetch the error-retry path uses — pin/mute/archive all change the
   // list's ordering or filtering, so the list has to come back from the server.
   const { retryFetchConversations } = useMessaging()
@@ -381,21 +388,21 @@ function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Elemen
 
   const ACTIONS = [
     conv.isPinned
-      ? { label: 'Unpin', Icon: PinOff, run: () => messagingApi.unpin(conv.id) }
-      : { label: 'Pin', Icon: Pin, run: () => messagingApi.pin(conv.id) },
+      ? { label: t('unpin'), Icon: PinOff, run: () => messagingApi.unpin(conv.id) }
+      : { label: t('pin'), Icon: Pin, run: () => messagingApi.pin(conv.id) },
     conv.isMuted
-      ? { label: 'Unmute', Icon: Bell, run: () => messagingApi.unmute(conv.id) }
-      : { label: 'Mute', Icon: BellOff, run: () => messagingApi.mute(conv.id) },
+      ? { label: t('unmute'), Icon: Bell, run: () => messagingApi.unmute(conv.id) }
+      : { label: t('mute'), Icon: BellOff, run: () => messagingApi.mute(conv.id) },
     conv.isArchived
-      ? { label: 'Unarchive', Icon: ArchiveRestore, run: () => messagingApi.unarchive(conv.id) }
-      : { label: 'Archive', Icon: Archive, run: () => messagingApi.archive(conv.id) },
+      ? { label: t('unarchive'), Icon: ArchiveRestore, run: () => messagingApi.unarchive(conv.id) }
+      : { label: t('archive'), Icon: Archive, run: () => messagingApi.archive(conv.id) },
   ]
 
   return (
     <div className="absolute right-4 top-1/2 -translate-y-1/2">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="Conversation options"
+        aria-label={t('conversationOptions')}
         className={`p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-all cursor-pointer ${
           open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
         }`}

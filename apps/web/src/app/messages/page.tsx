@@ -10,9 +10,11 @@ import { MessageConversation } from '@/components/messaging/MessageConversation'
 import { NewMessageModal } from '@/components/messaging/NewMessageModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useMessaging } from '@/hooks/use-messaging'
+import { useTranslations } from 'next-intl'
 
 
 export default function MessagesPage(): React.JSX.Element {
+  const t = useTranslations('messaging')
   const { isAuthenticated } = useAuth()
   const { conversations, unreadCount, setActiveConversationId } = useMessaging()
   const [activeTab, setActiveTab] = useState<ChatTab>('all')
@@ -79,11 +81,11 @@ export default function MessagesPage(): React.JSX.Element {
             <Link
               href="/"
               className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer"
-              aria-label="Back to home"
+              aria-label={t('backToHome')}
             >
               <ChevronLeft className="w-5 h-5" />
             </Link>
-            <span className="text-label-md font-semibold text-on-surface">Messages</span>
+            <span className="text-label-md font-semibold text-on-surface">{t('title')}</span>
             {unreadCount > 0 && (
               <span className="w-5 h-5 bg-secondary text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {unreadCount > 99 ? '99+' : unreadCount}

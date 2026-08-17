@@ -8,9 +8,11 @@ import { FollowListModal } from './FollowListModal'
 import { MessageButton } from './MessageButton'
 import { ReportContentModal } from './ReportContentModal'
 import { ConfirmDialog } from './ConfirmDialog'
-import { profileApi, networkApi, type Profile, type Relationship, PROFESSIONAL_CATEGORY_LABELS } from '@/lib/api'
+import { profileApi, networkApi, type Profile, type Relationship } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
+import { useTranslations } from 'next-intl'
 
 interface ProfileHeaderProps {
   /** Omit or pass undefined to show the signed-in user's own profile. */
@@ -49,6 +51,8 @@ function HeaderSkeleton(): React.JSX.Element {
 }
 
 export function ProfileHeader({ profileId, initialProfile, initialRelationship }: ProfileHeaderProps): React.JSX.Element {
+  const tpr = useTranslations('profile')
+  const profLabel = useProfessionalLabel()
   const { profile: myProfile, user, refreshProfile } = useAuth()
   // Other users' profiles are fetched (unless pre-fetched by the page);
   // own profile derives from the shared auth context — no loading flash.
@@ -96,14 +100,14 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
           setBlocked(data.viewer.blocked)
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load profile')
+        if (!cancelled) setError(e instanceof Error ? e.message : tpr('loadFailed'))
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
     void load()
     return () => { cancelled = true }
-  }, [profileId, initialProfile])
+  }, [profileId, initialProfile, tpr])
 
   async function handleFollowToggle(): Promise<void> {
     if (!profile || followBusy) return
@@ -114,12 +118,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
         await networkApi.unfollow(profile.id)
         setFollowing(false)
         setFetched((p) => p ? { ...p, followersCount: Math.max(0, p.followersCount - 1) } : p)
-        toast.success('Unfollowed', `You are no longer following ${profile.displayName}`)
+        toast.success(tpr('unfollowed'), `You are no longer following ${profile.displayName}`)
       } else if (requested) {
         // Instagram: click "Requested" → cancel the pending request
         await networkApi.cancelRequest(profile.id)
         setRequested(false)
-        toast.info('Request cancelled', `Follow request to ${profile.displayName} was cancelled`)
+        toast.info(tpr('requestCancelled'), `Follow request to ${profile.displayName} was cancelled`)
       } else {
         const result = await networkApi.follow(profile.id)
         if (result.status === 'following' || result.status === 'already_following') {
@@ -128,12 +132,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
           toast.success('Following', `You are now following ${profile.displayName}`)
         } else if (result.status === 'request_sent' || result.status === 'request_pending') {
           setRequested(true)
-          toast.success('Request sent', `Follow request sent to ${profile.displayName}`)
+          toast.success(tpr('requestSent'), `Follow request sent to ${profile.displayName}`)
         }
       }
     } catch (e) {
       // Leave state unchanged on failure
-      toast.error('Action failed', e instanceof Error ? e.message : 'Could not update follow status')
+      toast.error(tpr('actionFailed'), e instanceof Error ? e.message : tpr('followFailed'))
     } finally {
       setFollowBusy(false)
     }
@@ -146,14 +150,14 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
       if (muted) {
         await networkApi.unmute(profile.id)
         setMuted(false)
-        toast.success('Unmuted', `You'll see posts from ${profile.displayName} again.`)
+        toast.success(tpr('unmuted'), `You'll see posts from ${profile.displayName} again.`)
       } else {
         await networkApi.mute(profile.id)
         setMuted(true)
-        toast.success('Muted', `You won't see posts from ${profile.displayName} in your feed.`)
+        toast.success(tpr('muted'), `You won't see posts from ${profile.displayName} in your feed.`)
       }
     } catch (e) {
-      toast.error('Action failed', e instanceof Error ? e.message : 'Please try again')
+      toast.error(tpr('actionFailed'), e instanceof Error ? e.message : tpr('pleaseTryAgain'))
     }
   }
 
@@ -163,9 +167,9 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
     try {
       await networkApi.unblock(profile.id)
       setBlocked(false)
-      toast.success('Unblocked', `${profile.displayName} can now see your profile and message you again.`)
+      toast.success(tpr('unblocked'), `${profile.displayName} can now see your profile and message you again.`)
     } catch (e) {
-      toast.error('Action failed', e instanceof Error ? e.message : 'Please try again')
+      toast.error(tpr('actionFailed'), e instanceof Error ? e.message : tpr('pleaseTryAgain'))
     }
   }
 
@@ -175,7 +179,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
     setBlocked(true)
     setFollowing(false)
     setFollowedBy(false)
-    toast.success('Blocked', `${profile.displayName} can no longer see your profile or message you.`)
+    toast.success(tpr('blocked'), `${profile.displayName} can no longer see your profile or message you.`)
   }
 
   async function handleRevertToPersonal(): Promise<void> {
@@ -185,9 +189,9 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
       await profileApi.revertToPersonal()
       await refreshProfile()
       setRevertOpen(false)
-      toast.success('Switched to personal', 'Your professional tools and badge are now off.')
+      toast.success(tpr('switchedToPersonal'), tpr('switchedBody'))
     } catch (e) {
-      toast.error('Could not switch', e instanceof Error ? e.message : 'Please try again')
+      toast.error(tpr('couldNotSwitch'), e instanceof Error ? e.message : tpr('pleaseTryAgain'))
     } finally {
       setReverting(false)
     }
@@ -200,14 +204,14 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
   if (error || !profile) {
     return (
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-8 text-center text-outline">
-        {error || 'Profile not found'}
+        {error || tpr('notFound')}
       </section>
     )
   }
 
   const isVerified = profile.verificationTier === 'professional'
   const professional = profile.professionalProfile
-  const categoryLabel = professional ? (PROFESSIONAL_CATEGORY_LABELS[professional.category] ?? professional.category) : null
+  const categoryLabel = profLabel(professional?.category)
 
   return (
     <>
@@ -223,14 +227,14 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !reverting && setRevertOpen(false)} />
           <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h2 className="font-headline text-headline-md text-on-surface">Switch to personal account?</h2>
+            <h2 className="font-headline text-headline-md text-on-surface">{tpr('switchConfirm')}</h2>
             <p className="text-label-sm text-on-surface-variant mt-2 leading-relaxed">
               Your professional dashboard, verified badge, and category will be turned off. Your posts, followers, messages, and listings stay — switch back to professional anytime to restore your dashboard and badge.
             </p>
             <div className="flex gap-3 mt-5">
               <button onClick={() => setRevertOpen(false)} disabled={reverting} className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container disabled:opacity-50 cursor-pointer">Cancel</button>
               <button onClick={handleRevertToPersonal} disabled={reverting} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-                {reverting && <Loader2 className="w-4 h-4 animate-spin" />}Switch to Personal
+                {reverting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{tpr('switchToPersonal')}</span>
               </button>
             </div>
           </div>
@@ -279,8 +283,8 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
             <button
               onClick={() => setEditModalOpen(true)}
               className="absolute top-3 right-3 flex size-9 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-sm hover:bg-black/40 transition-colors cursor-pointer"
-              aria-label="Edit profile"
-              title="Edit profile"
+              aria-label={tpr('editProfile')}
+              title={tpr('editProfile')}
             >
               <Pencil className="w-4 h-4" />
             </button>
@@ -312,7 +316,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
               {isVerified && <BadgeCheck className="w-5 h-5 text-primary flex-shrink-0" />}
               {profile.isPrivate && <Lock className="w-4 h-4 text-outline flex-shrink-0" />}
               {followedBy && !following && !requested && !isOwnProfile && (
-                <span className="px-2 py-0.5 rounded-full bg-surface-container text-[10.5px] font-semibold text-outline">Follows you</span>
+                <span className="px-2 py-0.5 rounded-full bg-surface-container text-[10.5px] font-semibold text-outline">{tpr('followsYou')}</span>
               )}
             </div>
             <p className="text-label-sm text-outline mt-0.5">@{profile.username}</p>
@@ -370,21 +374,21 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                   onClick={() => setEditModalOpen(true)}
                   className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full bg-primary text-white text-[13px] font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all cursor-pointer"
                 >
-                  Edit profile
+                  {tpr('editProfile')}
                 </button>
                 {!professional ? (
                   <button
                     onClick={() => setProfessionalModalOpen(true)}
                     className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
                   >
-                    Go Professional
+                    {tpr('goProfessional')}
                   </button>
                 ) : (
                   <button
                     onClick={() => setRevertOpen(true)}
                     className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-outline-variant/60 text-on-surface-variant text-[13px] font-semibold hover:bg-surface-container active:scale-[0.98] transition-all cursor-pointer"
                   >
-                    Switch to Personal
+                    {tpr('switchToPersonal')}
                   </button>
                 )}
               </>
@@ -414,7 +418,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                   <button
                     onClick={() => setActionsOpen((o) => !o)}
                     className="flex items-center justify-center size-10 rounded-full border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
-                    aria-label="More actions"
+                    aria-label={tpr('moreActions')}
                     aria-expanded={actionsOpen}
                   >
                     <MoreHorizontal className="w-5 h-5" />
@@ -426,14 +430,14 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer"
                       >
                         {muted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                        {muted ? 'Unmute' : 'Mute'} @{profile.username}
+                        <span>{muted ? tpr('unmute') : tpr('mute')} @{profile.username}</span>
                       </button>
                       <button
                         onClick={() => (blocked ? void handleUnblock() : (setActionsOpen(false), setConfirmBlockOpen(true)))}
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-red-500 hover:bg-red-50 cursor-pointer"
                       >
                         {blocked ? <UserCheck2 className="w-4 h-4" /> : <UserMinus2 className="w-4 h-4" />}
-                        {blocked ? 'Unblock' : 'Block'} @{profile.username}
+                        <span>{blocked ? tpr('unblock') : tpr('block')} @{profile.username}</span>
                       </button>
                       <button
                         onClick={() => { setActionsOpen(false); setReportOpen(true) }}

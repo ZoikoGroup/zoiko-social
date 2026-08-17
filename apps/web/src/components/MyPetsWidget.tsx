@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { petsApi, type Pet } from '@/lib/api'
 import { useCachedValue } from '@/hooks/use-cache'
 import { AddPetModal } from './AddPetModal'
@@ -13,6 +14,8 @@ function initials(name: string): string {
 }
 
 export function MyPetsWidget(): React.JSX.Element {
+  const t = useTranslations('profileCard')
+  const tp = useTranslations('panel')
   const { data, isLoading: loading, setData } = useCachedValue<Pet[]>('pets:mine', () => petsApi.mine())
   const pets = data ?? []
   const [addOpen, setAddOpen] = useState(false)
@@ -20,8 +23,8 @@ export function MyPetsWidget(): React.JSX.Element {
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-label-md font-bold text-on-surface">My Pets</h3>
-        <Link href="/pet-diary" className="text-[12px] font-semibold text-primary hover:underline">View all</Link>
+        <h3 className="text-label-md font-bold text-on-surface">{t('myPets')}</h3>
+        <Link href="/pet-diary" className="text-[12px] font-semibold text-primary hover:underline">{tp('viewAll')}</Link>
       </div>
 
       {loading ? (
@@ -57,14 +60,14 @@ export function MyPetsWidget(): React.JSX.Element {
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-emerald-600 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  {i === 0 ? 'Healthy' : 'Up to date'}
+                  {i === 0 ? t('healthy') : t('upToDate')}
                 </div>
               </div>
               <Link
                 href={i === 0 ? '/health-passport' : '/pet-diary'}
                 className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-outline-variant/60 text-[11px] font-semibold text-on-surface-variant hover:border-primary hover:text-primary transition-colors whitespace-nowrap"
               >
-                {i === 0 ? 'View Passport' : 'Update Care'}
+                {i === 0 ? t('viewPassport') : t('updateCare')}
               </Link>
             </div>
           ))}

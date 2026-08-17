@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useEffect, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, useTransition, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLocale, useTranslations } from 'next-intl'
+import { LOCALES, LOCALE_LABELS, type Locale } from '@/i18n/config'
+import { setLocale } from '@/i18n/actions'
 import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email'
 import Image from 'next/image'
@@ -39,23 +42,24 @@ function validateUsernameFormat(username: string): boolean {
   )
 }
 
-const USERNAME_MESSAGES: Record<UsernameStatus, string> = {
-  idle: '',
-  invalid: '3–30 characters — lowercase letters, numbers, underscores and periods only',
-  checking: 'Checking availability…',
-  available: 'Username is available',
-  taken: 'This username is already taken',
-  reserved: 'This username is not available',
+// Translation keys in the `auth` namespace rather than text — resolved at render.
+// 'idle' has no message, so it maps to null instead of an empty lookup.
+const USERNAME_MESSAGE_KEYS: Record<UsernameStatus, string | null> = {
+  idle: null,
+  invalid: 'usernameHint',
+  checking: 'usernameChecking',
+  available: 'usernameAvailable',
+  taken: 'usernameTaken',
+  reserved: 'usernameReserved',
 }
 
-const AUTH_LANGUAGES: { code: string; label: string }[] = [
-  { code: 'en', label: 'US English' },
-  { code: 'en-GB', label: 'UK English' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
-  { code: 'pt', label: 'Português' },
-]
+// Was a second hand-maintained copy of the locale list, identical to
+// LOCALE_LABELS. One source now, so adding a language cannot leave this picker
+// out of date.
+const AUTH_LANGUAGES: { code: Locale; label: string }[] = LOCALES.map((code) => ({
+  code,
+  label: LOCALE_LABELS[code],
+}))
 
 /* ---------------------------------- Brand icons ---------------------------------- */
 
@@ -169,14 +173,14 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [socialLoading, setSocialLoading] = useState<'google' | 'apple' | 'facebook' | null>(null)
   const [rememberMe, setRememberMe] = useState(true)
-  const [language, setLanguage] = useState(() => {
-    if (typeof window === 'undefined') return 'en'
-    try {
-      return localStorage.getItem('zoiko-language') ?? 'en'
-    } catch {
-      return 'en'
-    }
-  })
+  // The language actually in force, read from the same cookie the server renders
+  // from. This used to be local state seeded from localStorage['zoiko-language'],
+  // a key nothing else in the app read: picking a language here highlighted the
+  // row and survived a reload, but not one word on the page changed. Worse than
+  // no picker, because it looked like it worked.
+  const language = useLocale()
+  const t = useTranslations('auth')
+  const [langPending, startLangTransition] = useTransition()
   const [langOpen, setLangOpen] = useState(false)
 
   // Social sign-in leaves the page for the provider, so handleSocial never
@@ -193,25 +197,18 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
     return () => window.removeEventListener('pageshow', handleRestore)
   }, [])
 
-  // Keep in sync when the language is changed from the settings page (other tab)
-  useEffect(() => {
-    function handle(e: StorageEvent) {
-      if (e.key === 'zoiko-language' && e.newValue) setLanguage(e.newValue)
-    }
-    window.addEventListener('storage', handle)
-    return () => window.removeEventListener('storage', handle)
-  }, [])
+  // No cross-tab listener any more: the choice lives in a cookie the server
+  // reads, so a change in another tab arrives with that tab's next render.
 
   const currentLang = AUTH_LANGUAGES.find((l) => l.code === language) ?? AUTH_LANGUAGES[0]!
 
   function handleLanguageSelect(code: string) {
-    setLanguage(code)
     setLangOpen(false)
-    try {
-      localStorage.setItem('zoiko-language', code)
-    } catch {
-      // localStorage unavailable
-    }
+    // Writes the cookie server-side and revalidates, so the page comes back in
+    // the chosen language instead of just remembering the click.
+    startLangTransition(async () => {
+      await setLocale(code as Locale)
+    })
   }
 
   const [registered] = useState<boolean>(() => {
@@ -303,7 +300,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
         return
       }
       if (usernameStatus === 'taken' || usernameStatus === 'reserved') {
-        setError('That username is not available. Please pick another one.')
+        setError(t('errors.usernameUnavailable'))
         setIsLoading(false)
         return
       }
@@ -381,29 +378,29 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
             {/* Headline — directly under the logo, above the pets */}
             <div className="relative z-10 mt-7">
               <h2 className="max-w-md text-4xl font-bold leading-tight text-white drop-shadow-sm sm:text-[2.75rem]">
-                The global community for animal welfare
+                {t('hero.tagline')}
               </h2>
               <p className="mt-4 max-w-md text-lg leading-snug text-white/90 drop-shadow-sm">
-                Share updates. Get expert advice. Support rescues. Make a difference.
+                {t('hero.body')}
               </p>
             </div>
 
             {/* Stats + quote — pinned to the bottom, pets stay visible in between */}
             <div className="relative z-10 mt-auto space-y-6 pt-8">
               <div className="flex items-stretch divide-x divide-white/15 rounded-2xl border border-white/15 bg-black/30 px-2 py-5 backdrop-blur-md">
-                <Stat icon={<Users className="size-5" />} value="2M+" label="Global Members" />
-                <Stat icon={<PawPrint className="size-5" />} value="150K+" label="Rescues & Cases" />
-                <Stat icon={<ShieldCheck className="size-5" />} value="98%" label="Verified Experts" />
+                <Stat icon={<Users className="size-5" />} value="2M+" label={t('hero.statMembers')} />
+                <Stat icon={<PawPrint className="size-5" />} value="150K+" label={t('hero.statRescues')} />
+                <Stat icon={<ShieldCheck className="size-5" />} value="98%" label={t('hero.statExperts')} />
               </div>
 
               <blockquote className="relative pl-8 text-white/90">
                 <span className="absolute left-0 top-0 font-serif text-4xl leading-none text-white/40">
                   &ldquo;
                 </span>
+                {/* The manual <br /> is gone: it split the English at the
+                    semicolon, and the translations are different lengths. */}
                 <p className="italic leading-snug">
-                  Alone we can do so little;
-                  <br />
-                  together we can do so much.&rdquo;
+                  {t('hero.quote')}&rdquo;
                 </p>
                 <cite className="mt-1 block text-sm font-semibold not-italic text-white/80">
                   — Helen Keller
@@ -419,10 +416,13 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
               <button
                 type="button"
                 onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-gray-600 transition-colors hover:text-gray-900"
+                disabled={langPending}
+                aria-label={t('language')}
+                aria-expanded={langOpen}
+                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-gray-600 transition-colors hover:text-gray-900 disabled:opacity-60"
               >
-                <Globe className="size-4" />
-                {currentLang.label}
+                {langPending ? <Loader2 className="size-4 animate-spin" /> : <Globe className="size-4" />}
+                <span>{currentLang.label}</span>
                 <ChevronDown className={`size-4 transition-transform ${langOpen ? 'rotate-180' : ''}`} />
               </button>
 
@@ -461,12 +461,10 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                 {/* Header */}
                 <div className="mb-8 text-center">
                   <h1 className="text-4xl font-bold tracking-tight text-[#0f2e35]">
-                    {isLogin ? 'Welcome back!' : 'Create your account'}
+                    {isLogin ? t('welcomeBack') : t('createYourAccount')}
                   </h1>
                   <p className="mt-2 text-[15px] text-gray-500">
-                    {isLogin
-                      ? 'Please enter your details to continue'
-                      : 'Join the global community for animal welfare'}
+                    {isLogin ? t('loginSubtitle') : t('signupSubtitle')}
                   </p>
                 </div>
 
@@ -475,14 +473,14 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                     <>
                       <div className="space-y-1.5">
                         <label htmlFor="displayName" className="block text-sm font-semibold text-gray-800">
-                          Display name
+                          {t('displayName')}
                         </label>
                         <div className="relative">
                           <AtSign className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                           <input
                             id="displayName"
                             type="text"
-                            placeholder="Your name"
+                            placeholder={t('displayNamePlaceholder')}
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             autoComplete="off"
@@ -493,7 +491,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
 
                       <div className="space-y-1.5">
                         <label htmlFor="username" className="block text-sm font-semibold text-gray-800">
-                          Username
+                          {t('username')}
                         </label>
                         <div className="relative">
                           <AtSign className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
@@ -540,7 +538,10 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                                   : 'text-red-500'
                             }`}
                           >
-                            {USERNAME_MESSAGES[usernameStatus]}
+                            {(() => {
+                              const key = USERNAME_MESSAGE_KEYS[usernameStatus]
+                              return key ? t(key) : null
+                            })()}
                           </p>
                         )}
                       </div>
@@ -549,16 +550,14 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
 
                   <div className="space-y-1.5">
                     <label htmlFor="email" className="block text-sm font-semibold text-gray-800">
-                      {isLogin ? 'Email, username or phone' : 'Email'}
+                      {isLogin ? t('emailOrPhone') : t('email')}
                     </label>
                     <div className="relative">
                       <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                       <input
                         id="email"
                         type={isLogin ? 'text' : 'email'}
-                        placeholder={
-                          isLogin ? 'Enter your email, username or phone' : 'Enter your email'
-                        }
+                        placeholder={isLogin ? t('emailOrPhonePlaceholder') : t('emailPlaceholder')}
                         value={email}
                         autoComplete="off"
                         onChange={(e) => setEmail(e.target.value)}
@@ -570,7 +569,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
 
                   <div className="space-y-1.5">
                     <label htmlFor="password" className="block text-sm font-semibold text-gray-800">
-                      Password
+                      {t('password')}
                     </label>
                     <div className="relative">
                       <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
@@ -578,7 +577,9 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         placeholder={
-                          isLogin ? 'Enter your password' : 'Create a password (min 8 characters)'
+                          isLogin
+                            ? t('passwordPlaceholder')
+                            : t('createPasswordPlaceholder', { min: PASSWORD_MIN })
                         }
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -591,7 +592,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                       >
                         {showPassword ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
                       </button>
@@ -620,13 +621,13 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                             </svg>
                           )}
                         </button>
-                        Remember me for 30 days
+                        <span>{t('rememberMe30')}</span>
                       </label>
                       <Link
                         href="/forgot-password"
                         className="text-sm font-semibold text-primary hover:underline"
                       >
-                        Forgot password?
+                        {t('forgotPassword')}
                       </Link>
                     </div>
                   )}
@@ -635,10 +636,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                     <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm">
                       <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-primary" />
                       <div>
-                        <p className="font-semibold text-gray-900">Account created successfully!</p>
-                        <p className="mt-0.5 text-gray-500">
-                          Check your email to confirm your account, then sign in.
-                        </p>
+                        <p className="font-semibold text-gray-900">{t('accountCreated')}</p>
+                        <p className="mt-0.5 text-gray-500">{t('accountCreatedBody')}</p>
                       </div>
                     </div>
                   )}
@@ -659,18 +658,18 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                   >
                     {isLoading
                       ? isLogin
-                        ? 'Signing in…'
-                        : 'Creating account…'
+                        ? t('signingIn')
+                        : t('creatingAccount')
                       : isLogin
-                        ? 'Log in'
-                        : 'Create account'}
+                        ? t('logIn')
+                        : t('createAccountAction')}
                   </button>
                 </form>
 
                 {/* Divider */}
                 <div className="my-6 flex items-center gap-4">
                   <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-xs text-gray-400">or continue with</span>
+                  <span className="text-xs text-gray-400">{t('orContinueWith')}</span>
                   <div className="h-px flex-1 bg-gray-200" />
                 </div>
 
@@ -723,16 +722,16 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                 <p className="mt-7 text-center text-sm text-gray-600">
                   {isLogin ? (
                     <>
-                      Don&apos;t have an account?{' '}
+                      {t('noAccount')}{' '}
                       <Link href="/signup" className="font-semibold text-primary hover:underline">
-                        Sign up
+                        {t('signUp')}
                       </Link>
                     </>
                   ) : (
                     <>
-                      Already have an account?{' '}
+                      {t('haveAccount')}{' '}
                       <Link href="/login" className="font-semibold text-primary hover:underline">
-                        Sign in
+                        {t('signIn')}
                       </Link>
                     </>
                   )}
@@ -747,41 +746,50 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
           <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-5 xl:gap-x-16">
             <TrustItem
               icon={<ShieldCheck className="size-7" strokeWidth={1.6} />}
-              title="Trusted Community"
-              subtitle="Safe and moderated"
+              title={t('trust.communityTitle')}
+              subtitle={t('trust.communitySubtitle')}
             />
             <TrustItem
               icon={<BadgeCheck className="size-7" strokeWidth={1.6} />}
-              title="Verified Experts"
-              subtitle="Professionals you can trust"
+              title={t('trust.expertsTitle')}
+              subtitle={t('trust.expertsSubtitle')}
             />
             <TrustItem
               icon={<Heart className="size-7" strokeWidth={1.6} />}
-              title="Make an Impact"
-              subtitle="Every action counts"
+              title={t('trust.impactTitle')}
+              subtitle={t('trust.impactSubtitle')}
             />
             <TrustItem
               icon={<Lock className="size-7" strokeWidth={1.6} />}
-              title="Your Privacy"
-              subtitle="Secure and protected"
+              title={t('trust.privacyTitle')}
+              subtitle={t('trust.privacySubtitle')}
             />
           </div>
+          {/* t.rich keeps each sentence a single translatable unit. Assembling it
+              from fragments would fix English word order — German and French put
+              the links in different places. */}
           <p className="mt-5 text-center text-sm text-gray-500">
-            By continuing, you agree to our{' '}
-            <Link href="/terms" className="font-semibold text-primary hover:underline">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="font-semibold text-primary hover:underline">
-              Privacy Policy
-            </Link>
-            .
+            {t.rich('termsNotice', {
+              terms: (chunks) => (
+                <Link href="/terms" className="font-semibold text-primary hover:underline">
+                  {chunks}
+                </Link>
+              ),
+              privacy: (chunks) => (
+                <Link href="/privacy" className="font-semibold text-primary hover:underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
           <p className="mt-2 text-center text-sm text-gray-500">
-            New here?{' '}
-            <Link href="/docs/getting-started" className="font-semibold text-primary hover:underline">
-              See how ZoikoSocial works
-            </Link>
+            {t.rich('newHereNotice', {
+              link: (chunks) => (
+                <Link href="/docs/getting-started" className="font-semibold text-primary hover:underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         </div>
       </div>

@@ -12,17 +12,20 @@ import { RightPanel } from '@/components/RightPanel'
 import { networkApi, type FollowSuggestion } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { useTranslations } from 'next-intl'
 
 const CATEGORY_FILTERS = [
-  { slug: 'all', label: 'All' },
-  { slug: 'veterinarian', label: 'Veterinarians' },
-  { slug: 'pet_care_service_provider', label: 'Pet Care' },
-  { slug: 'product_seller', label: 'Sellers' },
-  { slug: 'verified_news_publisher', label: 'News Publishers' },
-  { slug: 'personal', label: 'Pet Lovers' },
+  { slug: 'all', labelKey: 'all' },
+  { slug: 'veterinarian', labelKey: 'catVets' },
+  { slug: 'pet_care_service_provider', labelKey: 'catPetCare' },
+  { slug: 'product_seller', labelKey: 'catSellers' },
+  { slug: 'verified_news_publisher', labelKey: 'catPublishers' },
+  { slug: 'personal', labelKey: 'catPetLovers' },
 ]
 
 export default function NetworkPage(): React.JSX.Element {
+  const t = useTranslations('network')
+  const tc = useTranslations('common')
   const toast = useToast()
   // Support deep links from the header search: /network?q=term
   const [search, setSearch] = useState<string>(() => {
@@ -40,7 +43,7 @@ export default function NetworkPage(): React.JSX.Element {
   useEffect(() => {
     let cancelled = false
     networkApi.getSuggestions()
-      .then((data) => { if (!cancelled) setSuggestions(data) })        .catch(() => { if (!cancelled) toast.error('Failed to load suggestions', 'Could not fetch people you may know') })
+      .then((data) => { if (!cancelled) setSuggestions(data) })        .catch(() => { if (!cancelled) toast.error(t('loadFailed'), t('loadFailedBody')) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +67,7 @@ export default function NetworkPage(): React.JSX.Element {
         .catch(() => {
           if (!cancelled) {
             setSearchResults([])
-            toast.error('Search failed', 'Could not search for people. Please try again.')
+            toast.error(t('searchFailed'), t('searchFailedBody'))
           }
         })
         .finally(() => { if (!cancelled) setSearching(false) })
@@ -94,12 +97,12 @@ export default function NetworkPage(): React.JSX.Element {
             {/* Left: filters */}
             <aside className="lg:col-span-3 hidden lg:block">
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-4 sticky top-24 space-y-5">
-                <h3 className="font-headline text-headline-md text-on-surface">Filter</h3>
+                <h3 className="font-headline text-headline-md text-on-surface">{tc('filter')}</h3>
 
                 {/* Verified toggle */}
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="flex items-center gap-2 text-label-md text-on-surface">
-                    <BadgeCheck className="w-4 h-4 text-primary" />Verified only
+                    <BadgeCheck className="w-4 h-4 text-primary" /><span>{t('verifiedOnly')}</span>
                   </span>
                   <button
                     role="switch"
@@ -115,7 +118,7 @@ export default function NetworkPage(): React.JSX.Element {
 
                 {/* Category filter */}
                 <div>
-                  <p className="text-label-sm text-outline uppercase tracking-wider mb-2">Category</p>
+                  <p className="text-label-sm text-outline uppercase tracking-wider mb-2">{t('category')}</p>
                   <div className="space-y-1">
                     {CATEGORY_FILTERS.map((c) => (
                       <button
@@ -125,7 +128,7 @@ export default function NetworkPage(): React.JSX.Element {
                           activeCategory === c.slug ? 'bg-primary/10 text-primary font-semibold' : 'text-on-surface-variant hover:bg-surface-container'
                         }`}
                       >
-                        {c.label}
+                        {t(c.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -140,7 +143,7 @@ export default function NetworkPage(): React.JSX.Element {
                 <Link
                   href="/"
                   className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-surface-container transition-colors text-outline hover:text-on-surface cursor-pointer flex-shrink-0"
-                  aria-label="Back to home"
+                  aria-label={t('backToHome')}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </Link>
@@ -149,7 +152,7 @@ export default function NetworkPage(): React.JSX.Element {
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by name, username, or category…"
+                    placeholder={t('searchPlaceholder')}
                     className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 rounded-xl text-label-md focus:border-primary focus:outline-none transition-colors"
                   />
                 </div>
@@ -169,7 +172,7 @@ export default function NetworkPage(): React.JSX.Element {
                     {CATEGORY_FILTERS.map((c) => (
                       <button key={c.slug} onClick={() => setActiveCategory(c.slug)}
                         className={`px-3 py-1 rounded-full text-label-sm transition-colors cursor-pointer ${activeCategory === c.slug ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}
-                      >{c.label}</button>
+                      >{t(c.labelKey)}</button>
                     ))}
                   </div>
                 </div>
@@ -181,7 +184,7 @@ export default function NetworkPage(): React.JSX.Element {
               {/* Search results / People you may know */}
               <section>
                 <h2 className="font-headline text-headline-md text-on-surface mb-4">
-                  {isSearchMode ? `Results for “${search.trim()}”` : 'People you may know'}
+                  {isSearchMode ? `Results for “${search.trim()}”` : t('peopleYouMayKnow')}
                   {isSearchMode && !searching && (
                     <span className="ml-2 text-label-sm text-outline font-normal">({filtered.length} found)</span>
                   )}
@@ -194,14 +197,14 @@ export default function NetworkPage(): React.JSX.Element {
                       <Users className="w-6 h-6 text-outline" />
                     </div>
                     <p className="text-label-md font-semibold text-on-surface">
-                      {isSearchMode ? 'No accounts found' : suggestions.length === 0 ? 'No suggestions yet' : 'No results found'}
+                      {isSearchMode ? t('noAccounts') : suggestions.length === 0 ? t('noSuggestions') : t('noResults')}
                     </p>
                     <p className="text-label-sm text-outline mt-1 max-w-sm mx-auto">
                       {isSearchMode
-                        ? 'Check the spelling or try a different name or username.'
+                        ? t('noAccountsBody')
                         : suggestions.length === 0
-                          ? 'Follow a few people and we’ll suggest accounts based on your connections.'
-                          : 'Try adjusting your filters.'}
+                          ? t('noSuggestionsBody')
+                          : t('noResultsBody')}
                     </p>
                   </div>
                 ) : (

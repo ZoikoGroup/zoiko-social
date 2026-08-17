@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { cn } from '@/lib/utils'
 import { SkeletonMessageList } from '@/components/Skeletons'
 import { useToast } from '@/hooks/use-toast'
@@ -37,6 +38,8 @@ import { useCall } from '@/hooks/use-call'
 import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
 import type { Socket } from 'socket.io-client'
+import { formatDateTime } from '@/lib/datetime'
+import { useTranslations } from 'next-intl'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +60,8 @@ export function MessageConversation({
   conversation,
   onNewMessage,
 }: MessageConversationProps): React.JSX.Element {
+  const tmsg = useTranslations('messaging')
+  const { locale } = useDateFormat()
   const { user, profile } = useAuth()
   const { markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
   const { isUserTyping, subscribePresence, unsubscribePresence, getPresence } = usePresence()
@@ -410,7 +415,7 @@ export function MessageConversation({
   const typingText = isOnline
     ? 'Active now'
     : otherPresence?.lastSeen
-      ? `Last seen ${formatLastSeen(otherPresence.lastSeen)}`
+      ? tmsg('lastSeen', { when: formatLastSeen(otherPresence.lastSeen, locale) })
       : 'Offline'
 
   const typingLabel = useMemo(() => {
@@ -951,7 +956,7 @@ export function MessageConversation({
           variant="ghost"
           size="icon"
           className="size-9 rounded-full text-primary hover:bg-primary/10"
-          aria-label="Video call"
+          aria-label={tmsg('videoCall')}
         >
           <Video className="size-[18px]" />
         </Button>
@@ -1481,7 +1486,7 @@ export function MessageConversation({
                   {showDateChip && (
                     <div className="flex justify-center py-3">
                       <span className="px-3 py-1 bg-surface-container rounded-full text-[11px] font-semibold text-outline shadow-sm">
-                        {formatDateChip(msg.createdAt)}
+                        {formatDateChip(msg.createdAt, locale)}
                       </span>
                     </div>
                   )}
@@ -1625,7 +1630,7 @@ export function MessageConversation({
 
                         {/* Time + status */}
                         <div className={cn('flex items-center gap-1 px-1', isMine ? 'justify-end' : 'justify-start')}>
-                          <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.createdAt)}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.createdAt, locale)}</span>
 
                           {isMine && isPending && (
                             <Clock className="size-3 text-muted-foreground animate-pulse" />
@@ -1704,7 +1709,7 @@ export function MessageConversation({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={editingMessageId ? 'Edit message…' : replyingTo ? 'Reply…' : 'Type a message…'}
+                  placeholder={editingMessageId ? tmsg('editMessage') : replyingTo ? tmsg('reply') : tmsg('typeMessage')}
                   rows={1}
                   className="flex-1 px-2 py-2 bg-transparent text-[14.5px] focus:outline-none resize-none min-h-[36px] max-h-[120px] placeholder:text-muted-foreground/70 self-center"
                   maxLength={650}
@@ -2020,32 +2025,27 @@ function isSameDay(a: string, b: string): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-function formatDateChip(dateStr: string): string {
+function formatDateChip(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
   if (date.toDateString() === now.toDateString()) return 'Today'
   if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
-  })
+  return formatDateTime(date, locale, 'weekdayDayMonthYear')
 }
 
-function formatMessageTime(dateStr: string): string {
+function formatMessageTime(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const isToday = date.toDateString() === now.toDateString()
   if (isToday) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return formatDateTime(date, locale, 'timePadded')
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateTime(date, locale, 'dayMonth')
 }
 
-function formatLastSeen(dateStr: string): string {
+function formatLastSeen(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -2057,5 +2057,5 @@ function formatLastSeen(dateStr: string): string {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateTime(date, locale, 'dayMonth')
 }

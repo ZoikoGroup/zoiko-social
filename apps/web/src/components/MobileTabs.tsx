@@ -8,6 +8,7 @@ import {
   Stethoscope, Activity, Heart, TriangleAlert, HelpCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useMessaging } from '@/hooks/use-messaging'
 
 interface MobileTabsProps {
@@ -15,31 +16,35 @@ interface MobileTabsProps {
   onNavigate?: (page: string) => void
 }
 
-const TABS: { page: string; label: string; Icon: LucideIcon; href: string; accent?: boolean }[] = [
-  { page: 'home',     label: 'Home',     Icon: Home,          href: '/'         },
-  { page: 'rescue',   label: 'Rescue',   Icon: TriangleAlert, href: '/adoption', accent: true },
-  { page: 'messages', label: 'Messages', Icon: MessageSquare, href: '/messages' },
-  { page: 'profile',  label: 'Profile',  Icon: User,          href: '/profile'  },
+// Labels are translation keys, not text: these arrays live at module scope where
+// no hook can run, so the lookup happens at render instead.
+const TABS: { page: string; labelKey: string; Icon: LucideIcon; href: string; accent?: boolean }[] = [
+  { page: 'home',     labelKey: 'home',     Icon: Home,          href: '/'         },
+  { page: 'rescue',   labelKey: 'rescue',   Icon: TriangleAlert, href: '/adoption', accent: true },
+  { page: 'messages', labelKey: 'messages', Icon: MessageSquare, href: '/messages' },
+  { page: 'profile',  labelKey: 'profile',  Icon: User,          href: '/profile'  },
 ]
 
-const TRAY_MODULES: { name: string; Icon: LucideIcon; href: string }[] = [
-  { name: 'Communities',       Icon: Users,        href: '/communities'    },
-  { name: 'Verified News',     Icon: Newspaper,    href: '/news'           },
-  { name: 'Events',            Icon: Calendar,     href: '/events'         },
-  { name: 'Adoption & Rescue', Icon: PawPrint,     href: '/adoption'       },
-  { name: 'Lost & Found',      Icon: MapPin,       href: '/lost-found'     },
-  { name: 'Pet Diary',         Icon: Heart,        href: '/pet-diary'      },
-  { name: 'Shop',              Icon: ShoppingBag,  href: '/shop'           },
-  { name: 'Pet Care Services', Icon: HandHeart,    href: '/pet-care'       },
-  { name: 'Vet Finder',        Icon: Stethoscope,  href: '/vet-finder'     },
-  { name: 'Breeding Match',    Icon: Dna,          href: '/breeding-match' },
-  { name: 'Health Passport',   Icon: Activity,     href: '/health-passport'},
-  { name: 'Help Center',       Icon: HelpCircle,   href: '/docs'           },
+const TRAY_MODULES: { key: string; Icon: LucideIcon; href: string }[] = [
+  { key: 'communities',    Icon: Users,        href: '/communities'    },
+  { key: 'news',           Icon: Newspaper,    href: '/news'           },
+  { key: 'events',         Icon: Calendar,     href: '/events'         },
+  { key: 'adoption',       Icon: PawPrint,     href: '/adoption'       },
+  { key: 'lostFound',      Icon: MapPin,       href: '/lost-found'     },
+  { key: 'petDiary',       Icon: Heart,        href: '/pet-diary'      },
+  { key: 'shop',           Icon: ShoppingBag,  href: '/shop'           },
+  { key: 'petCareLong',    Icon: HandHeart,    href: '/pet-care'       },
+  { key: 'vetFinder',      Icon: Stethoscope,  href: '/vet-finder'     },
+  { key: 'breedingMatch',  Icon: Dna,          href: '/breeding-match' },
+  { key: 'healthPassport', Icon: Activity,     href: '/health-passport'},
+  { key: 'helpCenter',     Icon: HelpCircle,   href: '/docs'           },
 ]
 
 export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element {
   const [trayOpen, setTrayOpen] = useState(false)
   const { unreadCount } = useMessaging()
+  const t = useTranslations('nav')
+  const tm = useTranslations('modules')
 
   return (
     <>
@@ -56,7 +61,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <span className="text-label-md font-bold">Explore ZoikoSocial</span>
+              <span className="text-label-md font-bold">{t('explore')}</span>
               <button onClick={() => setTrayOpen(false)} className="text-outline hover:text-on-surface p-1 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -64,7 +69,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
             <div className="grid grid-cols-4 gap-3">
               {TRAY_MODULES.map((mod) => (
                 <Link
-                  key={mod.name}
+                  key={mod.key}
                   href={mod.href}
                   className="flex flex-col items-center gap-2 p-3 rounded-xl bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer"
                   onClick={() => setTrayOpen(false)}
@@ -72,7 +77,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <mod.Icon className="w-5 h-5 text-primary" />
                   </div>
-                  <span className="text-[10px] text-on-surface-variant text-center leading-tight">{mod.name}</span>
+                  <span className="text-[10px] text-on-surface-variant text-center leading-tight">{tm(mod.key)}</span>
                 </Link>
               ))}
             </div>
@@ -84,7 +89,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
       <button
         onClick={() => setTrayOpen((o) => !o)}
         className="md:hidden fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 z-50 flex items-center justify-center w-14 h-14 bg-primary rounded-full shadow-xl shadow-primary/30 active:scale-95 transition-transform cursor-pointer"
-        aria-label="Explore modules"
+        aria-label={t('exploreModules')}
         aria-expanded={trayOpen}
       >
         {trayOpen ? <X className="w-6 h-6 text-white" /> : <Plus className="w-7 h-7 text-white" />}
@@ -113,7 +118,7 @@ export function MobileTabs({ currentPage }: MobileTabsProps): React.JSX.Element 
                   </span>
                 )}
               </span>
-              <span className={`text-[10.5px] leading-none ${isActive || tab.accent ? 'font-semibold' : 'font-medium'}`}>{tab.label}</span>
+              <span className={`text-[10.5px] leading-none ${isActive || tab.accent ? 'font-semibold' : 'font-medium'}`}>{t(tab.labelKey)}</span>
             </Link>
           )
         })}

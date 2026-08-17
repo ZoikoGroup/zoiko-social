@@ -18,16 +18,18 @@ import {
 import { SkeletonNotification } from '@/components/Skeletons'
 import { notificationsApi, networkApi, type NotificationItem } from '@/lib/api'
 import { useNotifications } from '@/hooks/use-notifications'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { GroupInvitations } from '@/components/messaging/GroupInvitations'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { useTranslations } from 'next-intl'
 
 type NotificationTab = 'all' | 'followers' | 'requests' | 'system'
 
-const TABS: { id: NotificationTab; label: string; Icon: typeof Bell; types: string[] }[] = [
-  { id: 'all',       label: 'All',       Icon: Bell,      types: [] },
-  { id: 'followers', label: 'Followers', Icon: Users,     types: ['new_follower', 'follow_request_accepted'] },
-  { id: 'requests',  label: 'Requests',  Icon: UserPlus,  types: ['follow_request'] },
-  { id: 'system',    label: 'System',    Icon: Megaphone, types: ['verification_approved', 'verification_rejected', 'system'] },
+const TABS: { id: NotificationTab; labelKey: string; Icon: typeof Bell; types: string[] }[] = [
+  { id: 'all',       labelKey: 'all',       Icon: Bell,      types: [] },
+  { id: 'followers', labelKey: 'followers', Icon: Users,     types: ['new_follower', 'follow_request_accepted'] },
+  { id: 'requests',  labelKey: 'requests',  Icon: UserPlus,  types: ['follow_request'] },
+  { id: 'system',    labelKey: 'system',    Icon: Megaphone, types: ['verification_approved', 'verification_rejected', 'system'] },
 ]
 
 const TYPE_ICONS: Record<string, typeof Bell> = {
@@ -55,21 +57,9 @@ function typeGradient(type: string): string {
   return map[type] ?? 'from-primary to-secondary'
 }
 
-function timeAgo(iso: string): string {
-  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (seconds < 60) return 'just now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks}w ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export default function NotificationsPage(): React.JSX.Element {
+  const t = useTranslations('notifications')
+  const { ago } = useDateFormat()
   const router = useRouter()
   const { latest, markAllRead: markAllReadGlobal, markRead: markReadGlobal } = useNotifications()
   const [activeTab, setActiveTab] = useState<NotificationTab>('all')
@@ -181,9 +171,9 @@ export default function NotificationsPage(): React.JSX.Element {
                 <ChevronLeft className="w-5 h-5" />
               </Link>
               <div className="flex-1">
-                <h1 className="text-headline-md font-bold text-on-surface">Notifications</h1>
+                <h1 className="text-headline-md font-bold text-on-surface">{t('title')}</h1>
                 <p className="text-label-sm text-outline">
-                  {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}` : 'No new notifications'}
+                  {unreadCount > 0 ? t('unread', { count: unreadCount }) : t('noNew')}
                 </p>
               </div>
               <DocsHelpLink href="/docs/notifications-and-settings#notification-center" />
@@ -193,7 +183,7 @@ export default function NotificationsPage(): React.JSX.Element {
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-label-sm font-semibold text-primary hover:bg-primary/5 transition-colors cursor-pointer"
                 >
                   <CheckCheck className="w-4 h-4" />
-                  <span className="hidden sm:inline">Mark all read</span>
+                  <span className="hidden sm:inline">{t('markAllRead')}</span>
                 </button>
               )}
             </div>
@@ -217,7 +207,7 @@ export default function NotificationsPage(): React.JSX.Element {
                       }`}
                     >
                       <tab.Icon className="w-4 h-4" />
-                      <span>{tab.label}</span>
+                      <span>{t(tab.labelKey)}</span>
                       {count > 0 && (
                         <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
                           isActive ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'
@@ -244,7 +234,7 @@ export default function NotificationsPage(): React.JSX.Element {
                 <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4">
                   <Bell className="w-7 h-7 text-outline" />
                 </div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">All caught up!</h3>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">{t('allCaughtUp')}</h3>
                 <p className="text-label-sm text-outline max-w-xs mx-auto">
                   No {activeTab === 'all' ? '' : `${activeTab} `}notifications yet. When someone follows you or
                   interacts with your profile, it shows up here instantly.
@@ -283,7 +273,7 @@ export default function NotificationsPage(): React.JSX.Element {
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <p className="text-label-sm leading-relaxed">
-                          <span className="font-semibold text-on-surface">{n.title}</span>
+                          <span className="font-semibold text-on-surface">{t.has(`types.${n.type}`) ? t(`types.${n.type}`) : n.title}</span>
                           {n.body && (
                             <>
                               <br />
@@ -292,7 +282,7 @@ export default function NotificationsPage(): React.JSX.Element {
                           )}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] text-outline">{timeAgo(n.createdAt)}</span>
+                          <span className="text-[11px] text-outline">{ago(n.createdAt)}</span>
                           {!n.isRead && <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0" />}
                           {isAcceptedRequest && (
                             <span className="flex items-center gap-1 text-[11px] text-primary font-semibold">
