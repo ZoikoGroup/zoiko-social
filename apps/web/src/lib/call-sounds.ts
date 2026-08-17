@@ -93,12 +93,14 @@ export function playEndBlip(): void {
 }
 
 let vibrateTimer: ReturnType<typeof setInterval> | null = null
+let vibrating = false
 
 /** Vibration pattern for incoming calls on supporting devices. */
 export function startVibration(): void {
   if (typeof navigator === 'undefined' || !navigator.vibrate || vibrateTimer) return
   const buzz = () => navigator.vibrate([400, 200, 400])
   buzz()
+  vibrating = true
   vibrateTimer = setInterval(buzz, 2_000)
 }
 
@@ -107,5 +109,11 @@ export function stopVibration(): void {
     clearInterval(vibrateTimer)
     vibrateTimer = null
   }
+  // Only cancel a buzz we actually started. This runs from call-teardown paths
+  // that also fire when no call ever rang, and vibrate(0) before the visitor has
+  // tapped anything is blocked by the browser as an unsanctioned gesture —
+  // harmless, but it logged an [Intervention] warning on every page load.
+  if (!vibrating) return
+  vibrating = false
   if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(0)
 }

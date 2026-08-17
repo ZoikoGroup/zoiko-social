@@ -54,9 +54,15 @@ const nextConfig: NextConfig = {
               // modules from the same host; without this the SW fails to register.
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com",
               "font-src 'self'",
-              // openstreetmap.org: keyless embedded map (event location pin)
+              // openstreetmap.org: keyless embedded map, used by the event,
+              // lost-and-found and vet-clinic detail pages.
+              //
+              // A second "frame-src 'none'" used to follow this line. Browsers
+              // keep the first occurrence of a directive and ignore the rest, so
+              // the maps kept working and the only symptom was a console warning
+              // — but the two lines contradicted each other, and reordering them
+              // would have blanked all three maps with no obvious cause.
               "frame-src 'self' https://www.openstreetmap.org",
-              "frame-src 'none'",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
