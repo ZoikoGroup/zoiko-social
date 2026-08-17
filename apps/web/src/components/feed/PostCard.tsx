@@ -21,6 +21,7 @@ import { ReportContentModal } from '@/components/ReportContentModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 // Short verified-badge label derived from the author's professional category.
 const CATEGORY_BADGE: Record<string, string> = {
@@ -42,15 +43,6 @@ function InfoRow({ Icon, label, value }: { Icon: LucideIcon; label: string; valu
       <span className="text-on-surface">{value}</span>
     </div>
   )
-}
-
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  if (s < 604800) return `${Math.floor(s / 86400)}d`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 /** Linkify @mentions and #hashtags in captions. */
@@ -90,6 +82,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
   const router = useRouter()
   const { user, profile } = useAuth()
   const { success: toastSuccess } = useToast()
+  const { ago } = useDateFormat()
   const [liked, setLiked] = useState(post.viewerLiked)
   const [saved, setSaved] = useState(post.viewerSaved)
   const [likesCount, setLikesCount] = useState(post.likesCount)
@@ -249,7 +242,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             )}
           </div>
           <p className="text-[11px] text-outline">
-            @{post.author.username} · {timeAgo(post.createdAt)}
+            @{post.author.username} · {ago(post.createdAt)}
             {post.community ? (
               <> · in <Link href={`/c/${post.community.slug}`} className="text-primary hover:underline font-medium">{post.community.name}</Link></>
             ) : post.visibility === 'followers' ? ' · Followers' : ''}

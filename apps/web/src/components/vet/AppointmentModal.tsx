@@ -5,6 +5,7 @@ import { X, Loader2, Calendar, PawPrint, ShieldCheck } from 'lucide-react'
 import { petsApi, type Pet, type Provider } from '@/lib/api'
 import { petCareApi, type PetCareService } from '@/lib/pet-care-api'
 import { CONSULT_MODE_LABELS, todayHoursLabel } from '@/lib/vet'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { useCurrency } from '@/hooks/use-currency'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 
@@ -19,6 +20,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
   onBooked: () => void
 }): React.JSX.Element {
   const { format } = useCurrency()
+  const { locale } = useDateFormat()
   const bookable = services.filter((s) => s.isActive)
   const [serviceId, setServiceId] = useState(bookable[0]?.id ?? '')
   const [mode, setMode] = useState(provider.consultModes[0] ?? 'in_clinic')
@@ -114,7 +116,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
                   <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={input} />
                 </div>
               </div>
-              <p className="text-[11px] text-outline -mt-1">Clinic today: {todayHoursLabel(provider.hours, provider.is24x7)}</p>
+              <p className="text-[11px] text-outline -mt-1">Clinic today: {todayHoursLabel(provider.hours, provider.is24x7, locale)}</p>
 
               <div>
                 <label className="text-[12px] font-semibold text-outline flex items-center gap-1"><PawPrint className="w-3.5 h-3.5" />Pet (from Health Passport)</label>
@@ -146,7 +148,7 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
             <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
               <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
               <button onClick={submit} disabled={saving || !serviceId || !date || !time} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}Request appointment
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Request appointment</span>
               </button>
             </div>
           </>

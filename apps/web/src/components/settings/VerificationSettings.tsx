@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { createClient } from '@/lib/supabase/client'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 /**
  * Professional verification, from the member's side.
@@ -52,6 +53,7 @@ const STATUS_TONE: Record<string, { label: string; className: string }> = {
 }
 
 export function VerificationSettings(): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { user, profile } = useAuth()
   const toast = useToast()
 
@@ -194,7 +196,7 @@ export function VerificationSettings(): React.JSX.Element {
               {STATUS_TONE[request.status]?.label ?? request.status}
             </span>
             <span className="text-label-sm text-outline">
-              {request.categorySlug ?? request.type} · submitted {new Date(request.createdAt).toLocaleDateString()}
+              {request.categorySlug ?? request.type} · submitted {formatDate(request.createdAt, 'dayMonthYear')}
             </span>
           </div>
 
@@ -247,7 +249,7 @@ export function VerificationSettings(): React.JSX.Element {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
                 >
                   {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {uploading ? 'Uploading…' : 'Choose file'}
+                  <span>{uploading ? 'Uploading…' : 'Choose file'}</span>
                 </button>
                 <input
                   ref={fileInput}
@@ -345,7 +347,7 @@ export function VerificationSettings(): React.JSX.Element {
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
           >
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
-            {submitting ? 'Submitting…' : 'Submit request'}
+            <span>{submitting ? 'Submitting…' : 'Submit request'}</span>
           </button>
         </div>
       )}

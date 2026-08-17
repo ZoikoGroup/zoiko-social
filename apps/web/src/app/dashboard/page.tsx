@@ -17,22 +17,15 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import {
   shopApi, newsApi, providersApi, feedApi,
   type Product, type ProductEnquiryInbox, type NewsArticle, type Provider, type PostItem,
-  PROFESSIONAL_CATEGORY_LABELS,
 } from '@/lib/api'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
 // currency formatting now via useCurrency()
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  if (s < 604800) return `${Math.floor(s / 86400)}d`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 function StatTile({ label, value, Icon, tint }: { label: string; value: string | number; Icon: LucideIcon; tint: string }): React.JSX.Element {
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4">
@@ -69,6 +62,7 @@ function StatusPill({ status }: { status: string }): React.JSX.Element {
 
 // ── Product Seller ───────────────────────────────────────────────────────────
 function SellerDashboard(): React.JSX.Element {
+  const { ago } = useDateFormat()
   const { format } = useCurrency()
   const { data, isLoading: loading } = useCachedValue<{ products: Product[]; inbox: ProductEnquiryInbox[] }>('dash:seller', async () => {
     const [m, i] = await Promise.allSettled([shopApi.mine(), shopApi.enquiryInbox()])
@@ -126,7 +120,7 @@ function SellerDashboard(): React.JSX.Element {
               <div key={e.id} className="flex items-start gap-3">
                 <Link href={`/profile/${e.buyer.username}`}><UserAvatar name={e.buyer.displayName} image={e.buyer.avatarUrl ?? undefined} size="sm" verified={e.buyer.isVerified} /></Link>
                 <div className="flex-1 min-w-0">
-                  <p className="text-label-sm text-on-surface"><span className="font-semibold">{e.buyer.displayName}</span> <span className="text-outline">· {timeAgo(e.createdAt)}</span></p>
+                  <p className="text-label-sm text-on-surface"><span className="font-semibold">{e.buyer.displayName}</span> <span className="text-outline">· {ago(e.createdAt)}</span></p>
                   <p className="text-[11px] text-outline">on <Link href={`/shop/${e.product.id}`} className="text-primary hover:underline">{e.product.title}</Link></p>
                   {e.message && <p className="text-label-sm text-on-surface-variant mt-0.5">{e.message}</p>}
                 </div>
@@ -142,6 +136,7 @@ function SellerDashboard(): React.JSX.Element {
 
 // ── Verified News Publisher ──────────────────────────────────────────────────
 function PublisherDashboard(): React.JSX.Element {
+  const { ago } = useDateFormat()
   const { data, isLoading: loading } = useCachedValue<NewsArticle[]>('dash:publisher', () => newsApi.mine())
   const articles = data ?? []
 
@@ -170,7 +165,7 @@ function PublisherDashboard(): React.JSX.Element {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{a.title}</p>
-                  <p className="text-[11px] text-outline capitalize">{a.category} · {timeAgo(a.publishedAt)}</p>
+                  <p className="text-[11px] text-outline capitalize">{a.category} · {ago(a.publishedAt)}</p>
                 </div>
                 <div className="flex items-center gap-2.5 flex-shrink-0 text-[11px] text-outline">
                   <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{a.likesCount}</span>
@@ -187,6 +182,7 @@ function PublisherDashboard(): React.JSX.Element {
 
 // ── Veterinarian ─────────────────────────────────────────────────────────────
 function VetDashboard(): React.JSX.Element {
+  const { ago } = useDateFormat()
   const { profile } = useAuth()
   const pid = profile?.id ?? ''
   const { data, isLoading: loading } = useCachedValue<{ tips: PostItem[]; listings: Provider[] }>(`dash:vet:${pid}`, async () => {
@@ -239,7 +235,7 @@ function VetDashboard(): React.JSX.Element {
                 <span className="flex items-center justify-center w-11 h-11 rounded-lg bg-primary/10 flex-shrink-0"><Stethoscope className="w-5 h-5 text-primary" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-label-sm text-on-surface line-clamp-1 group-hover:text-primary transition-colors">{t.caption ?? 'Vet tip'}</p>
-                  <p className="text-[11px] text-outline">{timeAgo(t.createdAt)}</p>
+                  <p className="text-[11px] text-outline">{ago(t.createdAt)}</p>
                 </div>
                 <div className="flex items-center gap-2.5 flex-shrink-0 text-[11px] text-outline">
                   <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{t.likesCount}</span>
@@ -320,6 +316,8 @@ const ROLE_META: Record<string, { Icon: LucideIcon; render: () => React.JSX.Elem
 }
 
 export default function DashboardPage(): React.JSX.Element {
+  const profLabel = useProfessionalLabel()
+  const { date: formatDate } = useDateFormat()
   const { loading, isAuthenticated, profile } = useAuth()
 
   useEffect(() => {
@@ -332,7 +330,7 @@ export default function DashboardPage(): React.JSX.Element {
 
   const role = profile.professionalProfile?.category ?? null
   const meta = role ? ROLE_META[role] : null
-  const roleLabel = role ? (PROFESSIONAL_CATEGORY_LABELS[role] ?? role) : null
+  const roleLabel = profLabel(role)
   const verifiedAt = profile.professionalProfile?.verifiedAt ?? null
 
   return (
@@ -356,7 +354,7 @@ export default function DashboardPage(): React.JSX.Element {
                   <h1 className="font-headline text-headline-md font-bold text-on-surface leading-tight">Professional Dashboard</h1>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     {roleLabel && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold"><BadgeCheck className="w-3 h-3" />{roleLabel}</span>}
-                    {verifiedAt && <span className="text-[11px] text-outline">Verified {new Date(verifiedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>}
+                    {verifiedAt && <span className="text-[11px] text-outline">Verified {formatDate(verifiedAt, 'monthYear')}</span>}
                   </div>
                 </div>
                 <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />

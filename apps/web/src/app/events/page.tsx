@@ -1,7 +1,8 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { usePagedList } from '@/hooks/use-cache'
 import { Header } from '@/components/Header'
 import { Img } from '@/components/Img'
@@ -17,16 +18,18 @@ import { eventsApi, EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventItem, typ
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { SafetyBanner } from '@/components/SafetyBanner'
+import { formatDateTime } from '@/lib/datetime'
 
-function dateBadge(iso: string): { mon: string; day: string } {
+function dateBadge(iso: string, locale: string): { mon: string; day: string } {
   const d = new Date(iso)
-  return { mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(), day: String(d.getDate()) }
+  return { mon: formatDateTime(d, locale, 'month').toUpperCase(), day: String(d.getDate()) }
 }
-function when(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+function when(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'weekdayLongDayMonthTime')
 }
 
 export default function EventsPage(): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [createOpen, setCreateOpen] = useState(false)
   const [tab, setTab] = useState<'upcoming' | 'hosting' | 'past'>('upcoming')
@@ -180,7 +183,7 @@ export default function EventsPage(): React.JSX.Element {
             ) : (
               <div className="space-y-3">
                 {events.map((e) => {
-                  const b = dateBadge(e.startsAt)
+                  const b = dateBadge(e.startsAt, locale)
                   const category = e.category ? (EVENT_CATEGORY_LABELS[e.category] ?? e.category) : null
                   return (
                     <div key={e.id} className="relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden hover:border-primary/40 transition-colors">
@@ -209,7 +212,7 @@ export default function EventsPage(): React.JSX.Element {
                             {e.distanceKm != null && <span className="text-[10px] font-semibold text-primary flex items-center gap-0.5"><Navigation className="w-2.5 h-2.5" />{e.distanceKm} km</span>}
                           </div>
                           <h3 className="text-label-md font-bold text-on-surface">{e.title}</h3>
-                          <p className="text-[12px] text-outline mt-0.5">{when(e.startsAt)}</p>
+                          <p className="text-[12px] text-outline mt-0.5">{when(e.startsAt, locale)}</p>
                           <p className="flex items-center gap-1 text-[12px] text-on-surface-variant mt-1">
                             {e.isOnline ? <><Globe className="w-3.5 h-3.5 text-primary" />Online</> : e.location ? <LocationLink location={e.location} iconClassName="w-3.5 h-3.5" className="text-primary" /> : null}
                           </p>

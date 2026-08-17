@@ -10,9 +10,11 @@ import {
   ChevronLeft, Heart, Bookmark, Clock, BookOpen, ExternalLink, Trash2,
   BadgeCheck, ShieldCheck, Globe, Newspaper, MessageCircle, Send, Loader2,
 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { newsApi, type NewsArticle, type NewsComment } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
+import { formatDateTime } from '@/lib/datetime'
 
 type Tier = 'institutional' | 'verified' | 'community'
 const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color: string; bgColor: string }> = {
@@ -21,11 +23,12 @@ const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color
   community:     { label: 'Community',      icon: Globe,       color: 'text-primary',   bgColor: 'bg-teal-50 border-teal-200' },
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+function fmtDate(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'dayMonthYearLong')
 }
 
 export default function ArticlePage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { id } = use(params)
   const { user, profile } = useAuth()
   const router = useRouter()
@@ -165,7 +168,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                 <div className="flex-1 min-w-0">
                   <Link href={`/profile/${article.author.username}`} className="text-label-md font-semibold text-on-surface hover:underline">{article.author.displayName}</Link>
                   <div className="flex items-center gap-2 text-[11px] text-outline">
-                    <span>{fmtDate(article.publishedAt)}</span>
+                    <span>{fmtDate(article.publishedAt, locale)}</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /><BookOpen className="w-3 h-3" />{article.readMinutes} min read</span>
                   </div>
                 </div>
@@ -222,7 +225,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                   <div className="flex justify-end mt-2">
                     <button onClick={postComment} disabled={!newComment.trim() || postingComment}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer">
-                      {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Comment
+                      {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}<span>Comment</span>
                     </button>
                   </div>
                 </div>
@@ -251,7 +254,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                           <p className="text-label-sm text-on-surface-variant leading-relaxed whitespace-pre-line mt-0.5">{c.body}</p>
                         </div>
                         <div className="flex items-center gap-3 mt-1 px-1">
-                          <span className="text-[11px] text-outline">{fmtDate(c.createdAt)}</span>
+                          <span className="text-[11px] text-outline">{fmtDate(c.createdAt, locale)}</span>
                           {canDelete && (
                             <button onClick={() => deleteComment(c.id)} className="text-[11px] text-outline hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center gap-1">
                               <Trash2 className="w-3 h-3" />Delete
@@ -269,7 +272,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
               <div className="text-center pt-4">
                 <button onClick={loadMoreComments} disabled={loadingMoreComments}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-outline-variant/50 text-label-sm font-semibold text-on-surface-variant hover:border-primary hover:text-primary transition-colors cursor-pointer">
-                  {loadingMoreComments && <Loader2 className="w-4 h-4 animate-spin" />}Load more comments
+                  {loadingMoreComments && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load more comments</span>
                 </button>
               </div>
             )}

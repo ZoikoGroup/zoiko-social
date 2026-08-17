@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { newsApi, type NewsArticle, type NewArticle } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
@@ -41,14 +42,6 @@ const CATEGORIES: { id: string; label: string }[] = [
 function compact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
 }
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  if (s < 604800) return `${Math.floor(s / 86400)}d ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 function TierBadge({ tier }: { tier: string }): React.JSX.Element {
   const config = TIER_CONFIG[(tier as Tier)] ?? TIER_CONFIG.community
   const Icon = config.icon
@@ -79,6 +72,7 @@ function SaveButton({ article, small }: { article: NewsArticle; small?: boolean 
 }
 
 export default function NewsPage(): React.JSX.Element {
+  const { ago } = useDateFormat()
   const { isAuthenticated } = useAuth()
   const [category, setCategory] = useState('all')
   const [tier, setTier] = useState<Tier | 'all'>('all')
@@ -216,7 +210,7 @@ export default function NewsPage(): React.JSX.Element {
                           <UserAvatar name={featured[0]!.author.displayName} image={featured[0]!.author.avatarUrl ?? undefined} size="sm" verified={featured[0]!.author.isVerified} />
                           <span className="text-[11px] text-outline">{featured[0]!.author.displayName}</span>
                           <span className="text-[10px] text-outline/60">·</span>
-                          <span className="text-[11px] text-outline">{timeAgo(featured[0]!.publishedAt)}</span>
+                          <span className="text-[11px] text-outline">{ago(featured[0]!.publishedAt)}</span>
                         </div>
                         <span className="relative z-20"><SaveButton article={featured[0]!} /></span>
                       </div>
@@ -238,7 +232,7 @@ export default function NewsPage(): React.JSX.Element {
                               </div>
                             </div>
                             <div className="p-3 flex items-center justify-between">
-                              <span className="text-[10px] text-outline/60">{timeAgo(a.publishedAt)} · {a.readMinutes} min</span>
+                              <span className="text-[10px] text-outline/60">{ago(a.publishedAt)} · {a.readMinutes} min</span>
                               <span className="relative z-20"><SaveButton article={a} small /></span>
                             </div>
                           </div>
@@ -282,7 +276,7 @@ export default function NewsPage(): React.JSX.Element {
                                 <div className="min-w-0">
                                   <span className="text-[10px] font-medium text-on-surface-variant truncate block">{a.author.displayName}</span>
                                   <div className="flex items-center gap-1.5 text-[10px] text-outline/60">
-                                    <Clock className="w-3 h-3" /><span>{timeAgo(a.publishedAt)}</span>
+                                    <Clock className="w-3 h-3" /><span>{ago(a.publishedAt)}</span>
                                     <span>·</span><BookOpen className="w-3 h-3" /><span>{a.readMinutes} min</span>
                                   </div>
                                 </div>
@@ -302,7 +296,7 @@ export default function NewsPage(): React.JSX.Element {
                   {hasMore && (
                     <div className="text-center pt-4">
                       <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
-                        {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More Articles
+                        {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load More Articles</span>
                       </button>
                     </div>
                   )}
@@ -386,7 +380,7 @@ function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPu
               ) : (
                 <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
                   {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}
-                  {uploading ? 'Uploading…' : 'Add cover image'}
+                  <span>{uploading ? 'Uploading…' : 'Add cover image'}</span>
                 </span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
@@ -412,7 +406,7 @@ function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPu
           <p className="text-[11px] text-outline">Your trust tier is set automatically from your verified status.</p>
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Publishing…' : 'Publish Article'}
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{posting ? 'Publishing…' : 'Publish Article'}</span>
           </button>
         </div>
       </div>

@@ -21,6 +21,7 @@ import {
   type CommunityCard as CommunityCardData, type NewsArticle, type Product,
   type EventItem, type AdoptionListing, type LostFoundReport, type Provider,
 } from '@/lib/api'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 type Tab =
   | 'all' | 'people' | 'hashtags' | 'posts' | 'communities' | 'news' | 'products'
@@ -547,6 +548,7 @@ function LostFoundRow({ report }: { report: LostFoundReport }): React.JSX.Elemen
 }
 
 function EventRow({ event }: { event: EventItem }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const when = new Date(event.startsAt)
   const place = event.isOnline ? 'Online' : (event.venueName ?? event.location)
   return (
@@ -558,7 +560,7 @@ function EventRow({ event }: { event: EventItem }): React.JSX.Element {
           someone scanning a list of events actually needs. */}
       <div className="w-14 h-14 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
         <span className="text-[10px] font-bold uppercase text-primary leading-none">
-          {when.toLocaleDateString('en-GB', { month: 'short' })}
+          {formatDate(when, 'month')}
         </span>
         <span className="text-label-md font-bold text-primary leading-tight">{when.getDate()}</span>
       </div>
@@ -572,7 +574,7 @@ function EventRow({ event }: { event: EventItem }): React.JSX.Element {
           )}
         </div>
         <p className="text-[12px] text-outline truncate mt-0.5">
-          {when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          {formatDate(when, 'timePadded')}
           {place ? ` · ${place}` : ''}
         </p>
         <p className="text-[11px] text-outline mt-0.5">

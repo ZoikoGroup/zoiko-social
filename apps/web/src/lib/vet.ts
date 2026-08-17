@@ -1,4 +1,5 @@
 import type { HoursEntry } from '@/lib/api'
+import { formatClock } from '@/lib/datetime'
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Vet Finder — shared constants & helpers
@@ -61,22 +62,24 @@ export const DAY_LABELS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'
 
 // ── Hours helpers ─────────────────────────────────────────────────────────────
 
-/** "09:00" -> "9:00 AM" */
-export function formatTime(t: string): string {
-  const [hRaw, m] = t.split(':')
-  const h = parseInt(hRaw ?? '0', 10)
-  const period = h >= 12 ? 'PM' : 'AM'
-  const h12 = h % 12 === 0 ? 12 : h % 12
-  return `${h12}:${m ?? '00'} ${period}`
+/**
+ * "09:00" -> "9:00 AM" in English, "09:00" in German.
+ *
+ * Built the 12-hour clock and English AM/PM by hand before, for every language.
+ * The locale has to be passed in because this is module scope — components should
+ * reach for useDateFormat().clock instead.
+ */
+export function formatTime(t: string, locale: string): string {
+  return formatClock(t, locale)
 }
 
 /** Today's hours as a readable label, or "Closed" / "Open 24 hours". */
-export function todayHoursLabel(hours: HoursEntry[] | null, is24x7: boolean): string {
+export function todayHoursLabel(hours: HoursEntry[] | null, is24x7: boolean, locale: string): string {
   if (is24x7) return 'Open 24 hours'
   if (!hours || !hours.length) return 'Hours not set'
   const today = hours.find((h) => h.day === new Date().getDay())
   if (!today || today.closed || !today.open || !today.close) return 'Closed today'
-  return `${formatTime(today.open)} – ${formatTime(today.close)}`
+  return `${formatTime(today.open, locale)} – ${formatTime(today.close, locale)}`
 }
 
 /** Build a default weekly-hours template (Mon–Sat 9–6, Sun closed). */

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { PawPrint, Siren, CalendarDays, ShoppingBag, Users, ArrowRight, MapPin } from 'lucide-react'
 import type { TagEverything } from '@/lib/api'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 /**
  * The non-post half of a tag page.
@@ -43,6 +44,7 @@ function SectionHeader({
 }
 
 export function TagSections({ tag, data }: TagSectionsProps): React.JSX.Element | null {
+  const { date: formatDate } = useDateFormat()
   // Nothing at all until the data arrives — an empty frame that fills in is
   // worse than a beat of nothing.
   if (!data) return null
@@ -128,7 +130,7 @@ export function TagSections({ tag, data }: TagSectionsProps): React.JSX.Element 
                 >
                   <div className="w-11 h-11 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
                     <span className="text-[9px] font-bold uppercase text-primary leading-none">
-                      {when.toLocaleDateString('en-GB', { month: 'short' })}
+                      {formatDate(when, 'month')}
                     </span>
                     <span className="text-label-sm font-bold text-primary leading-tight">{when.getDate()}</span>
                   </div>

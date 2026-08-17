@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import { providersApi, type Provider, type TeamMember } from '@/lib/api'
 import { petCareApi, type PetCareService, type ProviderReview } from '@/lib/pet-care-api'
-import { CONSULT_MODE_LABELS, VET_SERVICE_CATEGORY_LABELS, DAY_LABELS, formatTime, todayHoursLabel } from '@/lib/vet'
+import { CONSULT_MODE_LABELS, VET_SERVICE_CATEGORY_LABELS, DAY_LABELS, todayHoursLabel } from '@/lib/vet'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { AppointmentModal } from '@/components/vet/AppointmentModal'
 import { LocationLink } from '@/components/LocationLink'
 import { Header } from '@/components/Header'
@@ -25,6 +26,7 @@ export default function VetClinicDetailPage(): React.JSX.Element {
   const router = useRouter()
   const { profile } = useAuth()
   const { format } = useCurrency()
+  const { clock, locale } = useDateFormat()
   const [clinic, setClinic] = useState<Provider | null>(null)
   const [services, setServices] = useState<PetCareService[]>([])
   const [reviews, setReviews] = useState<ProviderReview[]>([])
@@ -54,7 +56,7 @@ export default function VetClinicDetailPage(): React.JSX.Element {
 
   const isOwner = profile?.id === clinic.addedBy.id
   const verified = clinic.isVerified || clinic.addedBy.isVerified
-  const openLabel = todayHoursLabel(clinic.hours, clinic.is24x7)
+  const openLabel = todayHoursLabel(clinic.hours, clinic.is24x7, locale)
 
   return (
     <>
@@ -181,7 +183,7 @@ export default function VetClinicDetailPage(): React.JSX.Element {
                 {clinic.hours.map((h) => (
                   <div key={h.day} className={`flex items-center justify-between text-[13px] ${h.day === new Date().getDay() ? 'font-bold text-on-surface' : 'text-on-surface-variant'}`}>
                     <span>{DAY_LABELS[h.day]}</span>
-                    <span>{h.closed || !h.open ? 'Closed' : `${formatTime(h.open)} – ${formatTime(h.close)}`}</span>
+                    <span>{h.closed || !h.open ? 'Closed' : `${clock(h.open)} – ${clock(h.close)}`}</span>
                   </div>
                 ))}
               </div>

@@ -10,6 +10,7 @@ import {
   BookOpen, Plus, Trash2, Loader2, PawPrint, Camera, Stethoscope, Star, Pencil, X, ImagePlus,
   CalendarDays, Scale, Syringe, Pill, AlertTriangle, FileText, Share2, Printer, Cake, Bell, LayoutGrid, Clock, Check,
 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/use-date-format'
 import type { LucideIcon } from 'lucide-react'
 import { petsApi, postsApi, type DiaryEntry, type HealthRecord } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
@@ -19,6 +20,7 @@ import { PetAbout } from '@/components/PetAbout'
 import { AddPetModal } from '@/components/AddPetModal'
 import { ageOf } from '@/lib/pet'
 import { usePets } from '@/hooks/use-pets'
+import { formatDateTime } from '@/lib/datetime'
 
 interface KindMeta { value: string; label: string; Icon: LucideIcon; node: string; tint: string }
 const KINDS: KindMeta[] = [
@@ -40,14 +42,15 @@ const HEALTH_META: Record<string, { label: string; Icon: LucideIcon; node: strin
 const MILESTONE_TEMPLATES = ['Gotcha Day', 'First walk', 'Birthday', 'Learned a trick', 'Lost a tooth', 'First groom', 'Vet all-clear', 'First swim']
 
 function initials(n: string): string { return n.slice(0, 2).toUpperCase() }
-function fmtDate(iso: string): string { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
-function monthKey(iso: string): string { return new Date(iso).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) }
+function fmtDate(iso: string, locale: string): string { return formatDateTime(iso, locale, 'dayMonthYear') }
+function monthKey(iso: string, locale: string): string { return formatDateTime(iso, locale, 'monthYearLong') }
 function daysUntil(iso: string): number { return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) }
 function allPhotos(e: DiaryEntry): string[] { return [...(e.photoUrl ? [e.photoUrl] : []), ...e.photoUrls] }
 
 type View = 'timeline' | 'photos' | 'weight'
 
 export default function PetDiaryPage(): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const { pets, loading: loadingPets, patchPet } = usePets()
   const [selectedPet, setSelectedPet] = useState<string | null>(null)
@@ -89,8 +92,8 @@ export default function PetDiaryPage(): React.JSX.Element {
     total: entries.length,
     milestones: entries.filter((e) => e.kind === 'milestone').length,
     photos: entries.reduce((n, e) => n + allPhotos(e).length, 0),
-    since: entries.length ? monthKey([...entries].sort((a, b) => a.entryDate.localeCompare(b.entryDate))[0]!.entryDate) : null,
-  }), [entries])
+    since: entries.length ? monthKey([...entries].sort((a, b) => a.entryDate.localeCompare(b.entryDate))[0]!.entryDate, locale) : null,
+  }), [entries, locale])
 
   // Weight series from Health Passport
   const weights = useMemo(() => health
@@ -134,12 +137,12 @@ export default function PetDiaryPage(): React.JSX.Element {
     items.sort((a, b) => b.date.localeCompare(a.date))
     const g: { month: string; items: TL[] }[] = []
     for (const it of items) {
-      const m = monthKey(it.date)
+      const m = monthKey(it.date, locale)
       const grp = g.find((x) => x.month === m)
       if (grp) grp.items.push(it); else g.push({ month: m, items: [it] })
     }
     return g
-  }, [entries, health, filter, showHealth])
+  }, [entries, health, filter, showHealth, locale])
 
   const galleryPhotos = useMemo(() => entries.flatMap((e) => allPhotos(e).map((url) => ({ url, entry: e }))), [entries])
 
@@ -348,6 +351,7 @@ export default function PetDiaryPage(): React.JSX.Element {
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
 function DiaryCard({ e, shared, onEdit, onDelete, onShare }: { e: DiaryEntry; shared: boolean; onEdit: () => void; onDelete: () => void; onShare: () => void }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const K = kindMeta(e.kind)
   const photos = allPhotos(e)
   return (
@@ -360,7 +364,7 @@ function DiaryCard({ e, shared, onEdit, onDelete, onShare }: { e: DiaryEntry; sh
               <span className="text-label-md font-semibold text-on-surface">{e.title || K.label}</span>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${K.tint}`}>{K.label}</span>
             </div>
-            <span className="text-[11px] text-outline">{fmtDate(e.entryDate)}</span>
+            <span className="text-[11px] text-outline">{fmtDate(e.entryDate, locale)}</span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 no-print">
             <button onClick={onShare} title="Share to feed" className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer">{shared ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}</button>
@@ -384,6 +388,7 @@ function DiaryCard({ e, shared, onEdit, onDelete, onShare }: { e: DiaryEntry; sh
 }
 
 function HealthCard({ h }: { h: HealthRecord }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const M = HEALTH_META[h.type] ?? HEALTH_META.note!
   return (
     <div className="relative">
@@ -392,7 +397,7 @@ function HealthCard({ h }: { h: HealthRecord }): React.JSX.Element {
         <div className="flex items-center gap-2">
           <span className="text-label-sm font-semibold text-on-surface">{h.title}</span>
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">{M.label}</span>
-          <span className="text-[11px] text-outline ml-auto">{h.recordDate ? fmtDate(h.recordDate) : fmtDate(h.createdAt)}</span>
+          <span className="text-[11px] text-outline ml-auto">{h.recordDate ? fmtDate(h.recordDate, locale) : fmtDate(h.createdAt, locale)}</span>
         </div>
         {h.notes && <p className="text-[12px] text-on-surface-variant mt-1">{h.notes}</p>}
       </div>
@@ -402,6 +407,7 @@ function HealthCard({ h }: { h: HealthRecord }): React.JSX.Element {
 
 // ── Weight view ─────────────────────────────────────────────────────────────
 function WeightView({ weights, onLog }: { weights: { date: string; value: number }[]; onLog: () => void }): React.JSX.Element {
+  const { locale } = useDateFormat()
   return (
     <div className="mt-3 space-y-3">
       <div className="flex justify-end no-print"><button onClick={onLog} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 cursor-pointer"><Plus className="w-4 h-4" />Log weight</button></div>
@@ -415,7 +421,7 @@ function WeightView({ weights, onLog }: { weights: { date: string; value: number
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 divide-y divide-outline-variant/15">
             {[...weights].reverse().map((w, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                <span className="text-[12px] text-outline">{fmtDate(w.date)}</span>
+                <span className="text-[12px] text-outline">{fmtDate(w.date, locale)}</span>
                 <span className="text-label-md font-semibold text-on-surface tabular-nums">{w.value} kg</span>
               </div>
             ))}
@@ -427,6 +433,7 @@ function WeightView({ weights, onLog }: { weights: { date: string; value: number
 }
 
 function WeightChart({ data }: { data: { date: string; value: number }[] }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const W = 320, H = 120, pad = 8
   const vals = data.map((d) => d.value)
   const min = Math.min(...vals), max = Math.max(...vals)
@@ -443,7 +450,7 @@ function WeightChart({ data }: { data: { date: string; value: number }[] }): Rea
         <polyline points={line} fill="none" stroke="var(--color-primary, #2a5c48)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--color-primary, #2a5c48)" />)}
       </svg>
-      <div className="flex justify-between text-[10px] text-outline mt-1 tabular-nums"><span>{fmtDate(data[0]!.date)}</span><span>{max} kg peak</span><span>{fmtDate(data[data.length - 1]!.date)}</span></div>
+      <div className="flex justify-between text-[10px] text-outline mt-1 tabular-nums"><span>{fmtDate(data[0]!.date, locale)}</span><span>{max} kg peak</span><span>{fmtDate(data[data.length - 1]!.date, locale)}</span></div>
     </div>
   )
 }
@@ -470,7 +477,7 @@ function Stat({ n, label }: { n: number; label: string }): React.JSX.Element {
 function FilterChip({ active, onClick, label, Icon }: { active: boolean; onClick: () => void; label: string; Icon?: LucideIcon }): React.JSX.Element {
   return (
     <button onClick={onClick} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${active ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/40 hover:border-primary'}`}>
-      {Icon && <Icon className="w-3.5 h-3.5" />}{label}
+      {Icon && <Icon className="w-3.5 h-3.5" />}<span>{label}</span>
     </button>
   )
 }
@@ -497,7 +504,7 @@ function LogWeightModal({ petId, onClose, onSaved }: { petId: string; onClose: (
           <div className="relative"><Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" /><input type="number" step="0.1" min="0" value={kg} onChange={(e) => setKg(e.target.value)} placeholder="Weight in kg" className={`${input} pl-9`} autoFocus /></div>
           <input type="date" max={today} value={date} onChange={(e) => setDate(e.target.value)} className={input} />
           <p className="text-[11px] text-outline">Saved to the Health Passport too.</p>
-          <button onClick={save} disabled={saving || !kg} className="w-full py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save</button>
+          <button onClick={save} disabled={saving || !kg} className="w-full py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Save</span></button>
         </div>
       </div>
     </div>
@@ -605,7 +612,7 @@ function EntryModal({ petId, entry, onClose, onSaved }: {
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={save} disabled={saving || uploading || (!title.trim() && !body.trim() && photos.length === 0)} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}{editing ? 'Save changes' : 'Save entry'}
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{editing ? 'Save changes' : 'Save entry'}</span>
           </button>
         </div>
       </div>

@@ -26,6 +26,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import { ReportButton } from '@/components/ReportButton'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 // Shortcuts for the shapes a week usually takes. Indices match DAY_LABELS and
 // getUTCDay(), so 0 is Sunday. "Mon–Sat" and "Sun–Fri" are the two ways to drop
@@ -385,7 +386,7 @@ function EditServiceModal({ providerId, service, onClose, onSaved }: {
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>
           <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
-          >{saving && <Loader2 className="w-4 h-4 animate-spin" />}Save Changes</button>
+          >{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Save Changes</span></button>
         </div>
       </div>
     </div>
@@ -501,6 +502,7 @@ function ReviewsTab({ reviews, isOwner }: {
   reviews: ProviderReview[]
   isOwner: boolean
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   return (
     <div className="space-y-3">
       {!isOwner && (
@@ -529,7 +531,7 @@ function ReviewsTab({ reviews, isOwner }: {
                       ))}
                     </div>
                   </div>
-                  <span className="text-[11px] text-outline">{new Date(review.createdAt).toLocaleDateString()}</span>
+                  <span className="text-[11px] text-outline">{formatDate(review.createdAt, 'dayMonthYear')}</span>
                 </div>
                 {review.body && <p className="text-label-sm text-on-surface-variant mt-2">{review.body}</p>}
               </div>
@@ -634,7 +636,7 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
               >
                 {showForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                {showForm ? 'Cancel' : 'Add Hours'}
+                <span>{showForm ? 'Cancel' : 'Add Hours'}</span>
               </button>
             )}
           </div>
@@ -665,7 +667,7 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
                   disabled={savingCapacity || capacity === provider.slotCapacity}
                   className="px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] font-semibold disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
                 >
-                  {savingCapacity && <Loader2 className="w-3 h-3 animate-spin" />}Save
+                  {savingCapacity && <Loader2 className="w-3 h-3 animate-spin" />}<span>Save</span>
                 </button>
               </div>
             </div>
@@ -826,6 +828,7 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   selectedService: PetCareService | null
   onClose: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { format } = useCurrency()
   const [step, setStep] = useState<'service' | 'datetime' | 'details' | 'confirm'>(
     selectedService ? 'datetime' : 'service',
@@ -923,8 +926,8 @@ function BookingModal({ provider, services, selectedService, onClose }: {
             <h3 className="text-label-lg font-bold text-on-surface">{success.service.name}</h3>
             <p className="text-label-sm text-outline">with <span className="font-semibold text-on-surface">{success.provider.name}</span></p>
             <div className="bg-surface-container-low rounded-xl p-4 space-y-2 text-left text-label-sm">
-              <div className="flex justify-between"><span className="text-outline">Date</span><span className="font-medium">{new Date(success.scheduledAt).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span></div>
-              <div className="flex justify-between"><span className="text-outline">Time</span><span className="font-medium">{new Date(success.scheduledAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></div>
+              <div className="flex justify-between"><span className="text-outline">Date</span><span className="font-medium">{formatDate(success.scheduledAt, 'weekdayLongDayMonth')}</span></div>
+              <div className="flex justify-between"><span className="text-outline">Time</span><span className="font-medium">{formatDate(success.scheduledAt, 'timePadded')}</span></div>
               <div className="flex justify-between"><span className="text-outline">Payment</span><span className="font-medium">{PAYMENT_METHOD_LABELS[success.paymentMethod] ?? success.paymentMethod}</span></div>
               <div className="flex justify-between"><span className="text-outline">Amount</span><span className="font-bold text-primary">{format(success.priceCents / 100)}</span></div>
               <div className="flex justify-between"><span className="text-outline">Status</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${BOOKING_STATUS_COLORS[success.status] ?? ''}`}>{BOOKING_STATUS_LABELS[success.status] ?? success.status}</span></div>
@@ -1147,8 +1150,8 @@ function BookingModal({ provider, services, selectedService, onClose }: {
                     <span className="text-label-sm font-semibold text-on-surface">{selectedSvc.name}</span>
                   </div>
                   <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Provider</span><span className="text-label-sm font-medium text-on-surface">{provider.name}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Date</span><span className="text-label-sm font-medium text-on-surface">{new Date(`${date}T${time}`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Time</span><span className="text-label-sm font-medium text-on-surface">{new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Date</span><span className="text-label-sm font-medium text-on-surface">{formatDate(`${date}T${time}`, 'weekdayDayMonth')}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Time</span><span className="text-label-sm font-medium text-on-surface">{formatDate(`2000-01-01T${time}`, 'timePadded')}</span></div>
                   {petName && <div className="flex items-center justify-between"><span className="text-label-sm text-outline">Pet</span><span className="text-label-sm font-medium text-on-surface">{petName}{petSpecies ? ` (${petSpecies})` : ''}</span></div>}
                   <div className="flex items-center justify-between pt-2 border-t border-outline-variant/20">
                     <span className="text-label-md font-bold text-on-surface">Total</span>
@@ -1174,7 +1177,7 @@ function BookingModal({ provider, services, selectedService, onClose }: {
 
                 <button onClick={() => void submit()} disabled={saving}
                   className="w-full py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
-                >{saving && <Loader2 className="w-4 h-4 animate-spin" />}{saving ? 'Booking…' : `Confirm Booking — ${format(selectedSvc.priceCents / 100)}`}</button>
+                >{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{saving ? 'Booking…' : `Confirm Booking — ${format(selectedSvc.priceCents / 100)}`}</span></button>
               </div>
             )}
           </div>
@@ -1347,7 +1350,7 @@ function EditProfileModal({ provider, onClose, onSaved }: {
             className="w-full py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            {saving ? 'Saving…' : 'Save Changes'}
+            <span>{saving ? 'Saving…' : 'Save Changes'}</span>
           </button>
         </div>
       </div>
@@ -1449,7 +1452,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>
           <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
-          >{saving && <Loader2 className="w-4 h-4 animate-spin" />}Add Service</button>
+          >{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Add Service</span></button>
         </div>
       </div>
     </div>

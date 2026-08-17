@@ -23,6 +23,8 @@ import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { PetMissingBanner } from '@/components/PetMissingBanner'
 import Link from 'next/link'
+import { useDateFormat } from '@/hooks/use-date-format'
+import { formatDateTime } from '@/lib/datetime'
 
 interface TypeMeta { value: string; label: string; Icon: LucideIcon; node: string; tint: string }
 const TYPES: TypeMeta[] = [
@@ -37,7 +39,7 @@ const typeMeta = (t: string): TypeMeta => TYPES.find((x) => x.value === t) ?? TY
 const VACCINE_TEMPLATES = ['Rabies', 'DHPP', 'Distemper', 'Parvovirus', 'Leptospirosis', 'Bordetella (Kennel Cough)', 'Canine Influenza', 'FVRCP', 'FeLV', 'Corona']
 
 function initials(n: string): string { return n.slice(0, 2).toUpperCase() }
-function fmtDate(iso: string | null): string { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
+function fmtDate(iso: string | null, locale: string): string { return iso ? formatDateTime(iso, locale, 'dayMonthYear') : '' }
 function daysUntil(iso: string): number { return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) }
 function yearOf(iso: string | null): string { return iso ? new Date(iso).getFullYear().toString() : 'Undated' }
 const targetKey = (petId: string): string => `zoiko-pet-target-${petId}`
@@ -63,6 +65,7 @@ function downloadIcs(petName: string, items: { title: string; date: string }[]):
 type View = 'records' | 'weight'
 
 export default function HealthPassportPage(): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const { pets, loading: loadingPets, patchPet } = usePets()
   const [selectedPet, setSelectedPet] = useState<string | null>(null)
@@ -134,11 +137,11 @@ export default function HealthPassportPage(): React.JSX.Element {
     return {
       total: records.length,
       vaccinations: records.filter((r) => r.type === 'vaccination').length,
-      lastVisit: lastVisit ? fmtDate(lastVisit.recordDate) : '—',
+      lastVisit: lastVisit ? fmtDate(lastVisit.recordDate, locale) : '—',
       weight: weights.length ? `${weights[weights.length - 1]!.value} kg` : '—',
-      nextDue: nextDue ? fmtDate(nextDue.nextDue) : '—',
+      nextDue: nextDue ? fmtDate(nextDue.nextDue, locale) : '—',
     }
-  }, [records, weights])
+  }, [records, weights, locale])
 
   const filtered = filter === 'all' ? records : records.filter((r) => r.type === filter)
   const sorted = [...filtered].sort((a, b) => (b.recordDate ?? b.createdAt.slice(0, 10)).localeCompare(a.recordDate ?? a.createdAt.slice(0, 10)))
@@ -230,7 +233,7 @@ export default function HealthPassportPage(): React.JSX.Element {
                         <span className="text-label-sm font-semibold text-on-surface truncate">{h.name}</span>
                         {h.overdue > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-600 flex-shrink-0">{h.overdue} overdue</span>}
                       </div>
-                      <span className="text-[11px] text-outline truncate block">{h.next ? `Next: ${h.next.title} · ${fmtDate(h.next.date)}` : 'All up to date'}</span>
+                      <span className="text-[11px] text-outline truncate block">{h.next ? `Next: ${h.next.title} · ${fmtDate(h.next.date, locale)}` : 'All up to date'}</span>
                     </button>
                   ))}
                 </div>
@@ -435,7 +438,7 @@ function ShareModal({ petId, petName, onClose }: { petId: string; petName: strin
                 <button onClick={copy} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 cursor-pointer flex-shrink-0">{copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}</button>
               </div>
               <button onClick={revoke} disabled={busy} className="w-full py-2.5 rounded-xl border border-red-500/40 text-red-600 text-label-md font-semibold hover:bg-red-500/10 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                {busy && <Loader2 className="w-4 h-4 animate-spin" />}Revoke link
+                {busy && <Loader2 className="w-4 h-4 animate-spin" />}<span>Revoke link</span>
               </button>
             </>
           )}
@@ -447,6 +450,7 @@ function ShareModal({ petId, petName, onClose }: { petId: string; petName: strin
 
 // ── Record card ──────────────────────────────────────────────────────────────
 function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => void; onDelete: () => void }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const m = typeMeta(r.type)
   const overdue = r.nextDue && daysUntil(r.nextDue) < 0
   return (
@@ -460,7 +464,7 @@ function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => vo
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.tint}`}>{m.label}</span>
             </div>
             <span className="flex items-center gap-1.5 text-[11px] text-outline">
-              {r.recordDate ? fmtDate(r.recordDate) : 'Undated'}
+              {r.recordDate ? fmtDate(r.recordDate, locale) : 'Undated'}
               {/* The clinic used to exist only as text inside the title, so there
                   was nothing to tap. Now it links back to the listing. */}
               {r.provider && (
@@ -479,7 +483,7 @@ function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => vo
           </div>
         </div>
         {r.notes && <p className="text-label-sm text-on-surface-variant mt-1.5 whitespace-pre-line">{r.notes}</p>}
-        {r.nextDue && <p className={`text-[11px] font-semibold mt-1.5 ${overdue ? 'text-red-600' : 'text-secondary'}`}>Next due: {fmtDate(r.nextDue)}{overdue ? ' (overdue)' : ''}</p>}
+        {r.nextDue && <p className={`text-[11px] font-semibold mt-1.5 ${overdue ? 'text-red-600' : 'text-secondary'}`}>Next due: {fmtDate(r.nextDue, locale)}{overdue ? ' (overdue)' : ''}</p>}
         {r.attachments.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {r.attachments.map((url, i) => (
@@ -497,6 +501,7 @@ function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => vo
 
 // ── Weight ───────────────────────────────────────────────────────────────────
 function WeightView({ petId, weights, onLog }: { petId: string; weights: { date: string; value: number }[]; onLog: () => void }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const [target, setTarget] = useState<number | null>(null)
   const [editTarget, setEditTarget] = useState(false)
   const [draft, setDraft] = useState('')
@@ -565,7 +570,7 @@ function WeightView({ petId, weights, onLog }: { petId: string; weights: { date:
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4"><WeightChart data={weights} band={band} /></div>
           <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 divide-y divide-outline-variant/15">
             {[...weights].reverse().map((w, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-2.5"><span className="text-[12px] text-outline">{fmtDate(w.date)}</span><span className="text-label-md font-semibold text-on-surface tabular-nums">{w.value} kg</span></div>
+              <div key={i} className="flex items-center justify-between px-4 py-2.5"><span className="text-[12px] text-outline">{fmtDate(w.date, locale)}</span><span className="text-label-md font-semibold text-on-surface tabular-nums">{w.value} kg</span></div>
             ))}
           </div>
         </>
@@ -574,6 +579,7 @@ function WeightView({ petId, weights, onLog }: { petId: string; weights: { date:
   )
 }
 function WeightChart({ data, band }: { data: { date: string; value: number }[]; band?: { lo: number; hi: number } | null }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const W = 320, H = 120, pad = 8
   const vals = data.map((d) => d.value)
   let min = Math.min(...vals), max = Math.max(...vals)
@@ -588,7 +594,7 @@ function WeightChart({ data, band }: { data: { date: string; value: number }[]; 
         <polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke="var(--color-primary, #2a5c48)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--color-primary, #2a5c48)" />)}
       </svg>
-      <div className="flex justify-between text-[10px] text-outline mt-1 tabular-nums"><span>{fmtDate(data[0]!.date)}</span><span>{Math.max(...vals)} kg peak</span><span>{fmtDate(data[data.length - 1]!.date)}</span></div>
+      <div className="flex justify-between text-[10px] text-outline mt-1 tabular-nums"><span>{fmtDate(data[0]!.date, locale)}</span><span>{Math.max(...vals)} kg peak</span><span>{fmtDate(data[data.length - 1]!.date, locale)}</span></div>
     </div>
   )
 }
@@ -600,7 +606,7 @@ function Stat({ label, value }: { label: string; value: string | number }): Reac
 function FilterChip({ active, onClick, label, Icon }: { active: boolean; onClick: () => void; label: string; Icon?: LucideIcon }): React.JSX.Element {
   return (
     <button onClick={onClick} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${active ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/40 hover:border-primary'}`}>
-      {Icon && <Icon className="w-3.5 h-3.5" />}{label}
+      {Icon && <Icon className="w-3.5 h-3.5" />}<span>{label}</span>
     </button>
   )
 }
@@ -712,7 +718,7 @@ function RecordModal({ petId, record, initialType, onClose, onSaved }: {
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={save} disabled={saving || uploading || !title.trim()} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}{editing ? 'Save changes' : 'Save record'}
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{editing ? 'Save changes' : 'Save record'}</span>
           </button>
         </div>
       </div>

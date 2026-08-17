@@ -4,10 +4,12 @@ import { use, useEffect, useState } from 'react'
 import {
   ShieldCheck, Syringe, Stethoscope, Pill, AlertTriangle, Scale, FileText, Printer, Loader2, PawPrint,
 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/use-date-format'
 import type { LucideIcon } from 'lucide-react'
 import { petsApi, type PublicPassport } from '@/lib/api'
 import { PetAbout } from '@/components/PetAbout'
 import { ageOf } from '@/lib/pet'
+import { formatDateTime } from '@/lib/datetime'
 
 const META: Record<string, { label: string; Icon: LucideIcon; node: string; tint: string }> = {
   vaccination: { label: 'Vaccination', Icon: Syringe, node: 'bg-primary text-white', tint: 'bg-primary/10 text-primary' },
@@ -18,9 +20,10 @@ const META: Record<string, { label: string; Icon: LucideIcon; node: string; tint
   note: { label: 'Note', Icon: FileText, node: 'bg-gray-500 text-white', tint: 'bg-gray-500/10 text-gray-600' },
 }
 const meta = (t: string) => META[t] ?? META.note!
-function fmtDate(iso: string | null): string { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Undated' }
+function fmtDate(iso: string | null, locale: string): string { return iso ? formatDateTime(iso, locale, 'dayMonthYear') : 'Undated' }
 
 export default function PublicPassportPage({ params }: { params: Promise<{ token: string }> }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { token } = use(params)
   const [data, setData] = useState<PublicPassport | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,9 +113,9 @@ export default function PublicPassportPage({ params }: { params: Promise<{ token
                         <span className="text-label-md font-semibold text-on-surface">{r.title}</span>
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${m.tint}`}>{m.label}</span>
                       </div>
-                      <span className="text-[11px] text-outline">{fmtDate(r.recordDate)}</span>
+                      <span className="text-[11px] text-outline">{fmtDate(r.recordDate, locale)}</span>
                       {r.notes && <p className="text-label-sm text-on-surface-variant mt-1 whitespace-pre-line">{r.notes}</p>}
-                      {r.nextDue && <p className="text-[11px] font-semibold text-secondary mt-1">Next due: {fmtDate(r.nextDue)}</p>}
+                      {r.nextDue && <p className="text-[11px] font-semibold text-secondary mt-1">Next due: {fmtDate(r.nextDue, locale)}</p>}
                     </div>
                   </div>
                 )

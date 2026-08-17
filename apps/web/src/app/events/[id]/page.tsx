@@ -6,6 +6,7 @@ import {
   ChevronLeft, Calendar, Clock, Globe, Users, Check, Star, Ticket, Loader2, Trash2,
   Link2, CalendarPlus, Timer, Pencil, X, Mail, Search, UserPlus,
 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { Img } from '@/components/Img'
@@ -15,12 +16,13 @@ import { EventFormModal } from '@/components/events/EventFormModal'
 import { eventsApi, networkApi, ApiError, EVENT_CATEGORY_LABELS, type EventItem, type EventAttendee, type EventInvitee, type FollowSuggestion } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { ReportButton } from '@/components/ReportButton'
+import { formatDateTime } from '@/lib/datetime'
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+function fmtDate(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'weekdayLongFull')
 }
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+function fmtTime(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'time')
 }
 function fmtDuration(a: string, b: string): string {
   const mins = Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000)
@@ -30,6 +32,7 @@ function fmtDuration(a: string, b: string): string {
 }
 
 export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { id } = use(params)
   const { user } = useAuth()
   const [ev, setEv] = useState<EventItem | null>(null)
@@ -175,7 +178,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                     {ev.inviteOnly && <span className="px-2.5 py-1 rounded-full bg-white/20 backdrop-blur text-white text-[11px] font-semibold flex items-center gap-1"><Mail className="w-3 h-3" />Invite only</span>}
                   </div>
                   <h1 className="text-white font-headline text-[26px] md:text-4xl font-bold leading-tight drop-shadow">{ev.title}</h1>
-                  <p className="text-white/90 text-label-md mt-1">{fmtDate(ev.startsAt)} · {fmtTime(ev.startsAt)}</p>
+                  <p className="text-white/90 text-label-md mt-1">{fmtDate(ev.startsAt, locale)} · {fmtTime(ev.startsAt, locale)}</p>
                 </div>
               </div>
             )}
@@ -200,8 +203,8 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
             {/* Quick facts */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Fact Icon={Calendar} label="Date" value={fmtDate(ev.startsAt)} />
-              <Fact Icon={Clock} label="Time" value={`${fmtTime(ev.startsAt)}${ev.endsAt ? ` – ${fmtTime(ev.endsAt)}` : ''}`} />
+              <Fact Icon={Calendar} label="Date" value={fmtDate(ev.startsAt, locale)} />
+              <Fact Icon={Clock} label="Time" value={`${fmtTime(ev.startsAt, locale)}${ev.endsAt ? ` – ${fmtTime(ev.endsAt, locale)}` : ''}`} />
               {duration && <Fact Icon={Timer} label="Duration" value={duration} />}
               <Fact Icon={Users} label="Going" value={`${ev.goingCount}${ev.capacity !== null ? ` / ${ev.capacity}` : ''}`} />
             </div>
@@ -279,7 +282,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
 
               <div className="text-label-sm text-on-surface-variant flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
-                <span>{fmtDate(ev.startsAt)} · {fmtTime(ev.startsAt)}</span>
+                <span>{fmtDate(ev.startsAt, locale)} · {fmtTime(ev.startsAt, locale)}</span>
               </div>
 
               {/* RSVP */}
@@ -350,7 +353,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ id: stri
                   </button>
                   <button onClick={remove} disabled={deleting}
                     className="flex-1 py-2 rounded-xl text-red-500 text-label-sm font-semibold hover:bg-red-50 transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50">
-                    {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}Delete
+                    {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}<span>Delete</span>
                   </button>
                 </div>
               )}

@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { ImageCropper } from '@/components/ImageCropper'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 // Baked output sizes for the crop editor.
 //
@@ -43,6 +44,7 @@ export function EditProfileModal({ open, profile, onClose, onSaved }: EditProfil
 }
 
 function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalProps, 'open'>): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [username, setUsername] = useState(profile.username)
   const [bio, setBio] = useState(profile.bio ?? '')
@@ -291,7 +293,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
             {usernameLocked ? (
               <p className="text-[11px] text-outline mt-1">
                 Username can be changed once every 30 days — next change available{' '}
-                {nextUsernameChange?.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.
+                {formatDate(nextUsernameChange, 'dayMonthLong')}.
               </p>
             ) : usernameStatus === 'taken' ? (
               <p className="text-[11px] text-red-500 mt-1">This username is already taken.</p>
@@ -375,7 +377,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {saving ? 'Saving…' : 'Save changes'}
+            <span>{saving ? 'Saving…' : 'Save changes'}</span>
           </button>
         </div>
       </div>
