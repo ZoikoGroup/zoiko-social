@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common'
 import { FastifyRequest } from 'fastify'
 import { JwtVerificationService } from '../jwt-verification.service'
+import { Reflector } from '@nestjs/core'
 import { PrismaService } from '../../prisma/prisma.service'
+import { ALLOW_INACTIVE_ACCOUNT } from '../decorators/allow-inactive.decorator'
 
 export const AUTH_USER_KEY = 'auth_user'
 
@@ -19,8 +21,12 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Why each non-active state refuses a request. Signing in again is the route back
- * from the two member-initiated states, so their messages say so.
+ * Why each non-active state refuses a request.
+ *
+ * The two member-chosen states used to say "sign in again to reactivate", which
+ * was true when signing in restored the account by itself. It no longer does —
+ * restoring is an explicit confirmation now — so telling someone to sign in again
+ * would send them round a loop that changes nothing.
  */
 const ACCOUNT_STATE_ERRORS: Record<string, { code: string; message: string }> = {
   banned: { code: 'ACCOUNT_BANNED', message: 'This account has been banned.' },
@@ -28,11 +34,11 @@ const ACCOUNT_STATE_ERRORS: Record<string, { code: string; message: string }> = 
   deleted: { code: 'ACCOUNT_DELETED', message: 'This account has been deleted.' },
   deactivated: {
     code: 'ACCOUNT_DEACTIVATED',
-    message: 'This account is deactivated. Sign in again to reactivate it.',
+    message: 'This account is deactivated. Reactivate it to continue.',
   },
   pending_deletion: {
     code: 'ACCOUNT_PENDING_DELETION',
-    message: 'This account is scheduled for deletion. Sign in again to cancel it.',
+    message: 'This account is scheduled for deletion. Reactivate it to cancel the deletion.',
   },
 }
 
@@ -44,6 +50,13 @@ const ACCOUNT_STATE_ERRORS: Record<string, { code: string; message: string }> = 
  * the JWKS endpoint is unreachable or verification fails unexpectedly.
  */
 
+/**
+ * The only states a route marked @AllowInactiveAccount() may run under: the two
+ * the member chose themselves. A moderator's suspension or ban is never bypassed,
+ * however the route is annotated.
+ */
+const MEMBER_CHOSEN_STATES = new Set(['deactivated', 'pending_deletion'])
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private readonly logger = new Logger(JwtAuthGuard.name)
@@ -51,6 +64,7 @@ export class JwtAuthGuard implements CanActivate {
   constructor(
     private readonly jwtVerification: JwtVerificationService,
     private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -73,9 +87,23 @@ export class JwtAuthGuard implements CanActivate {
       // cryptographically after a moderator suspends or bans the account.
       const profile = await this.prisma.profile.findUnique({
         where: { id: user.id },
-        select: { state: true },
+        // The two timestamps ride along so the refusal can say *when* — the web
+        // app signs in straight against Supabase for email and phone, so this
+        // 403 is the only signal it reliably sees, and "deactivated 3 days ago"
+        // needs a date the login response never carries on that path.
+        select: { state: true, deactivatedAt: true, deletionRequestedAt: true },
       })
-      if (profile && profile.state !== 'active') {
+      const allowInactive =
+        this.reflector.getAllAndOverride<boolean>(ALLOW_INACTIVE_ACCOUNT, [
+          context.getHandler(),
+          context.getClass(),
+        ]) ?? false
+
+      if (
+        profile &&
+        profile.state !== 'active' &&
+        !(allowInactive && MEMBER_CHOSEN_STATES.has(profile.state))
+      ) {
         // Distinct codes matter: a member who deactivated or scheduled deletion
         // needs to be told to sign in again to restore the account, which is a
         // very different message from a moderator's suspension or ban.
@@ -83,7 +111,13 @@ export class JwtAuthGuard implements CanActivate {
           code: 'ACCOUNT_SUSPENDED',
           message: 'This account is temporarily suspended.',
         }
-        throw new ForbiddenException({ code, message })
+        const since =
+          profile.state === 'pending_deletion'
+            ? profile.deletionRequestedAt?.toISOString()
+            : profile.state === 'deactivated'
+              ? profile.deactivatedAt?.toISOString()
+              : undefined
+        throw new ForbiddenException({ code, message, ...(since ? { since } : {}) })
       }
 
       // Attach user to request for downstream use

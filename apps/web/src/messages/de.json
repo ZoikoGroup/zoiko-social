@@ -187,8 +187,8 @@
       "dangerZoneDesc": "Machen Sie eine Pause, indem Sie Ihr Konto verbergen, oder planen Sie die Löschung. Beides lässt sich durch erneutes Anmelden rückgängig machen.",
       "temporarilyDisable": "Vorübergehend deaktivieren",
       "deleteAccount": "Konto löschen",
-      "alreadyDisabled": "Dieses Konto ist derzeit deaktiviert. Abmelden und erneut anmelden stellt es wieder her.",
-      "pendingDeletion": "Dieses Konto ist zur Löschung vorgemerkt. Abmelden und erneut anmelden bricht die Löschung ab.",
+      "alreadyDisabled": "Dieses Konto ist deaktiviert. Melde dich wieder an und bestätige, um es wiederherzustellen.",
+      "pendingDeletion": "Dieses Konto ist zur Löschung vorgemerkt. Melde dich wieder an und bestätige, um sie abzubrechen.",
       "changePassword": "Passwort ändern",
       "changePasswordDesc": "Geben Sie Ihr aktuelles und ein neues Passwort ein.",
       "passwordSaved": "Profil gespeichert"
@@ -512,5 +512,15 @@
     "noEvents": "Keine anstehenden Veranstaltungen",
     "noEventsOwn": "Von dir organisierte Veranstaltungen erscheinen hier.",
     "noEventsOther": "Von diesem Mitglied organisierte Veranstaltungen erscheinen hier."
+  },
+  "reactivate": {
+    "title": "Willkommen zurück — Konto wieder aktivieren?",
+    "deactivatedAgo": "Du hast dieses Konto {ago} deaktiviert. Beim Reaktivieren kommen Profil, Beiträge und Follower unverändert zurück.",
+    "deletionAgo": "Du hast die Löschung dieses Kontos {ago} beantragt. Beim Reaktivieren wird die Löschung abgebrochen und alles bleibt erhalten.",
+    "confirm": "Konto reaktivieren",
+    "decline": "Abgemeldet bleiben",
+    "working": "Wird reaktiviert…",
+    "failed": "Konto konnte nicht reaktiviert werden",
+    "declinedNote": "Dein Konto bleibt verborgen. Melde dich einfach wieder an, wenn du es zurückholen willst."
   }
 }

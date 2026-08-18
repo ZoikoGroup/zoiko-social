@@ -187,8 +187,8 @@
       "dangerZoneDesc": "Faites une pause en masquant votre compte, ou programmez sa suppression. Les deux sont réversibles en vous reconnectant.",
       "temporarilyDisable": "Désactiver temporairement",
       "deleteAccount": "Supprimer le compte",
-      "alreadyDisabled": "Ce compte est actuellement désactivé. Déconnectez-vous et reconnectez-vous pour le rétablir.",
-      "pendingDeletion": "Ce compte est programmé pour suppression. Déconnectez-vous et reconnectez-vous pour annuler.",
+      "alreadyDisabled": "Ce compte est désactivé. Reconnectez-vous et confirmez pour le restaurer.",
+      "pendingDeletion": "Ce compte est programmé pour suppression. Reconnectez-vous et confirmez pour l’annuler.",
       "changePassword": "Modifier le mot de passe",
       "changePasswordDesc": "Saisissez votre mot de passe actuel et un nouveau.",
       "passwordSaved": "Profil enregistré"
@@ -512,5 +512,15 @@
     "noEvents": "Aucun événement à venir",
     "noEventsOwn": "Les événements que vous organisez apparaîtront ici.",
     "noEventsOther": "Les événements de ce membre apparaîtront ici."
+  },
+  "reactivate": {
+    "title": "Bon retour — réactiver votre compte ?",
+    "deactivatedAgo": "Vous avez désactivé ce compte {ago}. La réactivation restaure votre profil, vos publications et vos abonnés à l’identique.",
+    "deletionAgo": "Vous avez demandé la suppression de ce compte {ago}. La réactivation annule la suppression et conserve tout.",
+    "confirm": "Réactiver mon compte",
+    "decline": "Rester déconnecté",
+    "working": "Réactivation…",
+    "failed": "Impossible de réactiver votre compte",
+    "declinedNote": "Votre compte reste masqué. Reconnectez-vous quand vous voudrez le restaurer."
   }
 }

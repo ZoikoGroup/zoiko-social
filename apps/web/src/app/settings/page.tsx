@@ -65,6 +65,7 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
   autoOpenPassword?: boolean
   onAutoOpenHandled?: () => void
 } = {}): React.JSX.Element {
+  const t = useTranslations('settings')
   const { profile, user, updateEmail, changePassword, signOut } = useAuth()
   // Deactivation revokes sessions, so this should normally be 'active' whenever
   // settings is reachable. Read anyway: an access token outlives the revoke, and
@@ -319,8 +320,8 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
         {(isDeactivated || isPendingDeletion) && (
           <p className="mb-3 text-[11px] font-semibold text-red-600 dark:text-red-400">
             {isDeactivated
-              ? 'This account is currently disabled. Signing out and back in restores it.'
-              : 'This account is scheduled for deletion. Signing out and back in cancels it.'}
+              ? t('account.alreadyDisabled')
+              : t('account.pendingDeletion')}
           </p>
         )}
         <div className="flex flex-wrap gap-2">

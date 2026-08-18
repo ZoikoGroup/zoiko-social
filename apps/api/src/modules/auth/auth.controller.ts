@@ -14,6 +14,7 @@ import { OptionalAuthGuard } from './guards/optional-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
 import type { AuthenticatedUser } from './guards/jwt-auth.guard'
 import { AccessToken } from './decorators/access-token.decorator'
+import { AllowInactiveAccount } from './decorators/allow-inactive.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
@@ -115,6 +116,23 @@ export class AuthController {
   async logout(@AccessToken() accessToken: string | undefined) {
     await this.authService.logout(accessToken)
     return { success: true }
+  }
+
+  /**
+   * Restores the caller's own deactivated or pending-deletion account.
+   *
+   * Needs @AllowInactiveAccount() because the guard refuses every other route for
+   * these two states — which is precisely why login used to perform the restore
+   * silently, with no way for the member to decline it. Rate-limited like the other
+   * credential-adjacent routes: it flips account state, so it should not be
+   * hammerable even with a valid token.
+   */
+  @Post('reactivate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @AllowInactiveAccount()
+  async reactivate(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.reactivate(user.id)
   }
 
   @Post('forgot-password')

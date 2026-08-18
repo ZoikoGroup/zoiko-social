@@ -187,8 +187,8 @@
       "dangerZoneDesc": "Faça uma pausa ocultando a sua conta, ou agende a eliminação. Ambas são reversíveis ao iniciar sessão novamente.",
       "temporarilyDisable": "Desativar temporariamente",
       "deleteAccount": "Eliminar conta",
-      "alreadyDisabled": "Esta conta está desativada. Termine a sessão e volte a entrar para a restaurar.",
-      "pendingDeletion": "Esta conta está agendada para eliminação. Termine a sessão e volte a entrar para cancelar.",
+      "alreadyDisabled": "Esta conta está desativada. Inicie sessão novamente e confirme para a restaurar.",
+      "pendingDeletion": "Esta conta está agendada para eliminação. Inicie sessão novamente e confirme para cancelar.",
       "changePassword": "Alterar palavra-passe",
       "changePasswordDesc": "Introduza a sua palavra-passe atual e uma nova.",
       "passwordSaved": "Perfil guardado"
@@ -512,5 +512,15 @@
     "noEvents": "Sem eventos futuros",
     "noEventsOwn": "Os eventos que organizar aparecerão aqui.",
     "noEventsOther": "Os eventos deste membro aparecerão aqui."
+  },
+  "reactivate": {
+    "title": "Bem-vindo de volta — reativar a sua conta?",
+    "deactivatedAgo": "Desativou esta conta {ago}. Ao reativar, o seu perfil, publicações e seguidores voltam como estavam.",
+    "deletionAgo": "Pediu a eliminação desta conta {ago}. Ao reativar, a eliminação é cancelada e tudo é mantido.",
+    "confirm": "Reativar a minha conta",
+    "decline": "Continuar com a sessão terminada",
+    "working": "A reativar…",
+    "failed": "Não foi possível reativar a sua conta",
+    "declinedNote": "A sua conta permanece oculta. Inicie sessão quando quiser restaurá-la."
   }
 }

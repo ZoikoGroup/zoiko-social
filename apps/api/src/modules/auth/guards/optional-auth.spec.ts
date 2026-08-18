@@ -57,11 +57,16 @@ describe('OptionalAuthGuard', () => {
     } as unknown as ExecutionContext
   }
 
-  /** The real guard, with its two injected dependencies stubbed out. */
+  /**
+   * The real guard, with its injected dependencies stubbed out. The third is the
+   * Reflector JwtAuthGuard reads @AllowInactiveAccount() through; these cases never
+   * reach it, because token verification fails first on the empty stub.
+   */
   function guard(): OptionalAuthGuard {
     return new OptionalAuthGuard(
       {} as unknown as ConstructorParameters<typeof OptionalAuthGuard>[0],
       {} as unknown as ConstructorParameters<typeof OptionalAuthGuard>[1],
+      { getAllAndOverride: () => false } as unknown as ConstructorParameters<typeof OptionalAuthGuard>[2],
     )
   }
 

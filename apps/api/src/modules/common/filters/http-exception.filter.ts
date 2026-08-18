@@ -46,6 +46,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error'
     let code = 'INTERNAL_ERROR'
     let errors: Array<{ path: string; message: string }> | undefined
+    // Extra fields a thrower may attach, forwarded by name rather than by
+    // spreading the payload — spreading would leak whatever an exception happens
+    // to carry. `since` is the date an account was deactivated or scheduled for
+    // deletion, which the sign-in screen needs to say "you deactivated this
+    // 3 days ago" instead of just refusing.
+    let since: string | undefined
 
     if (exception instanceof ZodError) {
       // Raw schema.parse() failures surface here — treat as a client validation error, not a 500.
@@ -74,6 +80,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = (body.message as string) || exception.message
         code = (body.code as string) || code
         if (Array.isArray(body.errors)) errors = body.errors as Array<{ path: string; message: string }>
+        if (typeof body.since === 'string') since = body.since
       }
     }
 
@@ -118,6 +125,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code,
         message,
         ...(errors ? { errors } : {}),
+        ...(since ? { since } : {}),
         // Returned on server faults only, so a tester can quote it and we can
         // find the exact log line. Client errors need no correlation id.
         ...(status >= HttpStatus.INTERNAL_SERVER_ERROR ? { requestId } : {}),

@@ -10,7 +10,7 @@ const SESSION = { access_token: 'at', refresh_token: 'rt', expires_at: 123 }
 const DAY_MS = 86_400_000
 
 function build(opts: {
-  profile?: { username: string; state: string; deletionRequestedAt: Date | null } | null
+  profile?: { username: string; state: string; deletionRequestedAt: Date | null; deactivatedAt?: Date | null } | null
   signInFails?: boolean
   graceDays?: number
 } = {}) {
@@ -60,7 +60,7 @@ function build(opts: {
   return { service, prisma, supabaseAdmin, auditLog, redis }
 }
 
-const active = { username: 'someone', state: 'active', deletionRequestedAt: null }
+const active = { username: 'someone', state: 'active', deletionRequestedAt: null, deactivatedAt: null }
 
 describe('AuthService.login — ordinary sign-in', () => {
   it('returns a session and leaves an active account alone', async () => {
@@ -82,70 +82,133 @@ describe('AuthService.login — ordinary sign-in', () => {
 // Signing in is the ONLY way back from these states: JwtAuthGuard rejects every
 // authenticated request from a non-active account, so there can be no
 // "reactivate" endpoint.
-describe('AuthService.login — restores a hidden account', () => {
-  it('reactivates a deactivated account', async () => {
+describe('AuthService.login — reports a hidden account instead of restoring it', () => {
+  // Login used to flip the account back to active by itself. Deactivating and
+  // signing back in therefore undid the deactivation with no acknowledgement —
+  // the audit log showed deactivate and reactivate seconds apart with no decision
+  // between them. Login now reports; the member confirms against reactivate().
+  it('reports a deactivated account and leaves its state alone', async () => {
+    const deactivatedAt = new Date(Date.now() - 3 * DAY_MS)
     const { service, prisma, auditLog } = build({
-      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null },
+      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null, deactivatedAt },
     })
 
     const result = await service.login('a@b.com', 'pw')
 
     expect(result.accessToken).toBe('at')
-    expect(prisma.profile.update).toHaveBeenCalledWith({
-      where: { id: USER_ID },
-      data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null },
+    expect(result).toMatchObject({
+      pendingReactivation: { state: 'deactivated', since: deactivatedAt.toISOString() },
     })
-    expect(auditLog.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'account.reactivate' }))
+    expect(prisma.profile.update).not.toHaveBeenCalled()
+    expect(auditLog.record).not.toHaveBeenCalled()
   })
 
-  it('clears the cached profile so the account is visible again', async () => {
-    // getProfileById gates on state, and the cached copy still says
-    // "deactivated". Without this invalidation the row flips to active while
-    // the profile page keeps answering 404 until the entry expires — the
-    // account comes back everywhere except where anyone would look.
-    const { service, redis } = build({
-      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null },
-    })
-
-    await service.login('a@b.com', 'pw')
-
-    expect(redis.invalidateProfile).toHaveBeenCalledWith(USER_ID)
-    expect(redis.invalidateUsername).toHaveBeenCalledWith('someone')
-  })
-
-  it('cancels a pending deletion inside the grace period', async () => {
-    const { service, prisma, auditLog } = build({
-      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(Date.now() - 5 * DAY_MS) },
-    })
-
-    await expect(service.login('a@b.com', 'pw')).resolves.toMatchObject({ accessToken: 'at' })
-
-    expect(prisma.profile.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null } }),
-    )
-    expect(auditLog.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'account.deletion_cancelled' }),
-    )
-  })
-
-  it('restores on the last day of the window', async () => {
+  it('reports a pending deletion inside the grace period', async () => {
+    const requestedAt = new Date(Date.now() - 5 * DAY_MS)
     const { service, prisma } = build({
-      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(Date.now() - 29.5 * DAY_MS) },
+      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: requestedAt, deactivatedAt: null },
     })
-    await expect(service.login('a@b.com', 'pw')).resolves.toBeDefined()
-    expect(prisma.profile.update).toHaveBeenCalled()
+
+    await expect(service.login('a@b.com', 'pw')).resolves.toMatchObject({
+      accessToken: 'at',
+      pendingReactivation: { state: 'pending_deletion', since: requestedAt.toISOString() },
+    })
+    expect(prisma.profile.update).not.toHaveBeenCalled()
+  })
+
+  it('still reports on the last day of the window rather than purging', async () => {
+    const { service, prisma, supabaseAdmin } = build({
+      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(Date.now() - 29.5 * DAY_MS), deactivatedAt: null },
+    })
+    await expect(service.login('a@b.com', 'pw')).resolves.toMatchObject({
+      pendingReactivation: { state: 'pending_deletion' },
+    })
+    expect(prisma.profile.update).not.toHaveBeenCalled()
+    expect(supabaseAdmin.auth.admin.deleteUser).not.toHaveBeenCalled()
+  })
+
+  it('leaves an active account with no pendingReactivation at all', async () => {
+    const { service } = build({ profile: active })
+    const result = await service.login('a@b.com', 'pw')
+    expect(result).not.toHaveProperty('pendingReactivation')
   })
 
   it('honours a shorter configured grace period', async () => {
     const { service, supabaseAdmin } = build({
       graceDays: 7,
-      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(Date.now() - 10 * DAY_MS) },
+      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(Date.now() - 10 * DAY_MS), deactivatedAt: null },
     })
     // 10 days is inside 30 but outside 7 — must be treated as expired.
     await expect(service.login('a@b.com', 'pw')).rejects.toMatchObject({
       response: { code: 'INVALID_CREDENTIALS' },
     })
     expect(supabaseAdmin.auth.admin.deleteUser).toHaveBeenCalledWith(USER_ID)
+  })
+})
+
+describe('AuthService.reactivate — the member confirms', () => {
+  it('restores a deactivated account and records who chose it', async () => {
+    const { service, prisma, auditLog } = build({
+      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null, deactivatedAt: new Date() },
+    })
+
+    await expect(service.reactivate(USER_ID)).resolves.toEqual({ state: 'active', reactivated: true })
+
+    expect(prisma.profile.update).toHaveBeenCalledWith({
+      where: { id: USER_ID },
+      data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null },
+    })
+    expect(auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'account.reactivate',
+        newData: expect.objectContaining({ confirmedByMember: true }),
+      }),
+    )
+  })
+
+  it('clears the cached profile so the account is visible again', async () => {
+    // getProfileById gates on state and the cached copy still says
+    // "deactivated". Without this the row flips to active while the profile page
+    // keeps answering 404 until the entry expires — the account comes back
+    // everywhere except where anyone would look.
+    const { service, redis } = build({
+      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null, deactivatedAt: new Date() },
+    })
+
+    await service.reactivate(USER_ID)
+
+    expect(redis.invalidateProfile).toHaveBeenCalledWith(USER_ID)
+    expect(redis.invalidateUsername).toHaveBeenCalledWith('someone')
+  })
+
+  it('cancels a pending deletion under its own audit action', async () => {
+    const { service, auditLog } = build({
+      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: new Date(), deactivatedAt: null },
+    })
+
+    await service.reactivate(USER_ID)
+
+    expect(auditLog.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'account.deletion_cancelled' }),
+    )
+  })
+
+  it('is idempotent, so a double-tap on confirm cannot error', async () => {
+    const { service, prisma } = build({ profile: active })
+    await expect(service.reactivate(USER_ID)).resolves.toEqual({ state: 'active', reactivated: false })
+    expect(prisma.profile.update).not.toHaveBeenCalled()
+  })
+
+  it('refuses to undo a moderator decision', async () => {
+    for (const state of ['suspended', 'banned', 'deleted']) {
+      const { service, prisma } = build({
+        profile: { username: 'someone', state, deletionRequestedAt: null, deactivatedAt: null },
+      })
+      await expect(service.reactivate(USER_ID)).rejects.toMatchObject({
+        response: { code: 'ACCOUNT_NOT_RESTORABLE' },
+      })
+      expect(prisma.profile.update).not.toHaveBeenCalled()
+    }
   })
 })
 
@@ -198,11 +261,14 @@ describe('AuthService.login — grace period expired', () => {
   it('treats a missing request date as not expired rather than purging', async () => {
     // Guards against a null timestamp being read as epoch 0 and deleting an account.
     const { service, prisma, supabaseAdmin } = build({
-      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: null },
+      profile: { username: 'someone', state: 'pending_deletion', deletionRequestedAt: null, deactivatedAt: null },
     })
-    await expect(service.login('a@b.com', 'pw')).resolves.toBeDefined()
+    await expect(service.login('a@b.com', 'pw')).resolves.toMatchObject({
+      pendingReactivation: { state: 'pending_deletion' },
+    })
     expect(supabaseAdmin.auth.admin.deleteUser).not.toHaveBeenCalled()
-    expect(prisma.profile.update).toHaveBeenCalled()
+    // Reported, not restored — and above all not purged.
+    expect(prisma.profile.update).not.toHaveBeenCalled()
   })
 })
 
@@ -228,14 +294,17 @@ describe('AuthService.login — moderated accounts are not touched', () => {
 })
 
 describe('AuthService.handleOAuthCallback', () => {
-  it('restores a hidden account on OAuth sign-in too', async () => {
+  it('reports a hidden account on OAuth sign-in too, without restoring it', async () => {
+    // Social sign-in has no password to re-enter, so it needs the same
+    // report-then-confirm path rather than a silent restore.
+    const deactivatedAt = new Date(Date.now() - 2 * DAY_MS)
     const { service, prisma } = build({
-      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null },
+      profile: { username: 'someone', state: 'deactivated', deletionRequestedAt: null, deactivatedAt },
     })
-    await service.handleOAuthCallback('code')
-    expect(prisma.profile.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { state: 'active', deactivatedAt: null, deletionRequestedAt: null } }),
-    )
+    await expect(service.handleOAuthCallback('code')).resolves.toMatchObject({
+      pendingReactivation: { state: 'deactivated', since: deactivatedAt.toISOString() },
+    })
+    expect(prisma.profile.update).not.toHaveBeenCalled()
   })
 
   it('refuses an expired account on OAuth sign-in', async () => {

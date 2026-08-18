@@ -7,6 +7,9 @@ import { LOCALES, LOCALE_LABELS, type Locale } from '@/i18n/config'
 import { setLocale } from '@/i18n/actions'
 import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email'
+import { detectHiddenAccount, reactivateAccount, type HiddenAccount } from '@/lib/account-state'
+import { ReactivateAccountPrompt } from '@/components/ReactivateAccountPrompt'
+import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -182,6 +185,9 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
   const t = useTranslations('auth')
   const [langPending, startLangTransition] = useTransition()
   const [langOpen, setLangOpen] = useState(false)
+  // Set when sign-in succeeded but the account is still hidden, which turns the
+  // form into a confirmation instead of navigating on.
+  const [hidden, setHidden] = useState<HiddenAccount | null>(null)
 
   // Social sign-in leaves the page for the provider, so handleSocial never
   // clears its spinner on the success path — there is normally nothing left to
@@ -270,6 +276,28 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
     }
   }, [registered])
 
+  /** The session Supabase just established, whichever path created it. */
+  async function accessToken(): Promise<string | null> {
+    const { data } = await createClient().auth.getSession()
+    return data.session?.access_token ?? null
+  }
+
+  async function handleReactivate(): Promise<string | null> {
+    const token = await accessToken()
+    if (!token) return t('errors.usernameUnavailable')
+    const message = await reactivateAccount(token)
+    if (message) return message
+    router.push('/')
+    return null
+  }
+
+  async function handleDeclineReactivation(): Promise<void> {
+    // Nothing to proceed to: the account is hidden and every route refuses it.
+    await createClient().auth.signOut()
+    setHidden(null)
+    setPassword('')
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -281,7 +309,16 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
         setError(result.error)
         setIsLoading(false)
       } else {
-        router.push('/')
+        // Credentials are good, but the account may still be deactivated — and
+        // signing in must no longer undo that by itself. Ask first.
+        const token = await accessToken()
+        const state = token ? await detectHiddenAccount(token) : null
+        if (state) {
+          setHidden(state)
+          setIsLoading(false)
+        } else {
+          router.push('/')
+        }
       }
     } else {
       // type="email" lets a bare hostname through — test@test and user@domain
@@ -368,8 +405,10 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
               <Image
                 src="/zoikosocial-logo.png"
                 alt="Zoiko Social"
-                height={40}
-                width={180}
+                // 115x36 matches both the rendered box (h-9) and the asset's
+                // 843x264 ratio. Was 180x40: wrong on both counts.
+                height={36}
+                width={115}
                 priority
                 className="h-9 w-auto object-contain drop-shadow-sm"
               />
@@ -467,6 +506,19 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
                     {isLogin ? t('loginSubtitle') : t('signupSubtitle')}
                   </p>
                 </div>
+
+                {/* Sign-in succeeded but the account is still hidden: confirm
+                    before undoing that, rather than restoring it silently. */}
+                {hidden && (
+                  <div className="mb-5">
+                    <ReactivateAccountPrompt
+                      state={hidden.state}
+                      since={hidden.since}
+                      onReactivate={handleReactivate}
+                      onDecline={() => void handleDeclineReactivation()}
+                    />
+                  </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   {!isLogin && (

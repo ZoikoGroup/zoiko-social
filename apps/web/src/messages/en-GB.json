@@ -187,8 +187,8 @@
       "dangerZoneDesc": "Take a break by hiding your account, or schedule it for deletion. Both are reversible by signing back in.",
       "temporarilyDisable": "Temporarily Disable",
       "deleteAccount": "Delete Account",
-      "alreadyDisabled": "This account is currently disabled. Signing out and back in restores it.",
-      "pendingDeletion": "This account is scheduled for deletion. Signing out and back in cancels it.",
+      "alreadyDisabled": "This account is disabled. Sign back in and confirm to restore it.",
+      "pendingDeletion": "This account is scheduled for deletion. Sign back in and confirm to cancel it.",
       "changePassword": "Change Password",
       "changePasswordDesc": "Enter your current password and a new password.",
       "passwordSaved": "Profile saved"
@@ -512,5 +512,15 @@
     "noEvents": "No upcoming events",
     "noEventsOwn": "Events you host will show up here.",
     "noEventsOther": "Events this member hosts will show up here."
+  },
+  "reactivate": {
+    "title": "Welcome back — reactivate your account?",
+    "deactivatedAgo": "You deactivated this account {ago}. Reactivating brings back your profile, posts and followers exactly as they were.",
+    "deletionAgo": "You asked us to delete this account {ago}. Reactivating cancels the deletion and keeps everything.",
+    "confirm": "Reactivate my account",
+    "decline": "Stay signed out",
+    "working": "Reactivating…",
+    "failed": "Could not reactivate your account",
+    "declinedNote": "Your account stays hidden. Sign in again whenever you want to restore it."
   }
 }
