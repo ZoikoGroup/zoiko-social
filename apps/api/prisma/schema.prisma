@@ -341,6 +341,7 @@ model Profile {
   firstName             String?          @map("first_name")
   lastName              String?          @map("last_name")
   bio                   String?
+  city                  String?
   avatarUrl             String?          @map("avatar_url")
   bannerUrl             String?          @map("banner_url")
   websiteUrl            String?          @map("website_url")

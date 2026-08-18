@@ -49,6 +49,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
   const [username, setUsername] = useState(profile.username)
   const [bio, setBio] = useState(profile.bio ?? '')
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '')
+  const [city, setCity] = useState(profile.city ?? '')
   const [isPrivate, setIsPrivate] = useState(profile.isPrivate)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl)
@@ -175,6 +176,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
       const updated = await profileApi.update({
         displayName: displayName.trim() || profile.displayName,
         bio: bio.trim(),
+        city: city.trim() || null,
         websiteUrl: websiteUrl.trim() || null,
         isPrivate,
         ...(avatarUrl ? { avatarUrl } : {}),
@@ -337,6 +339,18 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
               placeholder="https://…"
               className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="text-label-sm font-semibold text-on-surface block mb-1.5">City / Region</label>
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="e.g. London, Berlin, Tokyo"
+              maxLength={100}
+              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
+            />
+            <p className="text-[11px] text-outline mt-1">Visible on your profile when Show location is enabled.</p>
           </div>
 
           <label className="flex items-center justify-between cursor-pointer">

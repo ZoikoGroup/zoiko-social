@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
@@ -13,6 +13,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 import { useTranslations } from 'next-intl'
+import { UserContent } from '@/components/UserContent'
 
 interface ProfileHeaderProps {
   /** Omit or pass undefined to show the signed-in user's own profile. */
@@ -330,7 +331,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
             )}
 
             {profile.bio && (
-              <p className="mt-2 text-label-md text-on-surface-variant leading-relaxed whitespace-pre-line max-w-xl">{profile.bio}</p>
+              <UserContent as="p" className="mt-2 text-label-md text-on-surface-variant leading-relaxed whitespace-pre-line max-w-xl">{profile.bio}</UserContent>
             )}
             {profile.websiteUrl && (
               <a
@@ -342,6 +343,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                 <Link2 className="w-3.5 h-3.5" />
                 {profile.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </a>
+            )}
+            {profile.city && (
+              <p className="mt-1.5 flex items-center gap-1 text-label-sm text-outline">
+                <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                {profile.city}
+              </p>
             )}
 
             {/* Stats — accent-colored counts, LinkedIn-style single line */}

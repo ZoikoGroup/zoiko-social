@@ -171,6 +171,7 @@ export interface Profile {
   firstName: string | null
   lastName: string | null
   bio: string | null
+  city: string | null
   avatarUrl: string | null
   bannerUrl: string | null
   websiteUrl: string | null
@@ -293,6 +294,7 @@ export const profileApi = {
   update: (input: {
     displayName?: string
     bio?: string
+    city?: string | null
     websiteUrl?: string | null
     avatarUrl?: string | null
     bannerUrl?: string | null

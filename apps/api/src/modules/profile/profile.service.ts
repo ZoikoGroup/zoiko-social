@@ -24,6 +24,7 @@ import { z } from 'zod'
 export const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
+  city: z.string().max(100).optional().nullable(),
   websiteUrl: z.string().url().max(200).optional().nullable(),
   avatarUrl: z.string().url().max(500).optional().nullable(),
   bannerUrl: z.string().url().max(500).optional().nullable(),
@@ -154,6 +155,7 @@ export interface ProfileResponse {
   firstName: string | null
   lastName: string | null
   bio: string | null
+  city: string | null
   avatarUrl: string | null
   bannerUrl: string | null
   websiteUrl: string | null
@@ -479,7 +481,7 @@ export class ProfileService {
     const cached = await this.redis.getProfile<ProfileResponse>(id)
     if (cached) {
       await this.assertProfileVisible(cached, currentUserId)
-      return this.redactForViewer(cached, currentUserId)
+      return await this.redactForViewer(cached, currentUserId)
     }
 
     const profile = await this.prisma.profile.findUnique({
@@ -497,7 +499,7 @@ export class ProfileService {
     // hitting PostgreSQL on every probe.
     await this.redis.setProfile(id, mapped)
     await this.assertProfileVisible(mapped, currentUserId)
-    return this.redactForViewer(mapped, currentUserId)
+    return await this.redactForViewer(mapped, currentUserId)
   }
 
   /**
@@ -540,9 +542,16 @@ export class ProfileService {
   }
 
   /** Hide private-account details from non-owners. */
-  private redactForViewer(profile: ProfileResponse, currentUserId?: string): ProfileResponse {
+  private async redactForViewer(profile: ProfileResponse, currentUserId?: string): Promise<ProfileResponse> {
     if (profile.isPrivate && profile.id !== currentUserId) {
-      return { ...profile, bio: null, websiteUrl: null }
+      return { ...profile, bio: null, websiteUrl: null, city: null }
+    }
+    // Hide city when the owner has disabled the Show location toggle.
+    if (currentUserId && profile.id !== currentUserId && profile.city) {
+      const settings = await this.prisma.userSettings.findUnique({ where: { userId: profile.id }, select: { showLocation: true } })
+      if (settings && !settings.showLocation) {
+        return { ...profile, city: null }
+      }
     }
     return profile
   }
@@ -1369,6 +1378,7 @@ export class ProfileService {
       firstName: profile.firstName ?? null,
       lastName: profile.lastName ?? null,
       bio: profile.bio,
+      city: profile.city ?? null,
       avatarUrl: profile.avatarUrl,
       bannerUrl: profile.bannerUrl,
       websiteUrl: profile.websiteUrl,
