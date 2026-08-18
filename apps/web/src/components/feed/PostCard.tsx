@@ -22,6 +22,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useDateFormat } from '@/hooks/use-date-format'
+import { UserContent } from '@/components/UserContent'
 
 // Short verified-badge label derived from the author's professional category.
 const CATEGORY_BADGE: Record<string, string> = {
@@ -467,7 +468,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             <Link href={`/profile/${post.author.username}`} className="font-semibold hover:underline mr-1.5">
               {post.author.username}
             </Link>
-            <Caption text={post.caption} />
+            <UserContent><Caption text={post.caption} /></UserContent>
           </p>
         )}
         {post.commentsCount > 0 && (

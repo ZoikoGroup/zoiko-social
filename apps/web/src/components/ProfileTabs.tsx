@@ -10,6 +10,7 @@ import { PostGrid } from './feed/PostGrid'
 import { useDateFormat } from '@/hooks/use-date-format'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 import { useTranslations } from 'next-intl'
+import { UserContent } from '@/components/UserContent'
 
 type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events' | 'communities'
 
@@ -70,7 +71,7 @@ function AboutTab({ profile }: { profile: Profile | null }): React.JSX.Element {
       {profile.bio && (
         <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 shadow-sm">
           <h3 className="text-label-md font-bold text-on-surface mb-3">{tpr('bio')}</h3>
-          <p className="text-body-md text-on-surface-variant leading-relaxed whitespace-pre-line">{profile.bio}</p>
+          <UserContent as="p" className="text-body-md text-on-surface-variant leading-relaxed whitespace-pre-line">{profile.bio}</UserContent>
         </section>
       )}
 

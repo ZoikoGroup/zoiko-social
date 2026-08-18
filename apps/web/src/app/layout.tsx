@@ -36,19 +36,29 @@ export default async function RootLayout({
   // lang has to follow it: screen readers and browser translation both read it,
   // and a German page announcing lang="en" is read with English pronunciation.
   //
-  // The flip side, and the reason for the <span>s wrapped around button labels
-  // across this app: because lang now varies, the browser offers to translate
-  // pages whose declared language differs from the reader's own. Accepting that
-  // replaces our text nodes with the translator's, and React then throws
-  // NotFoundError from insertBefore the next time it renders a spinner beside
-  // one — the label it wants to insert before is no longer its child. A label
+  // The flip side: because lang now varies, the browser offers to translate any
+  // page whose declared language differs from the reader's own — a reader on a
+  // Spanish interface with an English browser gets offered exactly that.
+  // Accepting it replaces our nodes with the translator's, and React then throws
+  // NotFoundError from insertBefore on its next render, because the sibling it
+  // wants to insert before is no longer its child.
+  //
+  // The <span>s wrapped around button labels across this app reduce that: a label
   // inside its own element is translated in place, so React keeps a child it
-  // still recognises. Those wrappers look redundant; they are not.
+  // recognises. They look redundant; they are not. But they only cover labels,
+  // while the translator restructures whole regions, so the crash returned on the
+  // /network filter panel. translate="no" on the shell is what actually closes
+  // it: this app ships six locales and its own picker, so machine-translating our
+  // own chrome duplicates a feature we already provide.
+  //
+  // Scoped, not blanket. Other people's words — posts, bios, comments, messages —
+  // opt back in with translate="yes", because our catalog will never cover those
+  // and a reader may genuinely need them translated.
   const locale = await getLocale()
   const messages = await getMessages()
 
   return (
-    <html lang={locale} className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
+    <html lang={locale} translate="no" className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
       <head>
         {/* ── Resource Hints ────────────────────────────────────────────────
          * Preconnect early origins so the browser starts the TLS handshake

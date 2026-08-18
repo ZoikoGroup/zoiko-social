@@ -159,7 +159,10 @@ export function Header(): React.JSX.Element {
             <Image src="/logo.svg" alt="ZoikoSocial" height={38} width={38} priority fetchPriority="high" className="h-[38px] w-[38px] rounded-xl object-contain" />
           </Link>
           <Link href="/" className="hidden md:flex flex-col items-start flex-shrink-0 gap-0.5">
-            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={134} priority fetchPriority="high" className="h-[30px] w-auto object-contain" />
+            {/* 96x30 is the asset's own ratio (843x264). The pair was 134x30 — a ratio of
+                4.47 against the file's 3.19 — so Next reserved a box wider than the
+                logo renders, which both warned and shifted the layout on load. */}
+            <Image src="/zoikosocial-logo.png" alt="ZoikoSocial" height={30} width={96} priority fetchPriority="high" className="h-[30px] w-auto object-contain" />
             <span className="hidden lg:block text-[7.5px] font-bold tracking-[0.28em] text-outline uppercase leading-none pl-0.5">
               Animal Welfare Network
             </span>
