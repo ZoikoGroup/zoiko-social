@@ -112,7 +112,10 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
   function removeDna(i: number): void { setForm((f) => ({ ...f, dnaResults: (f.dnaResults ?? []).filter((_, idx) => idx !== i) })) }
 
   async function submit(): Promise<void> {
+    // The API requires a cover on create. Editing an existing profile does not,
+    // so this only gates a new one.
     if (saving || !form.petName.trim() || !form.breed.trim()) return
+    if (!editing && !cover) return
     setSaving(true); setError('')
     try {
       const payload: Form = {
@@ -288,7 +291,7 @@ export function BreedingProfileModal({ profile, onClose, onSaved }: {
 
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
-          <button onClick={submit} disabled={saving || !form.petName.trim() || !form.breed.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+          <button onClick={submit} disabled={saving || !form.petName.trim() || !form.breed.trim() || (!editing && !cover) || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{editing ? 'Save changes' : 'Publish profile'}</span>
           </button>
         </div>

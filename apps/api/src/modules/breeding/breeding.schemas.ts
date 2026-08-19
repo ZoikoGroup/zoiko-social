@@ -41,6 +41,14 @@ export const CreateBreedingSchema = z.object({
   about: z.string().trim().max(3000).optional(),
   currency: z.string().trim().length(3).optional(),
   ...advancedFields,
+  /**
+   * Required on create, overriding the optional version in advancedFields — which
+   * is spread into UpdateBreedingSchema as well, so requiring it there would lock
+   * anyone out of editing a profile made before this rule, and half of them have no
+   * cover. For a living animal the photo is the listing: nobody enquires from a
+   * placeholder.
+   */
+  coverUrl: z.string().url().max(600),
 })
 
 export const UpdateBreedingSchema = z.object({

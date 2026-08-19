@@ -192,8 +192,14 @@ export default function NewsPage(): React.JSX.Element {
                     <div className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
                       <Link href={`/news/${featured[0]!.id}`} aria-label={featured[0]!.title} className="absolute inset-0 z-10" />
                       <div className="relative h-48 sm:h-56 overflow-hidden bg-surface-container">
-                        {featured[0]!.coverUrl && (
+                        {featured[0]!.coverUrl ? (
                           <Img src={featured[0]!.coverUrl} alt="" priority className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          /* The headline below sits in white over a dark gradient,
+                             which needs something behind it. */
+                          <div className="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center">
+                            <Newspaper className="w-12 h-12 text-primary/50" />
+                          </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                         <div className="absolute bottom-4 left-4 right-4">
@@ -222,8 +228,15 @@ export default function NewsPage(): React.JSX.Element {
                           <div key={a.id} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
                             <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
                             <div className="relative h-32 overflow-hidden bg-surface-container">
-                              {a.coverUrl && (
+                              {a.coverUrl ? (
                                 <Img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              ) : (
+                                /* 80% of articles have no cover. The gradient and
+                                   white headline above assume an image behind them,
+                                   so without one the card was grey text on grey. */
+                                <div className="w-full h-full bg-gradient-to-br from-primary/25 to-secondary/25 flex items-center justify-center">
+                                  <Newspaper className="w-8 h-8 text-primary/50" />
+                                </div>
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                               <div className="absolute top-2 left-2"><TierBadge tier={a.tier} /></div>
