@@ -44,7 +44,13 @@ export const CreateProductSchema = z.object({
     .optional(),
   category: z.enum(SHOP_CATEGORIES).optional(),
   condition: z.enum(['new', 'used']).optional(),
-  coverUrl: z.string().url().max(600).optional(),
+  /**
+   * Required on create. A product listed without one renders as an empty grey
+   * square in the shop grid — the browse page had five of them — and a buyer has
+   * nothing to judge. Optional on update so an existing listing can be edited
+   * without re-uploading, and so the rows that predate this rule stay editable.
+   */
+  coverUrl: z.string().url().max(600),
   photos: z.array(z.string().url().max(600)).max(8).optional(),
   stock: z.number().int().min(0).max(100000).optional(),
   shipping: z.string().trim().max(120).optional(),

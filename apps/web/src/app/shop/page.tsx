@@ -11,7 +11,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus,
+  ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus, ImageOff,
 } from 'lucide-react'
 import { shopApi, type Product, type NewProduct } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
@@ -155,8 +155,16 @@ export default function ShopPage(): React.JSX.Element {
                     <div key={p.id} onMouseEnter={() => { void shopApi.get(p.id).catch(() => {}) }} className="group relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
                       <Link href={`/shop/${p.id}`} aria-label={p.title} className="absolute inset-0 z-10" />
                       <div className="relative aspect-square bg-surface-container overflow-hidden">
-                        {p.coverUrl && (
+                        {p.coverUrl ? (
                           <Img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          /* Listings created before a photo was required. An empty
+                             grey square reads as a broken image; this reads as a
+                             listing without one. */
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-outline/60">
+                            <ImageOff className="w-7 h-7" />
+                            <span className="text-[10px] font-medium">No photo</span>
+                          </div>
                         )}
                         {p.compareAt && p.compareAt > p.price && (
                           <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">SALE</span>
@@ -220,7 +228,9 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
   const [error, setError] = useState('')
 
   const priceNum = parseFloat(price)
-  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0
+  // A photo is required, matching CreateProductSchema. Enforced here as well so
+  // the reason is visible before submitting rather than coming back as a 400.
+  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0 && coverUrl !== ''
 
   async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0]; e.target.value = ''
@@ -239,7 +249,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
         ...(stock && !isNaN(parseInt(stock, 10)) ? { stock: parseInt(stock, 10) } : {}),
         ...(shipping.trim() ? { shipping: shipping.trim() } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
-        ...(coverUrl ? { coverUrl } : {}),
+        coverUrl,
       }
       onListed(await shopApi.create(input))
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to list') } finally { setPosting(false) }
@@ -263,7 +273,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
                 <img src={coverUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}<span>{uploading ? 'Uploading…' : 'Add product photo'}</span>
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}<span>{uploading ? 'Uploading…' : 'Add product photo — required'}</span>
                 </span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
