@@ -43,6 +43,13 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @zoiko/api exec prisma generate
 
+      # Catches a schema column with no migration behind it. The generated client
+      # is built from the schema, not the database, so in that state type check,
+      # lint, tests and build all pass and every read through the model 500s in
+      # production. It has happened twice.
+      - name: Schema and migrations agree
+        run: pnpm check:migrations
+
       # ── 5. Determine what changed, scope checks to affected packages ──
       # Prevents one app's pre-existing lint/type debt from blocking every
       # push to the repo, regardless of what was actually touched.

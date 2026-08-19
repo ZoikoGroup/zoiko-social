@@ -23,24 +23,13 @@ name: Deploy Web → Vercel
 # generated dynamically to tell Vercel the output lives at apps/web/.next.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Manual only. This path deploys to Vercel/Render, which the project has moved off
+# in favour of the GCP VM workflows (*-deploy-vm.yml). Left in place rather than
+# deleted so the fallback still exists, but the push trigger is gone: it failed on
+# every push to main, and a permanently red check trains everyone to ignore CI,
+# which is how a real failure gets missed.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/web/**'
-      - 'packages/**'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - 'package.json'
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'apps/web/**'
-      - 'packages/**'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - 'package.json'
 
 concurrency:
   group: vercel-${{ github.ref }}

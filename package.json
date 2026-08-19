@@ -19,7 +19,8 @@
     "format:check": "prettier --check .",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "check:migrations": "node scripts/check-migrations.mjs"
   },
   "devDependencies": {
     "@turbo/windows-64": "2.10.1",
