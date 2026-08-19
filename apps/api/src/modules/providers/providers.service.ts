@@ -648,6 +648,21 @@ export class ProvidersService {
       .filter((w): w is [number, number] => w[0] !== null && w[1] !== null && w[1] > w[0])
   }
 
+  /**
+   * Bookable slots for a provider on one date.
+   *
+   * KNOWN LIMITATION — availability is interpreted in UTC. `date` is midnight UTC
+   * and each slot is that instant plus the minutes-from-midnight parsed out of the
+   * provider's stored "HH:MM". So a provider who enters 09:00 has slots offered at
+   * 09:00Z, which is 14:30 in India and 05:00 in New York, and the picker renders
+   * them in each viewer's local zone.
+   *
+   * The fix is a timezone on ServiceProvider and a wall-clock-to-instant conversion
+   * per date, which also has to handle DST. It has not landed yet, so the two hours
+   * forms say "(UTC)" rather than implying local time. There are currently no
+   * providerAvailability rows at all, which makes this the cheapest moment to do it
+   * properly — no stored hours need reinterpreting.
+   */
   async listSlots(providerId: string, serviceId: string, dateStr: string): Promise<SlotResponse[]> {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException({ code: 'INVALID_DATE', message: 'Date must be YYYY-MM-DD' })

@@ -879,7 +879,7 @@ function AvailabilityTab({ providerId, availability, onRefresh }: {
     <div className="space-y-4">
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-label-md text-on-surface">Weekly Business Hours</h2>
+          <h2 className="font-bold text-label-md text-on-surface">Weekly Business Hours (UTC)</h2>
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary/20 transition-colors cursor-pointer"

@@ -678,7 +678,7 @@ function AboutTab({ provider, availability, isOwner, providerId, onRefresh }: {
               through the same form for hours that are usually identical. */}
           {isOwner && showForm && (
             <div className="mb-4 p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
-              <p className="text-[11px] font-semibold text-primary">Set Weekly Hours</p>
+              <p className="text-[11px] font-semibold text-primary">Set Weekly Hours (UTC)</p>
 
               <div>
                 <label className="text-[10px] text-outline block mb-1.5">Days</label>

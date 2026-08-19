@@ -62,9 +62,29 @@ export function convert(amount: number, from: string, to: string, rates: RatesMa
 export function formatMoney(amount: number, to: string, from: string = DEFAULT_CURRENCY, rates: RatesMap = STATIC_RATES): string {
   const m = currencyMeta(to)
   const value = convert(amount, from, to, rates)
-  const maxFrac = Math.abs(value) >= 1000 ? 0 : m.decimals
-  const text = `${m.symbol}${value.toLocaleString(m.locale, { maximumFractionDigits: maxFrac })}`
-  return from !== to ? `≈${text}` : text
+  const approximate = from !== to
+
+  /*
+   * Two rules, and the distinction matters in a marketplace.
+   *
+   * When no conversion happened the number *is* the price, so it is shown at the
+   * currency's own precision. The previous rule dropped to 0 decimals above 1000
+   * regardless, which turned a genuine $1,234.56 into "$1,235" — misstating a
+   * seller's price by up to half a unit. Currencies that do not use minor units
+   * (INR, JPY) still show none, because their `decimals` is already 0.
+   *
+   * A converted value is an estimate and carries the ≈ prefix, so rounding a large
+   * one loses nothing real and keeps the figure readable.
+   *
+   * minimumFractionDigits matches maximum so money does not render ragged —
+   * "$89.90", not "$89.9".
+   */
+  const digits = approximate && Math.abs(value) >= 1000 ? 0 : m.decimals
+  const text = `${m.symbol}${value.toLocaleString(m.locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}`
+  return approximate ? `≈${text}` : text
 }
 
 /** Parse a live-rate API payload ({ rates: { code: unitsPerINR } }) into our INR-per-unit map. */
