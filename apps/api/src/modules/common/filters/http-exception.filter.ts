@@ -22,6 +22,25 @@ import { captureServerError } from '../../../observability/sentry'
  * loop, burying real faults. Mapping them to 4xx also stops the logging, since
  * only 5xx is logged.
  */
+/**
+ * Fallback code per status for exceptions thrown without one — Nest's built-in 404
+ * among them, which was answering `{"code":"INTERNAL_ERROR","message":"Cannot GET
+ * /api/v1/nope"}`. A client keying on `code` could not distinguish a wrong URL from
+ * a server fault, and INTERNAL_ERROR on a 404 invites someone to go hunting for a
+ * crash that never happened.
+ */
+const STATUS_CODES: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  422: 'UNPROCESSABLE_ENTITY',
+  429: 'RATE_LIMITED',
+}
+
 const PRISMA_CLIENT_ERRORS: Record<string, { status: HttpStatus; code: string; message: string }> = {
   // "Inconsistent column data" — in practice a malformed UUID in a filter.
   P2023: { status: HttpStatus.BAD_REQUEST, code: 'INVALID_ID', message: 'Malformed identifier' },
@@ -52,6 +71,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // deletion, which the sign-in screen needs to say "you deactivated this
     // 3 days ago" instead of just refusing.
     let since: string | undefined
+    // Seconds until a throttled caller may retry; also sent as Retry-After.
+    let retryAfterSeconds: number | undefined
 
     if (exception instanceof ZodError) {
       // Raw schema.parse() failures surface here — treat as a client validation error, not a 500.
@@ -73,6 +94,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       status = exception.getStatus()
       const res = exception.getResponse()
 
+      // Before reading the payload: a status-derived code beats INTERNAL_ERROR for
+      // any 4xx. An explicit code in the payload still wins below.
+      code = STATUS_CODES[status] ?? code
+
       if (typeof res === 'string') {
         message = res
       } else if (typeof res === 'object' && res !== null) {
@@ -81,6 +106,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code = (body.code as string) || code
         if (Array.isArray(body.errors)) errors = body.errors as Array<{ path: string; message: string }>
         if (typeof body.since === 'string') since = body.since
+        if (typeof body.retryAfterSeconds === 'number') retryAfterSeconds = body.retryAfterSeconds
       }
     }
 
@@ -119,6 +145,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       })
     }
 
+    if (retryAfterSeconds !== undefined) {
+      response.header('Retry-After', String(retryAfterSeconds))
+    }
+
     response.status(status).send({
       success: false,
       error: {
@@ -126,6 +156,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message,
         ...(errors ? { errors } : {}),
         ...(since ? { since } : {}),
+        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
         // Returned on server faults only, so a tester can quote it and we can
         // find the exact log line. Client errors need no correlation id.
         ...(status >= HttpStatus.INTERNAL_SERVER_ERROR ? { requestId } : {}),

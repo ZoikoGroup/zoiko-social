@@ -17,6 +17,46 @@ import { ConfigService } from '../config/config.service'
  * and reads return null, so the API keeps working straight off PostgreSQL.
  */
 
+/**
+ * Errors that reconnecting cannot fix.
+ *
+ * A quota-exhausted Upstash plan answers every command with "max requests limit
+ * exceeded". The retry strategy treated that as transient and reconnected every
+ * five seconds forever, logging a full error each time — across the main client and
+ * one connection per BullMQ worker. That produced 287 MB of identical log lines in
+ * roughly three minutes, which on a VM with a modest disk is an outage of its own,
+ * caused by the logging rather than by Redis.
+ *
+ * Credential failures are the same shape of problem: retrying a wrong password is
+ * never going to start working.
+ */
+const FATAL_REDIS_ERROR = /max requests limit exceeded|max daily request limit|WRONGPASS|NOAUTH|invalid password/i
+
+/**
+ * Logs the first occurrence of each distinct error immediately, then at most once
+ * a minute, reporting how many were suppressed. Keeps the signal without the flood.
+ */
+class ThrottledErrorLog {
+  private readonly seen = new Map<string, { last: number; suppressed: number }>()
+
+  /** Returns the line to log, or null when this one should be swallowed. */
+  next(key: string, now = Date.now()): string | null {
+    const entry = this.seen.get(key)
+    if (!entry) {
+      this.seen.set(key, { last: now, suppressed: 0 })
+      return key
+    }
+    if (now - entry.last < 60_000) {
+      entry.suppressed++
+      return null
+    }
+    const { suppressed } = entry
+    entry.last = now
+    entry.suppressed = 0
+    return suppressed > 0 ? `${key} (${suppressed} identical suppressed in the last minute)` : key
+  }
+}
+
 export interface CounterSnapshot {
   followers: number
   following: number
@@ -79,10 +119,51 @@ export class RedisService implements OnModuleDestroy {
     this.client = new Redis(url, {
       maxRetriesPerRequest: 2,
       enableOfflineQueue: false,
-      retryStrategy: (times) => Math.min(times * 500, 5_000),
+      // Returning null stops ioredis reconnecting. Only done for errors that
+      // reconnecting cannot fix — otherwise a transient outage must still recover.
+      retryStrategy: (times) => (this.fatalRedis ? null : Math.min(times * 500, 5_000)),
     })
-    this.client.on('error', (err) => this.logger.error(`Redis error: ${err.message}`))
-    this.client.on('ready', () => this.logger.log('Redis connected'))
+    this.client.on('error', (err) => this.onRedisError('Redis error', err))
+    this.client.on('ready', () => {
+      this.fatalRedis = false
+      this.logger.log('Redis connected')
+    })
+  }
+
+  /** Set once a non-retryable error is seen, so the retry strategy gives up. */
+  private fatalRedis = false
+  private readonly errorLog = new ThrottledErrorLog()
+  /**
+   * Child connections handed to BullMQ. Tracked so a fatal error can close them:
+   * a worker whose connection stays open keeps polling a Redis that will never
+   * answer, and BullMQ prints its own full stack per attempt — seven queues doing
+   * that produced 1,630 error traces in 75 seconds, independently of this class's
+   * own logging, while burning what is left of the request quota.
+   */
+  private readonly children: Redis[] = []
+
+  private onRedisError(prefix: string, err: Error): void {
+    if (FATAL_REDIS_ERROR.test(err.message) && !this.fatalRedis) {
+      this.fatalRedis = true
+      this.logger.error(
+        `${prefix}: ${err.message} — this cannot be fixed by reconnecting, so retries are stopping ` +
+          'and queue connections are closing. Cache, queues and pub/sub are in degraded mode until it ' +
+          'is resolved; the API keeps serving from PostgreSQL.',
+      )
+      this.shutdownAfterFatal()
+      return
+    }
+    const line = this.errorLog.next(`${prefix}: ${err.message}`)
+    if (line) this.logger.error(line)
+  }
+
+  /** Closes every connection so nothing keeps retrying a Redis that cannot answer. */
+  private shutdownAfterFatal(): void {
+    for (const conn of this.children) {
+      try { conn.disconnect() } catch { /* already gone */ }
+    }
+    this.children.length = 0
+    try { this.client?.disconnect() } catch { /* already gone */ }
   }
 
   get isEnabled(): boolean {
@@ -103,13 +184,19 @@ export class RedisService implements OnModuleDestroy {
   createConnection(options?: { maxRetriesPerRequest?: number | null }): Redis | null {
     const url = this.config.redisUrl
     if (!url) return null
+    // Same answer as "not configured" once Redis is fatally unavailable. Every
+    // caller already handles null for that case, so this needs no changes there.
+    if (this.fatalRedis) return null
     const conn = new Redis(url, {
       maxRetriesPerRequest: options?.maxRetriesPerRequest === undefined ? 2 : options.maxRetriesPerRequest,
-      retryStrategy: (times) => Math.min(times * 500, 5_000),
+      retryStrategy: (times) => (this.fatalRedis ? null : Math.min(times * 500, 5_000)),
     })
     // MUST attach an error listener — an unhandled ioredis 'error' event
     // (e.g. Upstash quota exceeded / outage) otherwise crashes the whole process.
-    conn.on('error', (err) => this.logger.error(`Redis connection error: ${err.message}`))
+    // Routed through the same throttle: there is one of these per BullMQ worker, so
+    // unthrottled they multiply the flood by the number of queues.
+    conn.on('error', (err) => this.onRedisError('Redis connection error', err))
+    this.children.push(conn)
     return conn
   }
 

@@ -189,15 +189,22 @@ export class RateLimiterGuard implements CanActivate {
   }
 
   private throwRateLimited(result: { remaining: number; resetTime: number; total: number }): never {
+    /*
+     * Flat payload, not a pre-built { success, error } envelope.
+     *
+     * HttpExceptionFilter builds that envelope itself and reads `code` from the
+     * top level of the thrown payload. Wrapping it here meant the filter found no
+     * code, fell back to INTERNAL_ERROR, and replaced this message with Nest's
+     * default — so a rate-limited caller received
+     * `{"code":"INTERNAL_ERROR","message":"Http Exception"}` at HTTP 429. A client
+     * could not tell it had been throttled, and a person saw nothing meaningful.
+     */
+    const retryAfterSeconds = Math.max(1, Math.ceil((result.resetTime - Date.now()) / 1000))
     throw new HttpException(
       {
-        success: false,
-        error: {
-          code: 'RATE_LIMITED',
-          message: 'Too many requests. Please try again later.',
-          remaining: result.remaining,
-          resetTime: result.resetTime,
-        },
+        code: 'RATE_LIMITED',
+        message: 'Too many requests. Please try again later.',
+        retryAfterSeconds,
       },
       HttpStatus.TOO_MANY_REQUESTS,
     )
