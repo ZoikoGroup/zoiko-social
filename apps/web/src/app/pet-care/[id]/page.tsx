@@ -291,7 +291,7 @@ function EditServiceModal({ providerId, service, onClose, onSaved }: {
 }): React.JSX.Element {
   const [name, setName] = useState(service.name)
   const [description, setDescription] = useState(service.description ?? '')
-  const [priceDollars, setPriceDollars] = useState((service.priceCents / 100).toFixed(2))
+  const [priceRupees, setPriceDollars] = useState((service.priceCents / 100).toFixed(2))
   const [durationMinutes, setDurationMinutes] = useState(service.durationMinutes ?? 60)
   const [category, setCategory] = useState<string>(service.category)
   const [species, setSpecies] = useState<string[]>(service.species)
@@ -302,7 +302,7 @@ function EditServiceModal({ providerId, service, onClose, onSaved }: {
   const input = 'w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none'
 
   async function submit(): Promise<void> {
-    const priceCents = Math.round(parseFloat(priceDollars || '0') * 100)
+    const priceCents = Math.round(parseFloat(priceRupees || '0') * 100)
     if (!name.trim() || priceCents <= 0 || saving) return
     setSaving(true); setError('')
     try {
@@ -335,8 +335,8 @@ function EditServiceModal({ providerId, service, onClose, onSaved }: {
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-label-sm text-outline block mb-1">Price ($)</label>
-            <input type="number" min={0} step="0.01" value={priceDollars} onChange={(e) => setPriceDollars(e.target.value)} className={input} />
+            <label className="text-label-sm text-outline block mb-1">Price (₹)</label>
+            <input type="number" min={0} step="0.01" value={priceRupees} onChange={(e) => setPriceDollars(e.target.value)} className={input} />
           </div>
           <div>
             <label className="text-label-sm text-outline block mb-1">Duration (min)</label>
@@ -384,7 +384,7 @@ function EditServiceModal({ providerId, service, onClose, onSaved }: {
         {error && <p className="text-label-sm text-red-500">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>
-          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
+          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceRupees}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
           >{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Save Changes</span></button>
         </div>
@@ -1367,7 +1367,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
 }): React.JSX.Element {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [priceDollars, setPriceDollars] = useState('')
+  const [priceRupees, setPriceDollars] = useState('')
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [category, setCategory] = useState<string>('grooming')
   const [species, setSpecies] = useState<string[]>([])
@@ -1377,7 +1377,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
   const input = 'w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none'
 
   async function submit(): Promise<void> {
-    const priceCents = Math.round(parseFloat(priceDollars || '0') * 100)
+    const priceCents = Math.round(parseFloat(priceRupees || '0') * 100)
     if (!name.trim() || priceCents <= 0 || saving) return
     setSaving(true); setError('')
     try {
@@ -1404,8 +1404,8 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-label-sm text-outline block mb-1">Price ($)</label>
-            <input type="number" min={0} step="0.01" value={priceDollars} onChange={(e) => setPriceDollars(e.target.value)} placeholder="0.00" className={input} />
+            <label className="text-label-sm text-outline block mb-1">Price (₹)</label>
+            <input type="number" min={0} step="0.01" value={priceRupees} onChange={(e) => setPriceDollars(e.target.value)} placeholder="0.00" className={input} />
           </div>
           <div>
             <label className="text-label-sm text-outline block mb-1">Duration (min)</label>
@@ -1450,7 +1450,7 @@ function AddServiceModal({ providerId, onClose, onAdded }: {
         {error && <p className="text-label-sm text-red-500">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Cancel</button>
-          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
+          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceRupees}
             className="flex-1 py-2.5 rounded-xl bg-primary text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
           >{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Add Service</span></button>
         </div>

@@ -546,7 +546,7 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
 }): React.JSX.Element {
   const [name, setName] = useState(service?.name ?? '')
   const [description, setDescription] = useState(service?.description ?? '')
-  const [priceDollars, setPriceDollars] = useState(service ? String(service.priceCents / 100) : '')
+  const [priceRupees, setPriceDollars] = useState(service ? String(service.priceCents / 100) : '')
   const [duration, setDuration] = useState(service?.durationMinutes ? String(service.durationMinutes) : '')
   const [category, setCategory] = useState(service?.category ?? 'other')
   const [saving, setSaving] = useState(false)
@@ -555,8 +555,8 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
   const isEditing = !!service
 
   async function submit(): Promise<void> {
-    if (!name.trim() || !priceDollars || saving) return
-    const priceCents = Math.round(parseFloat(priceDollars) * 100)
+    if (!name.trim() || !priceRupees || saving) return
+    const priceCents = Math.round(parseFloat(priceRupees) * 100)
     if (priceCents <= 0) { setError('Price must be greater than 0'); return }
     setSaving(true); setError('')
     try {
@@ -609,8 +609,8 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-label-sm font-medium text-on-surface block mb-1.5">Price ($) *</label>
-              <input type="number" step="0.01" min="0" value={priceDollars}
+              <label className="text-label-sm font-medium text-on-surface block mb-1.5">Price (₹) *</label>
+              <input type="number" step="0.01" min="0" value={priceRupees}
                 onChange={(e) => setPriceDollars(e.target.value)}
                 placeholder="0.00" className={inputCss} />
             </div>
@@ -626,7 +626,7 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
               <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
-          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
+          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceRupees}
             className="w-full py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}

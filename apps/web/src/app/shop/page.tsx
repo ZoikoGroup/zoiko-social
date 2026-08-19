@@ -19,6 +19,7 @@ import { useCurrency } from '@/hooks/use-currency'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { CURRENCIES, DEFAULT_CURRENCY } from '@/lib/currency'
 
 // `id` doubles as the key into shop.categories, so the label is looked up at
 // render rather than stored here.
@@ -223,6 +224,11 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
   const [shipping, setShipping] = useState('')
   const [description, setDescription] = useState('')
   const [coverUrl, setCoverUrl] = useState('')
+  // Product.currency defaults to USD server-side, and this form never sent one —
+  // so a seller typing 999 on an INR platform listed it as $999 and every viewer
+  // saw ~₹83,000. All nine existing rows are stored USD for that reason. The
+  // seller states it now, defaulting to the platform base.
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [uploading, setUploading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
@@ -244,7 +250,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
     setPosting(true); setError('')
     try {
       const input: NewProduct = {
-        title: title.trim(), price: priceNum, category, condition,
+        title: title.trim(), price: priceNum, currency, category, condition,
         ...(compareAt && !isNaN(parseFloat(compareAt)) ? { compareAt: parseFloat(compareAt) } : {}),
         ...(stock && !isNaN(parseInt(stock, 10)) ? { stock: parseInt(stock, 10) } : {}),
         ...(shipping.trim() ? { shipping: shipping.trim() } : {}),
@@ -282,6 +288,14 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder="Product title"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-md border border-outline-variant/30 focus:border-primary focus:outline-none" />
           <div className="flex gap-2">
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              aria-label="Currency"
+              className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>)}
+            </select>
             <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="Price"
               className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
             <input value={compareAt} onChange={(e) => setCompareAt(e.target.value)} inputMode="decimal" placeholder="Compare-at (optional)"

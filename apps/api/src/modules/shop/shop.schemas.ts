@@ -36,12 +36,19 @@ export const CreateProductSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   price: z.number().min(0).max(100000),
   compareAt: z.number().min(0).max(100000).optional(),
+  /**
+   * Defaults to INR here rather than falling through to Prisma's USD default on
+   * the model. Every product in the database is stored USD for that reason: the
+   * Sell form never sent a currency, so a seller typing 999 on a platform whose
+   * base is INR listed it as $999 and buyers saw roughly ₹83,000. The form asks
+   * now, and omitting it lands on the platform base instead of a foreign one.
+   */
   currency: z
     .string()
     .trim()
     .transform((c) => c.toUpperCase())
     .pipe(z.enum(SHOP_CURRENCIES))
-    .optional(),
+    .default('INR'),
   category: z.enum(SHOP_CATEGORIES).optional(),
   condition: z.enum(['new', 'used']).optional(),
   /**
