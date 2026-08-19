@@ -27,6 +27,7 @@ export type DateStyle =
   | 'time'
   | 'timePadded'
   | 'dayMonthTimePadded'
+  | 'dayMonthYearTime'
   | 'weekdayDayMonth'
   | 'weekdayDayMonthYear'
   | 'weekdayDayMonthTime'
@@ -46,6 +47,9 @@ const STYLES: Record<DateStyle, Intl.DateTimeFormatOptions> = {
   time: { hour: 'numeric', minute: '2-digit' },
   timePadded: { hour: '2-digit', minute: '2-digit' },
   dayMonthTimePadded: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+  // Replaces bare toLocaleString(), which took the browser's locale and its full
+  // numeric format ('8/18/2026, 10:32:53 PM').
+  dayMonthYearTime: { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
   weekdayDayMonth: { weekday: 'short', month: 'short', day: 'numeric' },
   weekdayDayMonthYear: { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' },
   weekdayDayMonthTime: { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },

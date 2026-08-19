@@ -15,6 +15,7 @@ import { newsApi, type NewsArticle, type NewsComment } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { formatDateTime } from '@/lib/datetime'
+import { useFormat } from '@/hooks/use-format'
 
 type Tier = 'institutional' | 'verified' | 'community'
 const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color: string; bgColor: string }> = {
@@ -28,6 +29,7 @@ function fmtDate(iso: string, locale: string): string {
 }
 
 export default function ArticlePage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { n } = useFormat()
   const { locale } = useDateFormat()
   const { id } = use(params)
   const { user, profile } = useAuth()
@@ -192,7 +194,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
 
               <div className="flex items-center gap-2 mt-6 pt-5 border-t border-outline-variant/20">
                 <button onClick={toggleLike} className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-label-sm font-semibold transition-colors cursor-pointer ${liked ? 'border-red-300 text-red-500 bg-red-50' : 'border-outline-variant/50 text-on-surface-variant hover:border-red-300 hover:text-red-500'}`}>
-                  <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />{likesCount > 0 ? likesCount.toLocaleString() : 'Like'}
+                  <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />{likesCount > 0 ? n(likesCount) : 'Like'}
                 </button>
                 <button onClick={toggleSave} className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-label-sm font-semibold transition-colors cursor-pointer ${saved ? 'border-primary/40 text-primary bg-primary/10' : 'border-outline-variant/50 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
                   <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />{saved ? 'Saved' : 'Save'}

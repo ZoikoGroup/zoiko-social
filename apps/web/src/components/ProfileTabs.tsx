@@ -11,6 +11,7 @@ import { useDateFormat } from '@/hooks/use-date-format'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 import { useTranslations } from 'next-intl'
 import { UserContent } from '@/components/UserContent'
+import { useFormat } from '@/hooks/use-format'
 
 type Tab = 'posts' | 'media' | 'saved' | 'about' | 'pets' | 'events' | 'communities'
 
@@ -390,6 +391,7 @@ function EventsTab({ profileId, isOwn }: { profileId: string | undefined; isOwn:
  * note below explains the difference rather than letting it look like a bug.
  */
 function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; isOwn: boolean }): React.JSX.Element {
+  const { n } = useFormat()
   const tpr = useTranslations('profile')
   const [communities, setCommunities] = useState<CommunityCard[] | null>(null)
 
@@ -435,7 +437,7 @@ function CommunitiesTab({ profileId, isOwn }: { profileId: string | undefined; i
               ) : <UsersRound className="w-5 h-5 text-primary" />}
             </div>
             <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">{c.name}</p>
-            <p className="text-[11px] text-outline">{c.membersCount.toLocaleString()} members</p>
+            <p className="text-[11px] text-outline">{n(c.membersCount)} members</p>
           </Link>
         ))}
       </div>

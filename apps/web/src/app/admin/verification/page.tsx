@@ -6,10 +6,12 @@ import { Header } from '@/components/Header'
 import { BadgeCheck, Check, X, Loader2, FileText } from 'lucide-react'
 import { verificationApi, type VerificationRequest } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 const STATUS_TABS = ['pending', 'approved', 'rejected'] as const
 
 export default function AdminVerificationPage(): React.JSX.Element {
+  const { date } = useDateFormat()
   const { loading: authLoading, isAuthenticated, profile } = useAuth()
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>('pending')
   const [requests, setRequests] = useState<VerificationRequest[]>([])
@@ -138,7 +140,7 @@ export default function AdminVerificationPage(): React.JSX.Element {
                       ))}
                     </div>
                   )}
-                  <p className="text-[11px] text-outline mt-2">{new Date(r.createdAt).toLocaleString()}</p>
+                  <p className="text-[11px] text-outline mt-2">{date(r.createdAt, 'dayMonthYearTime')}</p>
 
                   {status === 'pending' && (
                     <div className="flex gap-2 mt-3">

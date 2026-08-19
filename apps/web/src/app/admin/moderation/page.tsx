@@ -6,6 +6,7 @@ import { Header } from '@/components/Header'
 import { ShieldAlert, X, Trash2, AlertTriangle, Ban, Loader2, type LucideIcon } from 'lucide-react'
 import { moderationApi, type ReportItem, type ResolveAction } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 const STATUS_TABS = ['open', 'actioned', 'dismissed'] as const
 
@@ -18,6 +19,7 @@ const ACTIONS: { action: ResolveAction; label: string; icon: LucideIcon; classNa
 ]
 
 export default function AdminModerationPage(): React.JSX.Element {
+  const { date } = useDateFormat()
   const { loading: authLoading, isAuthenticated, profile } = useAuth()
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>('open')
   const [reports, setReports] = useState<ReportItem[]>([])
@@ -118,7 +120,7 @@ export default function AdminModerationPage(): React.JSX.Element {
                       </p>
                       {r.note && <p className="text-body-sm text-outline mt-1">&ldquo;{r.note}&rdquo;</p>}
                       <p className="text-[11px] text-outline mt-1">
-                        Target ID: {r.targetId} · {new Date(r.createdAt).toLocaleString()}
+                        Target ID: {r.targetId} · {date(r.createdAt, 'dayMonthYearTime')}
                       </p>
                     </div>
                   </div>

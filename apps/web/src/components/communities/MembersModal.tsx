@@ -7,6 +7,7 @@ import { UserAvatar } from '../UserAvatar'
 import { communitiesApi, type CommunityMember } from '@/lib/api'
 import { SkeletonRowList } from '../Skeletons'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { useFormat } from '@/hooks/use-format'
 
 const ROLE_BADGE: Record<string, { label: string; Icon: typeof Crown; className: string }> = {
   owner: { label: 'Owner', Icon: Crown, className: 'text-amber-500' },
@@ -27,6 +28,7 @@ export function MembersModal({ open, communityId, memberCount, onClose }: Member
 }
 
 function MembersList({ communityId, memberCount, onClose }: Omit<MembersModalProps, 'open'>): React.JSX.Element {
+  const { n } = useFormat()
   const [members, setMembers] = useState<CommunityMember[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -61,7 +63,7 @@ function MembersList({ communityId, memberCount, onClose }: Omit<MembersModalPro
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-outline-variant/20">
           <h2 className="flex items-center gap-2 font-headline text-headline-md text-on-surface">
             <Users className="w-5 h-5 text-primary" />
-            {memberCount.toLocaleString()} members
+            {n(memberCount)} members
           </h2>
           <div className="flex items-center gap-1">
             <DocsHelpLink href="/docs/community-and-events#community-roles" />

@@ -19,6 +19,7 @@ import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
 import { LanguageSwitcher } from '@/components/settings/LanguageSwitcher'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 type SettingsTab =
   | 'account'
@@ -952,6 +953,7 @@ const THEME_OPTIONS = [
 const emptySubscribe = (): (() => void) => () => {}
 
 function PreferencesSettings({ settings, patch }: SettingsContextValue): React.JSX.Element {
+  const { date } = useDateFormat()
   const { theme, setTheme } = useTheme()
   const { currency, setCurrency, ratesLive, ratesUpdatedAt } = useCurrency()
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
@@ -1023,7 +1025,7 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
         </select>
         <p className="text-[11px] text-outline mt-2">
           {mounted && ratesLive && ratesUpdatedAt
-            ? `Live exchange rates · updated ${new Date(ratesUpdatedAt).toLocaleString()}`
+            ? `Live exchange rates · updated ${date(ratesUpdatedAt, 'dayMonthYearTime')}`
             : 'Using approximate exchange rates (offline or unavailable).'}
         </p>
       </div>

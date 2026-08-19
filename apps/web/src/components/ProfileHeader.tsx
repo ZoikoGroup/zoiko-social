@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 import { useTranslations } from 'next-intl'
 import { UserContent } from '@/components/UserContent'
+import { formatCompact } from '@/lib/number'
+import { useFormat } from '@/hooks/use-format'
 
 interface ProfileHeaderProps {
   /** Omit or pass undefined to show the signed-in user's own profile. */
@@ -23,10 +25,13 @@ interface ProfileHeaderProps {
   initialRelationship?: Relationship | null | undefined
 }
 
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`
-  return n.toLocaleString()
+/**
+ * Hand-rolled M/k suffixes plus a bare toLocaleString(), which took the browser's
+ * locale rather than the chosen one. Intl's compact notation is locale-correct
+ * ("1,2 Mio." in German, not "1.2M") and needs no thresholds of its own.
+ */
+function formatCount(value: number, locale: string): string {
+  return formatCompact(value, locale)
 }
 
 /** Banner-style header skeleton — mirrors the real layout, no spinners. */
@@ -52,6 +57,7 @@ function HeaderSkeleton(): React.JSX.Element {
 }
 
 export function ProfileHeader({ profileId, initialProfile, initialRelationship }: ProfileHeaderProps): React.JSX.Element {
+  const { locale } = useFormat()
   const tpr = useTranslations('profile')
   const profLabel = useProfessionalLabel()
   const { profile: myProfile, user, refreshProfile } = useAuth()
@@ -364,7 +370,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                     onClick={() => { if (tab) setFollowListTab(tab) }}
                     className={`${tab ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
                   >
-                    <span className="font-bold text-primary">{formatCount(value)}</span>{' '}
+                    <span className="font-bold text-primary">{formatCount(value, locale)}</span>{' '}
                     <span className="text-on-surface-variant">{label}</span>
                   </button>
                 </span>

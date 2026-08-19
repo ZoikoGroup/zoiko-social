@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useDateFormat } from '@/hooks/use-date-format'
 import { UserContent } from '@/components/UserContent'
+import { useFormat } from '@/hooks/use-format'
 
 // Short verified-badge label derived from the author's professional category.
 const CATEGORY_BADGE: Record<string, string> = {
@@ -80,6 +81,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): React.JSX.Element {
+  const { n } = useFormat()
   const router = useRouter()
   const { user, profile } = useAuth()
   const { success: toastSuccess } = useToast()
@@ -460,7 +462,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             onClick={() => setLikersOpen(true)}
             className="font-semibold text-label-md text-on-surface hover:opacity-70 transition-opacity cursor-pointer"
           >
-            {likesCount.toLocaleString()} like{likesCount === 1 ? '' : 's'}
+            {n(likesCount)} like{likesCount === 1 ? '' : 's'}
           </button>
         )}
         {post.caption && (
@@ -473,7 +475,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
         )}
         {post.commentsCount > 0 && (
           <Link href={`/p/${post.id}`} className="block text-label-sm text-outline hover:text-on-surface-variant">
-            View {post.commentsCount === 1 ? '1 comment' : `all ${post.commentsCount.toLocaleString()} comments`}
+            View {post.commentsCount === 1 ? '1 comment' : `all ${n(post.commentsCount)} comments`}
           </Link>
         )}
       </div>
