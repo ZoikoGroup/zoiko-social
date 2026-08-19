@@ -439,6 +439,28 @@ export class PostsService {
           data: { postsCount: { decrement: 1 } },
         })
       }
+
+      /*
+       * Take the engagement with it.
+       *
+       * Deleting a post used to leave its comments marked live and its likes in
+       * place, still pointing at content nobody can reach. A live comment on a
+       * deleted post is a row waiting to be counted or listed by anything that
+       * queries comments without joining back to check the post — and it means a
+       * member who deletes a post has not really deleted the conversation on it.
+       * Verified against the database: comments survived, and a like from a
+       * deletion the week before was still there.
+       *
+       * Comments are soft-deleted to match how the post itself is removed, so the
+       * moderation trail is preserved. Likes are join rows carrying no content of
+       * their own, so they are removed outright.
+       */
+      // Comment carries isDeleted but no deletedAt, unlike Post.
+      await tx.comment.updateMany({
+        where: { postId, isDeleted: false },
+        data: { isDeleted: true },
+      })
+      await tx.like.deleteMany({ where: { postId } })
     })
 
     await this.redis.invalidatePost(postId)
