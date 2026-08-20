@@ -8,6 +8,7 @@ import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
+import { aiThreadHint } from './ai-thread-hint'
 import type {
   ConversationResponse,
   SuggestionResponse,
@@ -42,18 +43,23 @@ export class MessagingService {
     // Every member gets a thread with ZoikoSocial AI. Provisioned lazily on the
     // first inbox load rather than at signup, so accounts that predate the
     // assistant get one too. Only on the first page — deeper pages skip it.
-    if (!cursor) await this.ensureAiThread(userId)
-
     // Pinned conversations belong at the top of the list, not the top of a page,
     // so they are fetched whole on the first page and excluded from the
     // paginated remainder. A member pins a handful of chats, so this is bounded.
-    const pinnedIds = (
-      await this.prisma.conversationSetting.findMany({
+    //
+    // Run together with the assistant-thread check: they touch different tables
+    // and neither needs the other's result. A single database round-trip costs
+    // 150-750 ms here depending on where the caller and the database sit, so
+    // awaiting them one after the other spent a whole one for nothing.
+    const [, pinnedSettings] = await Promise.all([
+      cursor ? Promise.resolve() : this.ensureAiThread(userId),
+      this.prisma.conversationSetting.findMany({
         where: { userId, isPinned: true },
         select: { conversationId: true },
         take: PINNED_LIMIT,
-      })
-    ).map((s) => s.conversationId)
+      }),
+    ])
+    const pinnedIds = pinnedSettings.map((s) => s.conversationId)
 
     const memberships = await this.prisma.conversationMember.findMany({
       where: {
@@ -666,6 +672,11 @@ export class MessagingService {
     const aiId = this.aiAssistant.getAiProfileId()
     if (!aiId || aiId === userId) return
 
+    // Skips the lookup below, which otherwise cost a database round-trip on every
+    // first-page inbox load. Cleared when a member deletes a conversation, since
+    // that is the one thing that makes the answer stale.
+    if (aiThreadHint.has(userId)) return
+
     try {
       const existing = await this.prisma.conversation.findFirst({
         where: {
@@ -673,9 +684,27 @@ export class MessagingService {
           isDeleted: false,
           AND: [{ members: { some: { userId } } }, { members: { some: { userId: aiId } } }],
         },
-        select: { id: true },
+        // The member's own row comes along because its existence is not the same
+        // question as whether they can see the thread: deleting a conversation
+        // soft-deletes that row, and the inbox lists only live ones.
+        select: { id: true, members: { where: { userId }, select: { isDeleted: true } } },
       })
-      if (existing) return
+
+      if (existing) {
+        // Deleting the thread used to be permanent for the assistant. The
+        // conversation still existed, so this check said "already provisioned" and
+        // returned, while the inbox filtered the deleted row out — the member lost
+        // the assistant with no way back. Restore their side instead of creating a
+        // second thread, which would split the history in two.
+        if (existing.members[0]?.isDeleted) {
+          await this.prisma.conversationMember.update({
+            where: { conversationId_userId: { conversationId: existing.id, userId } },
+            data: { isDeleted: false, deletedAt: null },
+          })
+        }
+        aiThreadHint.add(userId)
+        return
+      }
 
       const conversation = await this.prisma.conversation.create({
         data: {
@@ -687,6 +716,7 @@ export class MessagingService {
       })
 
       await this.sendMessage(aiId, conversation.id, { body: this.aiAssistant.greeting })
+      aiThreadHint.add(userId)
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       this.logger.warn(`Could not provision AI thread for ${userId}: ${reason}`)

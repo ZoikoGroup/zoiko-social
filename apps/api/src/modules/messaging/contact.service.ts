@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
+import { aiThreadHint } from './ai-thread-hint'
 
 @Injectable()
 export class ContactService {
@@ -116,6 +117,13 @@ export class ContactService {
       where: { conversationId, userId },
       data: { isDeleted: true, deletedAt: new Date() },
     })
+
+    // The inbox caches "this member already has an assistant thread" to save a
+    // query per load. Deleting a conversation can be that thread, so the cached
+    // answer stops being true here. Cleared unconditionally rather than checking
+    // whether this was the assistant: the check would cost the query this is
+    // meant to save, and a wrong hint only costs one lookup next load.
+    aiThreadHint.forget(userId)
   }
 
   async clearConversation(userId: string, conversationId: string): Promise<void> {
