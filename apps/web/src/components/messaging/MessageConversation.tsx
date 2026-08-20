@@ -25,6 +25,7 @@ import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
 import { messagingApi } from '@/lib/messaging-api'
 import { useAuth } from '@/hooks/use-auth'
+import { isAiAssistant } from '@/lib/ai-assistant'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
 import { compressImage } from '@/lib/image'
@@ -103,6 +104,11 @@ export function MessageConversation({
   const avatarUrl = conversation?.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const otherUserId = otherParticipant?.id ?? null
+
+  // The assistant has no ears and no camera, so calling it is not a thing that can
+  // happen. Hiding the buttons is the honest version of that — a call that connects
+  // to silence, or an invite nothing ever answers, is worse than no button at all.
+  const isAiChat = isDM && isAiAssistant(otherParticipant?.username)
   const activeTheme = getChatTheme(themeId)
   const { success: toastSuccess, error: toastError } = useToast()
   const { startCall } = useCall()
@@ -218,13 +224,16 @@ export function MessageConversation({
 
   const handleStartCall = useCallback((callType: 'audio' | 'video') => {
     if (!conversationId) return
+    // Belt and braces: the buttons are not rendered for the assistant, but nothing
+    // else should be able to open a call to it either.
+    if (isAiChat) return
     if (isDM && otherUserId) {
       startCall({ conversationId, peerUserId: otherUserId, peerName: displayName, peerAvatar: avatarUrl, callType })
     } else if (!isDM) {
       // Group/community conversation — the invite fans out to all members
       startCall({ conversationId, callType, isGroup: true, conversationName: displayName || 'Group call' })
     }
-  }, [conversationId, isDM, otherUserId, displayName, avatarUrl, startCall])
+  }, [conversationId, isAiChat, isDM, otherUserId, displayName, avatarUrl, startCall])
 
   // Connect socket
   useEffect(() => {
@@ -942,24 +951,28 @@ export function MessageConversation({
         )}
       </div>
       <div className="flex items-center gap-0.5 md:gap-1">
-        <Button
-          onClick={() => handleStartCall('audio')}
-          variant="ghost"
-          size="icon"
-          className="size-9 rounded-full text-primary hover:bg-primary/10"
-          aria-label="Audio call"
-        >
-          <Phone className="size-[18px]" />
-        </Button>
-        <Button
-          onClick={() => handleStartCall('video')}
-          variant="ghost"
-          size="icon"
-          className="size-9 rounded-full text-primary hover:bg-primary/10"
-          aria-label={tmsg('videoCall')}
-        >
-          <Video className="size-[18px]" />
-        </Button>
+        {!isAiChat && (
+          <>
+            <Button
+              onClick={() => handleStartCall('audio')}
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-primary hover:bg-primary/10"
+              aria-label={tmsg('voiceCall')}
+            >
+              <Phone className="size-[18px]" />
+            </Button>
+            <Button
+              onClick={() => handleStartCall('video')}
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-primary hover:bg-primary/10"
+              aria-label={tmsg('videoCall')}
+            >
+              <Video className="size-[18px]" />
+            </Button>
+          </>
+        )}
         <Button
           onClick={() => setShowInfo((s) => !s)}
           variant="ghost"
@@ -1498,8 +1511,19 @@ export function MessageConversation({
                       !isPending && !isFailed && 'animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out',
                     )}
                   >
-                    {/* Row: avatar + bubble + time */}
-                    <div className={cn('flex gap-2 max-w-full', isMine ? 'flex-row-reverse' : 'flex-row')}>
+                    {/*
+                      Row: avatar + bubble + time.
+
+                      w-full, not max-w-full: the bubble below caps itself at a
+                      percentage, and a percentage needs a width to be a percentage
+                      *of*. With the parent column aligning this row by items-end,
+                      the row sized to its own contents — so the cap referred back
+                      to the thing it was supposed to be capping, and the bubble
+                      collapsed to its narrowest legal width, one word per line.
+                      Full width makes it definite; row-reverse still parks a sent
+                      message on the right.
+                    */}
+                    <div className={cn('flex w-full gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
                       {/* Avatar for others */}
                       {!isMine && (
                         <div className={cn('flex-shrink-0 self-end', showAvatar ? '' : 'invisible')}>
