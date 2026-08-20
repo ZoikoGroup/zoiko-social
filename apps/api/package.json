@@ -7,7 +7,7 @@
     "build": "nest build",
     "dev": "nest start --watch",
     "start": "node dist/main",
-    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "jest --passWithNoTests",
