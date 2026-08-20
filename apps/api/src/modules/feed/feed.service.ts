@@ -83,6 +83,12 @@ export class FeedService {
         where: {
           isDeleted: false,
           createdAt: { gte: new Date(Date.now() - HOME_WINDOW_DAYS * 24 * 3_600_000) },
+          // Muting someone means not seeing their posts here — the one thing it was
+          // supposed to do. The row was written and never read, so the action
+          // reported success and changed nothing. Sits outside the OR so it holds
+          // for followed authors and community posts alike; muting yourself is
+          // refused upstream, so own posts are unaffected.
+          author: { mutedByUsers: { none: { muterId: viewerId } } },
           OR: [
             // Own posts — every visibility, never seen-filtered
             { authorId: viewerId },
@@ -161,6 +167,7 @@ export class FeedService {
             state: 'active',
             blockedUsers: { none: { blockedId: viewerId } },
             blockedByUsers: { none: { blockerId: viewerId } },
+            mutedByUsers: { none: { muterId: viewerId } },
             followsAsFollowing: { none: { followerId: viewerId, status: 'active' } },
           },
           // Seen filter: don't re-surface posts the viewer has viewed or liked
