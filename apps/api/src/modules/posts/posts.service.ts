@@ -357,6 +357,21 @@ export class PostsService {
     cursor: string | null,
     limit = 15,
   ): Promise<PostPage> {
+    /*
+     * The community has to still exist. This checked membership only, and a
+     * member row outlives the community it belongs to — so after an owner deleted
+     * a community, GET /communities/:id/posts kept answering 200 with its posts
+     * while GET /communities/:slug answered 404. The container was gone and its
+     * feed was still serving.
+     */
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+      select: { isDeleted: true },
+    })
+    if (!community || community.isDeleted) {
+      throw new NotFoundException({ code: 'COMMUNITY_NOT_FOUND', message: 'Community not found' })
+    }
+
     const member = await this.prisma.communityMember.findUnique({
       where: { communityId_userId: { communityId, userId: viewerId } },
       select: { status: true },
