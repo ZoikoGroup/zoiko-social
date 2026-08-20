@@ -11,6 +11,7 @@ import { JwtVerificationService } from '../jwt-verification.service'
 import { Reflector } from '@nestjs/core'
 import { PrismaService } from '../../prisma/prisma.service'
 import { ALLOW_INACTIVE_ACCOUNT } from '../decorators/allow-inactive.decorator'
+import { accountStateCache, type AccountState } from '../account-state-cache'
 
 export const AUTH_USER_KEY = 'auth_user'
 
@@ -85,14 +86,22 @@ export class JwtAuthGuard implements CanActivate {
 
       // Enforce Trust & Safety suspension/ban — a token can still verify
       // cryptographically after a moderator suspends or bans the account.
-      const profile = await this.prisma.profile.findUnique({
-        where: { id: user.id },
-        // The two timestamps ride along so the refusal can say *when* — the web
-        // app signs in straight against Supabase for email and phone, so this
-        // 403 is the only signal it reliably sees, and "deactivated 3 days ago"
-        // needs a date the login response never carries on that path.
-        select: { state: true, deactivatedAt: true, deletionRequestedAt: true },
-      })
+      const now = Date.now()
+      const cached = accountStateCache.get(user.id, now)
+      let profile: AccountState
+      if (cached) {
+        profile = cached.value
+      } else {
+        profile = await this.prisma.profile.findUnique({
+          where: { id: user.id },
+          // The two timestamps ride along so the refusal can say *when* — the web
+          // app signs in straight against Supabase for email and phone, so this
+          // 403 is the only signal it reliably sees, and "deactivated 3 days ago"
+          // needs a date the login response never carries on that path.
+          select: { state: true, deactivatedAt: true, deletionRequestedAt: true },
+        })
+        accountStateCache.set(user.id, profile, now)
+      }
       const allowInactive =
         this.reflector.getAllAndOverride<boolean>(ALLOW_INACTIVE_ACCOUNT, [
           context.getHandler(),

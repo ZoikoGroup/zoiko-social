@@ -6,6 +6,11 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Loads relations with a LATERAL JOIN instead of one extra query per relation.
+  // Nested includes here were costing a round-trip each — the inbox list alone ran
+  // five queries for one page — and the database is far enough away that a
+  // round-trip is ~150 ms.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

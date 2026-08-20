@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { accountStateCache } from '../auth/account-state-cache'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
@@ -1282,6 +1283,12 @@ export class ProfileService {
   }
 
   private async afterStateChange(userId: string, username: string, event: string): Promise<void> {
+    // Not inside the try: the guard consults this on every request, so a stale
+    // entry would keep letting the member through for up to five seconds. It is a
+    // synchronous map delete and cannot throw, but it must not sit behind
+    // something that can.
+    accountStateCache.invalidate(userId)
+
     try {
       await this.redis.invalidateProfile(userId)
       await this.redis.invalidateUsername(username)

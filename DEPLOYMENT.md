@@ -60,7 +60,7 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 |---|---|
 | `PORT` | HTTP port (4000) |
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | Postgres connection string (Prisma) |
+| `DATABASE_URL` | Postgres connection string (Prisma) — **use the session pooler, port 5432, and no `pgbouncer=true`;** see below |
 | `REDIS_URL` | Redis connection string |
 | `SUPABASE_URL` | Supabase project URL (auth + storage) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service key (server-side) |
@@ -70,6 +70,47 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 | `ALLOWED_ORIGIN` | CORS origin, e.g. the web app URL |
 | `ENABLE_WORKERS` | `true` = worker-only mode; unset/`false` = API also runs workers |
 | `GIT_SHA` | build arg, surfaced at `/api/v1/health/version` |
+
+#### Which Supabase pooler `DATABASE_URL` should use
+
+Use the **session** pooler and leave `pgbouncer=true` off:
+
+```
+postgresql://…@aws-1-<region>.pooler.supabase.com:5432/postgres?connection_limit=10
+```
+
+`pgbouncer=true` tells Prisma to give up prepared statements, and it costs about
+five network round-trips per query instead of one. Measured against this project
+from India, with a 148 ms round-trip to the Sydney region:
+
+| `DATABASE_URL` | `SELECT 1` |
+|---|---|
+| `:6543` with `pgbouncer=true` | 771 ms |
+| `:5432` with `pgbouncer=true` | 734 ms |
+| `:5432`, flag omitted | **149 ms** |
+
+The port is not what matters — the flag is.
+
+The flag cannot simply be dropped from the **transaction** pooler (`:6543`). That
+mode hands each transaction whichever server connection is free, so a prepared
+statement made on one is missing on the next: a 200-query concurrency test failed
+147 of them with `42P05` and `26000`. Session mode gives each client its own
+server connection for the life of the connection, so prepared statements hold.
+
+The cost of session mode is connection count: every connection in Prisma's pool
+pins a real Postgres backend, so an instance holds up to `connection_limit` of
+them. This project's database allows 60 and Supabase itself uses ~17, which leaves
+room for roughly four instances at `connection_limit=10`. Two things to respect:
+
+- Raise `connection_limit` only against that budget, not by feel.
+- **Development and production share one Supabase project here.** Several API
+  instances left running at once will exhaust the backends and every one of them
+  starts answering "Can't reach database server".
+
+Serverless callers would still need the transaction pooler, since each invocation
+opens its own connection. Nothing in this repo is in that position — only the API
+talks to Postgres, and it is a long-lived process.
+
 
 ### `apps/api` — feature services (set when enabling that feature)
 | Var group | Enables |

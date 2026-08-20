@@ -13,6 +13,7 @@ import { ConfigService } from '../config/config.service'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { RedisService } from '../redis/redis.service'
+import { accountStateCache } from './account-state-cache'
 
 type OAuthProvider = 'google' | 'apple' | 'facebook'
 
@@ -234,6 +235,11 @@ export class AuthService {
     // the way out; this is the matching step on the way back in. Cannot reuse that
     // helper: ProfileModule imports AuthModule, so depending on it here would be
     // circular. RedisModule is @Global.
+    //
+    // Same reasoning for the guard's copy: it is the thing answering 403 for a
+    // deactivated account, so a reactivation that left it in place would look to
+    // the member like the reactivation had not worked.
+    accountStateCache.invalidate(userId)
     await this.redis.invalidateProfile(userId)
     await this.redis.invalidateUsername(profile.username)
     await this.auditLog.record({

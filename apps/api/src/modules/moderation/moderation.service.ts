@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { accountStateCache } from '../auth/account-state-cache'
 import { RealtimeService } from '../realtime/realtime.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
@@ -244,6 +245,8 @@ export class ModerationService {
 
   private async setUserState(userId: string, state: 'active' | 'suspended' | 'banned'): Promise<void> {
     await this.prisma.profile.update({ where: { id: userId }, data: { state } })
+    // A suspension has to bite now, not when the guard's cached copy expires.
+    accountStateCache.invalidate(userId)
   }
 
   async suspendUser(userId: string, reviewerId: string, reason: string): Promise<void> {

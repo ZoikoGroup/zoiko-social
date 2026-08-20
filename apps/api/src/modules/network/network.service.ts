@@ -973,19 +973,30 @@ export class NetworkService {
   async getSuggestions(userId: string, limit = 10): Promise<FollowSuggestion[]> {
     const take = Math.min(limit, 25)
 
-    const following = await this.prisma.follow.findMany({
-      where: { followerId: userId, status: 'active' },
-      select: { followingId: true },
-      take: 200,
-    })
+    // These three need nothing from each other — each is keyed on the viewer
+    // alone — so they go out together. Awaiting them in sequence spent three
+    // round-trips where one would do, and a round-trip to the database is
+    // 150-750 ms here depending on how far apart the two sit.
+    const [following, blocked, authorAffinity] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followerId: userId, status: 'active' },
+        select: { followingId: true },
+        take: 200,
+      }),
+      this.prisma.blockedUser.findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+      }),
+      // ── Affinity layer: candidates followed by the viewer's high-affinity
+      // authors, scored by Σ log₁₀(1 + author affinity). Blocked users' graphs
+      // are never used as seeds (the affinity profile isn't cleaned on block).
+      this.affinity.getAuthorAffinity(userId),
+    ])
+
     const followingIds = following.map((f) => f.followingId)
     const excludeIds = new Set(followingIds)
     excludeIds.add(userId)
 
-    const blocked = await this.prisma.blockedUser.findMany({
-      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
-      select: { blockerId: true, blockedId: true },
-    })
     const blockedIds = new Set<string>()
     blocked.forEach((b) => {
       excludeIds.add(b.blockerId)
@@ -994,10 +1005,6 @@ export class NetworkService {
       blockedIds.add(b.blockedId)
     })
 
-    // ── Affinity layer: candidates followed by the viewer's high-affinity
-    // authors, scored by Σ log₁₀(1 + author affinity). Blocked users' graphs
-    // are never used as seeds (the affinity profile isn't cleaned on block).
-    const authorAffinity = await this.affinity.getAuthorAffinity(userId)
     const highAffinityAuthors = [...authorAffinity.entries()]
       .filter(([authorId, weight]) => weight >= AFFINITY_WEIGHTS.like && !blockedIds.has(authorId))
       .sort((a, b) => b[1] - a[1])
