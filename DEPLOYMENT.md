@@ -70,6 +70,9 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 | `ALLOWED_ORIGIN` | CORS origin, e.g. the web app URL |
 | `ENABLE_WORKERS` | `true` = worker-only mode; unset/`false` = API also runs workers |
 | `GIT_SHA` | build arg, surfaced at `/api/v1/health/version` |
+| `VAPID_PUBLIC_KEY` | Web Push — sent to browsers so they can subscribe. Public by design. |
+| `VAPID_PRIVATE_KEY` | Web Push — signs the push requests. Never leaves the server. |
+| `VAPID_SUBJECT` | `mailto:` or URL a push service can use to reach the operator. Defaults to `mailto:support@zoikosocial.com`. |
 
 #### Which Supabase pooler `DATABASE_URL` should use
 
@@ -110,6 +113,22 @@ room for roughly four instances at `connection_limit=10`. Two things to respect:
 Serverless callers would still need the transaction pooler, since each invocation
 opens its own connection. Nothing in this repo is in that position — only the API
 talks to Postgres, and it is a long-lived process.
+
+#### Web Push keys
+
+Generate a pair once and keep it. **Rotating these invalidates every existing
+subscription**, so every member silently stops receiving notifications until each
+of their browsers re-subscribes:
+
+```bash
+node -e "console.log(require('web-push').generateVAPIDKeys())"
+```
+
+Both are optional. Without them the API boots normally, `/api/v1/push/public-key`
+reports `available: false`, and the web app hides the notification control rather
+than offering a permission prompt that cannot lead anywhere. That is deliberate:
+a deployment with no keys should not look broken.
+
 
 
 ### `apps/api` — feature services (set when enabling that feature)

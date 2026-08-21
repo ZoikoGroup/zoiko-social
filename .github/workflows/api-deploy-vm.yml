@@ -17,10 +17,23 @@ jobs:
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Configuration that can be changed without SSH access to the VM.
+          #
+          # The container's base configuration lives in a file on the box, which
+          # only whoever administers it can edit. Anything set here overrides that
+          # file, so a value can be rotated by changing a repository secret and
+          # re-running this workflow. An unset secret is not passed at all, so the
+          # VM's own value continues to apply.
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          DATABASE_URL_OVERRIDE: ${{ secrets.DATABASE_URL_OVERRIDE }}
         with:
           host: ${{ secrets.GCP_SSH_HOST }}
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
+          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY,VAPID_SUBJECT,DATABASE_URL_OVERRIDE
           script: |
             set -e
             cd ~/zoiko-social
@@ -28,12 +41,31 @@ jobs:
             docker build -f Dockerfile.api -t zoiko-api:latest --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
             docker stop zoiko-api || true
             docker rm zoiko-api || true
+            # Overrides go in a second env file rather than -e flags: docker
+            # applies later --env-file values over earlier ones, and a file needs
+            # no shell quoting, so a connection string full of ? & = / cannot be
+            # mangled on the way in.
+            OVERRIDES=$(mktemp)
+            chmod 600 "$OVERRIDES"
+            for name in VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+              value=$(printenv "$name" || true)
+              if [ -n "$value" ]; then echo "$name=$value" >> "$OVERRIDES"; fi
+            done
+            # Named differently from the variable it sets, so an empty secret can
+            # never blank out a working DATABASE_URL by accident.
+            if [ -n "$DATABASE_URL_OVERRIDE" ]; then echo "DATABASE_URL=$DATABASE_URL_OVERRIDE" >> "$OVERRIDES"; fi
+            echo "Applying $(wc -l < "$OVERRIDES") config override(s) from repository secrets"
+
             docker run -d \
               --name zoiko-api \
               --restart unless-stopped \
               --network host \
               --env-file ~/zoiko-social/apps/api/.env \
+              --env-file "$OVERRIDES" \
               zoiko-api:latest
+
+            # The container has its copy; this must not be left on disk.
+            rm -f "$OVERRIDES"
             for i in $(seq 1 15); do
               if curl -sf http://127.0.0.1:4000/api/v1/health > /dev/null; then
                 echo "Health check passed after ${i} attempt(s)"
