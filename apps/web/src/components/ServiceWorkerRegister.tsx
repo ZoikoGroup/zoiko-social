@@ -20,8 +20,14 @@ import { useEffect } from 'react'
  */
 export function ServiceWorkerRegister(): React.JSX.Element {
   useEffect(() => {
-    // Only register in production — SW adds complexity to dev workflows
-    if (process.env.NODE_ENV !== 'production') return
+    // Only register in production — SW adds complexity to dev workflows.
+    //
+    // Opt back in locally with NEXT_PUBLIC_ENABLE_SW=true. Push notifications are
+    // delivered by the service worker, so without an escape hatch they cannot be
+    // exercised until they are already live, which is the worst place to discover
+    // that they do not work.
+    const forced = process.env.NEXT_PUBLIC_ENABLE_SW === 'true'
+    if (process.env.NODE_ENV !== 'production' && !forced) return
     if (typeof window === 'undefined') return
     if (!('serviceWorker' in navigator)) return
 

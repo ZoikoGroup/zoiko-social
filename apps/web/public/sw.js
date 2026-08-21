@@ -156,6 +156,80 @@ workbox.routing.registerRoute(
   }),
 )
 
+// ── Push notifications ───────────────────────────────────────────────────────
+// The server encrypts a small JSON payload to this browser's subscription keys.
+// It is deliberately small — a push payload has a hard size limit — so this only
+// gets what it needs to draw the notification and know where a tap should go.
+
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    // A push with no body, or a body that is not ours. Showing a generic
+    // notification is better than showing nothing: on some browsers a push event
+    // that displays no notification counts against the origin's permission.
+    payload = {}
+  }
+
+  const title = payload.title || 'ZoikoSocial'
+  const options = {
+    body: payload.body || '',
+    icon: '/zoikosocial-logo.png',
+    badge: '/favicon.svg',
+    // Same tag collapses related alerts instead of stacking twelve of them, and
+    // renotify lets a newer one still surface rather than being silently merged.
+    tag: payload.type || 'zoiko',
+    renotify: true,
+    data: { url: payload.url || '/notifications', id: payload.id, type: payload.type },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/notifications'
+
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+
+      // Prefer an open tab over a new one. Opening a second tab of an app the
+      // member already has open is the most common way notifications become
+      // annoying, and navigating the existing one keeps their place in the app.
+      for (const client of clientList) {
+        if ('focus' in client) {
+          await client.focus()
+          if ('navigate' in client) {
+            try {
+              await client.navigate(target)
+            } catch {
+              // Cross-origin or a client that refuses navigation — focusing it is
+              // still the better outcome than a duplicate tab.
+            }
+          }
+          return
+        }
+      }
+
+      if (self.clients.openWindow) await self.clients.openWindow(target)
+    })(),
+  )
+})
+
+// A subscription can be rotated by the browser or the push service without the
+// member doing anything. Without this the endpoint we hold goes stale and every
+// later notification silently fails, so the page is told to re-subscribe.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of clientList) client.postMessage({ type: 'push-resubscribe' })
+    })(),
+  )
+})
+
 // ── Log registration success ─────────────────────────────────────────────────
 console.log(
   `[ZoikoSocial SW] Active — caching static assets, fonts, images, and pages.`,

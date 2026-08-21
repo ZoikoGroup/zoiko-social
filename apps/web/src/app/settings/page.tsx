@@ -20,6 +20,7 @@ import { VerificationSettings } from '@/components/settings/VerificationSettings
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
 import { LanguageSwitcher } from '@/components/settings/LanguageSwitcher'
 import { useDateFormat } from '@/hooks/use-date-format'
+import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings'
 
 type SettingsTab =
   | 'account'
@@ -909,7 +910,10 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
         {([
           { label: 'Email Digest (weekly)', key: 'emailDigest', desc: 'Receive a weekly summary of your activity' },
           { label: 'Email Marketing', key: 'emailMarketing', desc: 'Product updates, tips, and offers' },
-          { label: 'Push Notifications', key: 'pushEnabled', desc: 'Receive notifications on your device' },
+          // Still the master switch for push, and now actually read when one is
+          // sent. It stays above the per-device section because it applies to
+          // every device, not just this browser.
+          { label: 'Push Notifications', key: 'pushEnabled', desc: 'Allow notifications on your devices' },
         ]).map((item) => (
           <label key={item.key} className="flex items-center justify-between gap-4 cursor-pointer">
             <div>
@@ -927,6 +931,10 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
           </label>
         ))}
       </div>
+
+      <hr className="border-outline-variant/30" />
+
+      <PushNotificationSettings />
 
       {/*
         No Quiet Hours control here yet, deliberately. The columns and the API
