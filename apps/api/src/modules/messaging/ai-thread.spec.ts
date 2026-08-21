@@ -33,6 +33,8 @@ function build(existing: { id: string; members: { isDeleted: boolean }[] } | nul
     {} as never,
     {} as never,
     { getAiProfileId: () => AI, greeting: 'Hello' } as never,
+    { sendToUser: jest.fn() } as never,
+    { allowsPush: jest.fn().mockResolvedValue(true) } as never,
   )
   // The create path ends in sendMessage, which is out of scope here; stub it so
   // these tests are about provisioning and nothing else.

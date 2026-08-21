@@ -9,6 +9,9 @@ import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
 import { aiThreadHint } from './ai-thread-hint'
+import { PushService } from '../push/push.service'
+import { NotificationPreferenceService } from '../push/notification-preference.service'
+import { PREFERENCE_KEYS } from '../comms/comms.types'
 import type {
   ConversationResponse,
   SuggestionResponse,
@@ -32,6 +35,8 @@ export class MessagingService {
     private readonly presence: PresenceService,
     private readonly profanity: ProfanityService,
     private readonly aiAssistant: AiAssistantService,
+    private readonly push: PushService,
+    private readonly pushPreferences: NotificationPreferenceService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -765,6 +770,7 @@ export class MessagingService {
     }
 
     const publishes: Array<Promise<void>> = []
+    const pushTargets: string[] = []
     for (const om of otherMembers) {
       publishes.push(this.realtime.publishToUser(om.userId, 'conversation:activity', activity))
       if (!mutedIds.has(om.userId)) {
@@ -776,9 +782,70 @@ export class MessagingService {
             data: { conversationId, messageId: message.id },
           }),
         )
+        pushTargets.push(om.userId)
       }
     }
     await Promise.all(publishes)
+
+    await this.pushMessage(pushTargets, conversationId, message)
+  }
+
+  /**
+   * Sends the device notification for a new message.
+   *
+   * Messages need their own path because they never reach the notification
+   * writer, which is where every other type gets its push. They are not written
+   * to the notifications table at all — a chat has its own surface and does not
+   * belong in Alerts — so the socket event above is the whole of the in-app story.
+   * Without this, likes and follows pushed and messages silently did not, which is
+   * the wrong way round: a message is the notification people most expect.
+   *
+   * Recipients here have already been filtered for a muted conversation. The
+   * category preference is checked on top of that, so "no message notifications
+   * on my device" is honoured even for a chat that is not muted.
+   */
+  private async pushMessage(
+    userIds: string[],
+    conversationId: string,
+    message: { id: string; body: string | null; type?: string; sender: { displayName: string } },
+  ): Promise<void> {
+    if (userIds.length === 0) {
+      this.logger.debug(`message ${message.id}: no push recipients (all muted or alone)`)
+      return
+    }
+
+    // A body is absent for an attachment, and a raw empty string reads as a bug
+    // on the lock screen. Describe the thing instead.
+    const preview =
+      message.body?.trim() ||
+      (message.type && message.type !== 'text' ? `Sent ${message.type === 'image' ? 'a photo' : 'an attachment'}` : 'Sent a message')
+
+    await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          if (!(await this.pushPreferences.allowsPush(userId, PREFERENCE_KEYS.messagesActivity))) {
+            this.logger.debug(`message push skipped for ${userId}: category or master switch off`)
+            return
+          }
+          const result = await this.push.sendToUser(userId, {
+            title: message.sender.displayName,
+            body: preview.slice(0, 180),
+            type: 'message',
+            id: message.id,
+            url: `/messages?conversation=${conversationId}`,
+          })
+          // Debug, not info: useful when bringing this up or diagnosing a
+          // "no notification arrived" report, and noise on every message otherwise.
+          this.logger.debug(
+            `message push for ${userId}: sent=${result.sent} pruned=${result.pruned}`,
+          )
+        } catch (err) {
+          // The message is sent and the socket event has gone out. A push that
+          // fails must not turn a delivered message into an error.
+          this.logger.warn(`Push for message ${message.id} failed: ${(err as Error).message}`)
+        }
+      }),
+    )
   }
 
   /**

@@ -39,6 +39,8 @@ function build(opts: { member?: boolean; messageInConvo?: boolean } = {}) {
     {} as never,     // presence
     {} as never,     // profanity
     {} as never,     // aiAssistant
+      {} as never,     // push
+      {} as never,     // pushPreferences
   )
   return { service, prisma }
 }

@@ -13,9 +13,10 @@ import { MessagingPrivacyService } from './messaging-privacy.service'
 import { AuthModule } from '../auth/auth.module'
 import { SupabaseStorageModule } from '../storage/supabase-storage.module'
 import { AiAssistantModule } from '../ai-assistant/ai-assistant.module'
+import { PushModule } from '../push/push.module'
 
 @Module({
-  imports: [
+  imports: [PushModule, 
     AuthModule,
     SupabaseStorageModule,
     AiAssistantModule,
