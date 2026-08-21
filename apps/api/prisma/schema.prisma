@@ -417,6 +417,8 @@ model Profile {
   breedingAlerts            BreedingAlert[]
   breedingLitters           BreedingLitter[]
   notifications             Notification[]
+  pushSubscriptions         PushSubscription[]
+  notificationPreferences   NotificationPreference[]
   userRoles                 UserRoleAssignment[]
   auditLogs                 AuditLog[]
 
@@ -1347,6 +1349,86 @@ model Mention {
 }
 
 // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+
+/// A browser's Web Push endpoint. One row per browser per member, not per
+/// member: someone signed in on a laptop and a phone has two, and each is
+/// independently revocable.
+///
+/// Rows are disposable. A push service answers 404 or 410 when an endpoint is
+/// gone for good — the browser was uninstalled, the member cleared site data,
+/// the subscription expired — and the sender deletes them on that signal. A
+/// table of dead endpoints is a table of wasted requests.
+model PushSubscription {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+
+  /// The push service URL the browser handed us. Unique because re-subscribing
+  /// the same browser must update the existing row rather than accumulate rows.
+  endpoint String @unique
+
+  /// The two halves of the subscription's encryption keys. Payloads are
+  /// encrypted to these, so the push service relays without being able to read.
+  p256dh String
+  auth   String
+
+  /// Only so a member can recognise which device a subscription is, on a screen
+  /// that lists them. Never used for targeting.
+  userAgent String? @map("user_agent")
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  /// Consecutive send failures that were not outright rejections. A subscription
+  /// that keeps failing is pruned before it becomes a permanent tax on every
+  /// notification.
+  failureCount Int @default(0) @map("failure_count")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// A member's per-channel notification preference.
+///
+/// The eleven booleans on UserSettings are shared by in-app and email, which
+/// means switching off "Likes & Reactions" to stop a phone buzzing also erases
+/// the in-app record of what happened. Push needs its own answer, so preferences
+/// become a row per (member, category, channel) instead of a column per
+/// category.
+///
+/// Only the push channel is read from here today; in-app and email still read
+/// UserSettings. The channel column exists so they can move here later without
+/// a second migration, not because they have moved.
+///
+/// Absence means the default, which is on. Rows are written only when a member
+/// changes something, so this table stays small and a new category needs no
+/// backfill.
+model NotificationPreference {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+
+  /// A §14 preference key from the comms registry, e.g. `social.reactions`.
+  /// Deliberately a string rather than an enum: the registry is the source of
+  /// truth for which keys exist, and adding one there should not need a
+  /// migration here.
+  preferenceKey String @map("preference_key")
+
+  /// `push`, `in_app` or `email`.
+  channel String
+
+  enabled Boolean
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, preferenceKey, channel])
+  @@index([userId, channel])
+  @@map("notification_preferences")
+}
 
 model Notification {
   id        String   @id @default(uuid())

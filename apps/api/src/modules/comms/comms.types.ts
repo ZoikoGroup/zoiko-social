@@ -97,6 +97,16 @@ export const PREFERENCE_KEYS = {
   adoptionActivity: 'adoption.activity',
   newsActivity: 'news.activity',
   marketingProduct: 'marketing.product',
+
+  // Domains that produce notifications but had no preference key, so a member
+  // could not switch them off. Added for the push channel, which needs a
+  // category for every type it can deliver; the email estate has no templates
+  // for these, so they carry no PREFERENCE_COLUMN and email is unaffected.
+  breedingActivity: 'breeding.activity',
+  shopActivity: 'shop.activity',
+  petCareActivity: 'pet_care.activity',
+  socialShares: 'social.shares',
+  lostFoundAlerts: 'lost_found.alerts',
 } as const
 export type PreferenceKey = (typeof PREFERENCE_KEYS)[keyof typeof PREFERENCE_KEYS]
 

@@ -46,6 +46,13 @@ const envSchema = z.object({
   // Email (ZS-COMMS-EMAIL-001). Sending stays off until a provider key is set.
   EMAIL_PROVIDER: z.enum(['resend', 'console']).default('console'),
   RESEND_API_KEY: z.string().optional(),
+
+  // Web Push. All three are optional so the API still boots without them —
+  // push is simply unavailable, which is the correct behaviour for a local
+  // environment that has no keys rather than a crash on startup.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
   // §05 requires a distinct sender per reputation stream. Separate variables so
   // a stream can move to its own domain without a code change.
   EMAIL_FROM_TRANSACTIONAL: z.string().optional(),
@@ -210,6 +217,28 @@ export class ConfigService {
 
   get resendApiKey(): string | undefined {
     return this.env.RESEND_API_KEY
+  }
+
+  get vapidPublicKey(): string | undefined {
+    return this.env.VAPID_PUBLIC_KEY
+  }
+
+  get vapidPrivateKey(): string | undefined {
+    return this.env.VAPID_PRIVATE_KEY
+  }
+
+  /**
+   * The `mailto:` or URL a push service can use to reach whoever operates this
+   * server. Required by the VAPID spec; defaulted so a missing value cannot be
+   * the thing that stops push working.
+   */
+  get vapidSubject(): string {
+    return this.env.VAPID_SUBJECT ?? 'mailto:support@zoikosocial.com'
+  }
+
+  /** Push is configured only when both halves of the key pair are present. */
+  get pushConfigured(): boolean {
+    return !!this.env.VAPID_PUBLIC_KEY && !!this.env.VAPID_PRIVATE_KEY
   }
 
   /**

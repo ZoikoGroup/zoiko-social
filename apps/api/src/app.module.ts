@@ -15,6 +15,7 @@ import { QueueModule } from './modules/queue/queue.module'
 import { ProfileModule } from './modules/profile/profile.module'
 import { NetworkModule } from './modules/network/network.module'
 import { NotificationsModule } from './modules/notifications/notifications.module'
+import { PushModule } from './modules/push/push.module'
 import { PostsModule } from './modules/posts/posts.module'
 import { FeedModule } from './modules/feed/feed.module'
 import { EngagementModule } from './modules/engagement/engagement.module'
@@ -56,6 +57,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
     ProfileModule,
     NetworkModule,
     NotificationsModule,
+    PushModule,
     PostsModule,
     FeedModule,
     EngagementModule,
