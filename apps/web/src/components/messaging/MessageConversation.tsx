@@ -25,6 +25,7 @@ import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
 import { messagingApi } from '@/lib/messaging-api'
 import { useAuth } from '@/hooks/use-auth'
+import Link from 'next/link'
 import { isAiAssistant } from '@/lib/ai-assistant'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
@@ -54,6 +55,86 @@ interface MessageConversationProps {
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍']
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+
+
+/**
+ * Makes the chat header's avatar and name open something.
+ *
+ * A direct message goes to the other person's profile. A group has no single
+ * profile, so it opens the details panel — the same place its member list and
+ * settings live, which is where tapping a group name leads elsewhere too.
+ *
+ * Rendered as a plain wrapper when there is nowhere to go: the assistant has a
+ * profile like anyone else, but a conversation whose participant has not loaded
+ * yet must not be a dead link that looks live.
+ */
+
+/**
+ * Wraps anything that identifies a person so that tapping it opens their profile.
+ *
+ * Falls back to a plain span when there is no username — a participant that has
+ * not loaded yet must not become a link that goes nowhere. Kept as one component
+ * so the avatar in a group message, the chat header and the details panel cannot
+ * drift apart in whether they are tappable.
+ */
+function IdentityLink({
+  username,
+  className,
+  children,
+}: {
+  username: string | undefined
+  className?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  if (!username) return <span className={className}>{children}</span>
+  return (
+    <Link
+      href={`/profile/${username}`}
+      className={cn(className, 'cursor-pointer hover:opacity-80 transition-opacity')}
+      aria-label={`View @${username}`}
+    >
+      {children}
+    </Link>
+  )
+}
+
+function HeaderIdentity({
+  username,
+  isGroup,
+  onShowInfo,
+  children,
+}: {
+  /* Not optional-with-`?`: it is always passed, and may be undefined while the
+     participant loads. Under exactOptionalPropertyTypes those are different
+     things, and the build rejects the second for the first. */
+  username: string | undefined
+  isGroup: boolean
+  onShowInfo: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  // -mx/px pairs keep the tap target generous without shifting the layout the
+  // header already had.
+  const shared =
+    'flex items-center gap-2.5 md:gap-3 flex-1 min-w-0 rounded-lg -mx-1 px-1 py-0.5 hover:bg-surface-container/60 transition-colors text-left cursor-pointer'
+
+  if (isGroup) {
+    return (
+      <button type="button" onClick={onShowInfo} className={shared} aria-label="Group details">
+        {children}
+      </button>
+    )
+  }
+
+  if (!username) {
+    return <div className="flex items-center gap-2.5 md:gap-3 flex-1 min-w-0">{children}</div>
+  }
+
+  return (
+    <Link href={`/profile/${username}`} className={shared} aria-label={`View @${username}`}>
+      {children}
+    </Link>
+  )
+}
 
 export function MessageConversation({
   conversationId,
@@ -912,6 +993,18 @@ export function MessageConversation({
           <ArrowLeft className="size-5" />
         </Button>
       )}
+      {/*
+        Tapping the avatar or the name opens the profile, which is what every
+        messaging app trains people to expect and what this header did not do —
+        the name was a <p> and the avatar a plain div, so there was nothing to
+        tap. A group has no single profile to open, so it reveals the details
+        panel instead, which is the equivalent destination.
+      */}
+      <HeaderIdentity
+        username={otherParticipant?.username}
+        isGroup={!isDM}
+        onShowInfo={() => setShowInfo(true)}
+      >
       <div className="relative flex-shrink-0">
         <Avatar className="size-10 ring-2 ring-primary/10">
           {avatarUrl ? (
@@ -950,6 +1043,7 @@ export function MessageConversation({
           </p>
         )}
       </div>
+      </HeaderIdentity>
       <div className="flex items-center gap-0.5 md:gap-1">
         {!isAiChat && (
           <>
@@ -1526,7 +1620,15 @@ export function MessageConversation({
                     <div className={cn('flex w-full gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
                       {/* Avatar for others */}
                       {!isMine && (
-                        <div className={cn('flex-shrink-0 self-end', showAvatar ? '' : 'invisible')}>
+                        /*
+                          In a group the only way to find out who someone was meant leaving
+                          and searching for them. Their avatar now opens their profile,
+                          which is what tapping a face means everywhere else.
+                        */
+                        <IdentityLink
+                          username={msg.sender.username}
+                          className={cn('flex-shrink-0 self-end', showAvatar ? '' : 'invisible')}
+                        >
                           <Avatar className="size-8">
                             {msg.sender.avatarUrl ? (
                               <AvatarImage alt={msg.sender.displayName} src={msg.sender.avatarUrl} />
@@ -1536,7 +1638,7 @@ export function MessageConversation({
                               </AvatarFallback>
                             )}
                           </Avatar>
-                        </div>
+                        </IdentityLink>
                       )}
 
                       <div className={cn('relative max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
@@ -1808,6 +1910,12 @@ export function MessageConversation({
                 </button>
               </div>
               <div className="p-5 flex flex-col items-center text-center border-b border-outline-variant/20">
+                {/*
+                  The details panel showed a face and a handle with no way to reach
+                  the profile behind them — the place a member is most likely to go
+                  looking for it.
+                */}
+                <IdentityLink username={otherParticipant?.username} className="flex flex-col items-center">
                 <Avatar className="size-20 ring-4 ring-primary/10">
                   {avatarUrl ? (
                     <AvatarImage alt={displayName} src={avatarUrl} />
@@ -1821,6 +1929,7 @@ export function MessageConversation({
                 {otherParticipant?.username && (
                   <p className="text-sm text-muted-foreground mt-0.5">@{otherParticipant.username}</p>
                 )}
+                </IdentityLink>
                 <span className={cn(
                   'inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full',
                   isOnline ? 'text-green-700 bg-green-50' : 'text-muted-foreground bg-surface-container',

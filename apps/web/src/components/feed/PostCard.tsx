@@ -470,7 +470,10 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             <Link href={`/profile/${post.author.username}`} className="font-semibold hover:underline mr-1.5">
               {post.author.username}
             </Link>
-            <UserContent><Caption text={post.caption} /></UserContent>
+            {/* span, not the default div: this sits inline inside the <p> after the
+                username, and a block element there is invalid HTML, which React
+                reports as a hydration error. */}
+            <UserContent as="span"><Caption text={post.caption} /></UserContent>
           </p>
         )}
         {post.commentsCount > 0 && (

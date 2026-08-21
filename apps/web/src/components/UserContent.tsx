@@ -12,6 +12,11 @@
  * because the translator rewrites the contents of this element rather than
  * replacing a sibling React is tracking.
  */
+/**
+ * `as` defaults to a div, which is wrong inside a paragraph or alongside inline
+ * text — a div inside a <p> is invalid HTML, and React reports it as a hydration
+ * error rather than quietly rendering it. Inline callers must pass `as="span"`.
+ */
 export function UserContent({
   children,
   as: Tag = 'div',
