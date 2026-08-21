@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
 import Redis from 'ioredis'
 import { ConfigService } from '../config/config.service'
+import { ThrottledErrorLog, isFatalRedisError } from './redis-failure'
 
 /**
  * RedisService — central cache + pub/sub layer.
@@ -16,46 +17,6 @@ import { ConfigService } from '../config/config.service'
  * Degraded mode: when REDIS_URL is not configured every method becomes a no-op
  * and reads return null, so the API keeps working straight off PostgreSQL.
  */
-
-/**
- * Errors that reconnecting cannot fix.
- *
- * A quota-exhausted Upstash plan answers every command with "max requests limit
- * exceeded". The retry strategy treated that as transient and reconnected every
- * five seconds forever, logging a full error each time — across the main client and
- * one connection per BullMQ worker. That produced 287 MB of identical log lines in
- * roughly three minutes, which on a VM with a modest disk is an outage of its own,
- * caused by the logging rather than by Redis.
- *
- * Credential failures are the same shape of problem: retrying a wrong password is
- * never going to start working.
- */
-const FATAL_REDIS_ERROR = /max requests limit exceeded|max daily request limit|WRONGPASS|NOAUTH|invalid password/i
-
-/**
- * Logs the first occurrence of each distinct error immediately, then at most once
- * a minute, reporting how many were suppressed. Keeps the signal without the flood.
- */
-class ThrottledErrorLog {
-  private readonly seen = new Map<string, { last: number; suppressed: number }>()
-
-  /** Returns the line to log, or null when this one should be swallowed. */
-  next(key: string, now = Date.now()): string | null {
-    const entry = this.seen.get(key)
-    if (!entry) {
-      this.seen.set(key, { last: now, suppressed: 0 })
-      return key
-    }
-    if (now - entry.last < 60_000) {
-      entry.suppressed++
-      return null
-    }
-    const { suppressed } = entry
-    entry.last = now
-    entry.suppressed = 0
-    return suppressed > 0 ? `${key} (${suppressed} identical suppressed in the last minute)` : key
-  }
-}
 
 export interface CounterSnapshot {
   followers: number
@@ -143,7 +104,7 @@ export class RedisService implements OnModuleDestroy {
   private readonly children: Redis[] = []
 
   private onRedisError(prefix: string, err: Error): void {
-    if (FATAL_REDIS_ERROR.test(err.message) && !this.fatalRedis) {
+    if (isFatalRedisError(err) && !this.fatalRedis) {
       this.fatalRedis = true
       this.logger.error(
         `${prefix}: ${err.message} — this cannot be fixed by reconnecting, so retries are stopping ` +
