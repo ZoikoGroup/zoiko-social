@@ -67,6 +67,15 @@ type EventRow = Prisma.EventGetPayload<{
 
 const MAX = 30
 
+/**
+ * How many attendees of each kind an event page lists.
+ *
+ * Generous for a list a person actually reads, and a ceiling on what one popular
+ * event can make the server join and serialise. The counts displayed come from the
+ * event row, not from the length of these arrays.
+ */
+const ATTENDEES_SHOWN = 500
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -335,18 +344,36 @@ export class EventsService {
   }> {
     // Reuse get() so followers-only access is enforced before listing attendees.
     await this.get(eventId, viewerId, shareToken)
-    const rows = await this.prisma.eventRsvp.findMany({
-      where: { eventId },
-      orderBy: { createdAt: 'asc' },
-      include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
-    })
+    /*
+     * Every RSVP for the event used to load, each with a join to its user. A
+     * hundred-person event is nothing; a popular one is thousands of rows joined
+     * and serialised on every view of the page.
+     *
+     * Capped per status rather than across both: one shared limit would let a
+     * few thousand "going" crowd out the "interested" list entirely, since the
+     * cheapest ordering fills up before reaching them. The true totals are on the
+     * event itself (goingCount), so the numbers shown do not depend on this.
+     */
+    const attendeeRows = (status: 'going' | 'interested') =>
+      this.prisma.eventRsvp.findMany({
+        where: { eventId, status },
+        orderBy: { createdAt: 'asc' },
+        take: ATTENDEES_SHOWN,
+        include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      })
+
+    const [goingRows, interestedRows] = await Promise.all([
+      attendeeRows('going'),
+      attendeeRows('interested'),
+    ])
+
     const toItem = (u: EventRow['host']) => ({
       id: u.id, username: u.username, displayName: u.displayName,
       avatarUrl: u.avatarUrl, isVerified: u.verificationTier === 'professional',
     })
     return {
-      going: rows.filter((r) => r.status === 'going').map((r) => toItem(r.user)),
-      interested: rows.filter((r) => r.status === 'interested').map((r) => toItem(r.user)),
+      going: goingRows.map((r) => toItem(r.user)),
+      interested: interestedRows.map((r) => toItem(r.user)),
     }
   }
 
