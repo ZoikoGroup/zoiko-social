@@ -179,7 +179,9 @@ self.addEventListener('push', (event) => {
     badge: '/favicon.svg',
     // Same tag collapses related alerts instead of stacking twelve of them, and
     // renotify lets a newer one still surface rather than being silently merged.
-    tag: payload.type || 'zoiko',
+    // The server sends a collapse key that groups related types — a like and a
+    // reaction share one — falling back to the type when it has no group.
+    tag: payload.collapseKey || payload.type || 'zoiko',
     renotify: true,
     data: { url: payload.url || '/notifications', id: payload.id, type: payload.type },
   }

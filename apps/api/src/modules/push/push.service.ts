@@ -21,6 +21,12 @@ export interface PushPayload {
   type: string
   /** Notification id, so a tap can mark it read. */
   id?: string
+  /**
+   * Groups related alerts into one slot on the device, so twelve likes replace
+   * each other instead of stacking twelve deep. Falls back to the type when the
+   * event has no key of its own.
+   */
+  collapseKey?: string
 }
 
 /**

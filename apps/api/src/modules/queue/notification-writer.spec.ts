@@ -131,6 +131,23 @@ describe('notification writer', () => {
     expect(sendToUser).toHaveBeenCalledWith('u1', expect.objectContaining({ url: '/profile/ada' }))
   })
 
+  // Twelve likes should occupy one slot on the device, not twelve. The registry
+  // already groups these for email; push reuses the same grouping.
+  it('sends the registry collapse key so related alerts group', async () => {
+    const { service, sendToUser } = build(true)
+    await service.write({ ...JOB, type: 'new_like' })
+    expect(sendToUser).toHaveBeenCalledWith(
+      JOB.userId,
+      expect.objectContaining({ collapseKey: 'social.reactions' }),
+    )
+  })
+
+  it('omits the collapse key for a type that has no group', async () => {
+    const { service, sendToUser } = build(true)
+    await service.write({ userId: 'u1', type: 'breeding_request', title: 'x' })
+    expect(sendToUser.mock.calls[0][1]).not.toHaveProperty('collapseKey')
+  })
+
   it('survives a push that throws, because the record is already saved', async () => {
     const { service, create, sendToUser } = build(true)
     sendToUser.mockRejectedValue(new Error('push service unreachable'))

@@ -112,6 +112,16 @@ export class NotificationWriterService {
         type: job.type,
         id: notificationId,
         url: this.deepLink(job),
+        // The registry already groups related events for email — "twelve people
+        // liked your post", not twelve emails. Push reuses those groupings so a
+        // like and a reaction land in the same slot rather than one each.
+        //
+        // Not dailyCap, though: capping is an email rule, born of email being the
+        // channel of last resort. Applying it here would silence notifications a
+        // member asked for on the one channel meant to be timely.
+        ...(lookupEvent(job.type)?.collapseKey
+          ? { collapseKey: lookupEvent(job.type)?.collapseKey as string }
+          : {}),
       })
     } catch (err) {
       // A notification that is saved and shown in-app has done its job. Push is
