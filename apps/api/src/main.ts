@@ -49,6 +49,27 @@ async function bootstrap(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await app.register(compress as any, { global: true, threshold: 1024 })
 
+  /*
+   * ── Security headers ─────────────────────────────────────────────────────
+   *
+   * Three that matter for an API answering a browser, added by hand rather than
+   * by pulling in helmet: everything helmet adds beyond these is about HTML this
+   * server never returns, and a Content-Security-Policy set here would be a
+   * second, conflicting source of truth alongside the web app's own.
+   *
+   * nosniff is the load-bearing one. Without it a browser may decide a JSON
+   * response is really HTML or script and run it, which turns any endpoint that
+   * echoes user-supplied text into a place to host something executable.
+   */
+  app.getHttpAdapter().getInstance().addHook('onSend', (_req, reply, payload, done) => {
+    void reply.header('X-Content-Type-Options', 'nosniff')
+    // Nothing here is meant to be framed; the API returns no UI.
+    void reply.header('X-Frame-Options', 'DENY')
+    // Keeps ids in a path out of the Referer header on any onward request.
+    void reply.header('Referrer-Policy', 'no-referrer')
+    done(null, payload)
+  })
+
   // ── Worker-only mode ─────────────────────────────────────────────────────
   // When ENABLE_WORKERS=true, only background workers run. The HTTP server
   // is NOT started, so multiple worker containers can coexist without port
