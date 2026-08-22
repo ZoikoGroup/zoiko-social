@@ -808,6 +808,7 @@ export class MessagingService {
     userIds: string[],
     conversationId: string,
     message: { id: string; body: string | null; type?: string; sender: { displayName: string } },
+    notificationType: 'message' | 'call' = 'message',
   ): Promise<void> {
     if (userIds.length === 0) {
       this.logger.debug(`message ${message.id}: no push recipients (all muted or alone)`)
@@ -830,7 +831,7 @@ export class MessagingService {
           const result = await this.push.sendToUser(userId, {
             title: message.sender.displayName,
             body: preview.slice(0, 180),
-            type: 'message',
+            type: notificationType,
             id: message.id,
             url: `/messages?conversation=${conversationId}`,
           })
@@ -924,6 +925,45 @@ export class MessagingService {
       parent: null,
       createdAt: message.createdAt.toISOString(),
     })
+
+    /*
+     * A missed call is the one call record worth a device notification.
+     *
+     * This publishes to the conversation room only, which reaches whoever has the
+     * thread open and nobody else — so someone whose app was closed missed the
+     * call and then heard nothing about it at all. That is the failure this
+     * feature exists to prevent.
+     *
+     * Only `missed`: a call that connected was witnessed by both parties, and a
+     * declined one was declined by the person being notified. Announcing either
+     * is noise.
+     */
+    if (call.status === 'missed') {
+      const recipients = await this.unmutedRecipients(conversationId, callerId)
+      await this.pushMessage(recipients, conversationId, { ...message, body }, 'call')
+    }
+  }
+
+  /**
+   * Members of a conversation, other than the sender, who have not muted it.
+   *
+   * The message fan-out computes this inline because it already needs both
+   * queries for its socket publishes. The call path needs the same answer without
+   * that context, so it asks here rather than repeating the reasoning.
+   */
+  private async unmutedRecipients(conversationId: string, senderId: string): Promise<string[]> {
+    const members = await this.prisma.conversationMember.findMany({
+      where: { conversationId, userId: { not: senderId }, isDeleted: false },
+      select: { userId: true },
+    })
+    if (members.length === 0) return []
+
+    const settings = await this.prisma.conversationSetting.findMany({
+      where: { conversationId, userId: { in: members.map((m) => m.userId) }, isMuted: true },
+      select: { userId: true },
+    })
+    const muted = new Set(settings.map((s) => s.userId))
+    return members.map((m) => m.userId).filter((id) => !muted.has(id))
   }
 
   async deleteMessage(userId: string, messageId: string, forEveryone = false): Promise<void> {
