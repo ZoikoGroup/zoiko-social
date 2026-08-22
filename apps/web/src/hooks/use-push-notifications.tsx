@@ -141,7 +141,25 @@ export function usePushNotifications(): PushState & {
     let subscribed = false
     try {
       const reg = await navigator.serviceWorker.getRegistration()
-      subscribed = !!(await reg?.pushManager.getSubscription())
+      const subscription = await reg?.pushManager.getSubscription()
+      subscribed = !!subscription
+
+      /*
+       * Re-register what this browser already has, so the subscription follows
+       * whoever is signed in.
+       *
+       * A subscription belongs to the browser; the server records which member it
+       * belongs to. Sign in as someone else on the same browser and that record is
+       * stale — the previous member's notifications would arrive on this screen,
+       * and the person now signed in would get none. The upsert is keyed on the
+       * endpoint, so this rebinds rather than duplicating.
+       */
+      if (subscription) {
+        await mutate('/push/subscriptions', {
+          method: 'POST',
+          body: JSON.stringify(subscription.toJSON()),
+        }).catch(() => undefined)
+      }
     } catch {
       subscribed = false
     }

@@ -131,6 +131,63 @@ function buildSender(subs: { id: string; failureCount?: number }[]) {
 const payload = { title: 'Hello', type: 'new_like' }
 const mockSend = webpush.sendNotification as unknown as jest.Mock
 
+describe('PushService.subscribe', () => {
+  function buildSubscriber() {
+    const prisma = { pushSubscription: { upsert: jest.fn().mockResolvedValue({}) } }
+    const service = new PushService(prisma as never, {
+      pushConfigured: true, vapidPublicKey: 'pub', vapidPrivateKey: 'priv', vapidSubject: 'mailto:a@b.c',
+    } as never)
+    service.onModuleInit()
+    return { service, prisma }
+  }
+
+  const INPUT = { endpoint: 'https://push.example/abc', keys: { p256dh: 'k', auth: 'a' } }
+
+  it('keys on the endpoint, so re-subscribing a browser updates rather than duplicates', async () => {
+    const { service, prisma } = buildSubscriber()
+    await service.subscribe(USER, INPUT, 'Firefox')
+    expect(prisma.pushSubscription.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { endpoint: INPUT.endpoint } }),
+    )
+  })
+
+  /*
+   * The reason userId is in the update and not only the create: a subscription
+   * belongs to a browser, and signing in as someone else on that browser has to
+   * move it. Otherwise the previous member's notifications arrive on the new
+   * member's screen, and the new member gets none.
+   */
+  it('moves an existing subscription to whoever is signing in', async () => {
+    const { service, prisma } = buildSubscriber()
+    await service.subscribe('someone-else', INPUT)
+    const call = prisma.pushSubscription.upsert.mock.calls[0][0]
+    expect(call.update).toMatchObject({ userId: 'someone-else' })
+  })
+
+  it('clears the failure count when a browser re-subscribes', async () => {
+    const { service, prisma } = buildSubscriber()
+    await service.subscribe(USER, INPUT)
+    expect(prisma.pushSubscription.upsert.mock.calls[0][0].update).toMatchObject({ failureCount: 0 })
+  })
+
+  it('truncates a long user agent rather than storing it whole', async () => {
+    const { service, prisma } = buildSubscriber()
+    await service.subscribe(USER, INPUT, 'x'.repeat(900))
+    expect(prisma.pushSubscription.upsert.mock.calls[0][0].create.userAgent).toHaveLength(500)
+  })
+})
+
+describe('PushService.unsubscribe', () => {
+  it('is scoped to the caller, so an endpoint cannot be guessed away', async () => {
+    const prisma = { pushSubscription: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) } }
+    const service = new PushService(prisma as never, { pushConfigured: false } as never)
+    await service.unsubscribe(USER, 'https://push.example/abc')
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
+      where: { userId: USER, endpoint: 'https://push.example/abc' },
+    })
+  })
+})
+
 describe('PushService.sendToUser', () => {
   beforeEach(() => jest.clearAllMocks())
 

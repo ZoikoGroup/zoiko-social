@@ -304,6 +304,31 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       // Socket module unavailable — nothing to disconnect
     }
 
+    /*
+     * Hand back the push subscription before the session goes.
+     *
+     * A subscription belongs to a browser, and the server records which member
+     * it belongs to. Leaving it in place on sign-out meant this browser kept
+     * receiving that person's notifications afterwards — and, if someone else
+     * signed in here, receiving them on that person's screen. It has to be
+     * released while the token is still valid, which is why it happens before
+     * the Supabase sign-out below.
+     */
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration()
+      const subscription = await reg?.pushManager.getSubscription()
+      if (subscription) {
+        const { mutate } = await import('@/lib/api')
+        await mutate('/push/subscriptions', {
+          method: 'DELETE',
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        }).catch(() => undefined)
+        await subscription.unsubscribe().catch(() => undefined)
+      }
+    } catch {
+      // No service worker, or the browser refused — signing out still proceeds.
+    }
+
     const supabase = createClient()
     try {
       // Global scope revokes the refresh token server-side
