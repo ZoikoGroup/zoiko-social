@@ -329,6 +329,26 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       // No service worker, or the browser refused — signing out still proceeds.
     }
 
+    /*
+     * Drop cached pages belonging to the session that is ending.
+     *
+     * The worker keeps up to fifty navigated pages for a day so the app works
+     * offline. They are keyed by URL alone, with no notion of who was signed in,
+     * so on a shared device the next person to sign in and then lose their
+     * connection would be served the previous person's rendered pages. Static
+     * assets, fonts and images are left alone — those belong to nobody.
+     */
+    try {
+      if (typeof caches !== 'undefined') {
+        const names = await caches.keys()
+        await Promise.all(
+          names.filter((n) => n.startsWith('zk-pages')).map((n) => caches.delete(n)),
+        )
+      }
+    } catch {
+      // Cache Storage unavailable or blocked — not a reason to stay signed in.
+    }
+
     const supabase = createClient()
     try {
       // Global scope revokes the refresh token server-side
