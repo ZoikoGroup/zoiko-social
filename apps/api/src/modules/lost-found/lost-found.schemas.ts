@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const CreateReportSchema = z.object({
   kind: z.enum(['lost', 'found']),
@@ -26,8 +27,8 @@ export const CreateReportSchema = z.object({
   description: z.string().trim().max(2000).optional(),
   lastSeenLocation: z.string().trim().max(200).optional(),
   lastSeenAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD').optional(),
-  photoUrl: z.string().url().max(600).optional(),
-  photoUrls: z.array(z.string().url().max(600)).max(6).optional(),
+  photoUrl: httpUrl(600).optional(),
+  photoUrls: z.array(httpUrl(600)).max(6).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   contact: z.string().trim().max(200).optional(),

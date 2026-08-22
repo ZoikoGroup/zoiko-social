@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const NEWS_CATEGORIES = ['policy', 'science', 'rescue', 'health', 'climate', 'community'] as const
 export type NewsCategory = (typeof NEWS_CATEGORIES)[number]
@@ -7,10 +8,10 @@ export const CreateArticleSchema = z.object({
   title: z.string().trim().min(4).max(160),
   excerpt: z.string().trim().min(10).max(400),
   body: z.string().trim().min(20).max(20000),
-  coverUrl: z.string().url().max(600).optional(),
+  coverUrl: httpUrl(600).optional(),
   category: z.enum(NEWS_CATEGORIES).optional(),
   sourceName: z.string().trim().max(160).optional(),
-  sourceUrl: z.string().url().max(600).optional(),
+  sourceUrl: httpUrl(600).optional(),
   readMinutes: z.number().int().min(1).max(120).optional(),
 })
 
@@ -18,10 +19,10 @@ export const UpdateArticleSchema = z.object({
   title: z.string().trim().min(4).max(160).optional(),
   excerpt: z.string().trim().min(10).max(400).optional(),
   body: z.string().trim().min(20).max(20000).optional(),
-  coverUrl: z.string().url().max(600).optional(),
+  coverUrl: httpUrl(600).optional(),
   category: z.enum(NEWS_CATEGORIES).optional(),
   sourceName: z.string().trim().max(160).optional(),
-  sourceUrl: z.string().url().max(600).optional(),
+  sourceUrl: httpUrl(600).optional(),
   readMinutes: z.number().int().min(1).max(120).optional(),
 })
 

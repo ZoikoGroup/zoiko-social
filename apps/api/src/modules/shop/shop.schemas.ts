@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const SHOP_CATEGORIES = ['food', 'toys', 'health', 'grooming', 'accessories', 'beds', 'tech'] as const
 export type ShopCategory = (typeof SHOP_CATEGORIES)[number]
@@ -57,8 +58,8 @@ export const CreateProductSchema = z.object({
    * nothing to judge. Optional on update so an existing listing can be edited
    * without re-uploading, and so the rows that predate this rule stay editable.
    */
-  coverUrl: z.string().url().max(600),
-  photos: z.array(z.string().url().max(600)).max(8).optional(),
+  coverUrl: httpUrl(600),
+  photos: z.array(httpUrl(600)).max(8).optional(),
   stock: z.number().int().min(0).max(100000).optional(),
   shipping: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),
@@ -73,8 +74,8 @@ export const UpdateProductSchema = z.object({
   compareAt: z.number().min(0).max(100000).optional(),
   category: z.enum(SHOP_CATEGORIES).optional(),
   condition: z.enum(['new', 'used']).optional(),
-  coverUrl: z.string().url().max(600).optional(),
-  photos: z.array(z.string().url().max(600)).max(8).optional(),
+  coverUrl: httpUrl(600).optional(),
+  photos: z.array(httpUrl(600)).max(8).optional(),
   stock: z.number().int().min(0).max(100000).optional(),
   shipping: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),

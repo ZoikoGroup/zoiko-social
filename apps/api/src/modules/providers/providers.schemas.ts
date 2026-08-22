@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 // Weekly opening hours: one entry per weekday used (0=Sun … 6=Sat).
 const HoursEntrySchema = z.object({
@@ -24,12 +25,12 @@ export const CreateProviderSchema = z.object({
   slotCapacity: z.number().int().min(1).max(50).optional(),
   address: z.string().trim().max(300).optional(),
   phone: z.string().trim().max(40).optional(),
-  website: z.string().url().max(300).optional(),
-  coverUrl: z.string().url().max(600).optional(),
+  website: httpUrl(300).optional(),
+  coverUrl: httpUrl(600).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   // ── Vet-clinic profile fields ──
-  logoUrl: z.string().url().max(600).optional(),
+  logoUrl: httpUrl(600).optional(),
   photoUrls: strList(12, 600).optional(),
   specialties: strList(20).optional(),
   species: strList(15).optional(),
@@ -167,7 +168,7 @@ export const CreateTeamMemberSchema = z.object({
   name: z.string().trim().min(1).max(120),
   role: z.string().trim().max(80).optional(),
   licenseNo: z.string().trim().max(80).optional(),
-  photoUrl: z.string().url().max(600).optional(),
+  photoUrl: httpUrl(600).optional(),
 })
 
 export type CreateTeamMemberInput = z.infer<typeof CreateTeamMemberSchema>

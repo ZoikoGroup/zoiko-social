@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../../common/schemas/http-url'
 
 // ── Enums ───────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ export const SendMessageSchema = z.object({
   body: z.string().max(5000).optional(),
   type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact']).default('text'),
   parentId: z.string().uuid().optional(),
-  mediaUrls: z.array(z.string().url()).max(10).optional(),
+  mediaUrls: z.array(httpUrl()).max(10).optional(),
 })
 
 export const EditMessageSchema = z.object({

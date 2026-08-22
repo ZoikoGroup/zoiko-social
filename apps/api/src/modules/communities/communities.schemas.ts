@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -20,8 +21,8 @@ export const CreateCommunitySchema = z.object({
   categoryId: z.string().uuid(),
   privacy: z.enum(['public', 'private', 'invite_only']).optional(),
   tags: z.array(z.string().trim().min(2).max(30)).max(10).optional(),
-  avatarUrl: z.string().url().max(600).optional(),
-  coverUrl: z.string().url().max(600).optional(),
+  avatarUrl: httpUrl(600).optional(),
+  coverUrl: httpUrl(600).optional(),
   rules: z.array(ruleSchema).max(15).optional(),
 })
 
@@ -31,8 +32,8 @@ export const UpdateCommunitySchema = z.object({
   categoryId: z.string().uuid().optional(),
   privacy: z.enum(['public', 'private', 'invite_only']).optional(),
   tags: z.array(z.string().trim().min(2).max(30)).max(10).optional(),
-  avatarUrl: z.string().url().max(600).optional().nullable(),
-  coverUrl: z.string().url().max(600).optional().nullable(),
+  avatarUrl: httpUrl(600).optional().nullable(),
+  coverUrl: httpUrl(600).optional().nullable(),
 })
 
 export const UpdateRulesSchema = z.object({

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const BREEDING_SPECIES = ['dog', 'cat', 'bird', 'rabbit', 'other'] as const
 export type BreedingSpecies = (typeof BREEDING_SPECIES)[number]
@@ -21,12 +22,12 @@ const advancedFields = {
   ageMonths: z.number().int().min(0).max(600).optional(),
   littersCount: z.number().int().min(0).max(100).optional(),
   lastLitterAt: DATE.optional(),
-  documents: z.array(z.string().url().max(600)).max(10).optional(),
+  documents: z.array(httpUrl(600)).max(10).optional(),
   heatStatus: z.enum(['unknown', 'in_season', 'due_soon', 'resting']).optional(),
   nextHeatAt: DATE.optional(),
   availableNow: z.boolean().optional(),
-  coverUrl: z.string().url().max(600).optional(),
-  photos: z.array(z.string().url().max(600)).max(8).optional(),
+  coverUrl: httpUrl(600).optional(),
+  photos: z.array(httpUrl(600)).max(8).optional(),
   fee: z.number().min(0).max(1000000).optional(),
 }
 
@@ -48,7 +49,7 @@ export const CreateBreedingSchema = z.object({
    * cover. For a living animal the photo is the listing: nobody enquires from a
    * placeholder.
    */
-  coverUrl: z.string().url().max(600),
+  coverUrl: httpUrl(600),
 })
 
 export const UpdateBreedingSchema = z.object({

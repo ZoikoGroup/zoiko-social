@@ -19,6 +19,7 @@ import { ConfigService } from '../config/config.service'
 import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase-storage.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
@@ -26,9 +27,9 @@ export const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
   city: z.string().max(100).optional().nullable(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
-  avatarUrl: z.string().url().max(500).optional().nullable(),
-  bannerUrl: z.string().url().max(500).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
+  avatarUrl: httpUrl(500).optional().nullable(),
+  bannerUrl: httpUrl(500).optional().nullable(),
   isPrivate: z.boolean().optional(),
   username: z.string().min(3).max(30).optional(),
   currency: z.string().trim().min(2).max(8).optional(),
@@ -99,7 +100,7 @@ export const SwitchProfessionalSchema = z.object({
   businessPhone: z.string().max(20).optional(),
   businessAddress: z.string().max(200).optional(),
   description: z.string().max(1000).optional(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
   serviceAreas: z.array(z.string()).optional(),
   businessHours: z.record(z.any()).optional(),
   licenseNumber: z.string().max(100).optional(),
@@ -111,7 +112,7 @@ export const UpdateProfessionalSchema = z.object({
   businessPhone: z.string().max(20).optional(),
   businessAddress: z.string().max(200).optional(),
   description: z.string().max(1000).optional(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
   serviceAreas: z.array(z.string()).optional(),
   businessHours: z.record(z.any()).optional(),
   availableForBooking: z.boolean().optional(),
@@ -255,7 +256,7 @@ export const CompleteOnboardingSchema = z.object({
   lastName: z.string().trim().max(40).optional(),
   username: z.string().trim().min(3).max(30),
   bio: z.string().trim().max(500).optional(),
-  avatarUrl: z.string().url().max(500).optional().nullable(),
+  avatarUrl: httpUrl(500).optional().nullable(),
 })
 
 export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>
