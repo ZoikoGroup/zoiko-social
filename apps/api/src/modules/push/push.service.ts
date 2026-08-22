@@ -37,6 +37,19 @@ export interface PushPayload {
  */
 const MAX_CONSECUTIVE_FAILURES = 3
 
+/**
+ * How many browsers one member may have registered at once.
+ *
+ * Generous for a person — a laptop, a phone, a tablet, a work machine, and every
+ * reinstall of each — and a ceiling on what one account can turn every single
+ * notification into. Without it, an account registering endpoints in a loop would
+ * make the server fan out that many outbound requests per notification, and each
+ * subscription is otherwise only removed by the push service rejecting it.
+ *
+ * The oldest go first: the browser a member last used is the one they still have.
+ */
+const MAX_SUBSCRIPTIONS_PER_USER = 20
+
 @Injectable()
 export class PushService implements OnModuleInit {
   private readonly logger = new Logger(PushService.name)
@@ -102,6 +115,22 @@ export class PushService implements OnModuleInit {
         failureCount: 0,
       },
     })
+
+    await this.pruneToLimit(userId)
+  }
+
+  /** Drops a member's oldest subscriptions once they exceed the ceiling. */
+  private async pruneToLimit(userId: string): Promise<void> {
+    const mine = await this.prisma.pushSubscription.findMany({
+      where: { userId },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      skip: MAX_SUBSCRIPTIONS_PER_USER,
+    })
+    if (mine.length === 0) return
+
+    await this.prisma.pushSubscription.deleteMany({ where: { id: { in: mine.map((s) => s.id) } } })
+    this.logger.debug(`Pruned ${mine.length} subscription(s) over the limit for ${userId}`)
   }
 
   /**

@@ -1,5 +1,6 @@
 import { NotificationPreferenceService } from './notification-preference.service'
 import { PushService } from './push.service'
+import { SubscribeSchema, UnsubscribeSchema } from './push.schemas'
 
 /**
  * The two decisions that matter here.
@@ -133,7 +134,14 @@ const mockSend = webpush.sendNotification as unknown as jest.Mock
 
 describe('PushService.subscribe', () => {
   function buildSubscriber() {
-    const prisma = { pushSubscription: { upsert: jest.fn().mockResolvedValue({}) } }
+    const prisma = {
+      pushSubscription: {
+        upsert: jest.fn().mockResolvedValue({}),
+        // subscribe() prunes past the per-member ceiling; nothing over it here.
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    }
     const service = new PushService(prisma as never, {
       pushConfigured: true, vapidPublicKey: 'pub', vapidPrivateKey: 'priv', vapidSubject: 'mailto:a@b.c',
     } as never)
@@ -170,10 +178,67 @@ describe('PushService.subscribe', () => {
     expect(prisma.pushSubscription.upsert.mock.calls[0][0].update).toMatchObject({ failureCount: 0 })
   })
 
+  /*
+   * Without a ceiling, an account registering endpoints in a loop makes the
+   * server fan out that many outbound requests for every single notification.
+   */
+  it('drops the oldest subscriptions once a member is over the ceiling', async () => {
+    const { service, prisma } = buildSubscriber()
+    prisma.pushSubscription.findMany.mockResolvedValue([{ id: 'old-1' }, { id: 'old-2' }])
+    await service.subscribe(USER, INPUT)
+    expect(prisma.pushSubscription.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER }, skip: 20 }),
+    )
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['old-1', 'old-2'] } },
+    })
+  })
+
+  it('deletes nothing when a member is under the ceiling', async () => {
+    const { service, prisma } = buildSubscriber()
+    await service.subscribe(USER, INPUT)
+    expect(prisma.pushSubscription.deleteMany).not.toHaveBeenCalled()
+  })
+
   it('truncates a long user agent rather than storing it whole', async () => {
     const { service, prisma } = buildSubscriber()
     await service.subscribe(USER, INPUT, 'x'.repeat(900))
     expect(prisma.pushSubscription.upsert.mock.calls[0][0].create.userAgent).toHaveLength(500)
+  })
+})
+
+describe('SubscribeSchema endpoint validation', () => {
+  /*
+   * A push endpoint is a URL this server posts to repeatedly, so accepting an
+   * arbitrary one turns any signed-in member into a request generator aimed
+   * wherever they like, from inside the network. The metadata address is the
+   * reason this matters most.
+   */
+  const valid = { keys: { p256dh: 'k', auth: 'a' } }
+
+  it.each([
+    'https://fcm.googleapis.com/fcm/send/abc',
+    'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    'https://web.push.apple.com/abc',
+  ])('accepts a real push service (%s)', (endpoint) => {
+    expect(SubscribeSchema.safeParse({ ...valid, endpoint }).success).toBe(true)
+  })
+
+  it.each([
+    ['cloud metadata', 'https://169.254.169.254/computeMetadata/v1/'],
+    ['loopback', 'https://127.0.0.1/anything'],
+    ['localhost', 'https://localhost:8080/x'],
+    ['private 10/8', 'https://10.1.2.3/x'],
+    ['private 192.168', 'https://192.168.0.5/x'],
+    ['private 172.16', 'https://172.20.1.1/x'],
+    ['internal suffix', 'https://redis.internal/x'],
+    ['plain http', 'http://fcm.googleapis.com/fcm/send/abc'],
+  ])('refuses %s', (_label, endpoint) => {
+    expect(SubscribeSchema.safeParse({ ...valid, endpoint }).success).toBe(false)
+  })
+
+  it('still allows removing a subscription stored before this rule existed', () => {
+    expect(UnsubscribeSchema.safeParse({ endpoint: 'http://127.0.0.1/legacy' }).success).toBe(true)
   })
 })
 
