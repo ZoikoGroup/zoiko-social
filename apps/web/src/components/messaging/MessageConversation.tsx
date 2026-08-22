@@ -1727,7 +1727,7 @@ export function MessageConversation({
                                 <button onClick={() => { setEditingMessageId(null); setEditText('') }} className="text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0">
                                   <X className="size-3.5" />
                                 </button>
-                                <button onClick={handleEdit} className="text-primary hover:text-primary/80 cursor-pointer flex-shrink-0">
+                                <button onClick={handleEdit} aria-label="Save edit" className="text-primary hover:text-primary/80 cursor-pointer flex-shrink-0">
                                   <Check className="size-3.5" />
                                 </button>
                               </div>

@@ -65,7 +65,7 @@ function SaveButton({ article, small }: { article: NewsArticle; small?: boolean 
   }
   const sz = small ? 'w-3.5 h-3.5' : 'w-4 h-4'
   return (
-    <button onClick={toggle} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${saved ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'}`}>
+    <button onClick={toggle} aria-label={saved ? "Remove from saved" : "Save article"} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${saved ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'}`}>
       <Bookmark className={`${sz} ${saved ? 'fill-current' : ''}`} />
     </button>
   )

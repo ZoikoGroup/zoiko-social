@@ -450,7 +450,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
         <button onClick={() => setShareOpen(true)} className="p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
           <Send className="w-6 h-6 text-on-surface" />
         </button>
-        <button onClick={toggleSave} className="ml-auto p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
+        <button onClick={toggleSave} aria-label={saved ? "Remove from saved" : "Save post"} className="ml-auto p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
           <Bookmark className={`w-6 h-6 transition-colors ${saved ? 'text-primary fill-primary' : 'text-on-surface'}`} />
         </button>
       </div>

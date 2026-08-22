@@ -478,8 +478,8 @@ function RecordCard({ r, onEdit, onDelete }: { r: HealthRecord; onEdit: () => vo
             </span>
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 no-print">
-            <button onClick={onEdit} className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"><Pencil className="w-4 h-4" /></button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-outline hover:text-red-500 hover:bg-red-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={onEdit} aria-label="Edit record" className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"><Pencil className="w-4 h-4" /></button>
+            <button onClick={onDelete} aria-label="Delete record" className="p-1.5 rounded-lg text-outline hover:text-red-500 hover:bg-red-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
         {r.notes && <p className="text-label-sm text-on-surface-variant mt-1.5 whitespace-pre-line">{r.notes}</p>}

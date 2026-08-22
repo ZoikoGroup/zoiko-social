@@ -368,8 +368,8 @@ function DiaryCard({ e, shared, onEdit, onDelete, onShare }: { e: DiaryEntry; sh
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 no-print">
             <button onClick={onShare} title="Share to feed" className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer">{shared ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}</button>
-            <button onClick={onEdit} className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"><Pencil className="w-4 h-4" /></button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg text-outline hover:text-red-500 hover:bg-red-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
+            <button onClick={onEdit} aria-label="Edit entry" className="p-1.5 rounded-lg text-outline hover:text-primary hover:bg-primary/10 cursor-pointer"><Pencil className="w-4 h-4" /></button>
+            <button onClick={onDelete} aria-label="Delete entry" className="p-1.5 rounded-lg text-outline hover:text-red-500 hover:bg-red-500/10 cursor-pointer"><Trash2 className="w-4 h-4" /></button>
           </div>
         </div>
         {e.body && <p className="text-label-sm text-on-surface-variant mt-1.5 whitespace-pre-line">{e.body}</p>}

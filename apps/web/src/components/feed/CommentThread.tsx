@@ -115,7 +115,7 @@ function CommentRow({ comment, isPostAuthor, onReply, onDeleted, onPinToggle, is
             )}
             {canDelete && !comment.isDeleted && (
               <button
-                onClick={remove}
+                onClick={remove} aria-label="Delete comment"
                 className="text-red-400 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 className="w-3 h-3" />
@@ -133,7 +133,7 @@ function CommentRow({ comment, isPostAuthor, onReply, onDeleted, onPinToggle, is
             </button>
           )}
         </div>
-        <button onClick={toggleLike} className="p-1 self-start cursor-pointer">
+        <button onClick={toggleLike} aria-label={liked ? "Unlike comment" : "Like comment"} className="p-1 self-start cursor-pointer">
           <Heart className={`w-3.5 h-3.5 ${liked ? 'text-red-500 fill-red-500' : 'text-outline'}`} />
         </button>
       </div>
