@@ -15,12 +15,14 @@ import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { ReportButton } from '@/components/ReportButton'
+import { useToast } from '@/hooks/use-toast'
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
   const { format } = useCurrency()
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
+  const toast = useToast()
   const [product, setProduct] = useState<Product | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -47,7 +49,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     catch { setSaved(!next); setSavesCount((c) => c + (next ? -1 : 1)) }
   }
   async function remove(): Promise<void> {
-    await shopApi.remove(id).catch(() => {})
+    // It used to navigate to the shop whether or not the delete worked, so a
+    // failure looked exactly like success until the listing turned up again.
+    try {
+      await shopApi.remove(id)
+    } catch {
+      toast.error('Not deleted', 'Could not delete this listing. Please try again.')
+      return
+    }
     router.push('/shop')
   }
   async function sendEnquiry(): Promise<void> {

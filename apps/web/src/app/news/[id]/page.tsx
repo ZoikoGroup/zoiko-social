@@ -16,6 +16,7 @@ import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { formatDateTime } from '@/lib/datetime'
 import { useFormat } from '@/hooks/use-format'
+import { useToast } from '@/hooks/use-toast'
 
 type Tier = 'institutional' | 'verified' | 'community'
 const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color: string; bgColor: string }> = {
@@ -34,6 +35,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
   const { id } = use(params)
   const { user, profile } = useAuth()
   const router = useRouter()
+  const toast = useToast()
   const [article, setArticle] = useState<NewsArticle | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [liked, setLiked] = useState(false)
@@ -88,9 +90,18 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
   }
 
   async function deleteComment(commentId: string): Promise<void> {
+    // Removed from the list first, so a failed delete had the comment quietly
+    // return on the next load with nothing having said why.
+    const previous = comments
     setComments((prev) => prev.filter((c) => c.id !== commentId))
     setCommentsCount((n) => Math.max(0, n - 1))
-    await newsApi.deleteComment(id, commentId).catch(() => {})
+    try {
+      await newsApi.deleteComment(id, commentId)
+    } catch {
+      setComments(previous)
+      setCommentsCount((n) => n + 1)
+      toast.error('Not deleted', 'Could not delete that comment. Please try again.')
+    }
   }
 
   async function toggleLike(): Promise<void> {

@@ -17,6 +17,7 @@ import { AdoptionChat } from '@/components/adoption/AdoptionChat'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { useToast } from '@/hooks/use-toast'
 
 const GOOD_ICON: Record<string, typeof Baby> = { kids: Baby, dogs: Dog, cats: Cat }
 
@@ -25,6 +26,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
   const { user } = useAuth()
   const { format } = useCurrency()
   const router = useRouter()
+  const toast = useToast()
   const [listing, setListing] = useState<AdoptionListing | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [enquiries, setEnquiries] = useState<AdoptionEnquiryItem[]>([])
@@ -59,19 +61,44 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
     } catch { /* ignore */ } finally { setStarting(false) }
   }
 
+  /*
+   * Each of these moved the screen first and swallowed whatever the server said.
+   * A failed request left the page showing an accepted enquiry, a listing marked
+   * adopted, or a deleted listing — none of which had happened. The optimistic
+   * change is now put back, and the failure said out loud.
+   */
   async function respond(enquiryId: string, status: 'accepted' | 'rejected'): Promise<void> {
+    const previous = enquiries
     setEnquiries((prev) => prev.map((e) => e.id === enquiryId ? { ...e, status } : e))
-    await adoptionApi.respond(id, enquiryId, status).catch(() => {})
+    try {
+      await adoptionApi.respond(id, enquiryId, status)
+    } catch {
+      setEnquiries(previous)
+      toast.error('Not saved', 'Could not update that enquiry. Please try again.')
+    }
   }
 
   async function setStatus(status: string): Promise<void> {
     if (!listing) return
+    const previous = listing
     setListing({ ...listing, status })
-    await adoptionApi.update(id, { status }).catch(() => {})
+    try {
+      await adoptionApi.update(id, { status })
+    } catch {
+      setListing(previous)
+      toast.error('Not saved', 'Could not change the listing status. Please try again.')
+    }
   }
 
   async function remove(): Promise<void> {
-    await adoptionApi.remove(id).catch(() => {})
+    // Navigating away on failure was the worst of these: the listing was still
+    // there, and nothing on screen said so.
+    try {
+      await adoptionApi.remove(id)
+    } catch {
+      toast.error('Not deleted', 'Could not delete this listing. Please try again.')
+      return
+    }
     router.push('/adoption')
   }
 
