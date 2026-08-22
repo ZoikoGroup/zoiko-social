@@ -82,18 +82,30 @@ function CommentRow({ comment, isPostAuthor, onReply, onDeleted, onPinToggle, is
               {comment.author.username}
             </Link>
             {comment.isPinned && <Pin className="w-3 h-3 text-outline inline mr-1" />}
-            <span className="text-on-surface">{comment.body}</span>
+            {/*
+              A deleted comment is kept, not removed, so replies beneath it still have
+              something to hang from. The API blanks the body and sets this flag —
+              without reading it the comment rendered as the author name followed by
+              nothing at all, which reads as a bug rather than as a deletion.
+            */}
+            {comment.isDeleted ? (
+              <span className="text-outline italic">This comment was deleted</span>
+            ) : (
+              <span className="text-on-surface">{comment.body}</span>
+            )}
           </p>
           <div className="flex items-center gap-3 mt-1 text-[11px] text-outline">
             <span>{timeAgo(comment.createdAt)}</span>
-            {comment.isEdited && <span>(edited)</span>}
-            {likesCount > 0 && <span className="font-semibold">{likesCount} like{likesCount === 1 ? '' : 's'}</span>}
-            {!isReply && (
+            {comment.isEdited && !comment.isDeleted && <span>(edited)</span>}
+            {likesCount > 0 && !comment.isDeleted && <span className="font-semibold">{likesCount} like{likesCount === 1 ? '' : 's'}</span>}
+            {/* Nothing to reply to, like, pin or delete once it is gone — the row
+                survives only to keep its replies in place. */}
+            {!isReply && !comment.isDeleted && (
               <button onClick={() => onReply(comment)} className="font-semibold hover:text-on-surface cursor-pointer">
                 Reply
               </button>
             )}
-            {isPostAuthor && !isReply && onPinToggle && (
+            {isPostAuthor && !isReply && !comment.isDeleted && onPinToggle && (
               <button
                 onClick={() => onPinToggle(comment)}
                 className="font-semibold hover:text-on-surface cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
@@ -101,7 +113,7 @@ function CommentRow({ comment, isPostAuthor, onReply, onDeleted, onPinToggle, is
                 {comment.isPinned ? 'Unpin' : 'Pin'}
               </button>
             )}
-            {canDelete && (
+            {canDelete && !comment.isDeleted && (
               <button
                 onClick={remove}
                 className="text-red-400 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
