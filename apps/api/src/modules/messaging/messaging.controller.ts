@@ -45,6 +45,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 import { RateLimit } from '../common/decorators/rate-limit.decorator'
+import { MessagingGateway } from './messaging.gateway'
 
 @Controller('messaging')
 @UseGuards(JwtAuthGuard)
@@ -55,6 +56,7 @@ export class MessagingController {
     private readonly messageRequestService: MessageRequestService,
     private readonly groupService: GroupService,
     private readonly professionalMessaging: ProfessionalMessagingService,
+    private readonly gateway: MessagingGateway,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -97,6 +99,21 @@ export class MessagingController {
     @Param('id') id: string,
   ) {
     return this.messagingService.getConversationById(user.id, id)
+  }
+
+  /**
+   * The call ringing for this member right now, or null.
+   *
+   * A call invite is a one-shot socket event, so an app opened from a device
+   * notification has already missed it and would otherwise show nothing to
+   * answer. This lets it ask.
+   */
+  @Get('calls/ringing')
+  async ringingCall(@CurrentUser() user: AuthenticatedUser) {
+    const ringing = await this.gateway.getRingingFor(user.id)
+    if (!ringing) return { data: null }
+    const caller = await this.messagingService.getCallIdentity(ringing.callerId)
+    return { data: { ...ringing, caller } }
   }
 
   @Delete('conversations/:id')

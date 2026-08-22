@@ -945,6 +945,57 @@ export class MessagingService {
   }
 
   /**
+   * Rings a member's device for an incoming call.
+   *
+   * The invite itself travels over the socket, which reaches only someone whose
+   * app is already open — so a closed app never rang at all. This is the part that
+   * reaches a phone in a pocket.
+   *
+   * Sent while the call is ringing rather than after it, unlike the missed-call
+   * record: a notification that arrives once the caller has given up is a worse
+   * outcome than none. Nothing here is awaited by the signalling path.
+   */
+  async pushIncomingCall(
+    conversationId: string,
+    callerId: string,
+    callerName: string,
+    callType: 'audio' | 'video',
+    toUserId?: string,
+  ): Promise<void> {
+    try {
+      const recipients = toUserId
+        ? [toUserId]
+        : await this.unmutedRecipients(conversationId, callerId)
+      if (recipients.length === 0) return
+
+      // A muted conversation should not ring a device, exactly as it does not
+      // notify for a message. Checked here for the direct case, since that skips
+      // unmutedRecipients above.
+      const allowed = toUserId
+        ? (await this.unmutedRecipients(conversationId, callerId)).includes(toUserId)
+        : true
+      if (!allowed) return
+
+      await Promise.all(
+        recipients.map(async (userId) => {
+          if (!(await this.pushPreferences.allowsPush(userId, PREFERENCE_KEYS.messagesActivity))) return
+          await this.push.sendToUser(userId, {
+            title: callerName,
+            body: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
+            type: 'call_invite',
+            id: conversationId,
+            url: `/messages?conversation=${conversationId}&call=incoming`,
+            // One slot: a re-dial replaces the previous ring rather than stacking.
+            collapseKey: 'call.incoming',
+          })
+        }),
+      )
+    } catch (err) {
+      this.logger.warn(`Call push failed for ${conversationId}: ${(err as Error).message}`)
+    }
+  }
+
+  /**
    * Members of a conversation, other than the sender, who have not muted it.
    *
    * The message fan-out computes this inline because it already needs both

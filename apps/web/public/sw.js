@@ -173,10 +173,33 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title || 'ZoikoSocial'
+
+  /*
+   * A ringing call is not a message. It stays on screen until answered or
+   * dismissed rather than fading after a few seconds, it vibrates in a pattern
+   * a phone in a pocket can be felt through, and it offers the two things
+   * anyone wants from a ringing phone without opening the app first.
+   *
+   * The sound is the system's notification sound. A web push cannot carry a
+   * ringtone — the Notification API's `sound` was removed — so a real ringtone
+   * only plays once the app is open and can use the audio element.
+   */
+  const isCall = payload.type === 'call_invite'
+
   const options = {
     body: payload.body || '',
     icon: '/zoikosocial-logo.png',
     badge: '/favicon.svg',
+    ...(isCall
+      ? {
+          requireInteraction: true,
+          vibrate: [400, 200, 400, 200, 400],
+          actions: [
+            { action: 'answer', title: 'Answer' },
+            { action: 'decline', title: 'Decline' },
+          ],
+        }
+      : {}),
     // Same tag collapses related alerts instead of stacking twelve of them, and
     // renotify lets a newer one still surface rather than being silently merged.
     // The server sends a collapse key that groups related types — a like and a
@@ -191,6 +214,12 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+
+  // Declining is the one action that wants no app: closing the notification is
+  // the whole of it, and opening a window to say "you declined" would be worse
+  // than doing nothing.
+  if (event.action === 'decline') return
+
   const target = (event.notification.data && event.notification.data.url) || '/notifications'
 
   event.waitUntil(

@@ -9,6 +9,7 @@ import {
   type LocalVideoTrack, type RemoteVideoTrack, type RemoteAudioTrack,
 } from 'livekit-client'
 import { getSocket } from '@/lib/socket'
+import { request } from '@/lib/api'
 import { getAuthToken } from '@/lib/auth'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
@@ -515,6 +516,40 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
       if (infoRef.current?.isGroup && statusRef.current === 'connected') return
       finishCall('Call ended')
     }
+
+    /*
+     * Pick up a call this client never saw the invite for.
+     *
+     * `call:invite` is a one-shot socket event, so an app opened from a call
+     * notification — or reloaded mid-ring — has already missed it and would show
+     * nothing to answer. Asking the server closes that gap: if the caller is still
+     * ringing, this raises the same incoming call the socket would have.
+     */
+    void (async () => {
+      if (cancelled || statusRef.current !== 'idle') return
+      try {
+        const ringing = await request<{
+          conversationId: string
+          callerId: string
+          callType: CallType
+          isGroup: boolean
+          caller?: { displayName?: string; avatarUrl?: string | null }
+        } | null>('/messaging/calls/ringing')
+        if (cancelled || !ringing || statusRef.current !== 'idle') return
+        onInvite({
+          conversationId: ringing.conversationId,
+          fromUserId: ringing.callerId,
+          ...(ringing.caller?.displayName ? { fromDisplayName: ringing.caller.displayName } : {}),
+          fromAvatarUrl: ringing.caller?.avatarUrl ?? null,
+          callType: ringing.callType,
+          // Derived, not stored: the room is always call:<conversationId>.
+          roomName: `call:${ringing.conversationId}`,
+          isGroup: ringing.isGroup,
+        })
+      } catch {
+        // No ringing call, or the lookup failed — either way there is nothing to answer.
+      }
+    })()
 
     getSocket().then((socket) => {
       if (cancelled || !socket) return

@@ -308,6 +308,60 @@ export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnG
       isGroup,
       acceptedBy: new Set<string>(),
     })
+    /*
+     * Ring the device as well as the socket.
+     *
+     * The relay above reaches only a recipient whose app is already open. A phone
+     * in a pocket got nothing at all — no ring, and afterwards not even the
+     * missed-call notification, since that is written when the call closes.
+     *
+     * Not awaited: signalling must not wait on a push service, and a ring that
+     * arrives late is worse than useless.
+     */
+    const identity = await this.messagingService.getCallIdentity(userId)
+    void this.messagingService
+      .pushIncomingCall(
+        conversationId,
+        userId,
+        identity.displayName ?? 'Someone',
+        body.callType ?? 'audio',
+        isGroup ? undefined : body.toUserId,
+      )
+      .catch((err: Error) => this.logger.warn(`Call push failed: ${err.message}`))
+  }
+
+  /**
+   * The call currently ringing for this member, if any.
+   *
+   * Answering from a device notification needs this. The invite is a one-shot
+   * socket event, so an app opened from that notification has already missed it —
+   * it has to be able to ask whether it is still being called.
+   *
+   * In-memory and therefore per-process, like the call state it reads. That is a
+   * limitation the call feature already has, not a new one.
+   */
+  async getRingingFor(userId: string): Promise<{
+    conversationId: string
+    callerId: string
+    callType: 'audio' | 'video'
+    isGroup: boolean
+  } | null> {
+    for (const [conversationId, call] of this.activeCalls) {
+      if (call.acceptedAt) continue // in progress, not ringing
+      if (call.callerId === userId) continue // this member is the caller
+
+      /*
+       * Membership is the whole of the authorisation here, and its absence was a
+       * leak: without it this returned the first call ringing anywhere in the
+       * system, handing any caller a stranger's conversation id and the identity
+       * of whoever was dialling — and raising an incoming-call screen for a call
+       * they were never part of.
+       */
+      if (!(await this.messagingService.isMember(userId, conversationId))) continue
+
+      return { conversationId, callerId: call.callerId, callType: call.callType, isGroup: call.isGroup }
+    }
+    return null
   }
 
   @SubscribeMessage('call:accept')
