@@ -37,6 +37,14 @@ interface CallSignal {
   conversationName?: string
 }
 
+/**
+ * How long a call may ring before it is treated as abandoned.
+ *
+ * Comfortably longer than any caller waits, and short enough that a ring nobody
+ * cancelled cannot greet the next person who signs in.
+ */
+const RING_TIMEOUT_MS = 60_000
+
 @WebSocketGateway({
   cors: { origin: true, credentials: true },
   transports: ['websocket', 'polling'],
@@ -55,6 +63,8 @@ export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnG
     {
       callerId: string
       callType: 'audio' | 'video'
+      /** When the ring began, so an abandoned one can be recognised as stale. */
+      startedAt: number
       acceptedAt: number | null
       isGroup: boolean
       // Users who have accepted (started media). A "participant" is the caller or
@@ -304,6 +314,7 @@ export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnG
     this.activeCalls.set(conversationId, {
       callerId: userId,
       callType: body.callType ?? 'audio',
+      startedAt: Date.now(),
       acceptedAt: null,
       isGroup,
       acceptedBy: new Set<string>(),
@@ -348,6 +359,20 @@ export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnG
   } | null> {
     for (const [conversationId, call] of this.activeCalls) {
       if (call.acceptedAt) continue // in progress, not ringing
+
+      /*
+       * A ring nobody ended is not still ringing.
+       *
+       * Call state is cleared by call:end or call:cancel, and neither arrives if
+       * the caller's tab simply closes or their network drops — so the entry sat
+       * there indefinitely and the next person to sign in was told they were being
+       * called, by someone who had long since given up. Expiring on age catches
+       * every way a ring can be abandoned without intercepting each one.
+       */
+      if (Date.now() - call.startedAt > RING_TIMEOUT_MS) {
+        this.activeCalls.delete(conversationId)
+        continue
+      }
       if (call.callerId === userId) continue // this member is the caller
 
       /*

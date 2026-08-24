@@ -33,10 +33,16 @@ function build(memberOf: string[]) {
     {} as never,
   )
   const calls = (gateway as unknown as { activeCalls: Map<string, unknown> }).activeCalls
-  const ringing = (conversationId: string, callerId: string, acceptedAt: number | null = null) =>
+  const ringing = (
+    conversationId: string,
+    callerId: string,
+    acceptedAt: number | null = null,
+    startedAt: number = Date.now(),
+  ) =>
     calls.set(conversationId, {
       callerId,
       callType: 'audio',
+      startedAt,
       acceptedAt,
       isGroup: false,
       acceptedBy: new Set<string>(),
@@ -79,6 +85,32 @@ describe('getRingingFor', () => {
     const { gateway, ringing } = build([MY_CONVO])
     ringing(MY_CONVO, ME)
     await expect(gateway.getRingingFor(ME)).resolves.toBeNull()
+  })
+
+  /*
+   * Call state is cleared by call:end or call:cancel, and neither arrives when a
+   * caller's tab closes. Without an age check the entry sat there indefinitely,
+   * and the next person to sign in was told they were being called by someone who
+   * had given up long before.
+   */
+  it('ignores a ring that was abandoned long ago', async () => {
+    const { gateway, ringing } = build([MY_CONVO])
+    ringing(MY_CONVO, CALLER, null, Date.now() - 120_000)
+    await expect(gateway.getRingingFor(ME)).resolves.toBeNull()
+  })
+
+  it('forgets an abandoned ring rather than checking it again', async () => {
+    const { gateway, ringing } = build([MY_CONVO])
+    ringing(MY_CONVO, CALLER, null, Date.now() - 120_000)
+    await gateway.getRingingFor(ME)
+    const calls = (gateway as unknown as { activeCalls: Map<string, unknown> }).activeCalls
+    expect(calls.has(MY_CONVO)).toBe(false)
+  })
+
+  it('still returns one that started moments ago', async () => {
+    const { gateway, ringing } = build([MY_CONVO])
+    ringing(MY_CONVO, CALLER, null, Date.now() - 3_000)
+    await expect(gateway.getRingingFor(ME)).resolves.toMatchObject({ conversationId: MY_CONVO })
   })
 
   it('returns null when nothing is ringing', async () => {

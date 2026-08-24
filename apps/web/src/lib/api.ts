@@ -142,8 +142,23 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     throw new ApiError(err.code ?? 'UNKNOWN', err.message ?? 'Request failed', res.status)
   }
 
-  // Envelope: interceptor wraps as {success, data}; controllers return {data: result}
-  return (json?.data?.data ?? json?.data) as T
+  /*
+   * Envelope: the interceptor wraps as {success, data} and controllers return
+   * {data: result}, so the payload is usually one level deeper.
+   *
+   * Unwrapped by asking whether the inner key exists, not with `??`. A controller
+   * answering "nothing to report" returns { data: null }, and null coalescing
+   * cannot tell that apart from there being no inner envelope at all — so the
+   * caller received the wrapper `{ data: null }` instead of the null it asked for.
+   * That object is truthy, which is how a "no incoming call" answer became an
+   * incoming call on screen with every field undefined.
+   */
+  const payload = json?.data
+  const unwrapped =
+    payload && typeof payload === 'object' && 'data' in payload
+      ? (payload as { data: unknown }).data
+      : payload
+  return unwrapped as T
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────

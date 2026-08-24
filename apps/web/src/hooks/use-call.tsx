@@ -535,7 +535,15 @@ export function CallProvider({ children }: { children: ReactNode }): React.JSX.E
           isGroup: boolean
           caller?: { displayName?: string; avatarUrl?: string | null }
         } | null>('/messaging/calls/ringing')
-        if (cancelled || !ringing || statusRef.current !== 'idle') return
+        /*
+         * Both ids required, not merely a truthy object. The envelope unwrapping
+         * used to hand back `{ data: null }` for "no call is ringing", which is
+         * truthy — so a phantom call appeared on login with no caller, no
+         * conversation and "Incoming call" as the name. That is fixed at the
+         * source, and this refuses to ring for anything malformed regardless.
+         */
+        if (cancelled || statusRef.current !== 'idle') return
+        if (!ringing?.conversationId || !ringing?.callerId) return
         onInvite({
           conversationId: ringing.conversationId,
           fromUserId: ringing.callerId,
