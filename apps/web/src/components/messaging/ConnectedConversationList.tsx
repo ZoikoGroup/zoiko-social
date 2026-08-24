@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
-  Search, MessageSquare, Plus, Users, CheckCheck, MoreHorizontal, Loader2,
-  Pin, PinOff, Bell, BellOff, Archive, ArchiveRestore,
+  Search, MessageSquare, Plus, Users, CheckCheck, MoreHorizontal, Loader2, ArrowLeft,
+  Pin, PinOff, Bell, BellOff, Archive, ArchiveRestore, Megaphone,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useDateFormat } from '@/hooks/use-date-format'
@@ -70,12 +71,39 @@ export function ConnectedConversationList({
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
 
+  /*
+   * Archiving a chat removed it from every tab and offered nothing that could
+   * bring it back — the conversation was simply gone, along with the option to
+   * unarchive it that lives in its own row menu.
+   *
+   * Archived chats now live behind a row at the top of the list, the way they do
+   * in WhatsApp: it appears only when something is in there, and opening it shows
+   * that list on its own.
+   */
+  const [showArchived, setShowArchived] = useState(false)
+
+  const archivedCount = useMemo(
+    () => conversations.filter((c) => c.isArchived).length,
+    [conversations],
+  )
+
+  /*
+   * Derived rather than stored: unarchiving the last chat should drop you back to
+   * the list instead of leaving you staring at an empty archive. That is a fact
+   * about the data, not an event to react to, so it needs no effect — and an
+   * effect here would set state during render, which is the cascading-render
+   * problem the lint rule exists to catch.
+   */
+  const inArchive = showArchived && archivedCount > 0
+
   // Filter conversations based on active tab and search
   const filtered = useMemo(() => {
     let list = [...conversations]
 
-    // Tab filter
-    if (activeTab === 'all') {
+    if (inArchive) {
+      // The archive ignores the tabs: it is a place, not another filter.
+      list = list.filter((c) => c.isArchived)
+    } else if (activeTab === 'all') {
       list = list.filter((c) => !c.isArchived)
     } else if (activeTab === 'groups') {
       list = list.filter((c) => c.type === 'group' && !c.isArchived)
@@ -94,7 +122,7 @@ export function ConnectedConversationList({
     }
 
     return list
-  }, [conversations, activeTab, searchQuery])
+  }, [conversations, activeTab, searchQuery, inArchive])
 
   const TABS: { id: ChatTab; label: string; badge?: number }[] = [
     { id: 'all', label: t('all') },
@@ -233,6 +261,33 @@ export function ConnectedConversationList({
           </div>
         ) : (
           <>
+            {/*
+              The way back out of the archive. Shown at the top of the normal list when
+              anything is in there, and as a header while inside it — so the archive is
+              never somewhere you can enter and not leave.
+            */}
+            {inArchive ? (
+              <button
+                onClick={() => setShowArchived(false)}
+                className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors cursor-pointer border-b border-outline-variant/15"
+              >
+                <ArrowLeft className="w-4 h-4 text-outline flex-shrink-0" />
+                <span className="text-label-sm font-semibold text-on-surface">{t('archived')}</span>
+                <span className="ml-auto text-[11px] text-outline">{archivedCount}</span>
+              </button>
+            ) : (
+              archivedCount > 0 && !searchQuery.trim() && (
+                <button
+                  onClick={() => setShowArchived(true)}
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-container transition-colors cursor-pointer border-b border-outline-variant/15"
+                >
+                  <Archive className="w-4 h-4 text-outline flex-shrink-0" />
+                  <span className="text-label-sm font-medium text-on-surface">{t('archived')}</span>
+                  <span className="ml-auto text-[11px] font-semibold text-outline">{archivedCount}</span>
+                </button>
+              )
+            )}
+
             {/* Pinned conversations */}
             {filtered.filter((c) => c.isPinned).length > 0 && (
               <>
@@ -326,13 +381,24 @@ function ConversationItem({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
-          <p
-            className={`text-[14.5px] truncate leading-snug ${
-              conv.unreadCount > 0 ? 'font-bold text-on-surface' : 'font-semibold text-on-surface'
-            }`}
-          >
-            {displayName}
-          </p>
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <p
+              className={`text-[14.5px] truncate leading-snug ${
+                conv.unreadCount > 0 ? 'font-bold text-on-surface' : 'font-semibold text-on-surface'
+              }`}
+            >
+              {displayName}
+            </p>
+            {conv.type === 'community' && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary flex-shrink-0 self-center">
+                <Users className="w-2.5 h-2.5" />
+                {conv.community?.membersCount ?? 0}
+              </span>
+            )}
+            {conv.community?.announcementOnly && (
+              <Megaphone className="w-3 h-3 text-amber-500 flex-shrink-0 self-center" />
+            )}
+          </div>
           <span className={`text-[11px] flex-shrink-0 ${conv.unreadCount > 0 ? 'text-primary font-semibold' : 'text-outline'}`}>{timeStr}</span>
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
@@ -398,11 +464,47 @@ function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Elemen
       : { label: t('archive'), Icon: Archive, run: () => messagingApi.archive(conv.id) },
   ]
 
+  /*
+   * The menu is positioned from the button's place on screen rather than nested
+   * inside the row.
+   *
+   * As a descendant it was drawn underneath the rows below it: each row's own
+   * options button fades in and out, and an element mid-transition has its own
+   * stacking context, so later rows painted over the open menu. It would also
+   * have been clipped by the list's scroll box for the last conversation, where
+   * the menu needs to sit outside the list entirely.
+   */
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [anchor, setAnchor] = useState<{ right: number; top: number } | null>(null)
+
+  const openMenu = useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setAnchor({ right: window.innerWidth - rect.right, top: rect.bottom + 6 })
+    setOpen(true)
+  }, [])
+
+  // A menu pinned to a screen position stops matching its row the moment anything
+  // moves, so it closes rather than following.
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    window.addEventListener('resize', close)
+    // Capture phase: the list scrolls, not the window.
+    window.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', close, true)
+    }
+  }, [open])
+
   return (
     <div className="absolute right-4 top-1/2 -translate-y-1/2">
       <button
-        onClick={() => setOpen((v) => !v)}
+        ref={buttonRef}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         aria-label={t('conversationOptions')}
+        aria-expanded={open}
         className={`p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-all cursor-pointer ${
           open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
         }`}
@@ -410,14 +512,33 @@ function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Elemen
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreHorizontal className="w-4 h-4" />}
       </button>
 
-      {open && (
+      {/*
+        Through a portal, not merely positioned.
+
+        The wrapper above centres itself with -translate-y-1/2, and a transformed
+        element becomes the containing block for any `fixed` descendant — so a menu
+        placed at viewport coordinates was measured against that small box instead
+        and landed off-screen. Escaping to the body makes those coordinates mean
+        what they say, and clears the row stacking contexts and the list's scroll
+        clipping at the same time.
+      */}
+      {open && anchor && typeof document !== 'undefined' && createPortal(
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-40 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl">
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[61] w-40 py-1 rounded-xl bg-surface-container-lowest border border-outline-variant/40 shadow-xl animate-in fade-in zoom-in-95 duration-100"
+            style={{ right: anchor.right, top: anchor.top }}
+          >
             {ACTIONS.map((a) => (
               <button
                 key={a.label}
-                onClick={() => void run(a.run)}
+                onClick={() => {
+                  // Close first: the list refetches and reorders underneath, so a
+                  // menu still pinned to the old screen position would be pointing
+                  // at whichever conversation had moved into that spot.
+                  setOpen(false)
+                  void run(a.run)
+                }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-label-sm text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
               >
                 <a.Icon className="w-3.5 h-3.5 text-outline" />
@@ -425,7 +546,8 @@ function ConversationActions({ conv }: { conv: Conversation }): React.JSX.Elemen
               </button>
             ))}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   )
