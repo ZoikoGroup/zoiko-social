@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
-  Send, Paperclip, Smile, Phone, Video, ArrowLeft, Info,
+  Send, Smile, Phone, Video, ArrowLeft, Info,
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
@@ -2506,8 +2506,8 @@ export function MessageConversation({
                 type: 'poll',
                 poll,
               })
-            } catch (err: any) {
-              toastError('Failed to send poll', err.message)
+            } catch (e) {
+              toastError('Could not send poll', e instanceof Error ? e.message : 'Please try again')
             }
           }}
         />
@@ -2523,8 +2523,8 @@ export function MessageConversation({
                 type: 'location',
                 metadata: { location },
               })
-            } catch (err: any) {
-              toastError('Failed to share location', err.message)
+            } catch (e) {
+              toastError('Could not share location', e instanceof Error ? e.message : 'Please try again')
             }
           }}
         />

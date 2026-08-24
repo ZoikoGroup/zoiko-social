@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -515,7 +516,7 @@ export class MessagingService {
     type?: string; 
     parentId?: string; 
     mediaUrls?: string[];
-    metadata?: any;
+    metadata?: Record<string, unknown>;
     poll?: { question: string; options: string[] };
   }) {
     // Run EVERY pre-flight read concurrently. These used to be 3–4 sequential
@@ -594,7 +595,9 @@ export class MessagingService {
         type: input.type ?? 'text',
         parentId: input.parentId ?? null,
         mediaUrls: input.mediaUrls ?? [],
-        metadata: input.metadata ?? null,
+        ...(input.metadata !== undefined
+          ? { metadata: input.metadata as Prisma.InputJsonValue }
+          : {}),
         ...(input.poll && {
           poll: {
             create: {

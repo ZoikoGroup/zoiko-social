@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X, MapPin, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ export interface LocationPickerModalProps {
 export function LocationPickerModal({ onClose, onSend }: LocationPickerModalProps): React.JSX.Element {
   const [loading, setLoading] = useState(false)
   const [label, setLabel] = useState('')
-  const { toastError } = useToast()
+  const { error: toastError } = useToast()
 
   const handleShareCurrentLocation = () => {
     setLoading(true)
@@ -27,10 +27,11 @@ export function LocationPickerModal({ onClose, onSend }: LocationPickerModalProp
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLoading(false)
+        const trimmed = label.trim()
         onSend({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-          label: label.trim() || undefined,
+          ...(trimmed ? { label: trimmed } : {}),
         })
       },
       (err) => {

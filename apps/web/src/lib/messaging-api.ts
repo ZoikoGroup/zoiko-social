@@ -87,7 +87,43 @@ export interface CommunityChatMember {
   isMuted: boolean
 }
 
+
+/** What the server hands back for a message it just stored. */
+export interface SentMessage {
+  id: string
+  conversationId: string
+  type: string
+  body: string | null
+  mediaUrls: string[]
+  createdAt: string
+}
+
 export const messagingApi = {
+  // ── Sending ───────────────────────────────────────────────────────────────
+  /**
+   * Sends a message of any type.
+   *
+   * The chat's own send path is a socket round-trip with an optimistic bubble,
+   * which suits text. This is for the kinds that are composed in a dialog and
+   * arrive complete — a poll, a shared location — where there is nothing to
+   * render optimistically and the payload carries structure rather than a body.
+   */
+  sendMessage: (
+    conversationId: string,
+    body: {
+      body?: string
+      type?: string
+      parentId?: string
+      mediaUrls?: string[]
+      metadata?: Record<string, unknown>
+      poll?: { question: string; options: string[] }
+    },
+  ) =>
+    mutate<SentMessage>(`/messaging/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // ── Community chat ────────────────────────────────────────────────────────
   /** The viewer's role and whether the room's locks currently apply to them. */
   communityAccess: (conversationId: string) =>
