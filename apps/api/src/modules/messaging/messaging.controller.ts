@@ -16,6 +16,11 @@ import { ContactService } from './contact.service'
 import { MessageRequestService } from './message-request.service'
 import { GroupService } from './group.service'
 import { ProfessionalMessagingService } from './professional-messaging.service'
+import { CommunityChatService } from './community-chat.service'
+import {
+  UpdateCommunityChatSettingsSchema,
+  type UpdateCommunityChatSettingsInput,
+} from './community-chat.schemas'
 import {
   CreateConversationSchema,
   SendMessageSchema,
@@ -57,7 +62,72 @@ export class MessagingController {
     private readonly groupService: GroupService,
     private readonly professionalMessaging: ProfessionalMessagingService,
     private readonly gateway: MessagingGateway,
+    private readonly communityChat: CommunityChatService,
   ) {}
+
+  // ── COMMUNITY CHAT ─────────────────────────────────────────────────────────
+  //
+  // Its own list endpoint rather than a branch inside the inbox: community chats
+  // have no conversation_members rows (membership is derived), and the inbox is
+  // a keyset pagination over exactly that table. See CommunityChatService.
+
+  @Get('communities')
+  async getCommunityChats(@CurrentUser() user: AuthenticatedUser) {
+    const data = await this.communityChat.listForUser(user.id)
+    return { data }
+  }
+
+  /** Role, posting permission and the reason it is withheld — drives the composer. */
+  @Get('conversations/:id/community')
+  async getCommunityChatAccess(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.communityChat.assertCanRead(user.id, id)
+  }
+
+  @Get('conversations/:id/community/members')
+  async getCommunityChatMembers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.communityChat.listMembers(user.id, id, limit ? Number(limit) : 50)
+    return { data }
+  }
+
+  @Patch('conversations/:id/community/settings')
+  async updateCommunityChatSettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateCommunityChatSettingsSchema))
+    body: UpdateCommunityChatSettingsInput,
+  ) {
+    return this.communityChat.updateSettings(user.id, id, body)
+  }
+
+  @Get('conversations/:id/pinned')
+  async getPinnedMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const data = await this.communityChat.getPinned(user.id, id)
+    return { data }
+  }
+
+  /** Toggle: pinning the pinned message unpins it. Moderators only. */
+  @Post('messages/:id/pin')
+  @HttpCode(HttpStatus.OK)
+  async togglePinMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.communityChat.pinMessage(user.id, id)
+  }
+
+  /**
+   * Moderator removal, which is not the same endpoint as deleting your own
+   * message: this one acts on someone else's and always removes it for everyone.
+   */
+  @Delete('messages/:id/moderate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async moderateDeleteMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    await this.communityChat.moderateDelete(user.id, id)
+  }
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
 

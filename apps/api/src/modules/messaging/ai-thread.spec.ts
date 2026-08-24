@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common'
 import { MessagingService } from './messaging.service'
 import { aiThreadHint } from './ai-thread-hint'
 
@@ -35,6 +36,18 @@ function build(existing: { id: string; members: { isDeleted: boolean }[] } | nul
     { getAiProfileId: () => AI, greeting: 'Hello' } as never,
     { sendToUser: jest.fn() } as never,
     { allowsPush: jest.fn().mockResolvedValue(true) } as never,
+    // communityChat: these specs are all DM/group, where the derived
+    // community check is never the thing that grants access.
+    {
+      assertCanRead: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      assertCanPost: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      isChatMember: jest.fn().mockResolvedValue(false),
+      markRead: jest.fn().mockResolvedValue(undefined),
+    } as never,
   )
   // The create path ends in sendMessage, which is out of scope here; stub it so
   // these tests are about provisioning and nothing else.

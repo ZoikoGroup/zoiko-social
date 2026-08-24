@@ -10,6 +10,7 @@ import { ProfanityService } from '../common/moderation/profanity.service'
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
 import { aiThreadHint } from './ai-thread-hint'
 import { PushService } from '../push/push.service'
+import { CommunityChatService } from './community-chat.service'
 import { NotificationPreferenceService } from '../push/notification-preference.service'
 import { PREFERENCE_KEYS } from '../comms/comms.types'
 import type {
@@ -37,6 +38,7 @@ export class MessagingService {
     private readonly aiAssistant: AiAssistantService,
     private readonly push: PushService,
     private readonly pushPreferences: NotificationPreferenceService,
+    private readonly communityChat: CommunityChatService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -345,7 +347,11 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
       select: { isDeleted: true },
     })
-    return !!member && !member.isDeleted
+    if (member && !member.isDeleted) return true
+    // A community chat has no ConversationMember rows by design — membership is
+    // derived from community_members. Without this the socket room refuses every
+    // community member and the chat never goes live.
+    return this.communityChat.isChatMember(userId, conversationId)
   }
 
   /**
@@ -358,7 +364,11 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
       select: { isDeleted: true },
     })
-    if (!member || member.isDeleted) return null
+    if (!member || member.isDeleted) {
+      // Community chat has no member row; a non-member throws here rather than
+      // returning null, which the controller maps to the same 404.
+      await this.communityChat.assertCanRead(userId, conversationId)
+    }
 
     const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
@@ -418,7 +428,9 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
     })
     if (!member || member.isDeleted) {
-      throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+      // Community chat: derived membership, and it throws the same
+      // CONVERSATION_NOT_FOUND for a non-member.
+      await this.communityChat.assertCanRead(userId, conversationId)
     }
 
     const take = 51
@@ -498,7 +510,14 @@ export class MessagingService {
     }
   }
 
-  async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[] }) {
+  async sendMessage(userId: string, conversationId: string, input: { 
+    body?: string; 
+    type?: string; 
+    parentId?: string; 
+    mediaUrls?: string[];
+    metadata?: any;
+    poll?: { question: string; options: string[] };
+  }) {
     // Run EVERY pre-flight read concurrently. These used to be 3–4 sequential
     // awaits (membership → other member → block check → reply-parent), and
     // against a distant database each serial round-trip stacked up into seconds
@@ -535,14 +554,18 @@ export class MessagingService {
     ])
 
     if (!member || member.isDeleted) {
-      throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+      // Community chat. Derived membership, and the same call enforces the
+      // posting rules — chat switched off, announcement-only, muted member,
+      // slow mode — each throwing with the reason so the composer can say which
+      // lock it hit rather than "something went wrong".
+      await this.communityChat.assertCanPost(userId, conversationId)
     }
 
     // Re-check block state on every DM send. Blocks are otherwise only evaluated
     // when the conversation is first created, so a user blocked AFTER the DM
     // already exists could keep messaging into it. (Group membership is gated at
     // add-member time instead.)
-    if (member.conversation.type === 'dm') {
+    if (member && member.conversation.type === 'dm') {
       const other = member.conversation.members[0]
       const blockedIds = new Set(myBlocks.flatMap((b) => [b.blockerId, b.blockedId]))
       if (other && blockedIds.has(other.userId)) {
@@ -550,8 +573,8 @@ export class MessagingService {
       }
     }
 
-    if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0)) {
-      throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content or media' })
+    if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0) && !input.poll && (!input.metadata || Object.keys(input.metadata).length === 0)) {
+      throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content, media, a poll, or location' })
     }
     if (input.body) this.profanity.assertClean(input.body, { actorId: userId, entityType: 'message' })
 
@@ -571,12 +594,30 @@ export class MessagingService {
         type: input.type ?? 'text',
         parentId: input.parentId ?? null,
         mediaUrls: input.mediaUrls ?? [],
+        metadata: input.metadata ?? null,
+        ...(input.poll && {
+          poll: {
+            create: {
+              question: input.poll.question,
+              options: {
+                create: input.poll.options.map(text => ({ text })),
+              },
+            },
+          },
+        }),
       },
       include: {
         sender: {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
         parent: MessagingService.PARENT_INCLUDE,
+        poll: {
+          include: {
+            options: {
+              include: { votes: true }
+            }
+          }
+        },
       },
     })
 
@@ -613,7 +654,7 @@ export class MessagingService {
     // off the critical path: the sender's message is already delivered, and the
     // reply arrives over the same socket moments later. The sender-is-AI guard is
     // what stops the assistant replying to itself.
-    const recipientId = member.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
+    const recipientId = member?.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
     if (input.body && recipientId && this.aiAssistant.isAiProfile(recipientId) && !this.aiAssistant.isAiProfile(userId)) {
       void this.dispatchAiReply(conversationId, userId, input.body).catch((err: Error) =>
         this.logger.warn(`AI reply failed for ${conversationId}: ${err.message}`),
@@ -1175,7 +1216,17 @@ export class MessagingService {
    * this conversation.
    */
   async markConversationRead(userId: string, conversationId: string, lastReadMessageId?: string): Promise<void> {
-    await this.assertMember(userId, conversationId)
+    const isConversationMember = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!isConversationMember || isConversationMember.isDeleted) {
+      // Community chat keeps its bookmark on community_members instead — see
+      // CommunityChatService for why there is no member row to update.
+      await this.communityChat.assertCanRead(userId, conversationId)
+      await this.communityChat.markRead(userId, conversationId)
+      return
+    }
 
     const now = new Date()
     await this.prisma.conversationMember.updateMany({

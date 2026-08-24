@@ -7,6 +7,7 @@ import { PresenceService } from './presence.service'
 import { ContactService } from './contact.service'
 import { MessageRequestService } from './message-request.service'
 import { GroupService } from './group.service'
+import { CommunityChatService } from './community-chat.service'
 import { AttachmentService } from './attachment.service'
 import { ProfessionalMessagingService } from './professional-messaging.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
@@ -30,12 +31,14 @@ import { PushModule } from '../push/push.module'
     ContactService,
     MessageRequestService,
     GroupService,
+    CommunityChatService,
     AttachmentService,
     ProfessionalMessagingService,
     MessagingPrivacyService,
   ],
   exports: [
     MessagingService,
+    CommunityChatService,
     PresenceService,
     MessagingGateway,
   ],

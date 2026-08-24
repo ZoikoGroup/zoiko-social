@@ -6,7 +6,8 @@ import {
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
-  FileText, EyeOff, Palette, LogOut,
+  FileText, EyeOff, Palette, LogOut, Pin, ShieldAlert,
+  MapPin, BarChart2, Image as ImageIcon,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,14 @@ import { usePresence } from '@/hooks/use-presence'
 import { messagingApi } from '@/lib/messaging-api'
 import { useAuth } from '@/hooks/use-auth'
 import Link from 'next/link'
+import {
+  useCommunityChat,
+  CommunityHeaderInfo,
+  CommunityPinnedBar,
+  CommunityComposerLock,
+  CommunityMembersSheet,
+  CommunityChatSettings,
+} from './CommunityChat'
 import { isAiAssistant } from '@/lib/ai-assistant'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
@@ -36,6 +45,8 @@ import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
 import { ReportContentModal } from '@/components/ReportContentModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { PollCreatorModal } from './PollCreatorModal'
+import { LocationPickerModal } from './LocationPickerModal'
 import { useCall } from '@/hooks/use-call'
 import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
@@ -119,9 +130,16 @@ function HeaderIdentity({
 
   if (isGroup) {
     return (
-      <button type="button" onClick={onShowInfo} className={shared} aria-label="Group details">
+      <div 
+        role="button"
+        tabIndex={0}
+        onClick={onShowInfo} 
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onShowInfo() }}
+        className={shared} 
+        aria-label="Group details"
+      >
         {children}
-      </button>
+      </div>
     )
   }
 
@@ -135,6 +153,20 @@ function HeaderIdentity({
     </Link>
   )
 }
+
+/**
+ * How far the thread slides to uncover the times. Wide enough for "10:32 PM" at
+ * the smallest size the label is drawn, and no wider — the gesture should feel
+ * like a peek rather than a page.
+ */
+const TIME_REVEAL_PX = 76
+
+/**
+ * How long a mouse button is held before the time appears. Long enough not to
+ * fire while someone is clicking or double-clicking to react, short enough that
+ * holding does not feel like waiting.
+ */
+const HOLD_TO_SEE_TIME_MS = 400
 
 export function MessageConversation({
   conversationId,
@@ -157,6 +189,8 @@ export function MessageConversation({
   const [replyingTo, setReplyingTo] = useState<MessageData | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [showPollModal, setShowPollModal] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ message: MessageData; x: number; y: number } | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -189,15 +223,109 @@ export function MessageConversation({
   // The assistant has no ears and no camera, so calling it is not a thing that can
   // happen. Hiding the buttons is the honest version of that — a call that connects
   // to silence, or an invite nothing ever answers, is worse than no button at all.
+  const isCommunity = conversation?.type === 'community'
+  const communityInfo = conversation?.community ?? null
   const isAiChat = isDM && isAiAssistant(otherParticipant?.username)
   const activeTheme = getChatTheme(themeId)
   const { success: toastSuccess, error: toastError } = useToast()
   const { startCall } = useCall()
+  const {
+    access: communityAccess,
+    pinned: pinnedMessage,
+    refresh: refreshCommunityAccess,
+    setAccess: setCommunityAccess,
+    setPinned: setPinnedMessage,
+  } = useCommunityChat(conversationId, isCommunity)
+  const [showCommunityMembers, setShowCommunityMembers] = useState(false)
 
   // Block/mute/report state for the other DM participant.
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [reportUserOpen, setReportUserOpen] = useState(false)
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
+
+  /*
+   * Swipe left to read the time on every message.
+   *
+   * A message carries a small label already, but it only shows a clock for today —
+   * anything older reads "Aug 21", so the time of an older message was simply not
+   * available. Rather than crowd every bubble with one, the times sit just off the
+   * right edge and the whole column slides over to uncover them, which is the
+   * gesture people already know from Instagram and WhatsApp.
+   *
+   * Kept in a ref as well as state: the touch handlers need the current offset
+   * without re-subscribing on every frame.
+   */
+  const [timeReveal, setTimeReveal] = useState(0)
+
+  /*
+   * Press and hold a message to read its time — the mouse equivalent of the swipe.
+   *
+   * A swipe is a touch gesture and does nothing with a mouse, so on a laptop there
+   * was no way to reach the time at all. Long press is free here: touch already
+   * uses it for the message menu, but a mouse opens that with right-click, so
+   * holding the button has no meaning yet.
+   *
+   * Shown while held and gone on release. Nothing to dismiss, and no state left
+   * behind if the pointer leaves the window mid-press.
+   */
+  const [heldMessage, setHeldMessage] = useState<{ id: string; x: number; y: number } | null>(null)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdOrigin = useRef<{ x: number; y: number } | null>(null)
+
+  const cancelHold = useCallback(() => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current)
+      holdTimer.current = null
+    }
+    holdOrigin.current = null
+    setHeldMessage(null)
+  }, [])
+
+  const startHold = useCallback((messageId: string, e: React.MouseEvent) => {
+    // Left button only: right-click already opens the message menu.
+    if (e.button !== 0) return
+    const { clientX: x, clientY: y } = e
+    holdOrigin.current = { x, y }
+    holdTimer.current = setTimeout(() => setHeldMessage({ id: messageId, x, y }), HOLD_TO_SEE_TIME_MS)
+  }, [])
+
+  const moveDuringHold = useCallback((e: React.MouseEvent) => {
+    const origin = holdOrigin.current
+    if (!origin || holdTimer.current === null) return
+    // Selecting text inside a bubble is a drag, and should not be read as a hold.
+    if (Math.abs(e.clientX - origin.x) > 8 || Math.abs(e.clientY - origin.y) > 8) cancelHold()
+  }, [cancelHold])
+  const swipeStart = useRef<{ x: number; y: number; active: boolean } | null>(null)
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    if (!touch) return
+    swipeStart.current = { x: touch.clientX, y: touch.clientY, active: false }
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    const start = swipeStart.current
+    const touch = e.touches[0]
+    if (!start || !touch) return
+
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+
+    // Only claim the gesture once it is clearly horizontal and leftward. Reading
+    // back through a conversation is a vertical scroll, and stealing that to
+    // reveal timestamps would make the thread feel broken.
+    if (!start.active) {
+      if (Math.abs(dy) > Math.abs(dx) || dx > -10) return
+      start.active = true
+    }
+
+    setTimeReveal(Math.min(TIME_REVEAL_PX, Math.max(0, -dx)))
+  }, [])
+
+  const endSwipe = useCallback(() => {
+    swipeStart.current = null
+    setTimeReveal(0)
+  }, [])
 
   useEffect(() => {
     if (!otherUserId) return undefined
@@ -224,6 +352,33 @@ export function MessageConversation({
     }
   }
 
+  /**
+   * Mutes this conversation's notifications.
+   *
+   * Deliberately not `networkApi.mute`, which this panel used to call: that hides
+   * someone's posts from the feed and leaves the chat exactly as noisy as it was,
+   * so a button reading "mute notifications" muted something else entirely. It
+   * also needed a single other participant, which left the option dead in groups.
+   */
+  async function handleToggleConversationMute(): Promise<void> {
+    if (!conversationId) return
+    const wasMuted = !!conversation?.isMuted
+    try {
+      if (wasMuted) {
+        await messagingApi.unmute(conversationId)
+        toastSuccess('Unmuted', 'You will be notified about new messages here again.')
+      } else {
+        await messagingApi.mute(conversationId)
+        toastSuccess('Muted', 'You will not be notified about new messages here.')
+      }
+      // The inbox carries the flag this label reads; without the refetch the row
+      // keeps its old bell and the label flips back when the panel is reopened.
+      await retryFetchConversations()
+    } catch (e) {
+      toastError('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
   async function handleUnblock(): Promise<void> {
     if (!otherUserId) return
     try {
@@ -240,6 +395,34 @@ export function MessageConversation({
     await networkApi.block(otherUserId)
     setRelationship((r) => r ? { ...r, blocked: true, following: false, followedBy: false } : r)
     toastSuccess('Blocked', `${displayName} can no longer see your profile or message you.`)
+  }
+
+  /**
+   * Pin or unpin, moderators only. The bar updates from the socket event the
+   * server broadcasts, so every member's view moves together rather than only
+   * the moderator who pressed it.
+   */
+  async function handleTogglePin(messageId: string): Promise<void> {
+    if (!conversationId) return
+    try {
+      const { pinned } = await messagingApi.togglePinMessage(messageId)
+      const next = pinned ? await messagingApi.pinnedMessage(conversationId) : null
+      setPinnedMessage(next)
+      toastSuccess(pinned ? 'Pinned' : 'Unpinned', pinned ? 'Everyone will see this at the top.' : 'Removed from the top of the chat.')
+    } catch (e) {
+      toastError('Could not pin', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  /** Moderator removal of someone else's message. Always for everyone. */
+  async function handleModerateDelete(messageId: string): Promise<void> {
+    if (!window.confirm('Remove this message for everyone in the community?')) return
+    try {
+      await messagingApi.moderateDeleteMessage(messageId)
+      toastSuccess('Removed', 'The message is no longer visible to anyone.')
+    } catch (e) {
+      toastError('Could not remove', e instanceof Error ? e.message : 'Please try again')
+    }
   }
 
   /** Removes the thread from this member's inbox; the other copy is untouched. */
@@ -386,6 +569,20 @@ export function MessageConversation({
       }
     }
 
+    const handleMessagePinned = (data: { conversationId: string; messageId: string | null }) => {
+      if (data.conversationId !== conversationId) return
+      if (!data.messageId) { setPinnedMessage(null); return }
+      void messagingApi.pinnedMessage(data.conversationId).then(setPinnedMessage).catch(() => {})
+    }
+
+    // Announcement mode or slow mode changing while someone has the composer
+    // open: refetch so their box locks itself rather than letting them type a
+    // message the server will refuse.
+    const handleCommunitySettings = (data: { conversationId: string }) => {
+      if (data.conversationId !== conversationId) return
+      void refreshCommunityAccess()
+    }
+
     const handleMessageExpired = (data: { messageId: string; conversationId: string; viewCount: number }) => {
       if (data.conversationId === conversationId) {
         setMessages((prev) =>
@@ -408,6 +605,8 @@ export function MessageConversation({
     socket.on('message:new', handleNewMessage)
     socket.on('message:edited', handleEditedMessage)
     socket.on('message:deleted', handleDeletedMessage)
+    socket.on('message:pinned', handleMessagePinned)
+    socket.on('community:settings', handleCommunitySettings)
     socket.on('message:reaction', handleReaction)
     socket.on('message:expired', handleMessageExpired)
     socket.on('conversation:theme', handleThemeChange)
@@ -419,12 +618,14 @@ export function MessageConversation({
       socket.off('message:new', handleNewMessage)
       socket.off('message:edited', handleEditedMessage)
       socket.off('message:deleted', handleDeletedMessage)
+      socket.off('message:pinned', handleMessagePinned)
+      socket.off('community:settings', handleCommunitySettings)
       socket.off('message:reaction', handleReaction)
       socket.off('message:expired', handleMessageExpired)
       socket.off('conversation:theme', handleThemeChange)
       socket.emit('conversation:leave', { conversationId })
     }
-  }, [socket, conversationId, markRead])
+  }, [socket, conversationId, markRead, refreshCommunityAccess, setPinnedMessage])
 
   // Subscribe to presence for all participants
   useEffect(() => {
@@ -690,7 +891,15 @@ export function MessageConversation({
     }
 
     void sendMessage(body, parentId, tempId)
-  }, [conversationId, input, replyingTo, user, profile, socket, sendMessage])
+
+    // Slow mode restarts with every message. A client-side countdown would
+    // drift against the server's clock and then confidently offer a composer
+    // that gets refused, so the server is asked again instead.
+    if (isCommunity && communityAccess?.slowModeSeconds) void refreshCommunityAccess()
+  }, [
+    conversationId, input, replyingTo, user, profile, socket, sendMessage,
+    isCommunity, communityAccess?.slowModeSeconds, refreshCommunityAccess,
+  ])
 
   const handleRetry = useCallback(async (tempId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== tempId))
@@ -1028,7 +1237,13 @@ export function MessageConversation({
             </svg>
           )}
         </div>
-        {someoneTyping ? (
+        {isCommunity ? (
+          <CommunityHeaderInfo
+            membersCount={communityInfo?.membersCount ?? 0}
+            access={communityAccess}
+            onOpenMembers={() => setShowCommunityMembers(true)}
+          />
+        ) : someoneTyping ? (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[11.5px] font-medium text-primary truncate max-w-[160px]">{typingLabel}</span>
             <div className="flex items-center gap-[3px] flex-shrink-0">
@@ -1045,7 +1260,7 @@ export function MessageConversation({
       </div>
       </HeaderIdentity>
       <div className="flex items-center gap-0.5 md:gap-1">
-        {!isAiChat && (
+        {!isAiChat && !isCommunity && (
           <>
             <Button
               onClick={() => handleStartCall('audio')}
@@ -1535,12 +1750,33 @@ export function MessageConversation({
     <Card ref={setConversationEl} className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none">
       {renderHeader()}
 
-      <CardContent className="flex-1 p-0 overflow-hidden flex">
+      <CardContent className="flex-1 p-0 overflow-hidden flex relative">
+        {isCommunity && showCommunityMembers && conversationId && (
+          <CommunityMembersSheet
+            conversationId={conversationId}
+            onClose={() => setShowCommunityMembers(false)}
+          />
+        )}
         <div className="flex flex-1 flex-col overflow-hidden">
+          {isCommunity && pinnedMessage && (
+            <CommunityPinnedBar
+              pinned={pinnedMessage}
+              canUnpin={!!communityAccess?.isMod}
+              onJump={(messageId) => {
+                document.getElementById(`msg-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              onUnpin={() => void handleTogglePin(pinnedMessage.id)}
+            />
+          )}
+
           {/* Messages area */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={endSwipe}
+            onTouchCancel={endSwipe}
             className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-5 space-y-1 bg-surface-container-low/60"
             style={activeTheme.wallpaper ? { backgroundImage: activeTheme.wallpaper } : undefined}
           >
@@ -1597,6 +1833,13 @@ export function MessageConversation({
                       </span>
                     </div>
                   )}
+                  {/*
+                    Slid left by the swipe, with the time parked just beyond the right
+                    edge so it comes into view as the row moves. A transform rather than
+                    a margin: it runs on the compositor, so dragging a long thread stays
+                    smooth. The transition applies only on release — animating every
+                    frame of the drag would leave the rows lagging behind the finger.
+                  */}
                   <div
                     className={cn(
                       'flex flex-col relative group/message',
@@ -1604,7 +1847,29 @@ export function MessageConversation({
                       showAvatar ? 'mt-3' : 'mt-0.5',
                       !isPending && !isFailed && 'animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out',
                     )}
+                    style={{
+                      transform: timeReveal > 0 ? `translateX(-${timeReveal}px)` : undefined,
+                      transition: timeReveal === 0 ? 'transform 180ms ease-out' : 'none',
+                    }}
                   >
+                    {/*
+                      The time every message has and no message showed: the label under a
+                      bubble reads "Aug 21" once it is not today, so the clock was simply
+                      unavailable for anything older. aria-hidden because it repeats what
+                      the bubble's own title already tells a screen reader.
+                    */}
+                    <span
+                      aria-hidden
+                      className="absolute top-1/2 -translate-y-1/2 text-[10px] tabular-nums text-outline whitespace-nowrap pointer-events-none"
+                      style={{
+                        left: '100%',
+                        marginLeft: 10,
+                        opacity: timeReveal / TIME_REVEAL_PX,
+                        transition: timeReveal === 0 ? 'opacity 180ms ease-out' : 'none',
+                      }}
+                    >
+                      {formatDateTime(msg.createdAt, locale, 'timePadded')}
+                    </span>
                     {/*
                       Row: avatar + bubble + time.
 
@@ -1644,11 +1909,20 @@ export function MessageConversation({
                       <div className={cn('relative max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
                         {/* Floating hover toolbar — anchored to the bubble corner */}
                         {renderReactionBar(msg, isMine, isPending)}
-                        {/* Message bubble */}
+                        {/*
+                          Message bubble. The title carries the full date and time: the
+                          swipe that reveals it is a touch gesture, and a mouse needs its
+                          own way to the same fact.
+                        */}
                         <div>
                           <div
                             id={`msg-${msg.id}`}
+                            title={formatDateTime(msg.createdAt, locale, 'dayMonthYearTime')}
                             onDoubleClick={() => void handleReact(msg.id, '❤️')}
+                            onMouseDown={(e) => startHold(msg.id, e)}
+                            onMouseMove={moveDuringHold}
+                            onMouseUp={cancelHold}
+                            onMouseLeave={cancelHold}
                             onTouchStart={(e) => {
                               const touch = e.currentTarget
                               const touchX = e.touches[0]?.clientX ?? 0
@@ -1807,6 +2081,13 @@ export function MessageConversation({
               </div>
             )}
 
+            {isCommunity && communityAccess && !communityAccess.canPost && communityAccess.reason ? (
+              <CommunityComposerLock
+                key={communityAccess.retryAfterSeconds}
+                reason={communityAccess.reason}
+                retryAfterSeconds={communityAccess.retryAfterSeconds}
+              />
+            ) : (
             <div className="flex items-end gap-2">
               {/* Hidden file input */}
               <input
@@ -1819,16 +2100,33 @@ export function MessageConversation({
 
               {/* Pill container: attach + input + emoji */}
               <div className="flex-1 flex items-end gap-0.5 bg-surface-container rounded-3xl pl-1.5 pr-1.5 py-1 min-h-[44px]">
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="ghost"
-                  size="icon"
-                  disabled={uploadingFile}
-                  className="size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  aria-label="Attach file"
-                >
-                  {uploadingFile ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={uploadingFile}
+                      className="size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      aria-label="Attach"
+                    >
+                      {uploadingFile ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={12} className="w-48 p-1 rounded-xl shadow-xl">
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => fileInputRef.current?.click()}>
+                      <ImageIcon className="size-4 text-primary" />
+                      <span className="font-medium text-foreground/90">Photos & Videos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => setShowPollModal(true)}>
+                      <BarChart2 className="size-4 text-emerald-500" />
+                      <span className="font-medium text-foreground/90">Poll</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => setShowLocationModal(true)}>
+                      <MapPin className="size-4 text-rose-500" />
+                      <span className="font-medium text-foreground/90">Location</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <textarea
                   ref={inputRef}
@@ -1868,6 +2166,7 @@ export function MessageConversation({
                 )}
               </Button>
             </div>
+            )}
 
             {/* Quick emoji picker */}
             {showEmojiPicker && (
@@ -1938,11 +2237,23 @@ export function MessageConversation({
                   {isOnline ? 'Active now' : 'Offline'}
                 </span>
               </div>
+              {isCommunity && communityAccess?.isAdmin && conversationId && (
+                <CommunityChatSettings
+                  conversationId={conversationId}
+                  access={communityAccess}
+                  onSaved={(next) => {
+                    setCommunityAccess((a) => (a ? { ...a, ...next } : a))
+                    toastSuccess('Saved', 'Chat settings updated for everyone.')
+                  }}
+                  onError={(m) => toastError('Could not save', m)}
+                />
+              )}
+
               <div className="p-4 space-y-1">
                 {[
                   {
-                    label: relationship?.muted ? 'Unmute notifications' : 'Mute notifications',
-                    onClick: otherUserId ? () => void handleToggleMute() : undefined,
+                    label: conversation?.isMuted ? 'Unmute notifications' : 'Mute notifications',
+                    onClick: () => void handleToggleConversationMute(),
                   },
                   {
                     label: relationship?.blocked ? 'Unblock user' : 'Block user',
@@ -1954,7 +2265,11 @@ export function MessageConversation({
                     label: 'Report user',
                     onClick: otherUserId ? () => setReportUserOpen(true) : undefined,
                   },
-                  { label: 'Delete conversation', danger: true },
+                  {
+                    label: 'Delete conversation',
+                    danger: true,
+                    onClick: () => void handleDeleteConversation(),
+                  },
                 ].map(({ label, danger, onClick }) => (
                   <button
                     key={label}
@@ -1982,6 +2297,35 @@ export function MessageConversation({
           onSelect={(emoji) => void handleReact(reactionPickerMsg.messageId, emoji)}
           onClose={() => setReactionPickerMsg(null)}
         />
+      )}
+
+      {/*
+        The time, while a message is held.
+
+        Rendered here rather than beside the bubble so it is never clipped by the
+        thread's own scroll box, and pointer-events-none so holding never turns
+        into hovering something else.
+      */}
+      {heldMessage && (
+        <div
+          className="fixed z-[60] pointer-events-none animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            // Nudged above the cursor and clamped to the viewport, so a message at
+            // the very edge does not push the label off-screen.
+            left: Math.min(Math.max(12, heldMessage.x - 60), (typeof window !== 'undefined' ? window.innerWidth : 0) - 180),
+            top: Math.max(12, heldMessage.y - 52),
+          }}
+        >
+          <div className="px-3 py-1.5 rounded-xl bg-popover border border-outline-variant/25 shadow-2xl">
+            <p className="text-[11.5px] font-medium text-on-surface whitespace-nowrap tabular-nums">
+              {formatDateTime(
+                messages.find((m) => m.id === heldMessage.id)?.createdAt ?? '',
+                locale,
+                'dayMonthYearTime',
+              )}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Context menu */}
@@ -2032,6 +2376,26 @@ export function MessageConversation({
                     { label: 'Edit', icon: Edit3, action: () => { setEditingMessageId(contextMenu.message.id); setEditText(contextMenu.message.body ?? ''); setContextMenu(null) } },
                     { label: 'Delete for me', icon: Trash2, action: () => void handleDelete(contextMenu.message.id) },
                     { label: 'Delete for everyone', icon: Trash2, action: () => void handleDelete(contextMenu.message.id, true), danger: true },
+                  ]
+                : []),
+              // Moderator powers, on anyone's message including their own. Kept
+              // last so the destructive one is never where "Copy" was a moment
+              // ago in a DM.
+              ...(isCommunity && communityAccess?.isMod
+                ? [
+                    {
+                      label: pinnedMessage?.id === contextMenu.message.id ? 'Unpin message' : 'Pin message',
+                      icon: Pin,
+                      action: () => { void handleTogglePin(contextMenu.message.id); setContextMenu(null) },
+                    },
+                    ...(isOwnMessage(contextMenu.message)
+                      ? []
+                      : [{
+                          label: 'Remove for everyone',
+                          icon: ShieldAlert,
+                          action: () => { void handleModerateDelete(contextMenu.message.id); setContextMenu(null) },
+                          danger: true,
+                        }]),
                   ]
                 : []),
             ].map(({ label, icon: Icon, action, danger }: { label: string; icon: React.ComponentType<{ className?: string }>; action: () => void; danger?: boolean }) => (
@@ -2129,6 +2493,40 @@ export function MessageConversation({
           confirmLabel="Block"
           onConfirm={handleBlock}
           onClose={() => setConfirmBlockOpen(false)}
+        />
+      )}
+      {showPollModal && (
+        <PollCreatorModal
+          onClose={() => setShowPollModal(false)}
+          onSend={async (poll) => {
+            setShowPollModal(false)
+            if (!conversationId) return
+            try {
+              await messagingApi.sendMessage(conversationId, {
+                type: 'poll',
+                poll,
+              })
+            } catch (err: any) {
+              toastError('Failed to send poll', err.message)
+            }
+          }}
+        />
+      )}
+      {showLocationModal && (
+        <LocationPickerModal
+          onClose={() => setShowLocationModal(false)}
+          onSend={async (location) => {
+            setShowLocationModal(false)
+            if (!conversationId) return
+            try {
+              await messagingApi.sendMessage(conversationId, {
+                type: 'location',
+                metadata: { location },
+              })
+            } catch (err: any) {
+              toastError('Failed to share location', err.message)
+            }
+          }}
         />
       )}
     </Card>

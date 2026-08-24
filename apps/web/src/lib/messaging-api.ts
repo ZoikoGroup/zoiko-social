@@ -49,7 +49,68 @@ export interface MessagingPrivacy {
   messageRequestExpiry: number | null
 }
 
+
+/** Why the composer is locked. Mirrors the API's PostBlockedReason. */
+export type PostBlockedReason = 'chat_disabled' | 'announcement_only' | 'muted' | 'slow_mode' | null
+
+export interface CommunityChatAccess {
+  conversationId: string
+  communityId: string
+  role: string
+  isMod: boolean
+  isAdmin: boolean
+  canPost: boolean
+  reason: PostBlockedReason
+  retryAfterSeconds: number
+  announcementOnly: boolean
+  slowModeSeconds: number
+  chatEnabled: boolean
+}
+
+export interface PinnedMessage {
+  id: string
+  body: string | null
+  type: string
+  createdAt: string
+  pinnedAt: string | null
+  senderId: string
+  senderName: string
+}
+
+export interface CommunityChatMember {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  isVerified: boolean
+  role: string
+  isMuted: boolean
+}
+
 export const messagingApi = {
+  // ── Community chat ────────────────────────────────────────────────────────
+  /** The viewer's role and whether the room's locks currently apply to them. */
+  communityAccess: (conversationId: string) =>
+    request<CommunityChatAccess>(`/messaging/conversations/${conversationId}/community`),
+  communityMembers: (conversationId: string) =>
+    request<CommunityChatMember[]>(`/messaging/conversations/${conversationId}/community/members`),
+  updateCommunityChatSettings: (
+    conversationId: string,
+    body: { chatEnabled?: boolean; announcementOnly?: boolean; slowModeSeconds?: number },
+  ) =>
+    mutate<{ chatEnabled: boolean; announcementOnly: boolean; slowModeSeconds: number }>(
+      `/messaging/conversations/${conversationId}/community/settings`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  pinnedMessage: (conversationId: string) =>
+    request<PinnedMessage | null>(`/messaging/conversations/${conversationId}/pinned`),
+  /** Toggle: pinning the pinned message unpins it. */
+  togglePinMessage: (messageId: string) =>
+    mutate<{ pinned: boolean }>(`/messaging/messages/${messageId}/pin`, { method: 'POST' }),
+  /** Moderator removal of someone else's message; always for everyone. */
+  moderateDeleteMessage: (messageId: string) =>
+    mutate<void>(`/messaging/messages/${messageId}/moderate`, { method: 'DELETE' }),
+
   // ── Message requests (DMs from people you don't follow) ───────────────────
   requests: () =>
     request<{ incoming: IncomingMessageRequest[]; outgoing: OutgoingMessageRequest[] }>('/messaging/requests'),

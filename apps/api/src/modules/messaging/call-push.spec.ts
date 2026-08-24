@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common'
 import { MessagingService } from './messaging.service'
 
 /**
@@ -51,6 +52,18 @@ function build(opts: { muted?: boolean } = {}) {
     {} as never,
     { sendToUser } as never,
     { allowsPush } as never,
+    // communityChat: these specs are all DM/group, where the derived
+    // community check is never the thing that grants access.
+    {
+      assertCanRead: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      assertCanPost: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      isChatMember: jest.fn().mockResolvedValue(false),
+      markRead: jest.fn().mockResolvedValue(undefined),
+    } as never,
   )
   ;(service as unknown as { logger: unknown }).logger = { warn: jest.fn(), debug: jest.fn(), log: jest.fn() }
   return { service, sendToUser, allowsPush, prisma }

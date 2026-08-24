@@ -457,6 +457,7 @@ model Profile {
   sentMessages            Message[]
   messageReactions        MessageReaction[]
   messageReceipts         MessageReceipt[]
+  pollVotes               MessagePollVote[]
   messageRequestsSent     MessageRequest[]              @relation("MessageRequestSender")
   messageRequestsReceived MessageRequest[]              @relation("MessageRequestRecipient")
   groupMemberships        GroupMember[]
@@ -1561,6 +1562,10 @@ enum PrivacySetting {
 model Conversation {
   id            String    @id @default(uuid())
   type          String // 'dm' | 'group' | 'community'
+  // Set only on a community chat. Chat membership is derived from
+  // community_members rather than copied into ConversationMember — see
+  // migration 074 for why.
+  communityId   String?   @unique @map("community_id")
   name          String?
   avatarUrl     String?   @map("avatar_url")
   theme         String? // shared chat theme id (see web chat-themes.ts); null = default
@@ -1581,6 +1586,7 @@ model Conversation {
   settings      ConversationSetting[]
   group         Group?
   pinnedByUsers PinnedChat[]
+  community     Community?            @relation(fields: [communityId], references: [id], onDelete: Cascade)
 
   @@index([lastMessageAt(sort: Desc), id(sort: Desc)])
   @@index([type])
@@ -1639,7 +1645,10 @@ model Message {
   deletedForEveryone Boolean   @default(false) @map("deleted_for_everyone")
   deletedFor         String[]  @default([]) @map("deleted_for")
   editedAt           DateTime? @map("edited_at")
+  pinnedAt           DateTime? @map("pinned_at")
+  pinnedBy           String?   @map("pinned_by")
   createdAt          DateTime  @default(now()) @map("created_at")
+  metadata           Json?
 
   conversation Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       Profile             @relation(fields: [senderId], references: [id], onDelete: Cascade)
@@ -1650,6 +1659,7 @@ model Message {
   attachments  MessageAttachment[]
   reactions    MessageReaction[]
   receipts     MessageReceipt[]
+  poll         MessagePoll?
 
   @@index([conversationId, createdAt])
   @@index([senderId])
@@ -1708,6 +1718,42 @@ model MessageReceipt {
   @@index([messageId])
   @@index([userId, status])
   @@map("message_receipts")
+}
+
+// ── POLLS ────────────────────────────────────────────────────────────────────
+
+model MessagePoll {
+  id        String   @id @default(uuid())
+  messageId String   @unique @map("message_id")
+  question  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  options MessagePollOption[]
+  
+  @@map("message_polls")
+}
+
+model MessagePollOption {
+  id          String   @id @default(uuid())
+  pollId      String   @map("poll_id")
+  text        String
+  
+  poll  MessagePoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes MessagePollVote[]
+
+  @@map("message_poll_options")
+}
+
+model MessagePollVote {
+  optionId String @map("option_id")
+  userId   String @map("user_id")
+
+  option MessagePollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   Profile           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([optionId, userId])
+  @@map("message_poll_votes")
 }
 
 // ── MESSAGE REQUESTS ─────────────────────────────────────────────────────────
@@ -2072,6 +2118,7 @@ model Community {
   reports  CommunityReport[]
   posts    Post[]
   events   Event[]
+  chat     Conversation?
 
   @@index([categoryId])
   @@index([membersCount(sort: Desc)])
@@ -2085,6 +2132,9 @@ model CommunityMember {
   role            CommunityRole @default(member)
   status          MemberStatus  @default(active)
   mutedUntil      DateTime?     @map("muted_until")
+  // Stands in for the ConversationMember row community chat deliberately
+  // does not create. NULL = never opened the chat.
+  chatLastReadAt  DateTime?     @map("chat_last_read_at")
   acceptedRulesAt DateTime?     @map("accepted_rules_at")
   invitedBy       String?       @map("invited_by")
   createdAt       DateTime      @default(now()) @map("created_at")
@@ -2104,6 +2154,9 @@ model CommunitySettings {
   postApproval      Boolean @default(false) @map("post_approval")
   membersCanInvite  Boolean @default(false) @map("members_can_invite")
   notificationPrefs Json?   @map("notification_prefs")
+  chatEnabled          Boolean @default(true)  @map("chat_enabled")
+  chatAnnouncementOnly Boolean @default(false) @map("chat_announcement_only")
+  chatSlowModeSeconds  Int     @default(0)     @map("chat_slow_mode_seconds")
 
   community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
 

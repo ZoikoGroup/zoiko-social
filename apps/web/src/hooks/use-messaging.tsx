@@ -28,6 +28,25 @@ export interface LastMessage {
   createdAt: string
 }
 
+/**
+ * What a community chat knows about itself beyond being a conversation: who the
+ * viewer is in it, and which of the room's locks are on. Absent on DMs and
+ * groups, which is how the UI tells them apart.
+ */
+export interface CommunityChatInfo {
+  id: string
+  slug: string
+  name: string
+  avatarUrl: string | null
+  membersCount: number
+  myRole: string
+  isMod: boolean
+  isAdmin: boolean
+  chatEnabled: boolean
+  announcementOnly: boolean
+  slowModeSeconds: number
+}
+
 export interface Conversation {
   id: string
   type: string
@@ -45,6 +64,8 @@ export interface Conversation {
   isArchived: boolean
   createdAt: string
   updatedAt: string
+  /** Set only on a community chat. */
+  community?: CommunityChatInfo
 }
 
 export interface MessageData {
@@ -181,9 +202,19 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         setConversationsError('Not signed in — auth token not available')
         return
       }
-      const res = await fetch(`${API_URL}/api/v1/messaging/conversations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      // Community chats come from their own endpoint: they have no rows in the
+      // table the inbox paginates over, so the server cannot return them in the
+      // same page without breaking that pagination. Fetched alongside rather
+      // than after, and allowed to fail on its own — an unreachable communities
+      // endpoint must not empty someone's inbox.
+      const [res, communityRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/messaging/conversations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/api/v1/messaging/communities`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null),
+      ])
       if (res.ok) {
         const json = await res.json()
         const raw = json?.data?.data ?? json?.data ?? []
@@ -194,7 +225,24 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         const list = Array.isArray(raw)
           ? raw.map((c: Conversation) => ({ ...c, participants: Array.isArray(c.participants) ? c.participants : [] }))
           : []
-        setConversations(list)
+
+        let communityChats: Conversation[] = []
+        if (communityRes?.ok) {
+          const cJson = await communityRes.json().catch(() => null)
+          const cRaw = cJson?.data?.data ?? cJson?.data ?? []
+          if (Array.isArray(cRaw)) {
+            communityChats = cRaw.map((c: Conversation) => ({
+              ...c,
+              participants: Array.isArray(c.participants) ? c.participants : [],
+            }))
+          }
+        }
+
+        // Guard against the same chat arriving from both sources. It cannot
+        // today, but a future change that gives a community chat member rows
+        // would otherwise duplicate every row in the list.
+        const seen = new Set(list.map((c) => c.id))
+        setConversations([...list, ...communityChats.filter((c) => !seen.has(c.id))])
         setConversationsError(null)
       } else {
         const body = await res.json().catch(() => null)

@@ -123,7 +123,7 @@ async function bootstrap(): Promise<void> {
 
   // ── Start server ─────────────────────────────────────────────────────────
   const port = config.port
-  await app.listen(port, '0.0.0.0')
+  await app.listen(port, '::')
 
   logger.log(`ZoikoSocial API running on http://localhost:${port}/api/v1`)
   logger.log(`Environment: ${config.nodeEnv}`)

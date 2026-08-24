@@ -41,6 +41,18 @@ function build(opts: { member?: boolean; messageInConvo?: boolean } = {}) {
     {} as never,     // aiAssistant
       {} as never,     // push
       {} as never,     // pushPreferences
+    // communityChat: these specs are all DM/group, where the derived
+    // community check is never the thing that grants access.
+    {
+      assertCanRead: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      assertCanPost: jest.fn().mockRejectedValue(
+        new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' }),
+      ),
+      isChatMember: jest.fn().mockResolvedValue(false),
+      markRead: jest.fn().mockResolvedValue(undefined),
+    } as never,
   )
   return { service, prisma }
 }
