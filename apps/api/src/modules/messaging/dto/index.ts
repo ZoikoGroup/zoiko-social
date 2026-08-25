@@ -116,6 +116,8 @@ export interface ConversationResponse {
     body: string | null
     senderId: string
     createdAt: string
+    /** Needed so the inbox can preview a message that has no body at all. */
+    type?: string
   } | null
   unreadCount: number
   isOnline: boolean
@@ -146,6 +148,17 @@ export interface MessageResponse {
   type: string
   body: string | null
   mediaUrls: string[]
+  /** A shared location's coordinates live here. */
+  metadata?: unknown
+  /** Present only on a poll message. */
+  poll?: {
+    id: string
+    question: string
+    totalVotes: number
+    options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+  } | null
+  /** Set when this message was forwarded from another conversation. */
+  forwardedFrom?: string | null
   parentId: string | null
   isDeleted: boolean
   editedAt: string | null

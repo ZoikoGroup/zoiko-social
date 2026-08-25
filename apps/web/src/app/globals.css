@@ -263,6 +263,39 @@ a:focus-visible {
   animation-delay: 0.4s;
 }
 
+/*
+ * The flash on a message you jumped to from a reply quote.
+ *
+ * Two pulses rather than one: a single fade is easy to miss when the message
+ * was already on screen and nothing scrolled, which is exactly the case where
+ * the tap otherwise looks like it did nothing at all.
+ *
+ * Driven by a class React owns rather than by adding classes to the node —
+ * the previous version wrote ring utilities straight onto the DOM, and any
+ * re-render within the 1.4s window recomputed className and wiped them.
+ */
+@keyframes message-flash {
+  0%, 100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+  15%, 55% {
+    background-color: color-mix(in srgb, var(--color-primary) 22%, transparent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 22%, transparent);
+  }
+  35%, 75% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+}
+
+.message-flash {
+  animation: message-flash 1.3s ease-in-out 1;
+  border-radius: 1rem;
+}
+
+/* Someone who has asked for less motion still needs to see WHICH message. */
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none;
+    background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+}
+
 @keyframes call-ring {
   0% {
     box-shadow: 0 0 0 0 rgba(5, 104, 121, 0.5);

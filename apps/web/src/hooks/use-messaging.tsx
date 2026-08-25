@@ -26,6 +26,8 @@ export interface LastMessage {
   body: string | null
   senderId: string
   createdAt: string
+  /** A location or poll has no body, so the preview needs the type instead. */
+  type?: string
 }
 
 /**
@@ -80,6 +82,17 @@ export interface MessageData {
   type: string
   body: string | null
   mediaUrls: string[]
+  /** A shared location lives here, as { location: { lat, lng, label? } }. */
+  metadata?: Record<string, unknown> | null
+  /** Set when this message was forwarded from another conversation. */
+  forwardedFrom?: string | null
+  /** Present only on a poll message. */
+  poll?: {
+    id: string
+    question: string
+    totalVotes: number
+    options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+  } | null
   parentId: string | null
   /** WhatsApp-style snippet of the replied-to message (null if not a reply). */
   parent?: {

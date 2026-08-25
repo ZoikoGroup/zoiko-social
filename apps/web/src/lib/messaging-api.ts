@@ -124,6 +124,34 @@ export const messagingApi = {
       body: JSON.stringify(body),
     }),
 
+  /**
+   * Copies a message into other conversations. At most five.
+   *
+   * Reports per-target results rather than one pass/fail: a forward into three
+   * chats where one is announcement-only should say which one was refused, not
+   * claim the whole thing failed.
+   */
+  forwardMessage: (messageId: string, conversationIds: string[]) =>
+    mutate<{
+      forwarded: number
+      results: { conversationId: string; ok: boolean; error?: string }[]
+    }>(`/messaging/messages/${messageId}/forward`, {
+      method: 'POST',
+      body: JSON.stringify({ conversationIds }),
+    }),
+
+  /** Cast, move or withdraw a poll vote. One choice per member. */
+  votePoll: (messageId: string, optionId: string) =>
+    mutate<{
+      id: string
+      question: string
+      totalVotes: number
+      options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+    }>(`/messaging/messages/${messageId}/poll/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ optionId }),
+    }),
+
   // ── Community chat ────────────────────────────────────────────────────────
   /** The viewer's role and whether the room's locks currently apply to them. */
   communityAccess: (conversationId: string) =>

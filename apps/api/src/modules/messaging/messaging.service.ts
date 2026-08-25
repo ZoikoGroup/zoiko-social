@@ -148,7 +148,7 @@ export class MessagingService {
         avatarUrl: conv.avatarUrl,
         theme: conv.theme ?? null,
         lastMessage: lastMsg
-          ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
+          ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString(), type: lastMsg.type }
           : null,
         unreadCount: unreadMap.get(conv.id) ?? 0,
         isOnline,
@@ -412,6 +412,52 @@ export class MessagingService {
     }
   }
 
+  /**
+   * Prisma include for a poll and the votes needed to draw it.
+   *
+   * Options come back ordered by id, which is stable but NOT the order they
+   * were written in — message_poll_options has no position column. Two-option
+   * polls can therefore show reversed. Fixing it properly needs a migration.
+   */
+  private static readonly POLL_INCLUDE = {
+    select: {
+      id: true,
+      question: true,
+      options: {
+        orderBy: { id: 'asc' as const },
+        select: { id: true, text: true, votes: { select: { userId: true } } },
+      },
+    },
+  } as const
+
+  /**
+   * Shapes a poll for the client, resolving each option's count and whether
+   * this viewer picked it. Counting here rather than sending raw votes keeps
+   * one member's choice from being visible to everyone else.
+   */
+  private mapPoll(
+    poll: {
+      id: string
+      question: string
+      options: { id: string; text: string; votes: { userId: string }[] }[]
+    } | null,
+    userId: string,
+  ) {
+    if (!poll) return null
+    const totalVotes = poll.options.reduce((sum, o) => sum + o.votes.length, 0)
+    return {
+      id: poll.id,
+      question: poll.question,
+      totalVotes,
+      options: poll.options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        votes: o.votes.length,
+        votedByMe: o.votes.some((v) => v.userId === userId),
+      })),
+    }
+  }
+
   /** Prisma include fragment for the parent-message snippet. */
   private static readonly PARENT_INCLUDE = {
     select: {
@@ -459,6 +505,7 @@ export class MessagingService {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
         parent: MessagingService.PARENT_INCLUDE,
+        poll: MessagingService.POLL_INCLUDE,
         reactions: {
           select: { emoji: true, userId: true },
         },
@@ -494,6 +541,12 @@ export class MessagingService {
         type: msg.type,
         body: msg.body,
         mediaUrls: msg.mediaUrls,
+        // A location's coordinates and a poll's options live here. Without
+        // them the client receives a message with a type and nothing to draw,
+        // which is how a shared location arrived as an empty bubble.
+        metadata: msg.metadata ?? null,
+        poll: this.mapPoll(msg.poll, userId),
+        forwardedFrom: msg.forwardedFrom,
         parentId: msg.parentId,
         parent: this.mapParentSnippet(msg.parent),
         isDeleted: msg.isDeleted,
@@ -518,6 +571,8 @@ export class MessagingService {
     mediaUrls?: string[];
     metadata?: Record<string, unknown>;
     poll?: { question: string; options: string[] };
+    /** Set by forwarding. Everything else about the send is unchanged. */
+    forwardedFrom?: string;
   }) {
     // Run EVERY pre-flight read concurrently. These used to be 3–4 sequential
     // awaits (membership → other member → block check → reply-parent), and
@@ -594,6 +649,7 @@ export class MessagingService {
         body: input.body ?? null,
         type: input.type ?? 'text',
         parentId: input.parentId ?? null,
+        forwardedFrom: input.forwardedFrom ?? null,
         mediaUrls: input.mediaUrls ?? [],
         ...(input.metadata !== undefined
           ? { metadata: input.metadata as Prisma.InputJsonValue }
@@ -614,13 +670,7 @@ export class MessagingService {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
         parent: MessagingService.PARENT_INCLUDE,
-        poll: {
-          include: {
-            options: {
-              include: { votes: true }
-            }
-          }
-        },
+        poll: MessagingService.POLL_INCLUDE,
       },
     })
 
@@ -638,6 +688,12 @@ export class MessagingService {
       type: message.type,
       body: message.body,
       mediaUrls: message.mediaUrls,
+      metadata: message.metadata ?? null,
+      // Vote counts are per-viewer ("did I pick this?"), and this event goes to
+      // the whole room. A fresh poll has no votes, so an empty tally is correct
+      // for every recipient here; voting refreshes it per person after that.
+      poll: this.mapPoll(message.poll, ''),
+      forwardedFrom: message.forwardedFrom,
       parentId: message.parentId,
       parent: this.mapParentSnippet(message.parent),
       createdAt: message.createdAt.toISOString(),
@@ -676,6 +732,9 @@ export class MessagingService {
       type: message.type,
       body: message.body,
       mediaUrls: message.mediaUrls,
+      metadata: message.metadata ?? null,
+      poll: this.mapPoll(message.poll, userId),
+      forwardedFrom: message.forwardedFrom,
       parentId: message.parentId,
       parent: this.mapParentSnippet(message.parent),
       isDeleted: message.isDeleted,
@@ -1059,6 +1118,162 @@ export class MessagingService {
     })
     const muted = new Set(settings.map((s) => s.userId))
     return members.map((m) => m.userId).filter((id) => !muted.has(id))
+  }
+
+  /**
+   * Forwards a message into other conversations.
+   *
+   * Deliberately built on sendMessage rather than inserting rows directly: that
+   * is where membership, block checks, community posting rules, the realtime
+   * publish, the lastMessageAt bump and push all live. A second write path would
+   * have started out missing at least one of them, and forwarding is exactly the
+   * feature someone would use to get a message into a conversation they are not
+   * allowed to post in.
+   *
+   * A forwarded poll is copied as a NEW poll with no votes. Pointing two chats
+   * at one tally would let people in one conversation move a result the other
+   * one is reading.
+   */
+  async forwardMessage(userId: string, messageId: string, conversationIds: string[]) {
+    const source = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        conversationId: true,
+        isDeleted: true,
+        type: true,
+        body: true,
+        mediaUrls: true,
+        metadata: true,
+        poll: { select: { question: true, options: { orderBy: { id: 'asc' as const }, select: { text: true } } } },
+      },
+    })
+    if (!source || source.isDeleted) {
+      throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+    }
+
+    // You must be able to READ the source. Without this, any message id in the
+    // system could be copied into a conversation of the caller's choosing.
+    const sourceMember = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: source.conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!sourceMember || sourceMember.isDeleted) {
+      await this.communityChat.assertCanRead(userId, source.conversationId)
+    }
+
+    // Forwarding into the conversation it came from is a no-op worth refusing
+    // rather than silently duplicating.
+    const targets = [...new Set(conversationIds)].filter((id) => id !== source.conversationId)
+    if (targets.length === 0) {
+      throw new BadRequestException({ code: 'NO_TARGETS', message: 'Choose a different conversation' })
+    }
+
+    const payload = {
+      ...(source.body !== null ? { body: source.body } : {}),
+      type: source.type,
+      mediaUrls: source.mediaUrls,
+      ...(source.metadata !== null && source.metadata !== undefined
+        ? { metadata: source.metadata as Record<string, unknown> }
+        : {}),
+      ...(source.poll
+        ? { poll: { question: source.poll.question, options: source.poll.options.map((o) => o.text) } }
+        : {}),
+      forwardedFrom: source.id,
+    }
+
+    // Sequential, not parallel: each send does its own membership and rule
+    // checks, and one refusal must not take the others down with it.
+    const results: { conversationId: string; ok: boolean; error?: string }[] = []
+    for (const conversationId of targets) {
+      try {
+        await this.sendMessage(userId, conversationId, payload)
+        results.push({ conversationId, ok: true })
+      } catch (e) {
+        const message =
+          e instanceof Error && 'response' in e && typeof e.response === 'object' && e.response
+            ? ((e.response as { message?: string }).message ?? 'Could not forward')
+            : 'Could not forward'
+        results.push({ conversationId, ok: false, error: message })
+      }
+    }
+
+    return { forwarded: results.filter((r) => r.ok).length, results }
+  }
+
+  /**
+   * Casts, changes or withdraws this member's vote on a poll.
+   *
+   * One choice per person: picking a second option moves the vote rather than
+   * adding one, and picking the same option again withdraws it. That is what
+   * every chat poll does, and it keeps the totals meaningful without needing a
+   * separate "multiple choice" flag the composer cannot set anyway.
+   */
+  async voteOnPoll(userId: string, messageId: string, optionId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        conversationId: true,
+        isDeleted: true,
+        poll: { select: { id: true, options: { select: { id: true } } } },
+      },
+    })
+    if (!message || message.isDeleted || !message.poll) {
+      throw new NotFoundException({ code: 'POLL_NOT_FOUND', message: 'Poll not found' })
+    }
+
+    // Same membership rule as reading the conversation — including the derived
+    // one for community chat, where there is no member row.
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: message.conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!member || member.isDeleted) {
+      await this.communityChat.assertCanRead(userId, message.conversationId)
+    }
+
+    // The option MUST belong to this poll. Without this check a member of one
+    // conversation could vote on any option id in the system, including polls
+    // in conversations they cannot see.
+    const optionIds = message.poll.options.map((o) => o.id)
+    if (!optionIds.includes(optionId)) {
+      throw new BadRequestException({ code: 'INVALID_OPTION', message: 'That option is not in this poll' })
+    }
+
+    const existing = await this.prisma.messagePollVote.findFirst({
+      where: { userId, optionId: { in: optionIds } },
+      select: { optionId: true },
+    })
+
+    if (existing?.optionId === optionId) {
+      await this.prisma.messagePollVote.delete({
+        where: { optionId_userId: { optionId, userId } },
+      })
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.messagePollVote.deleteMany({ where: { userId, optionId: { in: optionIds } } }),
+        this.prisma.messagePollVote.create({ data: { optionId, userId } }),
+      ])
+    }
+
+    const fresh = await this.prisma.messagePoll.findUnique({
+      where: { id: message.poll.id },
+      ...MessagingService.POLL_INCLUDE,
+    })
+    const mine = this.mapPoll(fresh, userId)
+
+    // Broadcast the tallies only. "Did I pick this" is per-viewer, so each
+    // client keeps its own answer and merges the counts — sending one member's
+    // choice to the room would make every vote public.
+    await this.realtime.publish(`conversation:${message.conversationId}`, 'message:poll', {
+      conversationId: message.conversationId,
+      messageId,
+      totalVotes: mine?.totalVotes ?? 0,
+      options: mine?.options.map((o) => ({ id: o.id, votes: o.votes })) ?? [],
+    })
+
+    return mine
   }
 
   async deleteMessage(userId: string, messageId: string, forEveryone = false): Promise<void> {
@@ -1721,7 +1936,7 @@ export class MessagingService {
       avatarUrl: conv.avatarUrl,
       theme: conv.theme ?? null,
       lastMessage: lastMsg
-        ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
+        ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString(), type: lastMsg.type }
         : null,
       unreadCount: 0,
       isOnline,

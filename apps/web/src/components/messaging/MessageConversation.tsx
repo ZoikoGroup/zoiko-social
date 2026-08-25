@@ -7,7 +7,7 @@ import {
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
   FileText, EyeOff, Palette, LogOut, Pin, ShieldAlert,
-  MapPin, BarChart2, Image as ImageIcon,
+  MapPin, BarChart2, Image as ImageIcon, ChevronDown,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -43,6 +43,8 @@ import { moderationApi, networkApi, profileApi, type Relationship } from '@/lib/
 import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
+import { LocationBubble, PollBubble, locationFrom } from './MessageAttachments'
+import { ForwardModal } from './ForwardModal'
 import { ReportContentModal } from '@/components/ReportContentModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { PollCreatorModal } from './PollCreatorModal'
@@ -177,7 +179,7 @@ export function MessageConversation({
   const tmsg = useTranslations('messaging')
   const { locale } = useDateFormat()
   const { user, profile } = useAuth()
-  const { markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
+  const { conversations, markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
   const { isUserTyping, subscribePresence, unsubscribePresence, getPresence } = usePresence()
 
   const [messages, setMessages] = useState<MessageData[]>([])
@@ -237,6 +239,13 @@ export function MessageConversation({
     setPinned: setPinnedMessage,
   } = useCommunityChat(conversationId, isCommunity)
   const [showCommunityMembers, setShowCommunityMembers] = useState(false)
+  /** The message currently flashing because someone jumped to it. */
+  const [flashMessageId, setFlashMessageId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Messages that arrived while the reader was scrolled up. */
+  const [unseenCount, setUnseenCount] = useState(0)
+  /** The message being forwarded, while the picker is open. */
+  const [forwardingMessage, setForwardingMessage] = useState<MessageData | null>(null)
 
   // Block/mute/report state for the other DM participant.
   const [relationship, setRelationship] = useState<Relationship | null>(null)
@@ -414,6 +423,78 @@ export function MessageConversation({
     }
   }
 
+  /**
+   * Scrolls to a message and flashes it — the reply quote and the pinned bar
+   * both land here.
+   *
+   * The flash is React state rather than classes written onto the node. The
+   * previous version added ring utilities directly to the DOM, which any
+   * re-render inside the 1.4s window silently undid, so the highlight often
+   * never appeared.
+   *
+   * A parent older than the loaded page has no element to scroll to. Saying so
+   * beats scrolling nowhere and looking broken.
+   */
+  const jumpToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`)
+    if (!el) {
+      toastError('Message not loaded', 'Scroll up to load older messages, then try again.')
+      return
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Clear first so tapping the same quote twice restarts the animation
+    // instead of doing nothing because the class is already applied.
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setFlashMessageId(null)
+    requestAnimationFrame(() => setFlashMessageId(messageId))
+    flashTimerRef.current = setTimeout(() => setFlashMessageId(null), 1400)
+  }, [toastError])
+
+  /**
+   * Sends a message on to other chats.
+   *
+   * Reports partial success honestly: forwarding into three chats where one is
+   * in announcement mode succeeds twice and fails once, and saying "forwarded"
+   * would hide the one that did not arrive.
+   */
+  const handleForward = useCallback(async (messageId: string, conversationIds: string[]): Promise<void> => {
+    try {
+      const { forwarded, results } = await messagingApi.forwardMessage(messageId, conversationIds)
+      const failed = results.filter((r) => !r.ok)
+      setForwardingMessage(null)
+      if (forwarded === 0) {
+        toastError('Could not forward', failed[0]?.error ?? 'Please try again')
+        return
+      }
+      if (failed.length > 0) {
+        toastSuccess(
+          `Forwarded to ${forwarded}`,
+          `${failed.length} could not be delivered: ${failed[0]?.error ?? 'not allowed'}`,
+        )
+        return
+      }
+      toastSuccess('Forwarded', `Sent to ${forwarded} ${forwarded === 1 ? 'chat' : 'chats'}.`)
+    } catch (e) {
+      toastError('Could not forward', e instanceof Error ? e.message : 'Please try again')
+    }
+  }, [toastSuccess, toastError])
+
+  /**
+   * Records a vote and swaps in the server's tally.
+   *
+   * No optimistic update: the server decides whether this moves an existing
+   * vote or withdraws it, and guessing wrong would flicker the bars the wrong
+   * way before correcting itself.
+   */
+  const handleVote = useCallback(async (messageId: string, optionId: string): Promise<void> => {
+    try {
+      const poll = await messagingApi.votePoll(messageId, optionId)
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, poll } : m)))
+    } catch (e) {
+      toastError('Could not vote', e instanceof Error ? e.message : 'Please try again')
+    }
+  }, [toastError])
+
   /** Moderator removal of someone else's message. Always for everyone. */
   async function handleModerateDelete(messageId: string): Promise<void> {
     if (!window.confirm('Remove this message for everyone in the community?')) return
@@ -569,6 +650,32 @@ export function MessageConversation({
       }
     }
 
+    const handlePollVote = (data: {
+      conversationId: string
+      messageId: string
+      totalVotes: number
+      options: { id: string; votes: number }[]
+    }) => {
+      if (data.conversationId !== conversationId) return
+      const counts = new Map(data.options.map((o) => [o.id, o.votes]))
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId && m.poll
+            ? {
+                ...m,
+                poll: {
+                  ...m.poll,
+                  totalVotes: data.totalVotes,
+                  // votedByMe stays as this viewer left it — the broadcast
+                  // deliberately carries no one's individual choice.
+                  options: m.poll.options.map((o) => ({ ...o, votes: counts.get(o.id) ?? o.votes })),
+                },
+              }
+            : m,
+        ),
+      )
+    }
+
     const handleMessagePinned = (data: { conversationId: string; messageId: string | null }) => {
       if (data.conversationId !== conversationId) return
       if (!data.messageId) { setPinnedMessage(null); return }
@@ -606,6 +713,7 @@ export function MessageConversation({
     socket.on('message:edited', handleEditedMessage)
     socket.on('message:deleted', handleDeletedMessage)
     socket.on('message:pinned', handleMessagePinned)
+    socket.on('message:poll', handlePollVote)
     socket.on('community:settings', handleCommunitySettings)
     socket.on('message:reaction', handleReaction)
     socket.on('message:expired', handleMessageExpired)
@@ -619,6 +727,7 @@ export function MessageConversation({
       socket.off('message:edited', handleEditedMessage)
       socket.off('message:deleted', handleDeletedMessage)
       socket.off('message:pinned', handleMessagePinned)
+      socket.off('message:poll', handlePollVote)
       socket.off('community:settings', handleCommunitySettings)
       socket.off('message:reaction', handleReaction)
       socket.off('message:expired', handleMessageExpired)
@@ -776,10 +885,26 @@ export function MessageConversation({
     // incoming message doesn't interrupt someone reading older history.
     const nearBottom =
       !container || container.scrollHeight - container.scrollTop - container.clientHeight < 200
-    if (prevId === null || nearBottom) {
+
+    // Your OWN message always wins. Pressing send is an unambiguous statement
+    // that you are done reading history — leaving the view parked where it was
+    // meant a message could be sent and never seen, which is how this looked
+    // broken.
+    const last = messages[messages.length - 1]
+    const sentByMe = !!last && last.sender.id === user?.id
+
+    if (prevId === null || sentByMe || nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: prevId === null ? 'auto' : 'smooth' })
+      // rAF, not a bare call: setState directly in an effect body is a React 19
+      // lint error and does cause a cascading render.
+      requestAnimationFrame(() => setUnseenCount(0))
+      return
     }
-  }, [messages])
+
+    // Someone else's message, and the reader is up in the history. Yanking them
+    // to the bottom loses their place mid-sentence, so it is offered instead.
+    requestAnimationFrame(() => setUnseenCount((n) => n + 1))
+  }, [messages, user?.id])
 
   // Load more messages (infinite scroll)
   const loadMoreMessages = useCallback(async () => {
@@ -803,12 +928,25 @@ export function MessageConversation({
   }, [conversationId, nextCursor, loadingMore, fetchMessages])
 
   const handleScroll = useCallback(() => {
-    if (!messagesContainerRef.current || !nextCursor || loadingMore) return
-    const { scrollTop } = messagesContainerRef.current
-    if (scrollTop < 100) {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    // Scrolling back down to the end is the same statement as tapping the pill.
+    if (container.scrollHeight - container.scrollTop - container.clientHeight < 120) {
+      setUnseenCount((n) => (n === 0 ? n : 0))
+    }
+
+    if (!nextCursor || loadingMore) return
+    if (container.scrollTop < 100) {
       void loadMoreMessages()
     }
   }, [nextCursor, loadingMore, loadMoreMessages])
+
+  /** Jump to the newest message and dismiss the catch-up pill. */
+  const scrollToLatest = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setUnseenCount(0)
+  }, [])
 
   // Send message with optimistic update
   const sendMessage = useCallback(async (body: string, parentId: string | null, tempId: string) => {
@@ -1427,7 +1565,7 @@ export function MessageConversation({
 
         <DropdownMenuItem
           className="flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer"
-          onClick={() => {}}
+          onClick={() => setForwardingMessage(msg)}
         >
           <Forward className="size-3.5" />
           <span>Forward</span>
@@ -1571,8 +1709,6 @@ export function MessageConversation({
           >
             <Plus className="size-3.5" />
           </button>
-          <div className="w-px h-4 bg-outline-variant/40 mx-0.5" />
-          {renderMessageActions(msg, isMine)}
         </div>
       </div>
     )
@@ -1612,19 +1748,17 @@ export function MessageConversation({
                   ? '📄 Document'
                   : snippet.type === 'gif'
                     ? 'GIF'
-                    : 'Message'
+                    : snippet.type === 'location'
+                      ? '📍 Location'
+                      : snippet.type === 'poll'
+                        ? '📊 Poll'
+                        : 'Message'
 
     return (
       <button
         onClick={(e) => {
           e.stopPropagation()
-          const el = document.getElementById(`msg-${msg.parentId}`)
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          // Flash-highlight the original message, WhatsApp-style
-          if (el) {
-            el.classList.add('ring-2', 'ring-primary/60', 'transition-all', 'duration-300')
-            setTimeout(() => el.classList.remove('ring-2', 'ring-primary/60'), 1400)
-          }
+          if (msg.parentId) jumpToMessage(msg.parentId)
         }}
         className={cn(
           'w-full flex flex-col items-start mb-1.5 px-2.5 py-1.5 rounded-lg border-l-[3px] text-left cursor-pointer transition-colors',
@@ -1757,14 +1891,12 @@ export function MessageConversation({
             onClose={() => setShowCommunityMembers(false)}
           />
         )}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="relative flex flex-1 flex-col overflow-hidden">
           {isCommunity && pinnedMessage && (
             <CommunityPinnedBar
               pinned={pinnedMessage}
               canUnpin={!!communityAccess?.isMod}
-              onJump={(messageId) => {
-                document.getElementById(`msg-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              }}
+              onJump={jumpToMessage}
               onUnpin={() => void handleTogglePin(pinnedMessage.id)}
             />
           )}
@@ -1906,15 +2038,31 @@ export function MessageConversation({
                         </IdentityLink>
                       )}
 
+                      {/*
+                        Actions live beside the bubble, not inside the reaction
+                        pill. Mixing "react with 😂" and "delete this for
+                        everyone" into one strip put a destructive action a few
+                        pixels from a playful one, and the pill had to be hovered
+                        precisely to reach either.
+
+                        Always on the outer edge — left of your own messages,
+                        right of theirs — so it never covers the text.
+                      */}
+                      {isMine && !isPending && (
+                        <div className="hidden md:flex self-center flex-shrink-0 opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          {renderMessageActions(msg, isMine)}
+                        </div>
+                      )}
+
                       <div className={cn('relative max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
-                        {/* Floating hover toolbar — anchored to the bubble corner */}
+                        {/* Reactions only — the actions menu sits beside the bubble instead. */}
                         {renderReactionBar(msg, isMine, isPending)}
                         {/*
                           Message bubble. The title carries the full date and time: the
                           swipe that reveals it is a touch gesture, and a mouse needs its
                           own way to the same fact.
                         */}
-                        <div>
+                        <div className={cn(flashMessageId === msg.id && 'message-flash')}>
                           <div
                             id={`msg-${msg.id}`}
                             title={formatDateTime(msg.createdAt, locale, 'dayMonthYearTime')}
@@ -2010,12 +2158,35 @@ export function MessageConversation({
                                 {/* Quoted reply (WhatsApp-style) */}
                                 {renderReplyQuote(msg, isMine)}
 
+                                {/*
+                                  Provenance. Without it a forwarded message
+                                  reads as something the sender wrote, which is
+                                  how rumours travel.
+                                */}
+                                {msg.forwardedFrom && (
+                                  <span className={cn(
+                                    'flex items-center gap-1 text-[10.5px] italic mb-0.5',
+                                    isMine ? 'text-white/70' : 'text-muted-foreground',
+                                  )}>
+                                    <Forward className="size-3" />
+                                    Forwarded
+                                  </span>
+                                )}
+
                                 {/* Media content */}
                                 {renderMedia(msg, !!msg.parentId)}
 
                                 {/* Shared post — Instagram-style preview card */}
                                 {msg.type === 'shared_post' ? (
                                   <SharedPostPreview url={msg.body} isMine={isMine} />
+                                ) : msg.poll ? (
+                                  <PollBubble
+                                    poll={msg.poll}
+                                    isMine={isMine}
+                                    onVote={(optionId) => handleVote(msg.id, optionId)}
+                                  />
+                                ) : locationFrom(msg.metadata) ? (
+                                  <LocationBubble location={locationFrom(msg.metadata)!} isMine={isMine} />
                                 ) : msg.body && (
                                   <p className="mt-1">{msg.body}</p>
                                 )}
@@ -2056,6 +2227,13 @@ export function MessageConversation({
 
                         </div>
                       </div>
+
+                      {/* Their messages: actions on the right — still the outer edge. */}
+                      {!isMine && !isPending && (
+                        <div className="hidden md:flex self-center flex-shrink-0 opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          {renderMessageActions(msg, isMine)}
+                        </div>
+                      )}
                     </div>
                   </div>
                   </div>
@@ -2064,6 +2242,24 @@ export function MessageConversation({
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/*
+            The catch-up pill.
+
+            Shown only when someone else's message landed while the reader was up
+            in the history — their own send scrolls outright, and so does anything
+            arriving while they are already at the bottom. This is the one case
+            where scrolling automatically would take the page away mid-sentence.
+          */}
+          {unseenCount > 0 && (
+            <button
+              onClick={scrollToLatest}
+              className="absolute left-1/2 -translate-x-1/2 bottom-3 z-10 flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-lg hover:bg-primary/90 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-2 duration-200"
+            >
+              {unseenCount === 1 ? '1 new message' : `${unseenCount} new messages`}
+              <ChevronDown className="size-3.5" />
+            </button>
+          )}
 
           {/* Input bar */}
           <div className="px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:px-4 md:py-3 bg-background border-t border-outline-variant/20 flex-shrink-0">
@@ -2369,7 +2565,7 @@ export function MessageConversation({
 
             {[
               { label: 'Reply', icon: Reply, action: () => { setReplyingTo(contextMenu.message); setContextMenu(null) } },
-              { label: 'Forward', icon: Forward, action: () => setContextMenu(null) },
+              { label: 'Forward', icon: Forward, action: () => { setForwardingMessage(contextMenu.message); setContextMenu(null) } },
               { label: 'Copy', icon: Copy, action: () => { void navigator.clipboard.writeText(contextMenu.message.body ?? ''); setContextMenu(null) } },
               ...(isOwnMessage(contextMenu.message)
                 ? [
@@ -2495,6 +2691,16 @@ export function MessageConversation({
           onClose={() => setConfirmBlockOpen(false)}
         />
       )}
+      {forwardingMessage && user?.id && (
+        <ForwardModal
+          conversations={conversations}
+          currentConversationId={conversationId}
+          currentUserId={user.id}
+          onClose={() => setForwardingMessage(null)}
+          onForward={(ids) => handleForward(forwardingMessage.id, ids)}
+        />
+      )}
+
       {showPollModal && (
         <PollCreatorModal
           onClose={() => setShowPollModal(false)}

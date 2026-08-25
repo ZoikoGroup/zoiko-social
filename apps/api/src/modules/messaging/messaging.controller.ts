@@ -21,6 +21,8 @@ import {
   UpdateCommunityChatSettingsSchema,
   type UpdateCommunityChatSettingsInput,
 } from './community-chat.schemas'
+import { VotePollSchema, type VotePollInput } from './poll.schemas'
+import { ForwardMessageSchema, type ForwardMessageInput } from './forward.schemas'
 import {
   CreateConversationSchema,
   SendMessageSchema,
@@ -104,6 +106,30 @@ export class MessagingController {
     body: UpdateCommunityChatSettingsInput,
   ) {
     return this.communityChat.updateSettings(user.id, id, body)
+  }
+
+  /** Copies a message into up to five other conversations. */
+  @Post('messages/:id/forward')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 20, windowSeconds: 60, prefix: 'message.forward' })
+  async forwardMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ForwardMessageSchema)) body: ForwardMessageInput,
+  ) {
+    return this.messagingService.forwardMessage(user.id, id, body.conversationIds)
+  }
+
+  /** Cast, move or withdraw a vote. One choice per member. */
+  @Post('messages/:id/poll/vote')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 60, windowSeconds: 60, prefix: 'poll.vote' })
+  async voteOnPoll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(VotePollSchema)) body: VotePollInput,
+  ) {
+    return this.messagingService.voteOnPoll(user.id, id, body.optionId)
   }
 
   @Get('conversations/:id/pinned')

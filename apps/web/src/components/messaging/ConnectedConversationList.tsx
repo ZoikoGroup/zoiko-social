@@ -50,7 +50,19 @@ function formatTime(dateStr: string, locale: string, nowLabel: string): string {
 // show a friendly label in the list instead of a raw URL (Instagram-style).
 const SHARED_POST_URL = /^https?:\/\/\S+\/p\/[0-9a-f-]{16,}\/?$/i
 
-function truncateMessage(body: string | null, senderId: string, currentUserId: string, sentLabel: string, youPrefix: string, postLabel: string): string {
+/** Previews for the message kinds that carry no text at all. */
+const BODYLESS_PREVIEW: Record<string, string> = {
+  location: '📍 Location',
+  poll: '📊 Poll',
+}
+
+function truncateMessage(body: string | null, senderId: string, currentUserId: string, sentLabel: string, youPrefix: string, postLabel: string, type?: string): string {
+  // A shared location and a poll have a null body. Falling through to "sent a
+  // message" was why a chat holding one still read "No messages yet".
+  if (!body && type && BODYLESS_PREVIEW[type]) {
+    const prefix = senderId === currentUserId ? `${youPrefix} ` : ''
+    return `${prefix}${BODYLESS_PREVIEW[type]}`
+  }
   if (!body) return sentLabel
   const prefix = senderId === currentUserId ? `${youPrefix} ` : ''
   if (SHARED_POST_URL.test(body.trim())) return `${prefix}${postLabel}`
@@ -360,7 +372,7 @@ function ConversationItem({
   const avatarUrl = conv.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const lastMsg = conv.lastMessage
-  const lastMsgText = lastMsg ? truncateMessage(lastMsg.body, lastMsg.senderId, currentUserId, t('sentAMessage'), t('youPrefix'), t('sentAPost')) : t('noMessagesYet')
+  const lastMsgText = lastMsg ? truncateMessage(lastMsg.body, lastMsg.senderId, currentUserId, t('sentAMessage'), t('youPrefix'), t('sentAPost'), lastMsg.type) : t('noMessagesYet')
   const timeStr = lastMsg ? formatTime(lastMsg.createdAt, locale, t('now')) : ''
   const showOnline = isDM && isOnline
   const isTyping = otherUserId && conv.id ? isUserTyping(otherUserId, conv.id) : false
