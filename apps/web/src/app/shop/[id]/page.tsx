@@ -9,8 +9,7 @@ import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
 import {
-  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, ShoppingBag,
-} from 'lucide-react'
+  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, ShoppingBag, ImageOff } from 'lucide-react'
 import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
@@ -125,8 +124,22 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             {/* Gallery */}
             <div>
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container border border-outline-variant/20">
-                {gallery[slide] && (
+                {gallery[slide] ? (
                   <Img src={gallery[slide]} alt="" priority className="w-full h-full object-cover" />
+                ) : (
+                  /*
+                    A listing with no photo rendered nothing at all here — an
+                    empty grey square that reads as an image that failed to
+                    load. The marketplace grid already says "No photo" for the
+                    same case; this is the other half of that fix.
+
+                    Most listings in the catalogue currently have no cover, so
+                    this is the common path rather than an edge case.
+                  */
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-on-surface-variant">
+                    <ImageOff className="w-10 h-10" />
+                    <span className="text-label-sm font-medium">No photo for this listing</span>
+                  </div>
                 )}
                 {onSale && <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-500 text-white text-[11px] font-bold">SALE</span>}
               </div>

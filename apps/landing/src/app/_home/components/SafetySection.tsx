@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
+/*
+  Every card here points at the app's safety-and-trust document, which is where
+  each of these topics is actually written up. They were all href="#" — six
+  cards whose call to action did nothing, on a section about trust.
+*/
 const safetyCards = [
   {
     title: "Community Standards",
@@ -11,7 +17,7 @@ const safetyCards = [
       </>
     ),
     link: "Read Standards",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/shield-icon.png",
   },
   {
@@ -23,7 +29,7 @@ const safetyCards = [
       </>
     ),
     link: "Report Concerns",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/bell-icon.png",
   },
   {
@@ -35,7 +41,7 @@ const safetyCards = [
       </>
     ),
     link: "Learn More",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/clock-icon.png",
   },
   {
@@ -47,7 +53,7 @@ const safetyCards = [
       </>
     ),
     link: "View Reports",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/check-circle-icon.png",
   },
   {
@@ -59,7 +65,7 @@ const safetyCards = [
       </>
     ),
     link: "Family Settings",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/eye-icon.png",
   },
   {
@@ -71,7 +77,7 @@ const safetyCards = [
       </>
     ),
     link: "Submit Appeal",
-    href: "#",
+    href: APP_LINKS.safety,
     image: "/images/user-plus-icon.png",
   },
 ];

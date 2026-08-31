@@ -4,45 +4,58 @@ import Link from "next/link";
 import { APP_LINKS } from "@/lib/app-links";
 
 
-const footerSections = [
+/*
+  `href: null` means "this page does not exist yet".
+
+  These were all href="#", which renders an anchor that looks and hovers like a
+  link and does nothing — the reason QA reported the landing page as having no
+  working CTAs. A label with no destination is now plain text, so nothing on the
+  page invites a click it cannot honour.
+
+  The alternative would be inventing URLs, which trades a dead link for a broken
+  promise. Anything with a real destination in the app is wired above.
+*/
+type FooterLink = { label: string; href: string | null }
+
+const footerSections: { title: string; links: FooterLink[] }[] = [
   {
     title: "Company",
     links: [
       { label: "About ZoikoSocial", href: "/about-us" },
-      { label: "Careers", href: "#" },
-      { label: "Press & Media", href: "#" },
-      { label: "Investor Relations", href: "#" },
-      { label: "Brand Assets", href: "#" },
+      { label: "Careers", href: null },
+      { label: "Press & Media", href: null },
+      { label: "Investor Relations", href: null },
+      { label: "Brand Assets", href: null },
     ],
   },
   {
     title: "Platform",
     links: [
-      { label: "Features", href: "#" },
-      { label: "Premium Plans", href: "#" },
-      { label: "Mobile Apps", href: "#" },
-      { label: "Desktop App", href: "#" },
-      { label: "API Documentation", href: "#" },
+      { label: "Features", href: null },
+      { label: "Premium Plans", href: null },
+      { label: "Mobile Apps", href: null },
+      { label: "Desktop App", href: null },
+      { label: "API Documentation", href: null },
     ],
   },
   {
     title: "Trust & Safety",
     links: [
-      { label: "Community Standards", href: "#" },
-      { label: "Transparency Reports", href: "#" },
-      { label: "Appeals Process", href: "#" },
+      { label: "Community Standards", href: APP_LINKS.safety },
+      { label: "Transparency Reports", href: null },
+      { label: "Appeals Process", href: APP_LINKS.safety },
       { label: "Safety Center", href: APP_LINKS.safety },
-      { label: "Welfare Reporting", href: "#" },
+      { label: "Welfare Reporting", href: APP_LINKS.safety },
     ],
   },
   {
     title: "Support",
     links: [
       { label: "Help Center", href: APP_LINKS.docs },
-      { label: "Contact Us", href: "#" },
-      { label: "System Status", href: "#" },
-      { label: "Developer Support", href: "#" },
-      { label: "Community Forums", href: "#" },
+      { label: "Contact Us", href: null },
+      { label: "System Status", href: null },
+      { label: "Developer Support", href: null },
+      { label: "Community Forums", href: APP_LINKS.communities },
     ],
   },
   {
@@ -50,19 +63,19 @@ const footerSections = [
     links: [
       { label: "Terms of Service", href: APP_LINKS.terms },
       { label: "Privacy Policy", href: APP_LINKS.privacy },
-      { label: "Cookie Policy", href: "#" },
-      { label: "Accessibility", href: "#" },
-      { label: "GDPR Compliance", href: "#" },
+      { label: "Cookie Policy", href: null },
+      { label: "Accessibility", href: null },
+      { label: "GDPR Compliance", href: null },
     ],
   },
   {
     title: "Advertise",
     links: [
-      { label: "Advertising Standards", href: "#" },
-      { label: "Campaign Review", href: "#" },
-      { label: "Sponsored Content", href: "#" },
-      { label: "Professional Directory", href: "#" },
-      { label: "Contact Sales", href: "#" },
+      { label: "Advertising Standards", href: null },
+      { label: "Campaign Review", href: null },
+      { label: "Sponsored Content", href: null },
+      { label: "Professional Directory", href: APP_LINKS.search },
+      { label: "Contact Sales", href: null },
     ],
   },
 ];
@@ -82,12 +95,22 @@ export default function Footer() {
               <ul className="space-y-4">
                 {section.links.map((link) => (
                   <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm font-normal leading-6 text-[#9CA3AF] transition hover:text-white"
-                    >
-                      {link.label}
-                    </Link>
+                    {link.href ? (
+                      <Link
+                        href={link.href}
+                        className="text-sm font-normal leading-6 text-[#9CA3AF] transition hover:text-white"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      /* No destination: plain text, no hover, no pointer. */
+                      <span
+                        className="cursor-default text-sm font-normal leading-6 text-[#6B7280]"
+                        title="Coming soon"
+                      >
+                        {link.label}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

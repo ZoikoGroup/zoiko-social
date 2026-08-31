@@ -11,6 +11,7 @@ import { SUPABASE_ADMIN_CLIENT } from '../database/database.providers'
 import type { SupabaseAdminClient } from '../database/database.providers'
 import { ConfigService } from '../config/config.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { checkEmailDeliverable, EMAIL_VERDICT_MESSAGE } from './email-deliverability'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { RedisService } from '../redis/redis.service'
 import { accountStateCache } from './account-state-cache'
@@ -40,6 +41,29 @@ export class AuthService {
   ) {}
 
   async register(email: string, password: string, displayName?: string) {
+    /*
+      `email_confirm: true` below marks the address as ALREADY confirmed — it
+      does not send anything to it. So nothing in this flow ever proved the
+      address exists, and a well-formed one nobody owns (asdf@asdf.com, or a
+      typo like user@gmial.com) produced a fully usable account that can never
+      be recovered and whose every notification vanishes.
+
+      This checks the domain actually accepts mail before an account is created
+      for it. It fails open on a DNS problem: refusing a real customer is worse
+      than admitting one bogus address.
+
+      It is not a substitute for confirmation. Turning on Supabase's email
+      confirmation is the complete fix and a deliberate product decision, since
+      it stops new members using the app until they click a link.
+    */
+    const verdict = await checkEmailDeliverable(email)
+    if (!verdict.ok) {
+      throw new BadRequestException({
+        code: 'EMAIL_UNDELIVERABLE',
+        message: EMAIL_VERDICT_MESSAGE[verdict.reason],
+      })
+    }
+
     const { data: authData, error: authError } = await this.supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -264,22 +288,53 @@ export class AuthService {
    *
    * Scope 'global' rather than the default, since the point is other devices.
    */
-  async logout(accessToken: string | undefined) {
-    if (!accessToken) {
-      throw new UnauthorizedException({
-        code: 'LOGOUT_FAILED',
-        message: 'Failed to log out',
-      })
-    }
+  /**
+   * Ends the caller's sessions everywhere.
+   *
+   * Idempotent on purpose. The guard verifies the JWT locally against Supabase's
+   * JWKS, so a token can be cryptographically valid while GoTrue no longer holds
+   * a session for it — after a refresh rotated it, after another device signed
+   * out globally, or after a second click on the same button. In every one of
+   * those cases the caller's goal is already met, and the old code turned it into
+   * "Failed to log out" and left the button showing an error to somebody who was,
+   * in fact, signed out.
+   *
+   * A genuine outage is reported rather than swallowed: the caller is told their
+   * other sessions may still be live, instead of being shown a success message
+   * that is not true.
+   */
+  async logout(accessToken: string | undefined): Promise<{ revokedEverywhere: boolean }> {
+    // No token means nothing to revoke, which is the end state being asked for.
+    if (!accessToken) return { revokedEverywhere: true }
 
     const { error } = await this.supabaseAdmin.auth.admin.signOut(accessToken, 'global')
-    if (error) {
-      this.logger.error(`Logout failed: ${error.message}`)
-      throw new UnauthorizedException({
-        code: 'LOGOUT_FAILED',
-        message: 'Failed to log out',
-      })
+    if (!error) return { revokedEverywhere: true }
+
+    // 401/403/404 from GoTrue all mean "no such session" — already revoked.
+    //
+    // The message patterns matter as much as the status, because GoTrue does not
+    // always set one. "does not exist" is the phrasing it actually uses for a
+    // rotated session — "Session from session_id claim in JWT does not exist" —
+    // which a matcher looking only for "not found" misses entirely, and that is
+    // the single most likely case in production.
+    const status = error.status ?? 0
+    const alreadyGone =
+      status === 401 ||
+      status === 403 ||
+      status === 404 ||
+      /session[_ ]?not[_ ]?found|not exist|no longer exists|invalid|expired|already/i.test(
+        error.message,
+      )
+
+    if (alreadyGone) {
+      this.logger.log(`Logout: session already ended (${error.message})`)
+      return { revokedEverywhere: true }
     }
+
+    // Something is actually wrong — Supabase unreachable, for instance. The
+    // caller still gets signed out locally; they are told the rest may not be.
+    this.logger.error(`Logout could not revoke sessions: ${error.message}`)
+    return { revokedEverywhere: false }
   }
 
   async forgotPassword(email: string) {

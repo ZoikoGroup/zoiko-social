@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
@@ -79,6 +80,40 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
   const [muted, setMuted] = useState(initialRelationship?.muted ?? false)
   const [blocked, setBlocked] = useState(initialRelationship?.blocked ?? false)
   const [actionsOpen, setActionsOpen] = useState(false)
+  /** Where to draw the actions menu, in viewport coordinates. */
+  const [actionsPos, setActionsPos] = useState<{ top: number; right: number } | null>(null)
+  const actionsButtonRef = useRef<HTMLButtonElement>(null)
+
+  /*
+    Dismiss the actions menu on an outside click or Escape.
+    
+    There was no such handler before — the menu only closed by choosing one of
+    its own items. That was survivable while it was clipped inside the header;
+    now that it floats over the page it would sit there until something else was
+    clicked.
+
+    Listening for 'click' rather than 'mousedown' is deliberate: mousedown fires
+    before the menu item's own onClick, so closing on it would unmount the button
+    before the click could land — the item would appear to do nothing.
+  */
+  useEffect(() => {
+    if (!actionsOpen) return undefined
+    const onClick = (e: MouseEvent) => {
+      // The trigger toggles on its own; handling it here too would reopen and
+      // immediately close it.
+      if (actionsButtonRef.current?.contains(e.target as Node)) return
+      setActionsOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionsOpen(false)
+    }
+    document.addEventListener('click', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [actionsOpen])
   const [reportOpen, setReportOpen] = useState(false)
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
   const [error, setError] = useState('')
@@ -429,15 +464,42 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                 )}
                 <div className="relative">
                   <button
-                    onClick={() => setActionsOpen((o) => !o)}
+                    ref={actionsButtonRef}
+                    onClick={() => {
+                      // Measured at open time, not at render: the header moves
+                      // with scroll and with the cover image loading.
+                      const rect = actionsButtonRef.current?.getBoundingClientRect()
+                      if (rect) {
+                        setActionsPos({
+                          top: rect.bottom + 8,
+                          // Right-aligned to the button, clamped so a menu near
+                          // the viewport edge cannot open off-screen.
+                          right: Math.max(8, window.innerWidth - rect.right),
+                        })
+                      }
+                      setActionsOpen((o) => !o)
+                    }}
                     className="flex items-center justify-center size-10 rounded-full border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container transition-colors cursor-pointer"
                     aria-label={tpr('moreActions')}
                     aria-expanded={actionsOpen}
                   >
                     <MoreHorizontal className="w-5 h-5" />
                   </button>
-                  {actionsOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-20">
+                  {/*
+                    Rendered into document.body rather than here.
+
+                    This <section> sets overflow-hidden so the cover image is
+                    clipped to its rounded corners, and an absolutely positioned
+                    menu inside it is clipped by exactly the same rule — the menu
+                    opened downward and was sliced off, which is what QA saw as a
+                    cropped profile. A portal escapes the clip without giving up
+                    the rounded cover.
+                  */}
+                  {actionsOpen && actionsPos && createPortal(
+                    <div
+                      className="fixed w-52 bg-surface-container-lowest border border-outline-variant/40 rounded-xl shadow-xl overflow-hidden z-50"
+                      style={{ top: actionsPos.top, right: actionsPos.right }}
+                    >
                       <button
                         onClick={() => void handleToggleMute()}
                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-label-sm text-on-surface hover:bg-surface-container cursor-pointer"
@@ -459,7 +521,8 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                         <Flag className="w-4 h-4" />
                         Report @{profile.username}
                       </button>
-                    </div>
+                    </div>,
+                    document.body,
                   )}
                 </div>
               </>

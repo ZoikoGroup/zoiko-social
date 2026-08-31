@@ -746,8 +746,17 @@ function SecuritySettings({ onChangePassword }: { onChangePassword: () => void }
     setSigningOutAll(true)
     setSignOutError(null)
     try {
-      await authApi.logoutEverywhere()
-      toast.success('Signed out everywhere', 'All devices have been signed out.')
+      const { revokedEverywhere } = await authApi.logoutEverywhere()
+      // Claiming every device was signed out when the server could not reach
+      // Supabase would be the more comfortable message and the wrong one.
+      if (revokedEverywhere) {
+        toast.success('Signed out everywhere', 'All devices have been signed out.')
+      } else {
+        toast.warning(
+          'Signed out on this device',
+          'Your other sessions could not be ended just now — try again from Security.',
+        )
+      }
       // This device included — the token here is revoked too.
       window.location.href = '/login'
     } catch (err) {

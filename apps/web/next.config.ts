@@ -45,14 +45,22 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               // photon.komoot.io: keyless place-autocomplete for location inputs
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} https://*.livekit.cloud wss://*.livekit.cloud https://*.r2.cloudflarestorage.com ${r2PublicUrl} https://photon.komoot.io https://open.er-api.com`,
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} wss://*.supabase.co ${apiUrl} ${apiWsUrl} https://*.livekit.cloud wss://*.livekit.cloud https://*.r2.cloudflarestorage.com ${r2PublicUrl} https://photon.komoot.io https://open.er-api.com https://cloudflareinsights.com`,
               `img-src 'self' data: blob: ${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''} *.r2.dev ${r2PublicUrl} images.unsplash.com`,
               `media-src 'self' blob: *.mux.com *.r2.dev ${r2PublicUrl}`,
               "style-src 'self' 'unsafe-inline'",
               // storage.googleapis.com: the service worker (public/sw.js) importScripts
               // Workbox from the Google CDN (workbox-cdn) and it pulls its runtime
               // modules from the same host; without this the SW fails to register.
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com",
+              //
+              // static.cloudflareinsights.com: Cloudflare Web Analytics. The
+              // beacon is injected by Cloudflare at the edge, AFTER this app has
+              // produced its response — so the app cannot choose not to load it,
+              // and the only visible symptom was a CSP violation on every page
+              // view. Listing it is what stops the console error; switching Web
+              // Analytics off in the Cloudflare dashboard is the alternative, and
+              // is the better answer if the data is not wanted.
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://storage.googleapis.com https://static.cloudflareinsights.com",
               "font-src 'self'",
               // openstreetmap.org: keyless embedded map, used by the event,
               // lost-and-found and vet-clinic detail pages.

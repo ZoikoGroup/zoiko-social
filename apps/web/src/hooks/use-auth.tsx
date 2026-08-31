@@ -350,6 +350,37 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     }
 
     const supabase = createClient()
+
+    /*
+      The access token has to be captured BEFORE signing out, and the API told
+      first.
+
+      This used to run the other way round: sign out on the client, then POST to
+      /auth/logout with no Authorization header at all. That route is behind the
+      auth guard, so the call could only ever return 401 — an error on the console
+      for every single sign-out, silently swallowed by the catch below.
+
+      Order matters beyond the header. The client's own signOut revokes the
+      session, so a call made afterwards presents a token GoTrue has already
+      discarded. Asking the server first means the service-role revocation
+      actually lands, which is what still ends the session on the server when the
+      client-side call below fails and falls back to local-only scope.
+    */
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessToken = session?.access_token
+
+    if (accessToken) {
+      try {
+        await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+      } catch {
+        // The client-side signOut below is the other half of this; a failure
+        // here is not a reason to keep somebody signed in.
+      }
+    }
+
     try {
       // Global scope revokes the refresh token server-side
       await supabase.auth.signOut()
@@ -360,12 +391,6 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       } catch {
         // Even local cleanup failed — the redirect below still leaves the app in a signed-out state
       }
-    }
-
-    try {
-      await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/v1/auth/logout', { method: 'POST' })
-    } catch {
-      // Ignore API logout errors
     }
 
     window.location.href = '/login'

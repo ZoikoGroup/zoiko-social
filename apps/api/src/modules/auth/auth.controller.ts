@@ -114,8 +114,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   async logout(@AccessToken() accessToken: string | undefined) {
-    await this.authService.logout(accessToken)
-    return { success: true }
+    // revokedEverywhere is forwarded rather than dropped: the client needs to
+    // know whether it can honestly claim every device was signed out.
+    const { revokedEverywhere } = await this.authService.logout(accessToken)
+    return { success: true, revokedEverywhere }
   }
 
   /**
