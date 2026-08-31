@@ -21,7 +21,19 @@ const sourceSerif = Source_Serif_4({
 export const metadata: Metadata = {
   title: 'ZoikoSocial',
   description: 'The professional community for animal lovers, rescuers, and pet care experts',
-  icons: { icon: '/favicon.svg' },
+  /*
+    No `icons` here on purpose.
+    
+    This used to be `{ icon: '/favicon.svg' }`, and declaring it overrode the
+    app/ icon file conventions entirely — /icon returned 404 and the only tag
+    emitted pointed at a 335 KB "SVG" that was really a base64 PNG wrapped in an
+    <svg>. Chromium does not render SVG favicons containing embedded raster
+    images, so the tab showed nothing at all and there was no .ico to fall back to.
+
+    favicon.ico, icon.png and apple-icon.png in app/ are picked up automatically
+    and get correct rel, type and sizes attributes generated from the files
+    themselves — which a hand-written declaration has to keep in sync by hand.
+  */
 }
 
 const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL

@@ -188,8 +188,12 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: payload.body || '',
-    icon: '/zoikosocial-logo.png',
-    badge: '/favicon.svg',
+    icon: '/icon-192.png',
+    // A badge is a monochrome mask that Android tints itself, so it must be a
+    // PNG with a usable alpha channel. This pointed at favicon.svg, which
+    // Chromium cannot decode — an embedded raster inside an <svg> — so the
+    // badge silently failed to draw on every Android notification.
+    badge: '/badge-96.png',
     ...(isCall
       ? {
           requireInteraction: true,

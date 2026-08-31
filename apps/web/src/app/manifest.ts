@@ -29,19 +29,16 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#0b0f14',
     categories: ['social', 'lifestyle'],
     icons: [
-      // The SVG scales to every size a launcher asks for, which is what makes the
-      // app installable without shipping one PNG per density.
-      {
-        src: '/favicon.svg',
-        sizes: 'any',
-        type: 'image/svg+xml',
-      },
-      {
-        src: '/icon-500.png',
-        sizes: '500x500',
-        type: 'image/png',
-        purpose: 'any',
-      },
+      // Real PNGs at the sizes launchers and the Play Store ask for. The
+      // previous entry pointed at a 335 KB SVG that was a base64 PNG inside an
+      // <svg> wrapper — installable in theory, unrenderable in Chromium.
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      // Maskable is a separate entry, not a second purpose on the same file:
+      // Android crops to a circle or squircle, so the mark is inset to the ~80%
+      // safe zone on an opaque background. A non-maskable icon gets its edges
+      // shaved off instead. 512 maskable is also what Play Store packaging needs.
+      { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }
