@@ -294,7 +294,8 @@ export const authApi = {
    * admin.signOut is all-or-nothing — there is no per-session revoke behind it,
    * which is why Security offers this rather than a per-device list.
    */
-  logoutEverywhere: () => mutate<{ success: boolean }>('/auth/logout', { method: 'POST' }),
+  logoutEverywhere: () =>
+    mutate<{ success: boolean; revokedEverywhere: boolean }>('/auth/logout', { method: 'POST' }),
 }
 
 export const profileApi = {
@@ -1301,9 +1302,151 @@ export const breedingApi = {
   markLitterListed: (id: string) => mutate<{ listedCount: number }>(`/breeding/litters/${id}/listed`, { method: 'POST' }),
 }
 
+/** A news article as it appears in the home feed. */
+export interface NewsCardItem {
+  id: string
+  title: string
+  excerpt: string
+  coverUrl: string | null
+  category: string
+  tier: string
+  sourceName: string | null
+  readMinutes: number
+  publishedAt: string
+  likesCount: number
+  commentsCount: number
+  /** True when this came from a curated feed rather than a member. */
+  isExternal?: boolean
+  /** Where an external card opens — there is no in-app body to read. */
+  sourceUrl?: string | null
+  /** The publisher, for the attribution row. */
+  source?: { name: string; slug: string; logoUrl: string | null } | null
+  savesCount?: number
+  viewerLiked?: boolean
+  viewerSaved?: boolean
+}
+
+/**
+ * The home feed alone carries news. It rides beside `data` rather than inside
+ * it, so every other feed keeps the plain PostPage shape.
+ */
+export interface HomeFeedPage extends PostPage {
+  news?: { afterIndex: number; article: NewsCardItem }[]
+}
+
+export interface NewsSourceItem {
+  id: string
+  name: string
+  slug: string
+  feedUrl: string
+  homepageUrl: string | null
+  logoUrl: string | null
+  tier: string
+  category: string
+  enabled: boolean
+  lastFetchedAt: string | null
+  lastStatus: string | null
+  lastError: string | null
+  articleCount: number
+}
+
+export interface PendingArticleItem {
+  id: string
+  title: string
+  excerpt: string
+  body: string | null
+  coverUrl: string | null
+  category: string
+  tier: string
+  sourceName: string | null
+  sourceUrl: string | null
+  createdAt: string
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+}
+
+export interface IngestRunResult {
+  sources: number
+  created: number
+  results: { source: string; fetched: number; created: number; skipped: number; error?: string }[]
+}
+
+export interface AdminStats {
+  users: number
+  staff: number
+  suspended: number
+  posts: number
+  communities: number
+  articles: number
+  pendingArticles: number
+  openReports: number
+  newsSources: number
+}
+
+export interface AdminUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  role: string
+  state: string
+  verificationTier: string
+  createdAt: string
+}
+
+/** Platform administration. Staff-only on the server; roles are admin+ only. */
+export const adminApi = {
+  stats: () => request<AdminStats>('/admin/stats'),
+  users: (filters: { q?: string; role?: string; state?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (filters.q) qs.set('q', filters.q)
+    if (filters.role) qs.set('role', filters.role)
+    if (filters.state) qs.set('state', filters.state)
+    const suffix = qs.toString()
+    return request<AdminUserItem[]>(`/admin/users${suffix ? `?${suffix}` : ''}`)
+  },
+  setRole: (id: string, role: string) =>
+    mutate<{ id: string; username: string; role: string }>(`/admin/users/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+}
+
+/** Curation and review. Every route here is staff-only on the server. */
+export const newsAdminApi = {
+  sources: () => request<NewsSourceItem[]>('/news/sources'),
+  createSource: (body: {
+    name: string
+    slug: string
+    feedUrl: string
+    homepageUrl?: string
+    logoUrl?: string
+    tier?: string
+    category?: string
+    enabled?: boolean
+  }) => mutate<NewsSourceItem>('/news/sources', { method: 'POST', body: JSON.stringify(body) }),
+  updateSource: (id: string, body: Record<string, unknown>) =>
+    mutate<NewsSourceItem>(`/news/sources/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  disableSource: (id: string) =>
+    mutate<NewsSourceItem>(`/news/sources/${id}/disable`, { method: 'POST' }),
+  deleteSource: (id: string) =>
+    mutate<{ success: boolean }>(`/news/sources/${id}`, { method: 'DELETE' }),
+  ingestAll: () => mutate<IngestRunResult>('/news/ingest', { method: 'POST' }),
+  ingestOne: (id: string) =>
+    mutate<{ source: string; fetched: number; created: number; skipped: number; error?: string }>(
+      `/news/sources/${id}/ingest`,
+      { method: 'POST' },
+    ),
+  pending: () => request<PendingArticleItem[]>('/news/pending'),
+  review: (id: string, approve: boolean) =>
+    mutate<{ id: string; reviewStatus: string }>(
+      `/news/pending/${id}/review?approve=${approve}`,
+      { method: 'POST' },
+    ),
+}
+
 export const feedApi = {
   home: (cursor?: string | null, limit = 15) =>
-    request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+    request<HomeFeedPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   explore: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   community: (communityId: string, cursor?: string | null, limit = 15) =>

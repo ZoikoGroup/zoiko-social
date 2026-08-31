@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { PostsService, type PostPage } from '../posts/posts.service'
+import { NewsService, type NewsFeedCard } from '../news/news.service'
 import {
   PersonalizationService,
   type ScoreablePost,
@@ -27,6 +28,26 @@ const HOME_MAX_PER_AUTHOR = 3
 const EXPLORE_MAX_PER_AUTHOR = 2
 
 /**
+ * One news card after every this many posts on Home.
+ *
+ * News is interleaved rather than ranked alongside posts. Articles and posts
+ * are not comparable on engagement — an article has readers, a post has a
+ * following — so scoring them against each other would either bury news
+ * permanently or let one popular article outrank everything a member follows.
+ * A fixed cadence is predictable for the reader and trivially tunable here.
+ */
+const NEWS_EVERY = 5
+
+/**
+ * How many articles a feed with no posts at all shows.
+ *
+ * Tying news purely to a post count meant a quiet feed — a new member who
+ * follows nobody yet — got NO news, which is exactly backwards: that is the
+ * feed with the most room for it and the reader with the least else to read.
+ */
+const NEWS_ON_EMPTY_FEED = 5
+
+/**
  * FeedService — personalized pull model (docs/feed-posts-architecture.md §4).
  *
  * Both feeds now rank a bounded recent pool with the affinity-based scoring
@@ -38,6 +59,18 @@ const EXPLORE_MAX_PER_AUTHOR = 2
  * seen-filter is applied LIVE at serve time via viewerFlags; when too few posts
  * survive, the request falls through to the fresh ranked query.
  */
+/**
+ * The home feed page.
+ *
+ * News rides alongside `data` rather than inside it, so PostPage stays exactly
+ * what it is for explore, profile and community feeds — all of which share the
+ * type and none of which want news. `afterIndex` is the index in `data` the
+ * card follows, leaving placement on the server where the cadence lives.
+ */
+export interface HomeFeedPage extends PostPage {
+  news: { afterIndex: number; article: NewsFeedCard }[]
+}
+
 @Injectable()
 export class FeedService {
   constructor(
@@ -45,9 +78,10 @@ export class FeedService {
     private readonly redis: RedisService,
     private readonly postsService: PostsService,
     private readonly personalization: PersonalizationService,
+    private readonly news: NewsService,
   ) {}
 
-  async getHomeFeed(viewerId: string, cursor: string | null, limit = FEED_PAGE): Promise<PostPage> {
+  async getHomeFeed(viewerId: string, cursor: string | null, limit = FEED_PAGE): Promise<HomeFeedPage> {
     const take = Math.min(limit, 30)
     const isFirstPage = !cursor
 
@@ -65,12 +99,16 @@ export class FeedService {
           return !flag.viewed && !flag.liked
         })
         if (filtered.length >= Math.max(1, Math.floor(take / 2))) {
+          // News is attached after the cache, never inside it: the cached
+          // payload is shared across requests for this viewer and articles
+          // publish on their own schedule.
           return {
             ...cached,
             data: filtered.map((p) => {
               const flag = flags.get(p.id) ?? { liked: false, saved: false, viewed: false }
               return { ...p, viewerLiked: flag.liked, viewerSaved: flag.saved }
             }),
+            news: await this.newsFor(0, filtered.length, viewerId),
           }
         }
       }
@@ -140,7 +178,7 @@ export class FeedService {
       })
     }
 
-    return page
+    return { ...page, news: await this.newsFor(offset, page.data.length, viewerId) }
   }
 
   /**
@@ -203,6 +241,34 @@ export class FeedService {
    * (expiry, or Redis unavailable) rebuilds it and lands the reader at roughly
    * the same place, since the inputs have barely changed.
    */
+  /**
+   * Places news cards through a page of posts.
+   *
+   * Which articles appear is derived from the page offset, so page two shows
+   * the ones page one did not and nothing has to be remembered between
+   * requests. A short final page gets fewer cards rather than a run of them at
+   * the end — three articles under two posts reads as an ad break.
+   *
+   * A failure here returns no cards instead of propagating: news is a garnish
+   * on this surface, and an unavailable articles table must not take down
+   * somebody's feed.
+   */
+  private async newsFor(offset: number, postCount: number, viewerId: string) {
+    // A feed with no posts shows news on its own; a short one still shows at
+     // least one card rather than rounding down to nothing.
+    const slots =
+      postCount === 0 ? NEWS_ON_EMPTY_FEED : Math.max(1, Math.floor(postCount / NEWS_EVERY))
+    try {
+      const articles = await this.news.feedCards(Math.floor(offset / NEWS_EVERY), slots, viewerId)
+      return articles.map((article, i) => ({
+        afterIndex: (i + 1) * NEWS_EVERY - 1,
+        article,
+      }))
+    } catch {
+      return []
+    }
+  }
+
   private async rankedOrder<T extends ScoreablePost>(
     viewerId: string,
     surface: RankMode,

@@ -8,6 +8,14 @@ import {
 } from './news.schemas'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../auth/guards/roles.guard'
+import { Roles } from '../auth/decorators/roles.decorator'
+import { NewsIngestService } from './news-ingest.service'
+import { NewsSourceService } from './news-source.service'
+import {
+  CreateNewsSourceSchema, UpdateNewsSourceSchema,
+  type CreateNewsSourceInput, type UpdateNewsSourceInput,
+} from './news-source.schemas'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
@@ -16,7 +24,113 @@ const TIERS = new Set(['institutional', 'verified', 'community'])
 
 @Controller('news')
 export class NewsController {
-  constructor(private readonly newsService: NewsService) {}
+  constructor(
+    private readonly newsService: NewsService,
+    private readonly ingest: NewsIngestService,
+    private readonly sources: NewsSourceService,
+  ) {}
+
+  // ── Curation and moderation ───────────────────────────────────────────────
+  //
+  // Declared before the parameterised routes below, so 'sources' and 'pending'
+  // are never swallowed by `:id`.
+
+  /** The curated publisher list. Staff only — this is the trust boundary. */
+  @Get('sources')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('moderator', 'admin', 'super_admin')
+  async listSources() {
+    return { data: await this.sources.list() }
+  }
+
+  @Post('sources')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'super_admin')
+  @HttpCode(HttpStatus.CREATED)
+  async createSource(@Body(new ZodValidationPipe(CreateNewsSourceSchema)) body: CreateNewsSourceInput) {
+    return { data: await this.sources.create(body) }
+  }
+
+  @Patch('sources/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'super_admin')
+  async updateSource(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateNewsSourceSchema)) body: UpdateNewsSourceInput,
+  ) {
+    return { data: await this.sources.update(id, body) }
+  }
+
+  /**
+   * Switches a source off immediately.
+   *
+   * Separate from the general update so it is one call with no body — a
+   * hijacked feed publishing into everyone's home feed is the case this exists
+   * for, and it should be reachable in one action.
+   */
+  @Post('sources/:id/disable')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('moderator', 'admin', 'super_admin')
+  @HttpCode(HttpStatus.OK)
+  async disableSource(@Param('id') id: string) {
+    return { data: await this.sources.setEnabled(id, false) }
+  }
+
+  @Delete('sources/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'super_admin')
+  @HttpCode(HttpStatus.OK)
+  async deleteSource(@Param('id') id: string) {
+    await this.sources.remove(id)
+    return { data: { success: true } }
+  }
+
+  /**
+   * Pulls every enabled feed.
+   *
+   * Callable by staff today, and by the scheduled job once Redis is back. Kept
+   * as an endpoint rather than only a job so ingestion can be triggered and
+   * observed by hand — a feed that stops working is otherwise silent.
+   */
+  @Post('ingest')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'super_admin')
+  @HttpCode(HttpStatus.OK)
+  async runIngest() {
+    return { data: await this.ingest.ingestAll() }
+  }
+
+  @Post('sources/:id/ingest')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'super_admin')
+  @HttpCode(HttpStatus.OK)
+  async runIngestOne(@Param('id') id: string) {
+    return { data: await this.ingest.ingestSource(id) }
+  }
+
+  /** Community submissions waiting on a decision. */
+  @Get('pending')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('moderator', 'admin', 'super_admin')
+  async pending(@Query('limit') limit?: string) {
+    const [data, count] = await Promise.all([
+      this.newsService.pendingQueue(limit ? Number(limit) : 30),
+      this.newsService.pendingCount(),
+    ])
+    return { data, count }
+  }
+
+  @Post('pending/:id/review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('moderator', 'admin', 'super_admin')
+  @HttpCode(HttpStatus.OK)
+  async review(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('approve') approve?: string,
+  ) {
+    return { data: await this.newsService.review(id, user.id, approve !== 'false') }
+  }
 
   @Get()
   @UseGuards(OptionalAuthGuard)

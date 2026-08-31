@@ -28,6 +28,7 @@ import { AdoptionModule } from './modules/adoption/adoption.module'
 import { ProvidersModule } from './modules/providers/providers.module'
 import { LostFoundModule } from './modules/lost-found/lost-found.module'
 import { NewsModule } from './modules/news/news.module'
+import { AdminModule } from './modules/admin/admin.module'
 import { ShopModule } from './modules/shop/shop.module'
 import { BreedingModule } from './modules/breeding/breeding.module'
 import { HealthModule } from './health/health.module'
@@ -70,6 +71,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
     ProvidersModule,
     LostFoundModule,
     NewsModule,
+    AdminModule,
     ShopModule,
     BreedingModule,
     AnalyticsModule,

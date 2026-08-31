@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { ArrowUp, PawPrint, ChevronDown, MapPin } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
-import { feedApi, lostFoundApi, type PostItem, type LostFoundReport } from '@/lib/api'
+import { NewsFeedCard } from './NewsFeedCard'
+import { feedApi, lostFoundApi, type PostItem, type LostFoundReport, type NewsCardItem } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
 // Topic tabs link to real hashtag discovery pages; For You shows the home feed.
@@ -111,12 +112,30 @@ export function HomeFeed(): React.JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false)
   const [newPostsAvailable, setNewPostsAvailable] = useState(false)
   const [lostAlert, setLostAlert] = useState<LostFoundReport | null>(null)
+  /**
+   * News cards, at indices absolute to the accumulated post list.
+   *
+   * The server places them per page, so page two's "after index 4" means index
+   * 19 once page one is already on screen. Converted on arrival rather than at
+   * render time, because the offset is only knowable when the page lands.
+   */
+  const [newsCards, setNewsCards] = useState<{ afterIndex: number; article: NewsCardItem }[]>([])
+  /** How many posts are on screen, for that conversion. */
+  const postCountRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  /** Index → article, so the render is a lookup rather than a scan per post. */
+  const newsAt = useMemo(
+    () => new Map(newsCards.map((n) => [n.afterIndex, n.article])),
+    [newsCards],
+  )
 
   const loadFirstPage = useCallback(async (): Promise<void> => {
     try {
       const page = await feedApi.home()
       setPosts(page.data)
+      postCountRef.current = page.data.length
+      setNewsCards(page.news ?? [])
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
       setNewPostsAvailable(false)
@@ -173,10 +192,27 @@ export function HomeFeed(): React.JSX.Element {
           setLoadingMore(true)
           feedApi.home(nextCursor)
             .then((page) => {
+              // Captured before the append: the new page's news indices are
+              // relative to its own posts, and this is where they start.
+              const base = postCountRef.current
               setPosts((prev) => {
                 const seen = new Set(prev.map((p) => p.id))
-                return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
+                const fresh = page.data.filter((p) => !seen.has(p.id))
+                postCountRef.current = prev.length + fresh.length
+                return [...prev, ...fresh]
               })
+              if (page.news?.length) {
+                setNewsCards((prev) => {
+                  // The server slices articles by page offset, but a dropped
+                  // post shifts that arithmetic — so dedupe by id rather than
+                  // trusting the slice never overlaps.
+                  const seen = new Set(prev.map((n) => n.article.id))
+                  const added = (page.news ?? [])
+                    .filter((n) => !seen.has(n.article.id))
+                    .map((n) => ({ ...n, afterIndex: base + n.afterIndex }))
+                  return added.length > 0 ? [...prev, ...added] : prev
+                })
+              }
               setNextCursor(page.nextCursor)
               setHasMore(page.hasMore)
             })
@@ -210,28 +246,52 @@ export function HomeFeed(): React.JSX.Element {
       {loading ? (
         <FeedSkeleton />
       ) : posts.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <PawPrint className="w-7 h-7 text-primary" />
+        <>
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <PawPrint className="w-7 h-7 text-primary" />
+            </div>
+            <h3 className="text-label-md font-bold text-on-surface mb-1">{t('quiet')}</h3>
+            <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">{t('quietBody')}</p>
+            <button
+              onClick={() => document.getElementById('home-composer-textarea')?.focus()}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+            >
+              {t('shareFirst')}
+            </button>
           </div>
-          <h3 className="text-label-md font-bold text-on-surface mb-1">{t('quiet')}</h3>
-          <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">{t('quietBody')}</p>
-          <button
-            onClick={() => document.getElementById('home-composer-textarea')?.focus()}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-          >
-            {t('shareFirst')}
-          </button>
-        </div>
+
+          {/*
+            News still belongs here. A member who follows nobody yet has the
+            emptiest feed and the most reason to be given something to read —
+            leaving the page at a single empty-state card was the wrong answer.
+          */}
+          {newsCards.map(({ article }) => (
+            <NewsFeedCard key={article.id} article={article} />
+          ))}
+        </>
       ) : (
         <>
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
-            />
+          {posts.map((post, i) => (
+            <Fragment key={post.id}>
+              <PostCard
+                post={post}
+                onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
+              />
+              {newsAt.get(i) && <NewsFeedCard article={newsAt.get(i)!} />}
+            </Fragment>
           ))}
+          {/*
+            Cards whose slot falls beyond the last post — a page of three posts
+            still earns one — would otherwise be computed by the server and
+            silently dropped here.
+          */}
+          {newsCards
+            .filter(({ afterIndex }) => afterIndex >= posts.length)
+            .map(({ article }) => (
+              <NewsFeedCard key={article.id} article={article} />
+            ))}
+
           <div ref={sentinelRef} className="h-1" />
           {loadingMore && <FeedSkeleton />}
         </>

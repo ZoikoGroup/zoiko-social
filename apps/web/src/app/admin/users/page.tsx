@@ -8,5 +8,5 @@ import { redirect } from 'next/navigation'
  * runbook still point here, and a 404 is a worse answer than a redirect.
  */
 export default function AdminSectionRedirect(): never {
-  redirect('/admin?s=moderation')
+  redirect('/admin?s=people')
 }

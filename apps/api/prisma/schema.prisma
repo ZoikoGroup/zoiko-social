@@ -2491,12 +2491,44 @@ model StoryArchive {
   @@map("story_archive")
 }
 
+/// A curated publisher whose feed is ingested.
+///
+/// Each source is its own relevance filter: for a niche this specific, twenty
+/// trusted feeds beat keyword-matching a general news firehose. Trust travels
+/// from the source to everything it publishes, so `tier` is set by whoever
+/// curates the list rather than derived per article.
+model NewsSource {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  homepageUrl   String?   @map("homepage_url")
+  feedUrl       String    @unique @map("feed_url")
+  logoUrl       String?   @map("logo_url")
+  tier          String    @default("verified")
+  category      String    @default("community")
+  enabled       Boolean   @default(true)
+  lastFetchedAt DateTime? @map("last_fetched_at")
+  lastStatus    String?   @map("last_status")
+  lastError     String?   @map("last_error")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  articles NewsArticle[]
+
+  @@index([enabled, lastFetchedAt])
+  @@map("news_sources")
+}
+
 model NewsArticle {
   id            String    @id @default(uuid())
-  authorId      String    @map("author_id")
+  // Null for an ingested article: it belongs to a source, not a member. See
+  // migration 076 for why outlets are not given profiles.
+  authorId      String?   @map("author_id")
   title         String
   excerpt       String
-  body          String
+  // Null for an ingested article. Almost every RSS and news-API licence grants
+  // headline, snippet and link — not the right to store the full text.
+  body          String?
   coverUrl      String?   @map("cover_url")
   category      String    @default("community") // policy | science | rescue | health | climate | community
   tier          String    @default("community") // institutional | verified | community
@@ -2508,13 +2540,22 @@ model NewsArticle {
   savesCount    Int       @default(0) @map("saves_count")
   commentsCount Int       @default(0) @map("comments_count")
   status        String    @default("published") // published | draft
+  // pending | approved | rejected. Only approved articles reach the home feed.
+  reviewStatus  String    @default("pending") @map("review_status")
+  reviewedBy    String?   @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  isExternal    Boolean   @default(false) @map("is_external")
+  sourceId      String?   @map("source_id")
+  /// Dedupe key for ingested articles — the same story arrives from many feeds.
+  canonicalUrl  String?   @unique @map("canonical_url")
   isDeleted     Boolean   @default(false) @map("is_deleted")
   hiddenAt      DateTime? @map("hidden_at")
   publishedAt   DateTime  @default(now()) @map("published_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  author   Profile       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   Profile?      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  source   NewsSource?   @relation(fields: [sourceId], references: [id], onDelete: SetNull)
   likes    NewsLike[]
   saves    NewsSave[]
   comments NewsComment[]

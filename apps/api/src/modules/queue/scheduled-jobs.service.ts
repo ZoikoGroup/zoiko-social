@@ -7,6 +7,7 @@ import { ConfigService } from '../config/config.service'
 import { LOW_CHURN_WORKER_OPTS } from './worker-options'
 import { ProfileService } from '../profile/profile.service'
 import { NotificationQueueService } from './notification-queue.service'
+import { NewsIngestService } from '../news/news-ingest.service'
 
 /**
  * ScheduledJobsService — repeatable BullMQ jobs for counter reconciliation
@@ -36,6 +37,7 @@ export const POST_VIEW_CLEANUP_QUEUE = 'post-view-cleanup'
 export const AFFINITY_DECAY_QUEUE = 'affinity-decay'
 export const EVENT_REMINDER_QUEUE = 'event-reminders'
 export const HEALTH_REMINDER_QUEUE = 'health-reminders'
+export const NEWS_INGEST_QUEUE = 'news-ingest'
 
 export interface HealthReminderWindow {
   from: Date
@@ -76,6 +78,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     private readonly config: ConfigService,
     private readonly profiles: ProfileService,
     private readonly notifications: NotificationQueueService,
+    private readonly newsIngest: NewsIngestService,
   ) {}
 
   onModuleInit(): void {
@@ -94,8 +97,9 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     const affinityConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const eventReminderConn = this.redis.createConnection({ maxRetriesPerRequest: null })
     const healthReminderConn = this.redis.createConnection({ maxRetriesPerRequest: null })
+    const newsIngestConn = this.redis.createConnection({ maxRetriesPerRequest: null })
 
-    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn || !eventReminderConn || !healthReminderConn) {
+    if (!reconcileConn || !cleanupConn || !purgeConn || !postViewConn || !affinityConn || !eventReminderConn || !healthReminderConn || !newsIngestConn) {
       this.logger.warn('Redis unavailable — scheduled jobs disabled')
       return
     }
@@ -107,6 +111,7 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
     this.setupAffinityDecay(affinityConn)
     this.setupEventReminders(eventReminderConn)
     this.setupHealthReminders(healthReminderConn)
+    this.setupNewsIngest(newsIngestConn)
 
     this.logger.log('Scheduled jobs initialised')
   }
@@ -424,6 +429,51 @@ export class ScheduledJobsService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ── 9. Event reminders (hourly) ────────────────────────────────────────
+
+  /**
+   * Pulls the curated news feeds.
+   *
+   * Every three hours: publishers in this space post a handful of times a day,
+   * so anything more frequent is requests spent to find nothing, and anything
+   * less makes the feed's "news" visibly stale.
+   *
+   * The same work is reachable as POST /news/ingest, which is what runs it
+   * while Redis is unavailable — this registration simply takes over once it
+   * is back, with no code change either way.
+   */
+  private setupNewsIngest(connection: Redis): void {
+    const queue = new Queue(NEWS_INGEST_QUEUE, {
+      connection,
+      defaultJobOptions: {
+        removeOnComplete: { age: 7 * 24 * 3600 },
+        removeOnFail: { age: 30 * 24 * 3600 },
+      },
+    })
+
+    queue.add(
+      'news.ingest',
+      {},
+      {
+        repeat: { pattern: '25 */3 * * *' }, // Every three hours, off the hour
+        jobId: 'news-ingest',
+      },
+    ).catch((err) =>
+      this.logger.warn(`Could not register news ingest repeatable: ${(err as Error).message}`),
+    )
+
+    const worker = new Worker(
+      NEWS_INGEST_QUEUE,
+      async () => {
+        const result = await this.newsIngest.ingestAll()
+        this.logger.log(`News ingest: ${result.created} new from ${result.sources} sources`)
+      },
+      { connection, concurrency: 1, ...LOW_CHURN_WORKER_OPTS },
+    )
+    worker.on('failed', (_job, err) => this.logger.warn(`News ingest failed: ${err.message}`))
+
+    this.queues.set(NEWS_INGEST_QUEUE, queue)
+    this.workers.set(NEWS_INGEST_QUEUE, worker)
+  }
 
   private setupEventReminders(connection: Redis): void {
     const queue = new Queue(EVENT_REMINDER_QUEUE, {

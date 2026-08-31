@@ -8,7 +8,10 @@ import type { CreateArticleInput, UpdateArticleInput, CommentInput, NewsCategory
 
 export interface ArticleResponse {
   id: string
-  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /** Null for an ingested article — it is attributed to a source instead. */
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean } | null
+  /** True when this came from a curated feed rather than a member. */
+  isExternal: boolean
   title: string
   excerpt: string
   body: string | null
@@ -51,6 +54,42 @@ interface BrowseFilters {
   q?: string
 }
 
+/**
+ * A news article as it appears inside the home feed.
+ *
+ * Deliberately not the full article: the feed shows a card, and shipping the
+ * body would put several kilobytes of prose per card into a page that already
+ * carries fifteen posts.
+ */
+export interface NewsFeedCard {
+  id: string
+  title: string
+  excerpt: string
+  coverUrl: string | null
+  category: string
+  /** institutional | verified | community — the reader's cue about sourcing. */
+  tier: string
+  sourceName: string | null
+  readMinutes: number
+  publishedAt: string
+  likesCount: number
+  commentsCount: number
+  /** True when this came from a curated feed rather than a member. */
+  isExternal: boolean
+  /**
+   * Where an external card opens. Present only for ingested articles — there
+   * is no stored body to read in-app, and every feed licence grants the link
+   * rather than the text.
+   */
+  sourceUrl: string | null
+  /** The source's own name and logo, so the card can be attributed like a post. */
+  source: { name: string; slug: string; logoUrl: string | null } | null
+  savesCount: number
+  /** Per-viewer, so the card opens with the right state instead of flickering. */
+  viewerLiked: boolean
+  viewerSaved: boolean
+}
+
 @Injectable()
 export class NewsService {
   constructor(
@@ -78,10 +117,13 @@ export class NewsService {
   private map(a: ArticleRow, liked: boolean, saved: boolean, withBody: boolean): ArticleResponse {
     return {
       id: a.id,
-      author: {
-        id: a.author.id, username: a.author.username, displayName: a.author.displayName,
-        avatarUrl: a.author.avatarUrl, isVerified: a.author.verificationTier === 'professional',
-      },
+      author: a.author
+        ? {
+            id: a.author.id, username: a.author.username, displayName: a.author.displayName,
+            avatarUrl: a.author.avatarUrl, isVerified: a.author.verificationTier === 'professional',
+          }
+        : null,
+      isExternal: a.isExternal,
       title: a.title, excerpt: a.excerpt, body: withBody ? a.body : null,
       coverUrl: a.coverUrl, category: a.category, tier: a.tier,
       sourceName: a.sourceName, sourceUrl: a.sourceUrl, readMinutes: a.readMinutes,
@@ -107,6 +149,9 @@ export class NewsService {
       isDeleted: false,
       status: 'published',
       hiddenAt: null,
+      // Unreviewed submissions are visible to their author under /news/mine,
+      // and nowhere else.
+      reviewStatus: 'approved',
       ...(filters.category ? { category: filters.category } : {}),
       ...(filters.tier ? { tier: filters.tier } : {}),
       ...(filters.q ? { OR: [{ title: { contains: filters.q, mode: 'insensitive' } }, { excerpt: { contains: filters.q, mode: 'insensitive' } }] } : {}),
@@ -173,9 +218,14 @@ export class NewsService {
     })
     if (!author) throw new NotFoundException({ code: 'AUTHOR_NOT_FOUND', message: 'Author not found' })
     const tier = this.tierFor(author)
+    // News reaches every member's home feed now, so a submission is reviewed
+    // before it gets there. Institutional and verified authors are already
+    // vetted — holding a verified news publisher in a queue would be a review
+    // of a review — so only community submissions wait.
+    const reviewStatus = tier === 'community' ? 'pending' : 'approved'
     const created = await this.prisma.newsArticle.create({
       data: {
-        authorId, title: input.title, excerpt: input.excerpt, body: input.body, tier,
+        authorId, title: input.title, excerpt: input.excerpt, body: input.body, tier, reviewStatus,
         category: input.category ?? 'community',
         readMinutes: input.readMinutes ?? Math.max(1, Math.round(input.body.split(/\s+/).length / 200)),
         ...(input.coverUrl ? { coverUrl: input.coverUrl } : {}),
@@ -310,7 +360,9 @@ export class NewsService {
       return c
     })
 
-    if (article.authorId !== authorId) {
+    // An ingested article has no author, so there is nobody to notify — the
+    // comment still lands, it simply notifies no one.
+    if (article.authorId && article.authorId !== authorId) {
       const commenter = await this.prisma.profile.findUnique({ where: { id: authorId }, select: { displayName: true, username: true } })
       void this.notifications.enqueue({
         userId: article.authorId,
@@ -336,4 +388,139 @@ export class NewsService {
       await tx.newsArticle.update({ where: { id: articleId }, data: { commentsCount: { decrement: 1 } } })
     })
   }
+  /**
+   * Articles for the home feed, as a deterministic slice.
+   *
+   * `skip` is derived from the feed's own page offset by the caller, so page two
+   * gets the articles page one did not — without any per-viewer state to store
+   * or a cursor to thread through.
+   *
+   * Featured first, then newest. Hidden and draft articles never appear: the
+   * feed is the widest surface in the app and is the last place an unpublished
+   * or moderated-away article should surface.
+   */
+  async feedCards(skip: number, take: number, viewerId?: string): Promise<NewsFeedCard[]> {
+    if (take <= 0) return []
+    const rows = await this.prisma.newsArticle.findMany({
+      where: { status: 'published', isDeleted: false, hiddenAt: null, reviewStatus: 'approved' },
+      orderBy: [{ featured: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }],
+      skip,
+      take,
+      select: {
+        id: true,
+        title: true,
+        excerpt: true,
+        coverUrl: true,
+        category: true,
+        tier: true,
+        sourceName: true,
+        readMinutes: true,
+        publishedAt: true,
+        likesCount: true,
+        commentsCount: true,
+        isExternal: true,
+        sourceUrl: true,
+        savesCount: true,
+        source: { select: { name: true, slug: true, logoUrl: true } },
+      },
+    })
+
+    // One batched pair of reads for the whole page rather than two per card.
+    // Without this the card renders unliked and corrects itself a moment later,
+    // which reads as the button undoing itself.
+    const ids = rows.map((r) => r.id)
+    const [likes, saves] = viewerId && ids.length > 0
+      ? await Promise.all([
+          this.prisma.newsLike.findMany({
+            where: { userId: viewerId, articleId: { in: ids } },
+            select: { articleId: true },
+          }),
+          this.prisma.newsSave.findMany({
+            where: { userId: viewerId, articleId: { in: ids } },
+            select: { articleId: true },
+          }),
+        ])
+      : [[], []]
+    const liked = new Set(likes.map((l) => l.articleId))
+    const saved = new Set(saves.map((x) => x.articleId))
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      excerpt: r.excerpt,
+      coverUrl: r.coverUrl,
+      category: r.category,
+      tier: r.tier,
+      sourceName: r.sourceName,
+      readMinutes: r.readMinutes,
+      publishedAt: r.publishedAt.toISOString(),
+      likesCount: r.likesCount,
+      commentsCount: r.commentsCount,
+      isExternal: r.isExternal,
+      sourceUrl: r.sourceUrl,
+      savesCount: r.savesCount,
+      source: r.source,
+      viewerLiked: liked.has(r.id),
+      viewerSaved: saved.has(r.id),
+    }))
+  }
+
+  // ── Moderation ─────────────────────────────────────────────────────────────
+
+  /** Submissions waiting on a decision, oldest first — a queue, not a feed. */
+  async pendingQueue(take = 30) {
+    const rows = await this.prisma.newsArticle.findMany({
+      where: { reviewStatus: 'pending', isDeleted: false },
+      orderBy: { createdAt: 'asc' },
+      take: Math.min(take, 100),
+      select: {
+        id: true,
+        title: true,
+        excerpt: true,
+        body: true,
+        coverUrl: true,
+        category: true,
+        tier: true,
+        sourceName: true,
+        sourceUrl: true,
+        createdAt: true,
+        author: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+      },
+    })
+    return rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+    }))
+  }
+
+  /**
+   * Approves or rejects a submission.
+   *
+   * A rejected article is not deleted — the author keeps it under /news/mine
+   * and can see it was turned down. Deleting someone's work on review is how a
+   * moderation queue becomes a thing contributors resent.
+   */
+  async review(articleId: string, moderatorId: string, approve: boolean) {
+    const article = await this.prisma.newsArticle.findUnique({
+      where: { id: articleId },
+      select: { id: true, reviewStatus: true },
+    })
+    if (!article) throw new NotFoundException({ code: 'ARTICLE_NOT_FOUND', message: 'Article not found' })
+
+    const updated = await this.prisma.newsArticle.update({
+      where: { id: articleId },
+      data: {
+        reviewStatus: approve ? 'approved' : 'rejected',
+        reviewedBy: moderatorId,
+        reviewedAt: new Date(),
+      },
+      select: { id: true, reviewStatus: true },
+    })
+    return updated
+  }
+
+  /** How many are waiting, for the badge on the moderator's queue. */
+  async pendingCount(): Promise<number> {
+    return this.prisma.newsArticle.count({ where: { reviewStatus: 'pending', isDeleted: false } })
+  }
+
 }
