@@ -27,14 +27,15 @@ jobs:
     steps:
       - name: Deploy frontend over SSH
         uses: appleboy/ssh-action@v1.0.3
-        # appleboy/ssh-action kills the remote command after 10 minutes by
-        # default, and nothing here set it. The build runs BEFORE the
-        # container is swapped, so hitting it left production untouched and
-        # simply never deployed — a silent no-op dressed as a red build.
-        # the web image runs a full Next production build.
-        timeout: 60s
-        command_timeout: 30m
         with:
+          # appleboy/ssh-action kills the remote command after 10 minutes by
+          # default, and nothing here set it. The build runs BEFORE the
+          # container is swapped, so hitting that ceiling left production
+          # untouched and simply never deployed.
+          command_timeout: 30m
+          # Bounds connection setup separately, so an unreachable host still
+          # fails in a minute rather than sitting for the whole window.
+          timeout: 60s
           host: ${{ secrets.GCP_SSH_HOST }}
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
