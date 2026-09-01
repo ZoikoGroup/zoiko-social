@@ -190,7 +190,26 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                 )}
               </div>
 
-              <div className="prose-article mt-5 text-body-md text-on-surface leading-relaxed whitespace-pre-line">{article.body}</div>
+              {/*
+                An ingested article has no stored body — the licence covers the
+                headline, the excerpt and the link, not the text. That left an
+                empty column here, and the only way to actually read the piece
+                was a footnote below the fold. So when there is no body, the page
+                offers the way to read it instead of nothing.
+              */}
+              {article.body ? (
+                <div className="prose-article mt-5 text-body-md text-on-surface leading-relaxed whitespace-pre-line">{article.body}</div>
+              ) : article.sourceUrl ? (
+                <a
+                  href={article.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-5 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-label-md font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Read the full article at {article.sourceName ?? 'the source'}
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              ) : null}
 
               {article.sourceName && (
                 <div className="mt-6 p-3 rounded-xl bg-surface-container border border-outline-variant/20 flex items-center gap-2 text-label-sm">
