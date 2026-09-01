@@ -88,7 +88,7 @@ export class RateLimiterGuard implements CanActivate {
     const userId = (request as unknown as Record<string, unknown>).auth_user
       ? ((request as unknown as Record<string, unknown>).auth_user as { id: string }).id
       : undefined
-    const ip = request.ip ?? request.socket?.remoteAddress ?? 'unknown'
+    const ip = this.clientIp(request)
     const identifier = userId ?? ip
 
     // Determine the route name for limit lookup
@@ -155,6 +155,32 @@ export class RateLimiterGuard implements CanActivate {
     const controllerName = controller.name.replace(/Controller$/, '').toLowerCase()
     const handlerName = handler.name.toLowerCase()
     return `${controllerName}.${handlerName}`
+  }
+
+  /**
+   * The caller's real address, as far as it can be trusted.
+   *
+   * The API sits behind Cloudflare and Fastify is not configured with
+   * `trustProxy`, so `request.ip` is a Cloudflare edge address. Every anonymous
+   * caller arriving through the same edge therefore shared a single rate-limit
+   * bucket: one abuser consumed the anonymous allowance for everyone routed
+   * through that datacentre, and a per-IP limit isolated nobody. Authenticated
+   * callers were unaffected — they key on user id.
+   *
+   * `CF-Connecting-IP` is set by Cloudflare and overwritten on every request, so
+   * a client cannot forge it while traffic reaches the origin only through
+   * Cloudflare.
+   *
+   * X-Forwarded-For is deliberately NOT consulted. On a direct connection it is
+   * just a client-supplied header, so trusting it would hand an attacker a fresh
+   * identity per request — a worse hole than the one being closed. If the origin
+   * ever becomes directly reachable, restrict it to Cloudflare's ranges at the
+   * firewall rather than adding header fallbacks here.
+   */
+  private clientIp(request: FastifyRequest): string {
+    const forwarded = request.headers['cf-connecting-ip']
+    if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded
+    return request.ip ?? request.socket?.remoteAddress ?? 'unknown'
   }
 
   private getRouteLimit(request: FastifyRequest): { limit: number; windowSeconds: number; prefix: string } | null {
