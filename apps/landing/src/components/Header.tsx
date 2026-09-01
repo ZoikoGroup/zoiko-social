@@ -116,8 +116,16 @@ function SearchForm({ className = "" }: { className?: string }) {
   );
 }
 
-export default function Header() {
-  const pathname = usePathname();
+/**
+ * The header itself.
+ *
+ * Mounted under a `key` of the current route by the wrapper below, so a
+ * navigation throws this component's state away and builds it fresh. Both
+ * panels are siblings of the page rather than part of it, and would otherwise
+ * be left standing open over the new page; remounting closes them without an
+ * effect that writes state straight back on every route change.
+ */
+function HeaderBar({ pathname }: { pathname: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   /* Which panel is open, by label. Only one at a time. */
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -134,15 +142,6 @@ export default function Header() {
    * Home. Picking an item moves it there, and `null` falls back to the route,
    * so a plain page load still lights up Home. */
   const [selected, setSelected] = useState<string | null>(null);
-
-  /* Both panels are siblings of the page, not part of it, so a navigation that
-     changes the route would otherwise leave one standing open over the new
-     page. */
-  useEffect(() => {
-    setMenuOpen(false);
-    setOpenDropdown(null);
-    setSelected(null);
-  }, [pathname]);
 
   /* Escape closes the open panel. Pointer users get this from the hover-out on
      the wrapper; keyboard users would otherwise have no way back out. */
@@ -383,4 +382,10 @@ export default function Header() {
       )}
     </header>
   );
+}
+
+export default function Header() {
+  const pathname = usePathname();
+
+  return <HeaderBar key={pathname} pathname={pathname} />;
 }
