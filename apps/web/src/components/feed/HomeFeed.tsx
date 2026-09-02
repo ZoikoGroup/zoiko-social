@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { ArrowUp, PawPrint, ChevronDown, MapPin } from 'lucide-react'
+import { ArrowUp, PawPrint, ChevronDown, MapPin, Check, RefreshCw } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
 import { NewsFeedCard } from './NewsFeedCard'
@@ -111,6 +111,7 @@ export function HomeFeed(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [newPostsAvailable, setNewPostsAvailable] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [lostAlert, setLostAlert] = useState<LostFoundReport | null>(null)
   /**
    * News cards, at indices absolute to the accumulated post list.
@@ -124,11 +125,24 @@ export function HomeFeed(): React.JSX.Element {
   const postCountRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  /** Index → article, so the render is a lookup rather than a scan per post. */
-  const newsAt = useMemo(
-    () => new Map(newsCards.map((n) => [n.afterIndex, n.article])),
-    [newsCards],
-  )
+  /**
+   * Index → articles, so the render is a lookup rather than a scan per post.
+   *
+   * A list per index rather than a single article, because two cards can end up
+   * claiming the same slot: the server positions each page's overflow past that
+   * page's last post, and a later page's posts can then occupy those same
+   * indices. Keyed one-to-one, the second card silently replaced the first and
+   * an article simply vanished from the feed.
+   */
+  const newsAt = useMemo(() => {
+    const byIndex = new Map<number, NewsCardItem[]>()
+    for (const { afterIndex, article } of newsCards) {
+      const existing = byIndex.get(afterIndex)
+      if (existing) existing.push(article)
+      else byIndex.set(afterIndex, [article])
+    }
+    return byIndex
+  }, [newsCards])
 
   const loadFirstPage = useCallback(async (): Promise<void> => {
     try {
@@ -143,6 +157,32 @@ export function HomeFeed(): React.JSX.Element {
       setLoading(false)
     }
   }, [])
+
+  /**
+   * Pulls the newest page in and returns to the top.
+   *
+   * Shared by the "new posts" pill and the end-of-feed control, because they
+   * are the same request wearing two hats: one fires when the socket says
+   * something arrived, the other when a reader who has reached the bottom asks
+   * for themselves.
+   *
+   * The list is replaced rather than appended to. A refresh is a request for
+   * what is current, and merging a fresh ranking into a stale one produces an
+   * order that matches neither.
+   *
+   * Deliberately no skeleton, unlike the first load: the posts already on
+   * screen stay put until the new ones are ready, so asking for the latest
+   * never blanks the page you were reading.
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    setRefreshing(true)
+    try {
+      await loadFirstPage()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadFirstPage])
 
   useEffect(() => {
     // Deferred so state updates never run synchronously inside the effect body
@@ -235,7 +275,7 @@ export function HomeFeed(): React.JSX.Element {
       {/* New posts pill */}
       {newPostsAvailable && (
         <button
-          onClick={() => { setLoading(true); void loadFirstPage() }}
+          onClick={() => { void refresh() }}
           className="sticky top-20 z-20 mx-auto flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold shadow-lg shadow-primary/30 hover:bg-primary/90 transition-colors cursor-pointer"
         >
           <ArrowUp className="w-4 h-4" />
@@ -278,7 +318,9 @@ export function HomeFeed(): React.JSX.Element {
                 post={post}
                 onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
               />
-              {newsAt.get(i) && <NewsFeedCard article={newsAt.get(i)!} />}
+              {newsAt.get(i)?.map((article) => (
+                <NewsFeedCard key={article.id} article={article} />
+              ))}
             </Fragment>
           ))}
           {/*
@@ -294,6 +336,33 @@ export function HomeFeed(): React.JSX.Element {
 
           <div ref={sentinelRef} className="h-1" />
           {loadingMore && <FeedSkeleton />}
+
+          {/*
+            The end of the feed, stated rather than implied.
+
+            Without this the list simply stopped: no more posts, no sentinel
+            firing, and nothing to say whether everything had been seen or the
+            next page had failed. Reaching the bottom should read as finished,
+            and it should offer the one thing wanted there — a way to check
+            whether anything has arrived since.
+          */}
+          {!hasMore && !loadingMore && (
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm px-6 py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                <Check className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-label-md font-bold text-on-surface mb-1">{t('caughtUp')}</h3>
+              <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">{t('caughtUpBody')}</p>
+              <button
+                onClick={() => { void refresh() }}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? t('refreshing') : t('refresh')}
+              </button>
+            </div>
+          )}
         </>
       )}
 
