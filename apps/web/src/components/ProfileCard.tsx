@@ -1,10 +1,13 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { AtSign, BadgeCheck, MapPin } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { usePresence } from '@/hooks/use-presence'
 import { UserAvatar } from './UserAvatar'
+import { Img } from './Img'
 import { type Profile } from '@/lib/api'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
@@ -17,6 +20,19 @@ function strength(p: Profile): number {
   return Math.min(100, s)
 }
 
+/**
+ * Dot colour per real presence status.
+ *
+ * This used to be a fixed green, which said "online" whether or not the socket
+ * was even connected — an indicator that cannot be wrong is not an indicator.
+ */
+const STATUS_COLOR: Record<string, string> = {
+  online: 'bg-emerald-500',
+  away: 'bg-amber-500',
+  do_not_disturb: 'bg-red-500',
+  offline: 'bg-outline',
+}
+
 function compact(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`
   return String(n)
@@ -26,6 +42,21 @@ export function ProfileCard(): React.JSX.Element {
   const profLabel = useProfessionalLabel()
   const t = useTranslations('profileCard')
   const { profile } = useAuth()
+  const { getPresence, subscribePresence, unsubscribePresence } = usePresence()
+
+  /*
+    Own presence comes from the server like anyone else's.
+
+    `presence:subscribe` joins the room and replies with the stored state
+    immediately, and the gateway marks a member online the moment their socket
+    connects — so this reflects `user_presence`, not an assumption about it.
+  */
+  const viewerId = profile?.id
+  useEffect(() => {
+    if (!viewerId) return
+    subscribePresence(viewerId)
+    return () => unsubscribePresence(viewerId)
+  }, [viewerId, subscribePresence, unsubscribePresence])
 
   if (!profile) {
     return (
@@ -49,6 +80,7 @@ export function ProfileCard(): React.JSX.Element {
       : null)
   const location = profile.professionalProfile?.businessAddress ?? null
   const pct = strength(profile)
+  const presence = getPresence(profile.id)
 
   const stats = [
     { label: t('connections'), value: compact(profile.followersCount) },
@@ -58,15 +90,36 @@ export function ProfileCard(): React.JSX.Element {
 
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
-      {/* Cover */}
-      <div className="h-24 bg-gradient-to-br from-primary/40 via-primary/15 to-secondary/30 relative" />
+      {/*
+        The member's own banner, when they have uploaded one.
+
+        This was a fixed gradient that never read `bannerUrl` at all, so setting
+        a banner appeared to do nothing here while the profile page showed it
+        correctly. The gradient stays as the fallback for a profile with no
+        banner, which is most of them.
+      */}
+      <div className="h-24 relative overflow-hidden bg-gradient-to-br from-primary/40 via-primary/15 to-secondary/30">
+        {profile.bannerUrl && (
+          <Img
+            src={profile.bannerUrl}
+            alt=""
+            priority
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+      </div>
 
       <div className="px-4 pb-4">
         {/* Avatar overlapping cover */}
         <div className="-mt-9 mb-2 flex items-end justify-between">
           <Link href="/profile" className="relative ring-4 ring-surface-container-lowest rounded-full">
             <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="lg" verified={isVerified} />
-            <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-surface-container-lowest" />
+            <span
+              title={presence.status.replace('_', ' ')}
+              className={`absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full border-2 border-surface-container-lowest ${
+                STATUS_COLOR[presence.status] ?? STATUS_COLOR.offline
+              }`}
+            />
           </Link>
         </div>
 
