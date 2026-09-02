@@ -185,7 +185,19 @@ export function NewsFeedCard({ article }: { article: NewsCardItem }): React.JSX.
               src={article.coverUrl}
               alt=""
               fill
-              sizes="(max-width: 640px) 100vw, 600px"
+              /*
+                The feed column is 9 of 12 columns inside a 1280px container, so
+                it renders around 900px wide on a desktop and full-bleed on a
+                phone. This said 600px, which had next/image serve a 600px file
+                into a 900px frame — a 1.5x upscale that softened every cover
+                before the image even mattered.
+              */
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 900px"
+              /*
+                Above the default 75. A cover is the largest thing on the card
+                and photographic, which is exactly where JPEG artefacts show.
+              */
+              quality={85}
               className="object-cover"
             />
           </div>

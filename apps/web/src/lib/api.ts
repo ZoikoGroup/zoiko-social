@@ -1367,6 +1367,10 @@ export interface PendingArticleItem {
 export interface IngestRunResult {
   sources: number
   created: number
+  /** Articles whose source link is gone and which were withdrawn. */
+  removed: number
+  /** Covers that were too small to render and were replaced with a larger one. */
+  repaired: number
   results: { source: string; fetched: number; created: number; skipped: number; error?: string }[]
 }
 
@@ -1445,7 +1449,12 @@ export const newsAdminApi = {
 }
 
 export const feedApi = {
-  home: (cursor?: string | null, limit = 15) =>
+  /*
+    30, which is what the API caps a page at. It was 15, so the feed asked
+    for half of what it was allowed and the sentinel came back around twice
+    as often on the way down a long scroll.
+  */
+  home: (cursor?: string | null, limit = 30) =>
     request<HomeFeedPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   explore: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),

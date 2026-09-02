@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { XMLParser } from 'fast-xml-parser'
 import { PrismaService } from '../prisma/prisma.service'
-import { NewsCoverService } from './news-cover.service'
+import { NewsCoverService, MIN_COVER_WIDTH } from './news-cover.service'
+import { readImageDimensions } from './image-size'
 
 /**
  * Pulls articles from curated RSS/Atom feeds.
@@ -32,6 +33,15 @@ const MAX_AGE_DAYS = 30
  * first, so the whole catalogue is covered over a few runs.
  */
 const LINK_CHECKS_PER_RUN = 40
+
+/**
+ * Covers re-examined per run.
+ *
+ * Each one costs a download and possibly an article-page fetch, so this is
+ * deliberately small — the backlog clears over a handful of runs instead of
+ * turning one scheduled ingest into a crawl of every publisher at once.
+ */
+const COVER_REPAIRS_PER_RUN = 12
 
 export interface IngestResult {
   source: string
@@ -76,7 +86,7 @@ export class NewsIngestService {
    * latency-sensitive path, and hitting twenty publishers at once from one IP
    * is how an ingester gets rate-limited or blocked.
    */
-  async ingestAll(): Promise<{ sources: number; created: number; removed: number; results: IngestResult[] }> {
+  async ingestAll(): Promise<{ sources: number; created: number; removed: number; repaired: number; results: IngestResult[] }> {
     const sources = await this.prisma.newsSource.findMany({
       where: { enabled: true },
       orderBy: { lastFetchedAt: { sort: 'asc', nulls: 'first' } },
@@ -91,10 +101,15 @@ export class NewsIngestService {
     // we show in step with what the publisher still stands behind.
     const removed = await this.retireDeadLinks()
 
+    // Covers stored before there was a size floor are repaired here rather than
+    // by a one-off script, so the fix arrives on its own and keeps arriving.
+    const repaired = await this.repairWeakCovers()
+
     return {
       sources: sources.length,
       created: results.reduce((n, r) => n + r.created, 0),
       removed,
+      repaired,
       results,
     }
   }
@@ -330,18 +345,185 @@ export class NewsIngestService {
     return new Date()
   }
 
-  /** Publishers disagree on where the image goes; these are the common four. */
-  private readImage(node: Record<string, unknown>): string | null {
-    const candidates: unknown[] = [
-      (node['media:content'] as Record<string, unknown> | undefined)?.['@_url'],
-      (node['media:thumbnail'] as Record<string, unknown> | undefined)?.['@_url'],
-      (node.enclosure as Record<string, unknown> | undefined)?.['@_url'],
-      (node['itunes:image'] as Record<string, unknown> | undefined)?.['@_href'],
-    ]
-    for (const c of candidates) {
-      if (typeof c === 'string' && /^https?:\/\//i.test(c)) return c.slice(0, 600)
+  /**
+   * Replaces covers that are too small to render, a few at a time.
+   *
+   * Everything mirrored before there was a size floor is still in storage,
+   * including a run of 90x90 thumbnails that the feed was stretching across a
+   * 900px column. Those cannot be identified from the database — the stored row
+   * knows the URL, not the dimensions — so each candidate is measured, and only
+   * the ones that fail get a second attempt via the article's own og:image.
+   *
+   * `updatedAt` doubles as "last examined", exactly as it does for dead links,
+   * so successive runs walk the whole catalogue instead of re-checking the same
+   * few rows. That means every path here writes to the row, including the ones
+   * that change nothing.
+   *
+   * When no better image can be found the cover is cleared. An article with no
+   * picture reads as a deliberate choice; one with a smeared picture reads as a
+   * broken page.
+   */
+  async repairWeakCovers(limit = COVER_REPAIRS_PER_RUN): Promise<number> {
+    const candidates = await this.prisma.newsArticle.findMany({
+      where: { coverUrl: { not: null }, isDeleted: false },
+      orderBy: { updatedAt: 'asc' },
+      take: limit,
+      select: { id: true, coverUrl: true, sourceUrl: true },
+    })
+
+    let repaired = 0
+    for (const article of candidates) {
+      const width = await this.measureCover(article.coverUrl!)
+
+      // Unmeasurable is left alone: it means a format we do not parse, not a
+      // bad cover, and replacing it would be guesswork.
+      if (width === null || width >= MIN_COVER_WIDTH) {
+        await this.touch(article.id)
+        continue
+      }
+
+      /*
+        The old file goes first, unconditionally.
+
+        It is being discarded either way — replaced if the article page offers
+        something better, cleared if it does not — and a replacement arriving
+        under a different extension (`.png` over a stored `.jpg`) would upsert
+        alongside it rather than over it, leaving the original orphaned in the
+        bucket with nothing referencing it.
+      */
+      await this.covers.remove(article.id)
+
+      const replacement = article.sourceUrl
+        ? await this.acquireCover(null, article.sourceUrl, article.id)
+        : null
+
+      await this.prisma.newsArticle.update({
+        where: { id: article.id },
+        // Cleared rather than kept when nothing better exists.
+        data: { coverUrl: replacement },
+      })
+
+      if (replacement) {
+        repaired++
+        this.logger.log(`Replaced an undersized cover for article ${article.id}`)
+      } else {
+        this.logger.debug(`Cleared an undersized cover for article ${article.id}`)
+      }
     }
-    return null
+
+    return repaired
+  }
+
+  /** The stored cover's real width, or null if it cannot be read. */
+  private async measureCover(url: string): Promise<number | null> {
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 10_000)
+      try {
+        const res = await fetch(url, { signal: controller.signal })
+        if (!res.ok) return null
+        const size = readImageDimensions(Buffer.from(await res.arrayBuffer()))
+        return size ? size.width : null
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Marks a row as examined without changing anything else.
+   *
+   * Without this the ordering above would hand back the same rows every run and
+   * the rest of the catalogue would never be reached.
+   */
+  private async touch(articleId: string): Promise<void> {
+    await this.prisma.newsArticle
+      .update({ where: { id: articleId }, data: { updatedAt: new Date() } })
+      .catch(() => undefined)
+  }
+
+  /**
+   * Gets a usable cover for an article, from the feed or from the article page.
+   *
+   * Two sources, tried in order, because neither is sufficient alone. The feed
+   * image is free — already in hand, no extra request — but several publishers
+   * only offer a list thumbnail. The article's own og:image is the right size
+   * but costs a page fetch, so it is the fallback rather than the default.
+   *
+   * `mirror()` enforces the size floor, so "the feed image was too small" and
+   * "there was no feed image" arrive here as the same null and take the same
+   * path. That is the point: the caller does not need to know which happened.
+   */
+  private async acquireCover(
+    feedImageUrl: string | null,
+    articleUrl: string,
+    articleId: string,
+  ): Promise<string | null> {
+    if (feedImageUrl) {
+      const fromFeed = await this.covers.mirror(feedImageUrl, articleId)
+      if (fromFeed) return fromFeed
+    }
+
+    if (!articleUrl) return null
+    const og = await this.covers.resolveOgImage(articleUrl)
+    // Guard against the page pointing back at the thumbnail we just rejected —
+    // a wasted round trip that ends in the same refusal.
+    if (!og || og === feedImageUrl) return null
+
+    return this.covers.mirror(og, articleId)
+  }
+
+  /**
+   * The best image a feed item offers, not merely the first.
+   *
+   * Publishers disagree on where the image goes, and several supply more than
+   * one at different sizes — commonly a `media:thumbnail` for lists alongside a
+   * full-size `media:content`. Taking the first match picked the thumbnail, so
+   * the feed mirrored 90x90 images and rendered them across a 900px column.
+   *
+   * Widest declared wins; an undeclared width sorts last but still counts,
+   * because plenty of full-size images carry no attribute at all and the real
+   * dimensions get measured at mirror time regardless.
+   */
+  private readImage(node: Record<string, unknown>): string | null {
+    const candidates: { url: string; width: number }[] = []
+
+    const consider = (raw: unknown, urlKey: string): void => {
+      // A feed may repeat any of these tags, in which case the parser hands
+      // back an array — the case that matters most here, since that is exactly
+      // how a publisher offers several sizes.
+      const nodes = Array.isArray(raw) ? raw : [raw]
+      for (const n of nodes) {
+        if (!n || typeof n !== 'object') continue
+        const entry = n as Record<string, unknown>
+        const url = entry[urlKey]
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) continue
+
+        // Some feeds put the size on the medium instead; both are advisory.
+        const declared = Number(entry['@_width'] ?? entry['@_height'] ?? 0)
+        candidates.push({
+          url: url.slice(0, 600),
+          width: Number.isFinite(declared) && declared > 0 ? declared : 0,
+        })
+      }
+    }
+
+    consider(node['media:content'], '@_url')
+    consider(node['media:thumbnail'], '@_url')
+    consider(node.enclosure, '@_url')
+    consider(node['itunes:image'], '@_href')
+
+    if (candidates.length === 0) return null
+
+    // Stable: equal widths keep feed order, so the publisher's own preference
+    // survives when nothing distinguishes the candidates.
+    let best = candidates[0]!
+    for (const c of candidates) {
+      if (c.width > best.width) best = c
+    }
+    return best.url
   }
 
   /**
@@ -416,14 +598,12 @@ export class NewsIngestService {
 
       // After the insert, so a slow or hostile image host delays nothing and
       // the article exists either way.
-      if (item.imageUrl) {
-        const mirrored = await this.covers.mirror(item.imageUrl, created.id)
-        if (mirrored) {
-          await this.prisma.newsArticle.update({
-            where: { id: created.id },
-            data: { coverUrl: mirrored },
-          })
-        }
+      const cover = await this.acquireCover(item.imageUrl, item.link, created.id)
+      if (cover) {
+        await this.prisma.newsArticle.update({
+          where: { id: created.id },
+          data: { coverUrl: cover },
+        })
       }
       return true
     } catch {

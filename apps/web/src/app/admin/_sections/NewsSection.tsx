@@ -227,7 +227,14 @@ export function NewsSection(): React.JSX.Element {
               {lastRun && (
                 <p className="text-label-sm text-outline mb-4">
                   Last run: {lastRun.created} new {lastRun.created === 1 ? 'article' : 'articles'} from{' '}
-                  {lastRun.sources} {lastRun.sources === 1 ? 'source' : 'sources'}.
+                  {lastRun.sources} {lastRun.sources === 1 ? 'source' : 'sources'}
+                  {/*
+                    Reported because a run that creates nothing is not the same
+                    as a run that did nothing — it may have withdrawn dead links
+                    or replaced covers too small to render.
+                  */}
+                  {lastRun.removed > 0 && `, ${lastRun.removed} withdrawn`}
+                  {lastRun.repaired > 0 && `, ${lastRun.repaired} ${lastRun.repaired === 1 ? 'cover' : 'covers'} replaced`}.
                 </p>
               )}
 
