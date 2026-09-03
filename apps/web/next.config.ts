@@ -28,6 +28,33 @@ const nextConfig: NextConfig = {
 
   async headers() {
     return [
+      /*
+        The service worker script must never be held in a cache.
+
+        Cloudflare applies a default edge TTL to .js and was serving /sw.js with
+        `Cache-Control: public, max-age=14400`. Two consequences, both bad for a
+        service worker: a deployed update could take four hours to reach anyone,
+        and different edges could hand back different bytes of the same file — so
+        the browser saw sw.js "change" load after load, fired `updatefound` each
+        time, and the client's reload-on-update turned that into a refresh loop.
+
+        Proof it was stale rather than theoretical: the cached /sw.js response
+        carried a CSP missing a script-src host the live pages already had.
+
+        This entry sits BEFORE the catch-all and adds only Cache-Control, so the
+        security headers below still apply to /sw.js — Next merges matching
+        entries rather than letting the first one win.
+
+        The script only. Assets the worker caches are content hashed and should
+        stay cacheable; it is the worker itself that has to be revalidated every
+        time, which is what the spec expects.
+      */
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, no-cache, must-revalidate' },
+        ],
+      },
       {
         source: '/(.*)',
         headers: [

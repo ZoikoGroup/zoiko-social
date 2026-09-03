@@ -77,6 +77,26 @@ export class AiAssistantService implements OnModuleInit {
       const reason = error instanceof Error ? error.message : String(error)
       this.logger.warn(`Could not provision ${AI_DISPLAY_NAME} profile: ${reason}`)
     }
+
+    /*
+      Say plainly when the assistant cannot actually answer.
+
+      Existing and working are separate things: the profile and its DM thread
+      are there whether or not a key is configured, so the log otherwise reads
+      as healthy while every reply is the fixed "not quite switched on yet"
+      text. Production ran that way long enough to be reported as a bug — "the
+      AI gives the same answer to every question", which it does, correctly,
+      with no key.
+
+      Here rather than in ensureAiProfile: that returns early on the existing
+      profile, so anything logged past that point fires only on the first boot
+      of a fresh database and never again.
+    */
+    if (!this.groq.enabled) {
+      this.logger.warn(
+        `${AI_DISPLAY_NAME} has no GROQ_API_KEY — every reply will be the "not configured" message`,
+      )
+    }
   }
 
   /** The assistant's profile id, or null when it has not been provisioned. */
@@ -134,6 +154,7 @@ export class AiAssistantService implements OnModuleInit {
 
     this.aiProfileId = profile.id
     this.logger.log(`${AI_DISPLAY_NAME} profile ready (@${AI_USERNAME})`)
+
     return profile.id
   }
 
