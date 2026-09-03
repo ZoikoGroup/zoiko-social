@@ -472,6 +472,7 @@
     "moreActions": "Plus d'actions",
     "verified": "Vérifié",
     "online": "En ligne",
+    "lastActive": "Actif {when}",
     "mute": "Mettre en sourdine",
     "unmute": "Réactiver",
     "block": "Bloquer",

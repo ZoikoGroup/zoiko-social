@@ -812,11 +812,25 @@ export function MessageConversation({
   )
   const someoneTyping = typingUsers.length > 0
 
-  const typingText = isOnline
+  /*
+    The assistant always reads as online.
+
+    It is a real profile that never signs in — deliberately, so the whole
+    messaging stack works on it without special cases — so the presence lookup
+    honestly finds nothing and the header used to fall through to "Offline".
+    That reads as a fault in a chat that answers immediately.
+
+    Shown as online rather than as its own status because it is available
+    whenever the app is: there is no state in which the thread accepts a message
+    and nothing answers.
+  */
+  const typingText = isAiChat
     ? 'Active now'
-    : otherPresence?.lastSeen
-      ? tmsg('lastSeen', { when: formatLastSeen(otherPresence.lastSeen, locale) })
-      : 'Offline'
+    : isOnline
+      ? 'Active now'
+      : otherPresence?.lastSeen
+        ? tmsg('lastSeen', { when: formatLastSeen(otherPresence.lastSeen, locale) })
+        : 'Offline'
 
   const typingLabel = useMemo(() => {
     if (typingUsers.length === 0) return ''
@@ -1495,16 +1509,31 @@ export function MessageConversation({
                   <span className="font-medium text-xs">Leave group</span>
                 </Button>
               )}
-              <Button
-                className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
-                size="sm"
-                type="button"
-                variant="ghost"
-                onClick={() => void handleDeleteConversation()}
-              >
-                <Trash2 className="size-4" />
-                <span className="font-medium text-xs">Delete Conversation</span>
-              </Button>
+              {/*
+                Not offered for the assistant, because it cannot be deleted.
+
+                Every member is guaranteed an assistant thread, so the inbox
+                re-provisions it on load — restoring the member's side if they
+                had deleted it, which is deliberate: losing the assistant with
+                no way back was the bug that behaviour fixed.
+
+                The consequence was a menu item that reported "Deleted" and then
+                had its work undone by the refetch on the next line, so the
+                thread never left the list. A control that cannot do what it
+                says should not be shown.
+              */}
+              {!isAiChat && (
+                <Button
+                  className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void handleDeleteConversation()}
+                >
+                  <Trash2 className="size-4" />
+                  <span className="font-medium text-xs">Delete Conversation</span>
+                </Button>
+              )}
               <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-yellow-600 hover:bg-accent"
                 size="sm"
@@ -2425,12 +2454,18 @@ export function MessageConversation({
                   <p className="text-sm text-muted-foreground mt-0.5">@{otherParticipant.username}</p>
                 )}
                 </IdentityLink>
+                {/* Same reasoning as the header: no presence to report. */}
                 <span className={cn(
                   'inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full',
-                  isOnline ? 'text-green-700 bg-green-50' : 'text-muted-foreground bg-surface-container',
+                  isAiChat || isOnline
+                    ? 'text-green-700 bg-green-50'
+                    : 'text-muted-foreground bg-surface-container',
                 )}>
-                  <span className={cn('size-1.5 rounded-full', isOnline ? 'bg-green-500' : 'bg-muted-foreground/40')} />
-                  {isOnline ? 'Active now' : 'Offline'}
+                  <span className={cn(
+                    'size-1.5 rounded-full',
+                    isAiChat || isOnline ? 'bg-green-500' : 'bg-muted-foreground/40',
+                  )} />
+                  {isAiChat || isOnline ? 'Active now' : 'Offline'}
                 </span>
               </div>
               {isCommunity && communityAccess?.isAdmin && conversationId && (

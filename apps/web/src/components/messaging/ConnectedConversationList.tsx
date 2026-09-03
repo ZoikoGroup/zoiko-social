@@ -12,6 +12,7 @@ import { UserAvatar } from '@/components/UserAvatar'
 import { GroupInvitations } from '@/components/messaging/GroupInvitations'
 import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
+import { isAiAssistant } from '@/lib/ai-assistant'
 import { useAuth } from '@/hooks/use-auth'
 import type { Conversation } from '@/hooks/use-messaging'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
@@ -374,7 +375,15 @@ function ConversationItem({
   const lastMsg = conv.lastMessage
   const lastMsgText = lastMsg ? truncateMessage(lastMsg.body, lastMsg.senderId, currentUserId, t('sentAMessage'), t('youPrefix'), t('sentAPost'), lastMsg.type) : t('noMessagesYet')
   const timeStr = lastMsg ? formatTime(lastMsg.createdAt, locale, t('now')) : ''
-  const showOnline = isDM && isOnline
+  /*
+    The assistant carries a presence dot like anyone online.
+
+    It never signs in, so the presence lookup finds nothing and it would sit
+    dotless next to real contacts — the same mismatch that made the conversation
+    header read "Offline" on a chat that answers immediately.
+  */
+  const isAi = isDM && isAiAssistant(otherParticipant?.username)
+  const showOnline = isDM && (isAi || isOnline)
   const isTyping = otherUserId && conv.id ? isUserTyping(otherUserId, conv.id) : false
 
   return (

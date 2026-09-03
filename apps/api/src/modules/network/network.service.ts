@@ -621,18 +621,25 @@ export class NetworkService {
     await this.redis.invalidateRelationship(muterId, mutedId)
   }
 
+  /**
+   * Idempotent, deliberately: the caller wants "not muted", and if that is
+   * already true they have got what they asked for.
+   *
+   * This used to 404 with NOT_MUTED when no row existed, which made the mute
+   * control fail whenever the client's cached relationship disagreed with the
+   * server — a stale `muted: true` sent an unmute for a mute that was not
+   * there, and the member saw "Action failed — Resource not found" for an
+   * action whose goal was already met. `muteUser` above upserts for the same
+   * reason; the pair should behave alike.
+   */
   async unmuteUser(muterId: string, mutedId: string): Promise<void> {
-    const mute = await this.prisma.mutedUser.findUnique({
-      where: { muterId_mutedId: { muterId, mutedId } },
+    const { count } = await this.prisma.mutedUser.deleteMany({
+      where: { muterId, mutedId },
     })
-    if (!mute) {
-      throw new NotFoundException({ code: 'NOT_MUTED', message: 'This user is not muted' })
+    // Only bust the cache when something actually changed.
+    if (count > 0) {
+      await this.redis.invalidateRelationship(muterId, mutedId)
     }
-
-    await this.prisma.mutedUser.delete({
-      where: { muterId_mutedId: { muterId, mutedId } },
-    })
-    await this.redis.invalidateRelationship(muterId, mutedId)
   }
 
   async getMutedUsers(userId: string): Promise<MutedUserItem[]> {
