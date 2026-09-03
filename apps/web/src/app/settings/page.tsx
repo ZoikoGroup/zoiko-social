@@ -713,6 +713,21 @@ function PrivacySettings({ settings, loading, patch }: SettingsContextValue): Re
         </label>
       ))}
 
+      {/*
+        Show location can only display something if there IS a location.
+
+        Turning it on with no city set looks broken — the setting saves, and the
+        profile shows nothing, with nothing to explain why. It was reported as a
+        missing profile component when in fact the component is there and the
+        field was empty. Say so, and point at where to fill it in.
+      */}
+      {!!(toggles as Record<string, unknown>).showLocation && !profile?.city && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 -mt-2">
+          You haven&apos;t set a location yet, so there is nothing to show on your profile. Add one
+          under <span className="font-semibold">Edit profile</span>.
+        </p>
+      )}
+
       {/* Message privacy was enforced server-side but had no controls at all,
           so every account sat on the defaults. */}
       <div className="pt-2 border-t border-outline-variant/20">

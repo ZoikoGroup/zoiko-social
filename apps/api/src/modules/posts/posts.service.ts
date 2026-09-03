@@ -121,10 +121,30 @@ export class PostsService {
     const hashtags = caption ? parseHashtags(caption) : []
     const mentionUsernames = caption ? parseMentions(caption) : []
 
-    // Resolve mentioned users up front (invalid usernames silently dropped)
+    /*
+      Resolve mentioned users up front (invalid usernames silently dropped).
+
+      "Allow tagging" is honoured here. The toggle wrote to user_settings and
+      nothing ever read it, so turning it off changed nothing — you were still
+      tagged and still notified. Filtering on the lookup rather than afterwards
+      means someone who opted out becomes neither a mention row nor a
+      notification, and the block check below has less to consider.
+
+      `userSettings: null` is deliberate: the column defaults to true, and a
+      member who has never opened settings has no row. Requiring one would
+      silently stop mentions working for most accounts.
+    */
     const mentionedUsers = mentionUsernames.length
       ? await this.prisma.profile.findMany({
-          where: { username: { in: mentionUsernames }, state: 'active', id: { not: authorId } },
+          where: {
+            username: { in: mentionUsernames },
+            state: 'active',
+            id: { not: authorId },
+            OR: [
+              { userSettings: { allowTagging: true } },
+              { userSettings: null },
+            ],
+          },
           select: { id: true, username: true },
         })
       : []

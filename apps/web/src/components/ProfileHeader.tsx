@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin, Clock } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
@@ -16,6 +16,7 @@ import { useProfessionalLabel } from '@/hooks/use-professional-label'
 import { useTranslations } from 'next-intl'
 import { UserContent } from '@/components/UserContent'
 import { formatCompact } from '@/lib/number'
+import { formatRelativeTime } from '@/lib/datetime'
 import { useFormat } from '@/hooks/use-format'
 
 interface ProfileHeaderProps {
@@ -391,6 +392,27 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                 {profile.city}
               </p>
             )}
+
+            {/*
+              Online state, when the owner shares it.
+
+              The "Show last active status" toggle wrote to the database and
+              nothing ever read it — there was no indicator here to render, so
+              turning it on visibly did nothing. The server decides what may be
+              shown; both of these are absent unless it says otherwise, so this
+              markup cannot leak a setting that is switched off.
+            */}
+            {profile.isOnline ? (
+              <p className="mt-1.5 flex items-center gap-1.5 text-label-sm font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" aria-hidden />
+                {tpr('online')}
+              </p>
+            ) : profile.lastActiveAt ? (
+              <p className="mt-1.5 flex items-center gap-1 text-label-sm text-outline">
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                {tpr('lastActive', { when: formatRelativeTime(profile.lastActiveAt, locale) })}
+              </p>
+            ) : null}
 
             {/* Stats — accent-colored counts, LinkedIn-style single line */}
             <div className="mt-3 flex items-center gap-1.5 text-label-md flex-wrap">

@@ -175,6 +175,18 @@ export interface ProfileResponse {
   onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
+  /**
+   * When this person was last online, or null.
+   *
+   * Null means "not being shown", and covers three different reasons on
+   * purpose: the owner has Show last active off, they have no recorded
+   * presence, or they are currently online (in which case `isOnline` carries
+   * the information instead). A viewer cannot tell which, so the setting does
+   * not leak by its own absence.
+   */
+  lastActiveAt: string | null
+  /** True only when presence says online AND the owner shows last active. */
+  isOnline: boolean
   professionalProfile: ProfessionalProfileResponse | null
 }
 
@@ -543,19 +555,69 @@ export class ProfileService {
     throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
   }
 
-  /** Hide private-account details from non-owners. */
+  /**
+   * Applies everything about a profile that depends on who is looking.
+   *
+   * Two jobs: hide what the owner has chosen not to share, and fill in the
+   * fields that only make sense per-viewer. Both live here because both need
+   * the owner's privacy settings, and one lookup can serve them.
+   */
   private async redactForViewer(profile: ProfileResponse, currentUserId?: string): Promise<ProfileResponse> {
-    if (profile.isPrivate && profile.id !== currentUserId) {
-      return { ...profile, bio: null, websiteUrl: null, city: null }
+    const isOwner = profile.id === currentUserId
+
+    let result = profile
+    if (profile.isPrivate && !isOwner) {
+      result = { ...result, bio: null, websiteUrl: null, city: null }
     }
-    // Hide city when the owner has disabled the Show location toggle.
-    if (currentUserId && profile.id !== currentUserId && profile.city) {
-      const settings = await this.prisma.userSettings.findUnique({ where: { userId: profile.id }, select: { showLocation: true } })
-      if (settings && !settings.showLocation) {
-        return { ...profile, city: null }
-      }
+
+    // Looking at your own profile: nothing is hidden from you, and your own
+    // last-active time tells you nothing you do not already know.
+    if (isOwner) return result
+
+    /*
+      Defaults matter here, and they are not the same for both toggles:
+      `showLastActive` defaults to true, `showLocation` to false (see the
+      schema, and the client's own defaults, which agree).
+
+      A member with no settings row must therefore be treated as location
+      hidden. The previous version read a missing row as "show", which
+      contradicted the column default and leaked a city the member had never
+      agreed to publish.
+    */
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { userId: profile.id },
+      select: { showLocation: true, showLastActive: true },
+    })
+    const showLocation = settings?.showLocation ?? false
+    const showLastActive = settings?.showLastActive ?? true
+
+    /*
+      Applies to a logged-out visitor too.
+
+      This check used to require a `currentUserId`, so an anonymous visitor —
+      the least-trusted viewer there is — skipped the gate entirely and saw the
+      city regardless of the setting.
+    */
+    if (result.city && !showLocation) {
+      result = { ...result, city: null }
     }
-    return profile
+
+    if (!showLastActive) return result
+
+    const presence = await this.prisma.userPresence.findFirst({
+      where: { userId: profile.id },
+      select: { status: true, lastSeen: true },
+    })
+    if (!presence) return result
+
+    const online = presence.status === 'online'
+    return {
+      ...result,
+      isOnline: online,
+      // Omitted while online: "online now" is the useful statement, and a
+      // timestamp alongside it only invites the question of which to believe.
+      lastActiveAt: online ? null : (presence.lastSeen?.toISOString() ?? null),
+    }
   }
 
   /**
@@ -1403,6 +1465,10 @@ export class ProfileService {
       onboardingCompleted: profile.onboardingCompletedAt !== null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
+      // Fail closed. redactForViewer fills these in when the owner allows it,
+      // so any path that skips it discloses nothing rather than everything.
+      lastActiveAt: null,
+      isOnline: false,
       professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt
         ? this.mapProfessionalProfile(profile.professionalProfile)
         : null,

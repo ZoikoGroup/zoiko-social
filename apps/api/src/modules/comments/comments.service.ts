@@ -154,8 +154,28 @@ export class CommentsService {
       // Mentions in comment body
       const mentionUsernames = parseMentions(body)
       if (mentionUsernames.length) {
+      /*
+        "Allow tagging" is honoured here.
+
+        The toggle wrote to user_settings and nothing ever read it, so turning
+        it off changed nothing: you were still tagged, and still notified. The
+        filter lives on the lookup rather than after it, so a person who has
+        opted out never becomes a mention row OR a notification.
+
+        `userSettings: null` is deliberate — the column defaults to true, and a
+        member who has never opened settings has no row at all. Requiring one
+        would silently stop mentions working for most accounts.
+      */
         const mentioned = await this.prisma.profile.findMany({
-          where: { username: { in: mentionUsernames }, state: 'active', id: { notIn: [userId, post.authorId] } },
+          where: {
+            username: { in: mentionUsernames },
+            state: 'active',
+            id: { notIn: [userId, post.authorId] },
+            OR: [
+              { userSettings: { allowTagging: true } },
+              { userSettings: null },
+            ],
+          },
           select: { id: true },
         })
         for (const m of mentioned) {
