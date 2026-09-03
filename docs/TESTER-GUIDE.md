@@ -292,6 +292,8 @@ Run these against every screen you touch. They catch the most bugs.
 | PROF-01 | View your own profile | Name, username, bio, avatar, counts all correct |
 | PROF-02 | Edit profile — change name, bio, avatar | Saves, visible immediately, survives refresh |
 | PROF-03 | Upload and crop an avatar | Cropper works; result is what you cropped |
+| PROF-03a | Upload a banner, then look at the **sidebar profile card** on the home page | The banner shows there too, not just on the profile page. A profile with no banner falls back to the gradient |
+| PROF-03b | Check the status dot on that sidebar card | Reflects real presence — it must not be green while you are signed out or disconnected |
 | PROF-04 | View another user's profile by username | Their public info, plus a Follow button |
 | PROF-05 | View a **private** account (C) you don't follow | Limited view; posts hidden |
 | PROF-06 | View a nonexistent username | Clean not-found page, not a crash |
@@ -380,6 +382,13 @@ Run these against every screen you touch. They catch the most bugs.
 | FEED-19 | Feed after muting B | B's posts vanish but B stays followed |
 | FEED-20 | Open a post permalink `/p/<id>` while logged out | Behaves per its visibility — private content must not render |
 | FEED-21 | Post from a deactivated account | Not visible |
+| FEED-22 | Scroll the home feed to the very bottom | "You're all caught up" appears with a Refresh button — the list must not simply stop with nothing |
+| FEED-23 | Press that Refresh | Newest content loads and the page returns to the top; posts already on screen stay put while it loads (no blank page, no skeleton) |
+| FEED-24 | Keep scrolling past the last post from people you follow | Feed continues into news articles rather than ending — up to 30 cards per page |
+| FEED-25 | Scroll several pages of news | No article appears twice, and none is silently skipped |
+| FEED-26 | Look at any news card's cover image | Sharp, not blurry or upscaled. An article with no usable image shows no image rather than a smeared one |
+| FEED-27 | Open a news article from the feed | External articles open the publisher's site; the in-app page offers "Read the full article at …" instead of an empty body |
+| FEED-28 | Like, save, comment on and share a news card | All behave as on a normal post; sharing an external article shares the **publisher's** link |
 
 ---
 

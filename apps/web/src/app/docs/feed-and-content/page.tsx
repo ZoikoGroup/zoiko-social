@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   LayoutGrid, Compass, ImagePlus, Heart, MessageCircle, Bookmark, Hash, Flag,
+  CheckCircle2, RefreshCw, ArrowUp,
 } from 'lucide-react'
 import { DocHeader, JumpLinks, H2, P, UL, LI, Strong, Callout, FeatureGrid } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
@@ -21,6 +22,7 @@ export default function FeedAndContentPage(): React.JSX.Element {
       <JumpLinks
         items={[
           { href: '#home-feed-and-explore', label: 'Home feed & Explore' },
+          { href: '#scrolling-and-refreshing', label: 'Scrolling & refreshing' },
           { href: '#creating-a-post', label: 'Creating a post' },
           { href: '#reactions-comments-and-saves', label: 'Reactions, comments & saves' },
           { href: '#hashtags-and-trends', label: 'Hashtags & trends' },
@@ -41,14 +43,34 @@ export default function FeedAndContentPage(): React.JSX.Element {
       </P>
       <FeatureGrid
         items={[
-          { icon: LayoutGrid, title: 'Home feed', body: 'Posts from people, pets, and communities you follow, newest first.' },
+          { icon: LayoutGrid, title: 'Home feed', body: 'Posts from the people, pets, and communities you follow, ordered by what is likely to matter to you rather than strictly by time.' },
           { icon: Compass, title: 'Explore', body: 'Discover new posts and accounts outside your existing network.' },
         ]}
       />
+      <P>
+        Ordering takes account of who you interact with, how recent a post is, and how much
+        engagement it has drawn — so something posted this morning by someone you talk to often can
+        sit above something newer from an account you rarely open. Nothing from outside your network
+        is inserted into Home; that is what Explore is for.
+      </P>
       <Callout variant="note">
         Community feeds and your own profile feed work the same way — each is just a different filter
         over the same underlying posts.
       </Callout>
+
+      <H2 id="scrolling-and-refreshing">Scrolling, news, and refreshing</H2>
+      <P>
+        Home loads more as you scroll. Once you have seen everything from the people you follow, it
+        continues into <Strong>news articles</Strong> rather than stopping — see the{' '}
+        <Strong>News</Strong> guide for how those work.
+      </P>
+      <FeatureGrid
+        items={[
+          { icon: CheckCircle2, title: 'You’re all caught up', body: 'When there is genuinely nothing left, the feed says so instead of just ending — so you can tell "you have seen it all" from "something failed to load".' },
+          { icon: RefreshCw, title: 'Refresh for the latest', body: 'A Refresh button at the end pulls in anything new and returns you to the top. What is already on screen stays put while it loads.' },
+          { icon: ArrowUp, title: 'New posts pill', body: 'If someone you follow posts while you are reading, a "New posts" pill appears at the top. Tapping it does the same thing as Refresh.' },
+        ]}
+      />
 
       <H2 id="creating-a-post">Creating a post</H2>
       <P>Tap the compose button to start a new post. You can:</P>

@@ -1,8 +1,34 @@
 # ZoikoSocial — Messaging System Implementation Plan
 
-> Status: **Planning**  
-> Last Updated: July 4, 2026  
-> Architecture: Hybrid (NestJS API for writes, Supabase Realtime for reads)
+> Status: **Superseded in part — messaging is implemented, but not the way this plan describes**
+> Last Updated: July 4, 2026 (plan) · September 2026 (this note)
+> Companion: [ai-assistant.md](./ai-assistant.md) — the assistant ships as an ordinary DM thread
+
+> ### ⚠️ Read this before trusting the architecture below
+>
+> This document is the original **plan**. Messaging shipped, and the transport
+> decision went the other way: there is **no Supabase Realtime anywhere in the
+> product**. Live updates run over **Socket.IO** through a NestJS gateway
+> (`apps/api/src/modules/messaging/messaging.gateway.ts`), which owns presence,
+> typing, read receipts and delivery.
+>
+> This is verifiable in one grep: `apps/web/src` contains no `.channel()` and no
+> `postgres_changes` subscription. The browser's Supabase client is used for
+> exactly two things — `auth.*` and `storage.from(...)`.
+>
+> That distinction is load-bearing for security, not just trivia. Supabase
+> Realtime honours RLS; Socket.IO does not consult it, so **every authorisation
+> rule for messaging is enforced in the gateway and services**, and tightening a
+> table's RLS cannot break realtime because realtime never reads through it.
+>
+> Sections 3–4 and the typing/presence notes describe the unbuilt design. Treat
+> the data model, permission matrix and product requirements as current; treat
+> the transport as historical.
+>
+> Since this plan was written, messaging also gained: **community chats** (every
+> community has a derived conversation), **polls**, **message forwarding**,
+> **location sharing**, **pinned messages**, and moderator controls for
+> announcement-only and slow mode.
 
 ---
 

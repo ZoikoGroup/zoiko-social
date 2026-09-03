@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import {
-  Newspaper, Heart, Bookmark, MessageCircle, ShieldCheck,
+  Newspaper, Heart, Bookmark, MessageCircle, ShieldCheck, Share2, ExternalLink,
 } from 'lucide-react'
 import { DocHeader, JumpLinks, H2, P, UL, LI, Strong, Callout, FeatureGrid } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
@@ -20,6 +20,8 @@ export default function NewsPage(): React.JSX.Element {
       <JumpLinks
         items={[
           { href: '#reading-news', label: 'Reading news' },
+          { href: '#news-in-your-feed', label: 'News in your feed' },
+          { href: '#where-articles-come-from', label: 'Where articles come from' },
           { href: '#saving-and-liking', label: 'Saving & liking' },
           { href: '#commenting-on-news', label: 'Commenting' },
           { href: '#our-approach-to-news', label: 'Our approach to news' },
@@ -28,16 +30,54 @@ export default function NewsPage(): React.JSX.Element {
 
       <H2 id="reading-news">Reading news on ZoikoSocial</H2>
       <P>
-        The <Strong>News</Strong> section is a dedicated feed, kept separate from personal posts, focused
-        on animals, the environment, science, and technology. Featured stories are surfaced at the top
-        so the most relevant, high-quality coverage isn’t buried.
+        The <Strong>News</Strong> section is a dedicated feed focused on animals, the environment,
+        science, and technology. Featured stories are surfaced at the top so the most relevant,
+        high-quality coverage isn’t buried.
+      </P>
+
+      <H2 id="news-in-your-feed">News in your home feed</H2>
+      <P>
+        Articles also appear in your <Strong>home feed</Strong>, mixed in among posts from the people
+        and communities you follow. They look and behave like posts — you can like, comment, save and
+        share them the same way — but the row above each one always names the publisher, so it is
+        clear at a glance that you are reading journalism rather than something a person you follow
+        wrote.
+      </P>
+      <P>
+        If you keep scrolling past everything the people you follow have posted, the feed continues
+        into news rather than stopping. When there is genuinely nothing left, it tells you so.
+      </P>
+
+      <H2 id="where-articles-come-from">Where articles come from</H2>
+      <P>
+        Most articles are gathered automatically from publishers we have reviewed and added — the
+        feed refreshes several times a day. A few are written by verified members.
+      </P>
+      <FeatureGrid
+        items={[
+          {
+            icon: ShieldCheck,
+            title: 'Verified source',
+            body: 'A badge on the card marks institutional and independently verified publishers. Reviewing the publisher is the review — we do not add a source we would not trust to publish straight into the feed.',
+          },
+          {
+            icon: ExternalLink,
+            title: 'Opens the publisher’s site',
+            body: 'For a gathered article we store the headline, summary and link — not the full text, which belongs to the publisher. Tapping it opens their page, and the card says so before you tap.',
+          },
+        ]}
+      />
+      <P>
+        If a publisher takes an article down, it stops appearing here too — we check the links we
+        have published and withdraw the ones that have gone.
       </P>
 
       <H2 id="saving-and-liking">Saving & liking articles</H2>
       <FeatureGrid
         items={[
           { icon: Heart, title: 'Like an article', body: 'Show support for a story and help surface it to others.' },
-          { icon: Bookmark, title: 'Save for later', body: 'Save an article to come back to when you have more time to read.' },
+          { icon: Bookmark, title: 'Save for later', body: 'Save an article to come back to when you have more time to read. Your saved list is private to you.' },
+          { icon: Share2, title: 'Share it', body: 'Sharing a gathered article shares the publisher’s own link, so whoever you send it to lands on the real story rather than a page that only points elsewhere.' },
         ]}
       />
 

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   Settings, Bell, BellRing, Lock, Shield, Sliders, HelpCircle, Trash2, Coins, SunMoon,
+  Smartphone, MonitorSmartphone,
 } from 'lucide-react'
 import { DocHeader, JumpLinks, H2, P, UL, LI, Strong, Callout, Steps, FeatureGrid, DocTable } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
@@ -22,6 +23,7 @@ export default function NotificationsAndSettingsPage(): React.JSX.Element {
         items={[
           { href: '#notification-center', label: 'Notification Center' },
           { href: '#notification-preferences', label: 'Notification preferences' },
+          { href: '#push-notifications', label: 'Push notifications' },
           { href: '#privacy-settings', label: 'Privacy settings' },
           { href: '#security', label: 'Security' },
           { href: '#preferences', label: 'Preferences' },
@@ -49,6 +51,23 @@ export default function NotificationsAndSettingsPage(): React.JSX.Element {
         how — push, email, or just in-app — so you can dial things up or down based on how you actually
         want to use ZoikoSocial.
       </P>
+
+      <H2 id="push-notifications">Push notifications on your device</H2>
+      <P>
+        Push notifications reach you when ZoikoSocial is closed. They are <Strong>off until you turn
+        them on</Strong> — your browser will ask for permission the first time, and nothing is sent
+        before you allow it.
+      </P>
+      <FeatureGrid
+        items={[
+          { icon: Smartphone, title: 'Turn them on', body: 'Settings → Notifications, then allow the browser prompt. Push Notifications is also the master switch — turning it off silences every push regardless of category.' },
+          { icon: MonitorSmartphone, title: 'Per device', body: 'Permission is granted per browser and per device, so enabling it on your phone does not enable it on your laptop.' },
+        ]}
+      />
+      <Callout variant="note">
+        If you allowed notifications once and later blocked them in your browser, the switch here
+        cannot override that — you will need to re-allow the site in your browser settings first.
+      </Callout>
 
       <H2 id="privacy-settings">Privacy settings</H2>
       <P>
