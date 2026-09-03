@@ -71,6 +71,31 @@ function SaveButton({ article, small }: { article: NewsArticle; small?: boolean 
   )
 }
 
+/**
+ * Who to credit for an article.
+ *
+ * An ingested article has no author — it belongs to a publisher, not a member —
+ * so `author` is null on every external item. Both attribution blocks below
+ * used to read straight through it, which crashed the whole page on the first
+ * card it rendered.
+ */
+function byline(a: NewsArticle): { name: string; avatar: string | undefined; verified: boolean } {
+  if (a.author) {
+    return {
+      name: a.author.displayName,
+      avatar: a.author.avatarUrl ?? undefined,
+      verified: a.author.isVerified,
+    }
+  }
+  return {
+    name: a.sourceName ?? 'News',
+    avatar: undefined,
+    // Institutional and independently verified publishers earn the tick; a
+    // community source does not, or the tick stops distinguishing anything.
+    verified: a.tier === 'institutional' || a.tier === 'verified',
+  }
+}
+
 export default function NewsPage(): React.JSX.Element {
   const { ago } = useDateFormat()
   const { isAuthenticated } = useAuth()
@@ -213,8 +238,8 @@ export default function NewsPage(): React.JSX.Element {
                       </div>
                       <div className="p-3.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <UserAvatar name={featured[0]!.author.displayName} image={featured[0]!.author.avatarUrl ?? undefined} size="sm" verified={featured[0]!.author.isVerified} />
-                          <span className="text-[11px] text-outline">{featured[0]!.author.displayName}</span>
+                          <UserAvatar name={byline(featured[0]!).name} image={byline(featured[0]!).avatar} size="sm" verified={byline(featured[0]!).verified} />
+                          <span className="text-[11px] text-outline">{byline(featured[0]!).name}</span>
                           <span className="text-[10px] text-outline/60">·</span>
                           <span className="text-[11px] text-outline">{ago(featured[0]!.publishedAt)}</span>
                         </div>
@@ -285,9 +310,9 @@ export default function NewsPage(): React.JSX.Element {
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/10">
                               <div className="flex items-center gap-2 min-w-0">
-                                <UserAvatar name={a.author.displayName} image={a.author.avatarUrl ?? undefined} size="sm" verified={a.author.isVerified} />
+                                <UserAvatar name={byline(a).name} image={byline(a).avatar} size="sm" verified={byline(a).verified} />
                                 <div className="min-w-0">
-                                  <span className="text-[10px] font-medium text-on-surface-variant truncate block">{a.author.displayName}</span>
+                                  <span className="text-[10px] font-medium text-on-surface-variant truncate block">{byline(a).name}</span>
                                   <div className="flex items-center gap-1.5 text-[10px] text-outline/60">
                                     <Clock className="w-3 h-3" /><span>{ago(a.publishedAt)}</span>
                                     <span>·</span><BookOpen className="w-3 h-3" /><span>{a.readMinutes} min</span>

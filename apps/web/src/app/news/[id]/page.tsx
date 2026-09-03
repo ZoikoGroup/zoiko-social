@@ -150,7 +150,10 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
 
   const tier = TIER_CONFIG[(article.tier as Tier)] ?? TIER_CONFIG.community
   const TierIcon = tier.icon
-  const isOwner = !!user && user.id === article.author.id
+  // An ingested article has no member author, so nobody can own or delete it.
+  // This read straight through `article.author`, which is null on every
+  // external article — and every published article is currently external.
+  const isOwner = !!user && !!article.author && user.id === article.author.id
 
   return (
     <>
@@ -177,9 +180,31 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
               <p className="text-body-md text-on-surface-variant mt-3 leading-relaxed">{article.excerpt}</p>
 
               <div className="flex items-center gap-3 mt-5 pb-5 border-b border-outline-variant/20">
-                <Link href={`/profile/${article.author.username}`}><UserAvatar name={article.author.displayName} image={article.author.avatarUrl ?? undefined} size="md" verified={article.author.isVerified} /></Link>
+                {/*
+                  A member's article links to their profile; an ingested one
+                  credits the publisher, which has no profile to link to.
+
+                  Only the avatar and the name differ, so the layout around them
+                  stays outside the branch — the first attempt at this opened the
+                  wrapper inside each arm and left the tags unbalanced.
+                */}
+                {article.author ? (
+                  <Link href={`/profile/${article.author.username}`}>
+                    <UserAvatar name={article.author.displayName} image={article.author.avatarUrl ?? undefined} size="md" verified={article.author.isVerified} />
+                  </Link>
+                ) : (
+                  <UserAvatar
+                    name={article.sourceName ?? 'News'}
+                    size="md"
+                    verified={article.tier === 'institutional' || article.tier === 'verified'}
+                  />
+                )}
                 <div className="flex-1 min-w-0">
-                  <Link href={`/profile/${article.author.username}`} className="text-label-md font-semibold text-on-surface hover:underline">{article.author.displayName}</Link>
+                  {article.author ? (
+                    <Link href={`/profile/${article.author.username}`} className="text-label-md font-semibold text-on-surface hover:underline">{article.author.displayName}</Link>
+                  ) : (
+                    <span className="text-label-md font-semibold text-on-surface">{article.sourceName ?? 'News'}</span>
+                  )}
                   <div className="flex items-center gap-2 text-[11px] text-outline">
                     <span>{fmtDate(article.publishedAt, locale)}</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /><BookOpen className="w-3 h-3" />{article.readMinutes} min read</span>

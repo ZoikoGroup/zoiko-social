@@ -190,6 +190,16 @@ export interface Profile {
   avatarUrl: string | null
   bannerUrl: string | null
   websiteUrl: string | null
+  /**
+   * When this person was last online, or null.
+   *
+   * Null covers three cases on purpose — the setting is off, there is no
+   * recorded presence, or they are online right now — so the absence of a
+   * value never reveals which.
+   */
+  lastActiveAt?: string | null
+  /** True only when they are online AND showing last-active. */
+  isOnline?: boolean
   state: string
   role: string
   verificationTier: string
@@ -1031,7 +1041,15 @@ export const lostFoundApi = {
 
 export interface NewsArticle {
   id: string
-  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /**
+   * Null for an ingested article — it belongs to a publisher, not a member.
+   *
+   * This was typed non-nullable while the API had always returned null for
+   * every external article, so the compiler raised nothing and the news pages
+   * crashed on the first card they rendered. Attribution for those comes from
+   * `sourceName` / `source` instead.
+   */
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean } | null
   title: string
   excerpt: string
   body: string | null
