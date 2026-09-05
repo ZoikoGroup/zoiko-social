@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
+import { RedisService } from '../redis/redis.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateArticleInput, UpdateArticleInput, CommentInput, NewsCategory } from './news.schemas'
@@ -61,6 +62,15 @@ interface BrowseFilters {
  * body would put several kilobytes of prose per card into a page that already
  * carries fifteen posts.
  */
+/**
+ * A news card minus the two fields that depend on who is looking.
+ *
+ * Everything here is identical for every viewer, which is what makes it worth
+ * caching once and sharing; `viewerLiked` and `viewerSaved` are attached
+ * per-request from a live query so a like never appears stale.
+ */
+export type SharedNewsCard = Omit<NewsFeedCard, 'viewerLiked' | 'viewerSaved'>
+
 export interface NewsFeedCard {
   id: string
   title: string
@@ -96,6 +106,7 @@ export class NewsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly redis: RedisService,
   ) {}
 
   private authorInclude() {
@@ -401,6 +412,55 @@ export class NewsService {
    */
   async feedCards(skip: number, take: number, viewerId?: string): Promise<NewsFeedCard[]> {
     if (take <= 0) return []
+
+    /*
+      The article list is identical for every viewer, so it is fetched once and
+      shared. Only the viewer's own likes and saves below stay per-request.
+
+      This is the more expensive half by a wide margin: a database round-trip
+      measured at ~1.5s on the transaction pooler and ~300ms on session mode,
+      against ~217ms for a cache hit and nothing at all for an in-process one.
+      It is also the most-repeated query in the product, served on /news and on
+      every page of every member's home feed.
+    */
+    const cached = await this.redis.getNewsCards<SharedNewsCard[]>(skip, take)
+    const shared = cached ?? await this.loadSharedCards(skip, take)
+    if (!cached) await this.redis.setNewsCards(skip, take, shared)
+
+    // One batched pair of reads for the whole page rather than two per card.
+    // Without this the card renders unliked and corrects itself a moment later,
+    // which reads as the button undoing itself.
+    const ids = shared.map((r) => r.id)
+    const [likes, saves] = viewerId && ids.length > 0
+      ? await Promise.all([
+          this.prisma.newsLike.findMany({
+            where: { userId: viewerId, articleId: { in: ids } },
+            select: { articleId: true },
+          }),
+          this.prisma.newsSave.findMany({
+            where: { userId: viewerId, articleId: { in: ids } },
+            select: { articleId: true },
+          }),
+        ])
+      : [[], []]
+    const liked = new Set(likes.map((l) => l.articleId))
+    const saved = new Set(saves.map((x) => x.articleId))
+
+    return shared.map((card) => ({
+      ...card,
+      viewerLiked: liked.has(card.id),
+      viewerSaved: saved.has(card.id),
+    }))
+  }
+
+  /**
+   * The half of a news card that is the same for everybody.
+   *
+   * Dates are converted here rather than at the end, because this shape goes
+   * through JSON on its way into the cache and a Date would come back as a
+   * string that no longer has `.toISOString()`.
+   */
+  private async loadSharedCards(skip: number, take: number): Promise<SharedNewsCard[]> {
     const rows = await this.prisma.newsArticle.findMany({
       where: { status: 'published', isDeleted: false, hiddenAt: null, reviewStatus: 'approved' },
       orderBy: [{ featured: 'desc' }, { publishedAt: 'desc' }, { id: 'desc' }],
@@ -425,24 +485,6 @@ export class NewsService {
       },
     })
 
-    // One batched pair of reads for the whole page rather than two per card.
-    // Without this the card renders unliked and corrects itself a moment later,
-    // which reads as the button undoing itself.
-    const ids = rows.map((r) => r.id)
-    const [likes, saves] = viewerId && ids.length > 0
-      ? await Promise.all([
-          this.prisma.newsLike.findMany({
-            where: { userId: viewerId, articleId: { in: ids } },
-            select: { articleId: true },
-          }),
-          this.prisma.newsSave.findMany({
-            where: { userId: viewerId, articleId: { in: ids } },
-            select: { articleId: true },
-          }),
-        ])
-      : [[], []]
-    const liked = new Set(likes.map((l) => l.articleId))
-    const saved = new Set(saves.map((x) => x.articleId))
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -459,8 +501,6 @@ export class NewsService {
       sourceUrl: r.sourceUrl,
       savesCount: r.savesCount,
       source: r.source,
-      viewerLiked: liked.has(r.id),
-      viewerSaved: saved.has(r.id),
     }))
   }
 

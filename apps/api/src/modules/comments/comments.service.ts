@@ -178,18 +178,33 @@ export class CommentsService {
           },
           select: { id: true },
         })
-        for (const m of mentioned) {
-          await this.prisma.mention.create({
-            data: { mentionedUserId: m.id, actorId: userId, commentId: comment.id, postId },
-          })
-          await this.notifications.enqueue({
+        /*
+          One insert for all of them, and the notifications queued together.
+
+          This ran a create and an enqueue per mentioned person, in turn. A
+          database round-trip is ~1.5s on the transaction pooler and a queue
+          round-trip ~200ms, so mentioning three people added roughly five
+          seconds to posting a comment — all of it before the comment came back.
+
+          `createMany` returns no rows, which is fine: nothing here reads them.
+        */
+        await Promise.all([
+          this.prisma.mention.createMany({
+            data: mentioned.map((m) => ({
+              mentionedUserId: m.id,
+              actorId: userId,
+              commentId: comment.id,
+              postId,
+            })),
+          }),
+          ...mentioned.map((m) => this.notifications.enqueue({
             userId: m.id,
             type: 'mention',
             title: 'Mentioned You',
             body: `${actor?.displayName ?? 'Someone'} mentioned you in a comment`,
             data: { postId, commentId: comment.id, username: actor?.username },
-          })
-        }
+          })),
+        ])
       }
     })
 

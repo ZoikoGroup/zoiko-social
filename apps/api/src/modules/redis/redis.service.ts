@@ -30,6 +30,9 @@ const COUNTER_TTL_SECONDS = 6 * 60 * 60
 const RELATIONSHIP_TTL_SECONDS = 5 * 60
 const PROFILE_TTL_SECONDS = 5 * 60
 
+/** Short: a moderator hiding an article should take effect promptly. */
+const NEWS_CARDS_TTL_SECONDS = 60
+
 // ── L1 in-process cache ─────────────────────────────────────────────────────
 // Sits in front of Redis (L2): hot reads cost ~0ms instead of a network
 // round-trip. Short TTL bounds cross-pod staleness; same-pod mutations
@@ -338,6 +341,51 @@ export class RedisService implements OnModuleDestroy {
       await this.client.del(`post:${postId}`)
     } catch (err) {
       this.logger.warn(`invalidatePost failed: ${(err as Error).message}`)
+    }
+  }
+
+  // ── PUBLIC NEWS LIST CACHE ────────────────────────────────────────────────
+
+  /*
+    The article list is the same for everyone, so it is cached once rather than
+    fetched per viewer.
+
+    Measured reason: one database round-trip costs ~1.5s on the transaction
+    pooler and ~300ms on session mode, while a cache round-trip costs ~217ms and
+    an L1 hit costs nothing. `feedCards` makes two trips — this list, and the
+    viewer's own likes and saves. Only the first is shareable, and it is the one
+    served on /news and on every page of every member's home feed.
+
+    Viewer flags are deliberately NOT cached here: they are per-person and change
+    the moment someone taps like, so they stay a live query.
+
+    The TTL is short despite articles changing only every three hours, because a
+    moderator hiding an article should not have to wait for the feed to catch up.
+  */
+  async getNewsCards<T>(skip: number, take: number): Promise<T | null> {
+    const key = `news:cards:${skip}:${take}`
+    const l1Hit = this.l1.get<T>(key)
+    if (l1Hit !== null) return l1Hit
+    if (!this.client) return null
+    try {
+      const raw = await this.client.get(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as T
+      this.l1.set(key, parsed)
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  async setNewsCards(skip: number, take: number, payload: unknown): Promise<void> {
+    const key = `news:cards:${skip}:${take}`
+    this.l1.set(key, payload)
+    if (!this.client) return
+    try {
+      await this.client.set(key, JSON.stringify(payload), 'EX', NEWS_CARDS_TTL_SECONDS)
+    } catch (err) {
+      this.logger.warn(`setNewsCards failed: ${(err as Error).message}`)
     }
   }
 

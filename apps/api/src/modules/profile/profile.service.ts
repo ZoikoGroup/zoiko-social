@@ -771,41 +771,60 @@ export class ProfileService {
       return { accepted: toCreate, pendingIds: pending.map((p) => p.id) }
     })
 
-    // Sync the receiver's pending follow_request notifications to "accepted"
-    for (const requestId of pendingIds) {
+    /*
+      Sync the receiver's pending follow_request notifications to "accepted".
+
+      This used to run one query per pending request and then one update per
+      notification found, all in turn. Going public with twenty pending requests
+      therefore cost twenty round-trips before the updates even started, and a
+      round-trip here is ~1.5s on the transaction pooler.
+
+      Now: one query for every still-pending follow_request notification this
+      member has, matched against the accepted ids in memory. Each row still
+      needs its own update because the merged JSON differs per row, but they no
+      longer wait on each other.
+    */
+    if (pendingIds.length > 0) {
+      const idSet = new Set(pendingIds)
       const pendingNotifications = await this.prisma.notification.findMany({
         where: {
           userId,
           type: 'follow_request',
-          AND: [
-            { data: { path: ['requestId'], equals: requestId } },
-            { data: { path: ['status'], equals: 'pending' } },
-          ],
+          data: { path: ['status'], equals: 'pending' },
         },
       })
-      for (const notification of pendingNotifications) {
-        await this.prisma.notification.update({
-          where: { id: notification.id },
-          data: {
-            data: { ...(notification.data as Record<string, unknown>), status: 'accepted' },
-            isRead: true,
-          },
-        })
-      }
+
+      await Promise.all(
+        pendingNotifications
+          .filter((n) => idSet.has((n.data as Record<string, unknown>)?.requestId as string))
+          .map((notification) =>
+            this.prisma.notification.update({
+              where: { id: notification.id },
+              data: {
+                data: { ...(notification.data as Record<string, unknown>), status: 'accepted' },
+                isRead: true,
+              },
+            }),
+          ),
+      )
     }
 
-    await this.redis.invalidateProfile(userId)
-    for (const request of accepted) {
-      await this.redis.invalidateRelationship(request.senderId, userId)
-      await this.redis.invalidateProfile(request.senderId)
-      await this.notifications.enqueue({
-        userId: request.senderId,
-        type: 'follow_request_accepted',
-        title: 'Follow Request Accepted',
-        body: 'Your follow request was accepted',
-        data: { userId },
-      })
-    }
+    // Cache busts and notifications for every accepted sender, together rather
+    // than one sender at a time.
+    await Promise.all([
+      this.redis.invalidateProfile(userId),
+      ...accepted.flatMap((request) => [
+        this.redis.invalidateRelationship(request.senderId, userId),
+        this.redis.invalidateProfile(request.senderId),
+        this.notifications.enqueue({
+          userId: request.senderId,
+          type: 'follow_request_accepted',
+          title: 'Follow Request Accepted',
+          body: 'Your follow request was accepted',
+          data: { userId },
+        }),
+      ]),
+    ])
     if (accepted.length > 0) {
       this.logger.log(`Auto-accepted ${accepted.length} follow requests for user ${userId} (went public)`)
     }

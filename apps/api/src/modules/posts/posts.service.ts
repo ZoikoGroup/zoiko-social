@@ -233,34 +233,41 @@ export class PostsService {
       void this.redis.trendIncr(tag)
     }
 
-    const author = await this.prisma.profile.findUnique({
-      where: { id: authorId },
-      select: { username: true, displayName: true },
-    })
+    /*
+      Both reads at once. They are independent, and every database round-trip on
+      this path is paid before the author gets their post back — measured at
+      ~1.5s each on the transaction pooler, so awaiting them in turn spent a
+      whole one for nothing.
+    */
+    const [author, blocks] = await Promise.all([
+      this.prisma.profile.findUnique({
+        where: { id: authorId },
+        select: { username: true, displayName: true },
+      }),
+      mentionedUsers.length > 0
+        ? this.prisma.blockedUser.findMany({
+            where: { blockedId: authorId, blockerId: { in: mentionedUsers.map((u) => u.id) } },
+            select: { blockerId: true },
+          })
+        : Promise.resolve([]),
+    ])
 
     // Mention notifications (skip if the mentioned user blocked the author).
     // One query for every block rather than one per mention.
-    const blockedBy = new Set(
-      mentionedUsers.length > 0
-        ? (
-            await this.prisma.blockedUser.findMany({
-              where: { blockedId: authorId, blockerId: { in: mentionedUsers.map((u) => u.id) } },
-              select: { blockerId: true },
-            })
-          ).map((b) => b.blockerId)
-        : [],
-    )
+    const blockedBy = new Set(blocks.map((b) => b.blockerId))
 
-    for (const mentioned of mentionedUsers) {
-      if (blockedBy.has(mentioned.id)) continue
-      await this.notifications.enqueue({
+    // Queued together rather than one after another: they do not depend on each
+    // other, and the queue round-trip is ~200ms apiece.
+    await Promise.all(mentionedUsers.map((mentioned) => {
+      if (blockedBy.has(mentioned.id)) return Promise.resolve()
+      return this.notifications.enqueue({
         userId: mentioned.id,
         type: 'mention',
         title: 'Mentioned You',
         body: `${author?.displayName ?? 'Someone'} mentioned you in a post`,
         data: { postId: post.id, username: author?.username, actorId: authorId },
       })
-    }
+    }))
 
     // Feed fanout: bust followers' first pages + realtime post:new
     await this.feedFanout.enqueue(post.id, authorId)
