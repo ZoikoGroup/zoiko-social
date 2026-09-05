@@ -257,6 +257,56 @@ and the guard needs updating with it.
 
 ---
 
+## 7b. The database connection is the platform's slowest part
+
+Measured, not estimated. `DATABASE_URL` points at the Supabase pooler on port
+**6543 (transaction mode)**. Port 5432 on the same host is session mode. Same
+credentials, same query, five warm runs each:
+
+| Connection | Warm `SELECT 1` |
+|---|---|
+| 6543 transaction, `pgbouncer=true` (current) | **1,568 ms** |
+| 5432 session, no parameters | **297 ms** |
+| 5432 session, `connection_limit=10` | **316 ms** |
+| 5432 session **with `pgbouncer=true`** | **1,545 ms** |
+| 6543 with `connection_limit` removed | 1,512 ms — the cap is not the cause |
+
+**It is the `pgbouncer=true` flag, not the port.** Carrying it onto 5432 keeps
+the full 1.5 s, so changing the port alone gains nothing — the flag has to come
+off with it. The flag tells Prisma to disable prepared statements, which
+transaction-mode pooling requires (without it, queries fail with
+`prepared statement "lrupsc_1_0" already exists` — the same error `supabase db
+push` hits on 6543). Session mode does not need it, which is what makes the
+move worthwhile.
+
+A no-op query costing 1.5 s is the dominant term in almost every request. For
+comparison, on the same machine: a real query fetching 12 news articles took
+1,521 ms, so the *work* was ~26 ms and the round-trip was the rest. Ten queries
+in sequence took 15.3 s; the same ten in parallel took 3.7 s. It is pure latency.
+
+**Switching `DATABASE_URL` to session mode is a single-line change worth roughly
+5x on every database-backed request.** Change the port to 5432 *and* remove
+`pgbouncer=true`; keep `connection_limit` if you want the pool capped, which
+costs nothing measurable. It is the same connection migrations already have to
+use — see §5.
+
+    ...@<host>.pooler.supabase.com:5432/postgres?connection_limit=10
+
+In production this is the `DATABASE_URL_OVERRIDE` repository secret, which the
+API deploy writes over the VM's own `.env` — no server access needed. Locally it
+is `apps/api/.env`.
+
+Caveat worth knowing before flipping it: session mode holds a server connection
+per client rather than per transaction, so watch the connection count if the API
+is ever scaled to several instances.
+
+For scale, two other round-trips measured from the same place: Redis (Upstash)
+is **217 ms**, and an in-process L1 cache hit is free. That ordering is why
+`NewsService.feedCards` caches the viewer-independent half of a news page — it
+turns a 2,319 ms call into 0 ms once warm.
+
+---
+
 ## 8. Current CI/CD (for reference)
 
 GitHub Actions in `.github/workflows/`:
