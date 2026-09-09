@@ -5,3 +5,12 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* The design renders large on wide screens, so every landing page is shown
+   at 90%. `zoom` is used rather than `transform: scale()` because it reflows
+   layout instead of scaling a fixed-size box and leaving a gap, and rather
+   than a root font-size change because the sections size themselves with
+   fixed px utilities (h-[176px], lg:w-[582px]) that rem scaling would miss. */
+body {
+  zoom: 0.9;
+}

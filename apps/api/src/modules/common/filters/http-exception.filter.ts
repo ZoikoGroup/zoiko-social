@@ -7,8 +7,50 @@ import {
   Logger,
 } from '@nestjs/common'
 import { FastifyReply, FastifyRequest } from 'fastify'
+import { Prisma } from '@prisma/client'
 import { ZodError } from 'zod'
 import { AUTH_USER_KEY, type AuthenticatedUser } from '../../auth/guards/jwt-auth.guard'
+import { captureServerError } from '../../../observability/sentry'
+
+/**
+ * Prisma errors that are the caller's fault, not ours.
+ *
+ * Without this they all fell through to 500 INTERNAL_ERROR. The common one is
+ * P2023: any `:id` route given a non-UUID — `GET /posts/not-a-uuid` — answered
+ * 500 and wrote a stack trace, on four of five endpoints checked. That is the
+ * wrong status for bad input, and it let anyone fill the error log with a curl
+ * loop, burying real faults. Mapping them to 4xx also stops the logging, since
+ * only 5xx is logged.
+ */
+/**
+ * Fallback code per status for exceptions thrown without one — Nest's built-in 404
+ * among them, which was answering `{"code":"INTERNAL_ERROR","message":"Cannot GET
+ * /api/v1/nope"}`. A client keying on `code` could not distinguish a wrong URL from
+ * a server fault, and INTERNAL_ERROR on a 404 invites someone to go hunting for a
+ * crash that never happened.
+ */
+const STATUS_CODES: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  422: 'UNPROCESSABLE_ENTITY',
+  429: 'RATE_LIMITED',
+}
+
+const PRISMA_CLIENT_ERRORS: Record<string, { status: HttpStatus; code: string; message: string }> = {
+  // "Inconsistent column data" — in practice a malformed UUID in a filter.
+  P2023: { status: HttpStatus.BAD_REQUEST, code: 'INVALID_ID', message: 'Malformed identifier' },
+  // Unique constraint — the caller is recreating something that exists.
+  P2002: { status: HttpStatus.CONFLICT, code: 'ALREADY_EXISTS', message: 'Resource already exists' },
+  // Foreign key constraint — the caller referenced something that does not exist.
+  P2003: { status: HttpStatus.BAD_REQUEST, code: 'INVALID_REFERENCE', message: 'Referenced resource does not exist' },
+  // update/delete matched no row.
+  P2025: { status: HttpStatus.NOT_FOUND, code: 'NOT_FOUND', message: 'Resource not found' },
+}
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -23,6 +65,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error'
     let code = 'INTERNAL_ERROR'
     let errors: Array<{ path: string; message: string }> | undefined
+    // Extra fields a thrower may attach, forwarded by name rather than by
+    // spreading the payload — spreading would leak whatever an exception happens
+    // to carry. `since` is the date an account was deactivated or scheduled for
+    // deletion, which the sign-in screen needs to say "you deactivated this
+    // 3 days ago" instead of just refusing.
+    let since: string | undefined
+    // Seconds until a throttled caller may retry; also sent as Retry-After.
+    let retryAfterSeconds: number | undefined
 
     if (exception instanceof ZodError) {
       // Raw schema.parse() failures surface here — treat as a client validation error, not a 500.
@@ -30,9 +80,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
       code = 'VALIDATION_ERROR'
       message = 'Validation failed'
       errors = exception.errors.map((e) => ({ path: e.path.join('.'), message: e.message }))
+    } else if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      PRISMA_CLIENT_ERRORS[exception.code]
+    ) {
+      // A caller-caused database error. Deliberately does not echo Prisma's
+      // message, which names tables, columns and source files.
+      const mapped = PRISMA_CLIENT_ERRORS[exception.code]!
+      status = mapped.status
+      code = mapped.code
+      message = mapped.message
     } else if (exception instanceof HttpException) {
       status = exception.getStatus()
       const res = exception.getResponse()
+
+      // Before reading the payload: a status-derived code beats INTERNAL_ERROR for
+      // any 4xx. An explicit code in the payload still wins below.
+      code = STATUS_CODES[status] ?? code
 
       if (typeof res === 'string') {
         message = res
@@ -41,6 +105,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = (body.message as string) || exception.message
         code = (body.code as string) || code
         if (Array.isArray(body.errors)) errors = body.errors as Array<{ path: string; message: string }>
+        if (typeof body.since === 'string') since = body.since
+        if (typeof body.retryAfterSeconds === 'number') retryAfterSeconds = body.retryAfterSeconds
       }
     }
 
@@ -66,6 +132,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `[${requestId}] ${where} — ${who} — ${detail}`,
         exception instanceof Error ? exception.stack : undefined,
       )
+
+      // Same context, forwarded to error reporting. No-op unless SENTRY_DSN is
+      // set, so this is free when it is not configured. Only 5xx: a 404 or a
+      // validation error is the API working, and paging on those trains people
+      // to ignore the alerts.
+      captureServerError(exception, {
+        requestId,
+        method: request?.method ?? '-',
+        url: request?.url ?? '-',
+        userId: user?.id,
+      })
+    }
+
+    if (retryAfterSeconds !== undefined) {
+      response.header('Retry-After', String(retryAfterSeconds))
     }
 
     response.status(status).send({
@@ -74,6 +155,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code,
         message,
         ...(errors ? { errors } : {}),
+        ...(since ? { since } : {}),
+        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
         // Returned on server faults only, so a tester can quote it and we can
         // find the exact log line. Client errors need no correlation id.
         ...(status >= HttpStatus.INTERNAL_SERVER_ERROR ? { requestId } : {}),

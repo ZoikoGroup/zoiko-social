@@ -142,8 +142,23 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     throw new ApiError(err.code ?? 'UNKNOWN', err.message ?? 'Request failed', res.status)
   }
 
-  // Envelope: interceptor wraps as {success, data}; controllers return {data: result}
-  return (json?.data?.data ?? json?.data) as T
+  /*
+   * Envelope: the interceptor wraps as {success, data} and controllers return
+   * {data: result}, so the payload is usually one level deeper.
+   *
+   * Unwrapped by asking whether the inner key exists, not with `??`. A controller
+   * answering "nothing to report" returns { data: null }, and null coalescing
+   * cannot tell that apart from there being no inner envelope at all — so the
+   * caller received the wrapper `{ data: null }` instead of the null it asked for.
+   * That object is truthy, which is how a "no incoming call" answer became an
+   * incoming call on screen with every field undefined.
+   */
+  const payload = json?.data
+  const unwrapped =
+    payload && typeof payload === 'object' && 'data' in payload
+      ? (payload as { data: unknown }).data
+      : payload
+  return unwrapped as T
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -171,9 +186,25 @@ export interface Profile {
   firstName: string | null
   lastName: string | null
   bio: string | null
+  city: string | null
   avatarUrl: string | null
   bannerUrl: string | null
   websiteUrl: string | null
+  /**
+   * When this person was last online, or null.
+   *
+   * Null covers three cases on purpose — the setting is off, there is no
+   * recorded presence, or they are online right now — so the absence of a
+   * value never reveals which.
+   */
+  lastActiveAt?: string | null
+  /** True only when they are online AND showing last-active. */
+  isOnline?: boolean
+  /**
+   * Present only when this member publishes their address, or when it is your
+   * own profile. Never returned for a private account viewed by someone else.
+   */
+  email?: string | null
   state: string
   role: string
   verificationTier: string
@@ -272,6 +303,16 @@ export const PROFESSIONAL_CATEGORY_LABELS: Record<string, string> = {
 
 // ── Profile API ────────────────────────────────────────────────────────────
 
+export const authApi = {
+  /**
+   * Ends every session for the account, this device included. Supabase's
+   * admin.signOut is all-or-nothing — there is no per-session revoke behind it,
+   * which is why Security offers this rather than a per-device list.
+   */
+  logoutEverywhere: () =>
+    mutate<{ success: boolean; revokedEverywhere: boolean }>('/auth/logout', { method: 'POST' }),
+}
+
 export const profileApi = {
   getMe: () => request<Profile>('/profiles/me'),
   getById: (id: string) => cachedGet<Profile>(`/profiles/${id}`),
@@ -284,6 +325,7 @@ export const profileApi = {
   update: (input: {
     displayName?: string
     bio?: string
+    city?: string | null
     websiteUrl?: string | null
     avatarUrl?: string | null
     bannerUrl?: string | null
@@ -341,9 +383,17 @@ export interface UserSettings {
   notifCommunities: boolean
   notifNews: boolean
   notifPromotions: boolean
+  notifMessages: boolean
+  notifAdoption: boolean
+  notifAccountGuidance: boolean
   emailDigest: boolean
   emailMarketing: boolean
   pushEnabled: boolean
+  // Quiet hours — minutes past local midnight; start > end wraps midnight
+  quietHoursEnabled: boolean
+  quietHoursStart: number
+  quietHoursEnd: number
+  timezone: string
   // Display preferences
   reducedMotion: boolean
   compactView: boolean
@@ -848,7 +898,12 @@ export interface Provider {
   longitude: number | null
   rating: number
   reviewCount: number
+  /** True only when the owner allows bookings AND at least one service is active. */
   availableForBooking: boolean
+  /** Active, non-deleted services. 0 means there is nothing to book. */
+  activeServiceCount: number
+  /** Concurrent bookings allowed per slot. 1 means one at a time. */
+  slotCapacity: number
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }
@@ -865,6 +920,8 @@ export interface NewProvider {
   facilities?: string[]; consultModes?: string[]; languages?: string[]
   emergencyAvailable?: boolean; is24x7?: boolean; acceptsWalkins?: boolean
   hours?: HoursEntry[]; licenseNo?: string
+  /** Concurrent bookings allowed per slot. 1 means one at a time. */
+  slotCapacity?: number
 }
 export interface ProviderFilters {
   q?: string; location?: string; emergency?: boolean; openNow?: boolean
@@ -989,7 +1046,15 @@ export const lostFoundApi = {
 
 export interface NewsArticle {
   id: string
-  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
+  /**
+   * Null for an ingested article — it belongs to a publisher, not a member.
+   *
+   * This was typed non-nullable while the API had always returned null for
+   * every external article, so the compiler raised nothing and the news pages
+   * crashed on the first card they rendered. Attribution for those comes from
+   * `sourceName` / `source` instead.
+   */
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean } | null
   title: string
   excerpt: string
   body: string | null
@@ -1260,9 +1325,160 @@ export const breedingApi = {
   markLitterListed: (id: string) => mutate<{ listedCount: number }>(`/breeding/litters/${id}/listed`, { method: 'POST' }),
 }
 
+/** A news article as it appears in the home feed. */
+export interface NewsCardItem {
+  id: string
+  title: string
+  excerpt: string
+  coverUrl: string | null
+  category: string
+  tier: string
+  sourceName: string | null
+  readMinutes: number
+  publishedAt: string
+  likesCount: number
+  commentsCount: number
+  /** True when this came from a curated feed rather than a member. */
+  isExternal?: boolean
+  /** Where an external card opens — there is no in-app body to read. */
+  sourceUrl?: string | null
+  /** The publisher, for the attribution row. */
+  source?: { name: string; slug: string; logoUrl: string | null } | null
+  savesCount?: number
+  viewerLiked?: boolean
+  viewerSaved?: boolean
+}
+
+/**
+ * The home feed alone carries news. It rides beside `data` rather than inside
+ * it, so every other feed keeps the plain PostPage shape.
+ */
+export interface HomeFeedPage extends PostPage {
+  news?: { afterIndex: number; article: NewsCardItem }[]
+}
+
+export interface NewsSourceItem {
+  id: string
+  name: string
+  slug: string
+  feedUrl: string
+  homepageUrl: string | null
+  logoUrl: string | null
+  tier: string
+  category: string
+  enabled: boolean
+  lastFetchedAt: string | null
+  lastStatus: string | null
+  lastError: string | null
+  articleCount: number
+}
+
+export interface PendingArticleItem {
+  id: string
+  title: string
+  excerpt: string
+  body: string | null
+  coverUrl: string | null
+  category: string
+  tier: string
+  sourceName: string | null
+  sourceUrl: string | null
+  createdAt: string
+  author: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+}
+
+export interface IngestRunResult {
+  sources: number
+  created: number
+  /** Articles whose source link is gone and which were withdrawn. */
+  removed: number
+  /** Covers that were too small to render and were replaced with a larger one. */
+  repaired: number
+  results: { source: string; fetched: number; created: number; skipped: number; error?: string }[]
+}
+
+export interface AdminStats {
+  users: number
+  staff: number
+  suspended: number
+  posts: number
+  communities: number
+  articles: number
+  pendingArticles: number
+  openReports: number
+  newsSources: number
+}
+
+export interface AdminUserItem {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  role: string
+  state: string
+  verificationTier: string
+  createdAt: string
+}
+
+/** Platform administration. Staff-only on the server; roles are admin+ only. */
+export const adminApi = {
+  stats: () => request<AdminStats>('/admin/stats'),
+  users: (filters: { q?: string; role?: string; state?: string } = {}) => {
+    const qs = new URLSearchParams()
+    if (filters.q) qs.set('q', filters.q)
+    if (filters.role) qs.set('role', filters.role)
+    if (filters.state) qs.set('state', filters.state)
+    const suffix = qs.toString()
+    return request<AdminUserItem[]>(`/admin/users${suffix ? `?${suffix}` : ''}`)
+  },
+  setRole: (id: string, role: string) =>
+    mutate<{ id: string; username: string; role: string }>(`/admin/users/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+}
+
+/** Curation and review. Every route here is staff-only on the server. */
+export const newsAdminApi = {
+  sources: () => request<NewsSourceItem[]>('/news/sources'),
+  createSource: (body: {
+    name: string
+    slug: string
+    feedUrl: string
+    homepageUrl?: string
+    logoUrl?: string
+    tier?: string
+    category?: string
+    enabled?: boolean
+  }) => mutate<NewsSourceItem>('/news/sources', { method: 'POST', body: JSON.stringify(body) }),
+  updateSource: (id: string, body: Record<string, unknown>) =>
+    mutate<NewsSourceItem>(`/news/sources/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  disableSource: (id: string) =>
+    mutate<NewsSourceItem>(`/news/sources/${id}/disable`, { method: 'POST' }),
+  deleteSource: (id: string) =>
+    mutate<{ success: boolean }>(`/news/sources/${id}`, { method: 'DELETE' }),
+  ingestAll: () => mutate<IngestRunResult>('/news/ingest', { method: 'POST' }),
+  ingestOne: (id: string) =>
+    mutate<{ source: string; fetched: number; created: number; skipped: number; error?: string }>(
+      `/news/sources/${id}/ingest`,
+      { method: 'POST' },
+    ),
+  pending: () => request<PendingArticleItem[]>('/news/pending'),
+  review: (id: string, approve: boolean) =>
+    mutate<{ id: string; reviewStatus: string }>(
+      `/news/pending/${id}/review?approve=${approve}`,
+      { method: 'POST' },
+    ),
+}
+
 export const feedApi = {
-  home: (cursor?: string | null, limit = 15) =>
-    request<PostPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  /*
+    30, which is what the API caps a page at. It was 15, so the feed asked
+    for half of what it was allowed and the sentinel came back around twice
+    as often on the way down a long scroll.
+  */
+  home: (cursor?: string | null, limit = 30) =>
+    request<HomeFeedPage>(`/feed?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   explore: (cursor?: string | null, limit = 15) =>
     request<PostPage>(`/feed/explore?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
   community: (communityId: string, cursor?: string | null, limit = 15) =>

@@ -621,18 +621,25 @@ export class NetworkService {
     await this.redis.invalidateRelationship(muterId, mutedId)
   }
 
+  /**
+   * Idempotent, deliberately: the caller wants "not muted", and if that is
+   * already true they have got what they asked for.
+   *
+   * This used to 404 with NOT_MUTED when no row existed, which made the mute
+   * control fail whenever the client's cached relationship disagreed with the
+   * server — a stale `muted: true` sent an unmute for a mute that was not
+   * there, and the member saw "Action failed — Resource not found" for an
+   * action whose goal was already met. `muteUser` above upserts for the same
+   * reason; the pair should behave alike.
+   */
   async unmuteUser(muterId: string, mutedId: string): Promise<void> {
-    const mute = await this.prisma.mutedUser.findUnique({
-      where: { muterId_mutedId: { muterId, mutedId } },
+    const { count } = await this.prisma.mutedUser.deleteMany({
+      where: { muterId, mutedId },
     })
-    if (!mute) {
-      throw new NotFoundException({ code: 'NOT_MUTED', message: 'This user is not muted' })
+    // Only bust the cache when something actually changed.
+    if (count > 0) {
+      await this.redis.invalidateRelationship(muterId, mutedId)
     }
-
-    await this.prisma.mutedUser.delete({
-      where: { muterId_mutedId: { muterId, mutedId } },
-    })
-    await this.redis.invalidateRelationship(muterId, mutedId)
   }
 
   async getMutedUsers(userId: string): Promise<MutedUserItem[]> {
@@ -973,19 +980,30 @@ export class NetworkService {
   async getSuggestions(userId: string, limit = 10): Promise<FollowSuggestion[]> {
     const take = Math.min(limit, 25)
 
-    const following = await this.prisma.follow.findMany({
-      where: { followerId: userId, status: 'active' },
-      select: { followingId: true },
-      take: 200,
-    })
+    // These three need nothing from each other — each is keyed on the viewer
+    // alone — so they go out together. Awaiting them in sequence spent three
+    // round-trips where one would do, and a round-trip to the database is
+    // 150-750 ms here depending on how far apart the two sit.
+    const [following, blocked, authorAffinity] = await Promise.all([
+      this.prisma.follow.findMany({
+        where: { followerId: userId, status: 'active' },
+        select: { followingId: true },
+        take: 200,
+      }),
+      this.prisma.blockedUser.findMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        select: { blockerId: true, blockedId: true },
+      }),
+      // ── Affinity layer: candidates followed by the viewer's high-affinity
+      // authors, scored by Σ log₁₀(1 + author affinity). Blocked users' graphs
+      // are never used as seeds (the affinity profile isn't cleaned on block).
+      this.affinity.getAuthorAffinity(userId),
+    ])
+
     const followingIds = following.map((f) => f.followingId)
     const excludeIds = new Set(followingIds)
     excludeIds.add(userId)
 
-    const blocked = await this.prisma.blockedUser.findMany({
-      where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
-      select: { blockerId: true, blockedId: true },
-    })
     const blockedIds = new Set<string>()
     blocked.forEach((b) => {
       excludeIds.add(b.blockerId)
@@ -994,10 +1012,6 @@ export class NetworkService {
       blockedIds.add(b.blockedId)
     })
 
-    // ── Affinity layer: candidates followed by the viewer's high-affinity
-    // authors, scored by Σ log₁₀(1 + author affinity). Blocked users' graphs
-    // are never used as seeds (the affinity profile isn't cleaned on block).
-    const authorAffinity = await this.affinity.getAuthorAffinity(userId)
     const highAffinityAuthors = [...authorAffinity.entries()]
       .filter(([authorId, weight]) => weight >= AFFINITY_WEIGHTS.like && !blockedIds.has(authorId))
       .sort((a, b) => b[1] - a[1])

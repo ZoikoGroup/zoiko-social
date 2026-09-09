@@ -41,6 +41,22 @@ interface LostPetCardProps {
 
 export function LostPetCard({ pet, isOwner = false, onStatusChange }: LostPetCardProps): React.JSX.Element {
   const [showFoundModal, setShowFoundModal] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  /**
+   * Sharing is how a lost pet actually gets found, and this button did nothing
+   * at all. Copies the report link, matching PostCard.copyLink — the share
+   * sheet is not used here because the card renders in lists where a modal
+   * interrupts scanning, and a link pasted into a neighbourhood group is what
+   * these get used for.
+   */
+  async function shareReport(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/lost-found/${pet.id}`)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard blocked — nothing useful to say */ }
+  }
   const vis = VISIBILITY_CONFIG[pet.visibility]
 
   return (
@@ -117,8 +133,14 @@ export function LostPetCard({ pet, isOwner = false, onStatusChange }: LostPetCar
           <div className="flex items-center gap-2 pt-1 border-t border-outline-variant/20">
             <UserAvatar name={pet.ownerName} size="xs" verified={pet.ownerVerified} />
             <span className="text-[11px] text-outline flex-1">Posted by <span className="font-semibold text-on-surface">{pet.ownerName}</span></span>
-            <button className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
-              <Share2 className="w-3.5 h-3.5" />
+            <button
+              onClick={() => void shareReport()}
+              aria-label={copied ? 'Link copied' : 'Copy link to this report'}
+              className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+            >
+              {copied
+                ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                : <Share2 className="w-3.5 h-3.5" />}
             </button>
           </div>
 

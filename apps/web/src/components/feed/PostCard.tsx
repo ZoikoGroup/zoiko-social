@@ -21,6 +21,9 @@ import { ReportContentModal } from '@/components/ReportContentModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { useDateFormat } from '@/hooks/use-date-format'
+import { UserContent } from '@/components/UserContent'
+import { useFormat } from '@/hooks/use-format'
 
 // Short verified-badge label derived from the author's professional category.
 const CATEGORY_BADGE: Record<string, string> = {
@@ -42,15 +45,6 @@ function InfoRow({ Icon, label, value }: { Icon: LucideIcon; label: string; valu
       <span className="text-on-surface">{value}</span>
     </div>
   )
-}
-
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m`
-  if (s < 86400) return `${Math.floor(s / 3600)}h`
-  if (s < 604800) return `${Math.floor(s / 86400)}d`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 /** Linkify @mentions and #hashtags in captions. */
@@ -87,9 +81,11 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): React.JSX.Element {
+  const { n } = useFormat()
   const router = useRouter()
   const { user, profile } = useAuth()
   const { success: toastSuccess } = useToast()
+  const { ago } = useDateFormat()
   const [liked, setLiked] = useState(post.viewerLiked)
   const [saved, setSaved] = useState(post.viewerSaved)
   const [likesCount, setLikesCount] = useState(post.likesCount)
@@ -249,7 +245,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             )}
           </div>
           <p className="text-[11px] text-outline">
-            @{post.author.username} · {timeAgo(post.createdAt)}
+            @{post.author.username} · {ago(post.createdAt)}
             {post.community ? (
               <> · in <Link href={`/c/${post.community.slug}`} className="text-primary hover:underline font-medium">{post.community.name}</Link></>
             ) : post.visibility === 'followers' ? ' · Followers' : ''}
@@ -454,7 +450,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
         <button onClick={() => setShareOpen(true)} className="p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
           <Send className="w-6 h-6 text-on-surface" />
         </button>
-        <button onClick={toggleSave} className="ml-auto p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
+        <button onClick={toggleSave} aria-label={saved ? "Remove from saved" : "Save post"} className="ml-auto p-2 rounded-lg hover:bg-surface-container transition-colors cursor-pointer">
           <Bookmark className={`w-6 h-6 transition-colors ${saved ? 'text-primary fill-primary' : 'text-on-surface'}`} />
         </button>
       </div>
@@ -466,7 +462,7 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             onClick={() => setLikersOpen(true)}
             className="font-semibold text-label-md text-on-surface hover:opacity-70 transition-opacity cursor-pointer"
           >
-            {likesCount.toLocaleString()} like{likesCount === 1 ? '' : 's'}
+            {n(likesCount)} like{likesCount === 1 ? '' : 's'}
           </button>
         )}
         {post.caption && (
@@ -474,12 +470,15 @@ export function PostCard({ post, onDeleted, surface = 'feed' }: PostCardProps): 
             <Link href={`/profile/${post.author.username}`} className="font-semibold hover:underline mr-1.5">
               {post.author.username}
             </Link>
-            <Caption text={post.caption} />
+            {/* span, not the default div: this sits inline inside the <p> after the
+                username, and a block element there is invalid HTML, which React
+                reports as a hydration error. */}
+            <UserContent as="span"><Caption text={post.caption} /></UserContent>
           </p>
         )}
         {post.commentsCount > 0 && (
           <Link href={`/p/${post.id}`} className="block text-label-sm text-outline hover:text-on-surface-variant">
-            View {post.commentsCount === 1 ? '1 comment' : `all ${post.commentsCount.toLocaleString()} comments`}
+            View {post.commentsCount === 1 ? '1 comment' : `all ${n(post.commentsCount)} comments`}
           </Link>
         )}
       </div>

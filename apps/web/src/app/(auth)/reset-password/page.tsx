@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { Lock, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react'
+import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
 
 const INITIAL_TOKEN_STATE = typeof window !== 'undefined'
   ? (() => {
@@ -39,8 +40,9 @@ export default function ResetPasswordPage(): React.JSX.Element {
       return
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+    const policyError = validatePassword(password)
+    if (policyError) {
+      setError(policyError)
       return
     }
 
@@ -117,9 +119,10 @@ export default function ResetPasswordPage(): React.JSX.Element {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 8 characters"
+                  placeholder={`${PASSWORD_MIN}–${PASSWORD_MAX} characters`}
                   required
-                  minLength={8}
+                  minLength={PASSWORD_MIN}
+                  maxLength={PASSWORD_MAX}
                   className="w-full pl-10 pr-10 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                 />
                 <button
@@ -130,6 +133,8 @@ export default function ResetPasswordPage(): React.JSX.Element {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {/* The rules are stated before submitting, not only when one fails. */}
+              <p className="text-[11px] text-outline">{PASSWORD_HINT}</p>
             </div>
 
             <div className="space-y-1.5">
@@ -145,7 +150,8 @@ export default function ResetPasswordPage(): React.JSX.Element {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repeat your password"
                   required
-                  minLength={8}
+                  minLength={PASSWORD_MIN}
+                  maxLength={PASSWORD_MAX}
                   className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-lg text-body-md text-on-surface placeholder:text-outline/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
                 />
               </div>
@@ -159,7 +165,7 @@ export default function ResetPasswordPage(): React.JSX.Element {
               {loading ? (
                 <div className="w-5 h-5 border-2 border-on-primary border-t-transparent rounded-full animate-spin" />
               ) : (
-                'Reset Password'
+                'Update Password'
               )}
             </button>
           </form>

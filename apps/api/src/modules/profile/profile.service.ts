@@ -1,13 +1,8 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Inject } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { SUPABASE_ADMIN_CLIENT, type SupabaseAdminClient } from '../database/database.providers'
+import { accountStateCache } from '../auth/account-state-cache'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
@@ -18,19 +13,35 @@ import { ConfigService } from '../config/config.service'
 import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase-storage.service'
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
 export const UpdateProfileSchema = z.object({
   displayName: z.string().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
-  avatarUrl: z.string().url().max(500).optional().nullable(),
-  bannerUrl: z.string().url().max(500).optional().nullable(),
+  city: z.string().max(100).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
+  avatarUrl: httpUrl(500).optional().nullable(),
+  bannerUrl: httpUrl(500).optional().nullable(),
   isPrivate: z.boolean().optional(),
   username: z.string().min(3).max(30).optional(),
   currency: z.string().trim().min(2).max(8).optional(),
 })
+
+/**
+ * Asks the platform's own zone database rather than pattern-matching the name.
+ * "Europe/Atlantis" has the right shape and does not exist; a member who saved
+ * it would have quiet hours that throw when the window is next evaluated.
+ */
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
 
 export const UpdateSettingsSchema = z.object({
   // Privacy toggles
@@ -49,9 +60,25 @@ export const UpdateSettingsSchema = z.object({
   notifCommunities: z.boolean().optional(),
   notifNews: z.boolean().optional(),
   notifPromotions: z.boolean().optional(),
+  notifMessages: z.boolean().optional(),
+  notifAdoption: z.boolean().optional(),
+  notifAccountGuidance: z.boolean().optional(),
   emailDigest: z.boolean().optional(),
   emailMarketing: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
+
+  // Quiet hours (§06), as minutes past local midnight. Bounded here as well as
+  // by the database check, so a bad value is a 400 naming the field rather than
+  // a constraint violation surfacing as a 500.
+  quietHoursEnabled: z.boolean().optional(),
+  quietHoursStart: z.number().int().min(0).max(1439).optional(),
+  quietHoursEnd: z.number().int().min(0).max(1439).optional(),
+  // Validated against the runtime's own zone database rather than a regex, so
+  // an accepted value is one the formatter can actually use.
+  timezone: z
+    .string()
+    .refine(isValidTimeZone, { message: 'Must be an IANA time zone name, e.g. Europe/London' })
+    .optional(),
 
   // Display preferences
   reducedMotion: z.boolean().optional(),
@@ -67,7 +94,7 @@ export const SwitchProfessionalSchema = z.object({
   businessPhone: z.string().max(20).optional(),
   businessAddress: z.string().max(200).optional(),
   description: z.string().max(1000).optional(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
   serviceAreas: z.array(z.string()).optional(),
   businessHours: z.record(z.any()).optional(),
   licenseNumber: z.string().max(100).optional(),
@@ -79,7 +106,7 @@ export const UpdateProfessionalSchema = z.object({
   businessPhone: z.string().max(20).optional(),
   businessAddress: z.string().max(200).optional(),
   description: z.string().max(1000).optional(),
-  websiteUrl: z.string().url().max(200).optional().nullable(),
+  websiteUrl: httpUrl(200).optional().nullable(),
   serviceAreas: z.array(z.string()).optional(),
   businessHours: z.record(z.any()).optional(),
   availableForBooking: z.boolean().optional(),
@@ -124,6 +151,7 @@ export interface ProfileResponse {
   firstName: string | null
   lastName: string | null
   bio: string | null
+  city: string | null
   avatarUrl: string | null
   bannerUrl: string | null
   websiteUrl: string | null
@@ -141,6 +169,28 @@ export interface ProfileResponse {
   onboardingCompleted: boolean
   createdAt: string
   updatedAt: string
+  /**
+   * When this person was last online, or null.
+   *
+   * Null means "not being shown", and covers three different reasons on
+   * purpose: the owner has Show last active off, they have no recorded
+   * presence, or they are currently online (in which case `isOnline` carries
+   * the information instead). A viewer cannot tell which, so the setting does
+   * not leak by its own absence.
+   */
+  lastActiveAt: string | null
+  /** True only when presence says online AND the owner shows last active. */
+  isOnline: boolean
+  /**
+   * The member's email, or null.
+   *
+   * Only present when they have switched "Show email address" on, or when they
+   * are looking at their own profile. It is read from auth rather than stored
+   * on the profile: auth owns the address, and a copy here would go stale the
+   * moment someone changed it — showing a rescue coordinator an address that no
+   * longer receives mail is worse than showing none.
+   */
+  email: string | null
   professionalProfile: ProfessionalProfileResponse | null
 }
 
@@ -222,7 +272,7 @@ export const CompleteOnboardingSchema = z.object({
   lastName: z.string().trim().max(40).optional(),
   username: z.string().trim().min(3).max(30),
   bio: z.string().trim().max(500).optional(),
-  avatarUrl: z.string().url().max(500).optional().nullable(),
+  avatarUrl: httpUrl(500).optional().nullable(),
 })
 
 export type CompleteOnboardingInput = z.infer<typeof CompleteOnboardingSchema>
@@ -243,6 +293,8 @@ export class ProfileService {
     private readonly authService: AuthService,
     private readonly config: ConfigService,
     private readonly storage: SupabaseStorageService,
+    @Inject(SUPABASE_ADMIN_CLIENT)
+    private readonly supabaseAdmin: SupabaseAdminClient,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -448,7 +500,8 @@ export class ProfileService {
     // redaction is applied after retrieval so one cache entry serves everyone.
     const cached = await this.redis.getProfile<ProfileResponse>(id)
     if (cached) {
-      return this.redactForViewer(cached, currentUserId)
+      await this.assertProfileVisible(cached, currentUserId)
+      return await this.redactForViewer(cached, currentUserId)
     }
 
     const profile = await this.prisma.profile.findUnique({
@@ -461,16 +514,157 @@ export class ProfileService {
     }
 
     const mapped = this.mapProfile(profile)
+    // Cached before the gate on purpose: the cache is viewer-agnostic, and
+    // gating on read means a hidden account still gets one entry rather than
+    // hitting PostgreSQL on every probe.
     await this.redis.setProfile(id, mapped)
-    return this.redactForViewer(mapped, currentUserId)
+    await this.assertProfileVisible(mapped, currentUserId)
+    return await this.redactForViewer(mapped, currentUserId)
   }
 
-  /** Hide private-account details from non-owners. */
-  private redactForViewer(profile: ProfileResponse, currentUserId?: string): ProfileResponse {
-    if (profile.isPrivate && profile.id !== currentUserId) {
-      return { ...profile, bio: null, websiteUrl: null }
+  /**
+   * Only active accounts are visible to other people.
+   *
+   * Search already filtered on `state = 'active'`, and the feed and post grid
+   * gated on it too, but the profile lookup itself never did — so a
+   * deactivated, suspended, banned or pending-deletion account still answered
+   * 200 at /profiles/:id and /profiles/username/:username. For a ban that
+   * undercuts the enforcement: the account is removed from every listing and
+   * its posts 404, while its profile page stays up. Deactivation carries the
+   * same promise in its own wording — "everyone else stops seeing the member".
+   *
+   * 404 rather than 403, matching how posts handle it: refusing without
+   * confirming the account exists.
+   *
+   * Two exemptions. The owner keeps seeing their own profile, because
+   * deactivation is reversible and signing back in has to lead somewhere. Staff
+   * keep seeing it because reviewing a banned account is the point of banning
+   * one. The staff lookup only runs for a non-active profile viewed by a
+   * non-owner, so the common path costs nothing.
+   */
+  private async assertProfileVisible(
+    profile: ProfileResponse,
+    currentUserId?: string,
+  ): Promise<void> {
+    if (profile.state === 'active') return
+    if (currentUserId && profile.id === currentUserId) return
+
+    if (currentUserId) {
+      try {
+        await this.requireAdminOrModerator(currentUserId)
+        return
+      } catch {
+        // Not staff — fall through to the same 404 everyone else gets.
+      }
     }
-    return profile
+
+    throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
+  }
+
+  /**
+   * Applies everything about a profile that depends on who is looking.
+   *
+   * Two jobs: hide what the owner has chosen not to share, and fill in the
+   * fields that only make sense per-viewer. Both live here because both need
+   * the owner's privacy settings, and one lookup can serve them.
+   */
+  private async redactForViewer(profile: ProfileResponse, currentUserId?: string): Promise<ProfileResponse> {
+    const isOwner = profile.id === currentUserId
+
+    let result = profile
+    if (profile.isPrivate && !isOwner) {
+      result = { ...result, bio: null, websiteUrl: null, city: null }
+    }
+
+    // Looking at your own profile: nothing is hidden from you, and your own
+    // last-active time tells you nothing you do not already know.
+    if (isOwner) return { ...result, email: await this.authEmail(profile.id) }
+
+    /*
+      Defaults matter here, and they are not the same for both toggles:
+      `showLastActive` defaults to true, `showLocation` to false (see the
+      schema, and the client's own defaults, which agree).
+
+      A member with no settings row must therefore be treated as location
+      hidden. The previous version read a missing row as "show", which
+      contradicted the column default and leaked a city the member had never
+      agreed to publish.
+    */
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { userId: profile.id },
+      select: { showLocation: true, showLastActive: true, showEmail: true },
+    })
+    const showLocation = settings?.showLocation ?? false
+    const showLastActive = settings?.showLastActive ?? true
+    // Defaults to false, so a member with no settings row publishes nothing.
+    const showEmail = settings?.showEmail ?? false
+
+    /*
+      Applies to a logged-out visitor too.
+
+      This check used to require a `currentUserId`, so an anonymous visitor —
+      the least-trusted viewer there is — skipped the gate entirely and saw the
+      city regardless of the setting.
+    */
+    if (result.city && !showLocation) {
+      result = { ...result, city: null }
+    }
+
+    /*
+      The address is published only when the member switched it on.
+
+      A private account is excluded even then: the point of a private profile is
+      that non-followers see nothing personal, and an email is the most
+      contactable thing on the page. Someone wanting both should make the
+      account public.
+    */
+    if (showEmail && !profile.isPrivate) {
+      result = { ...result, email: await this.authEmail(profile.id) }
+    }
+
+    if (!showLastActive) return result
+
+    const presence = await this.prisma.userPresence.findFirst({
+      where: { userId: profile.id },
+      select: { status: true, lastSeen: true },
+    })
+    if (!presence) return result
+
+    const online = presence.status === 'online'
+    return {
+      ...result,
+      isOnline: online,
+      // Omitted while online: "online now" is the useful statement, and a
+      // timestamp alongside it only invites the question of which to believe.
+      lastActiveAt: online ? null : (presence.lastSeen?.toISOString() ?? null),
+    }
+  }
+
+  /**
+   * The member's email address, from auth.
+   *
+   * Read on demand rather than mirrored onto `profiles`. Auth owns the address,
+   * and a stored copy drifts the moment someone changes it — handing a rescue
+   * coordinator an address that no longer receives mail is worse than handing
+   * them none. There is also no trigger keeping such a column in step, so it
+   * would be wrong by default rather than by accident.
+   *
+   * The cost is one admin call, and it is only paid for a profile whose owner
+   * switched the toggle on — off by default, so the common request is unchanged.
+   * If that ever becomes the expensive part, the answer is a synced column with
+   * a trigger behind it, not an unsynced one.
+   *
+   * Returns null on any failure. A profile that renders without an email is
+   * fine; one that 500s because auth was briefly unreachable is not.
+   */
+  private async authEmail(userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.supabaseAdmin.auth.admin.getUserById(userId)
+      if (error || !data.user?.email) return null
+      return data.user.email
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -624,41 +818,60 @@ export class ProfileService {
       return { accepted: toCreate, pendingIds: pending.map((p) => p.id) }
     })
 
-    // Sync the receiver's pending follow_request notifications to "accepted"
-    for (const requestId of pendingIds) {
+    /*
+      Sync the receiver's pending follow_request notifications to "accepted".
+
+      This used to run one query per pending request and then one update per
+      notification found, all in turn. Going public with twenty pending requests
+      therefore cost twenty round-trips before the updates even started, and a
+      round-trip here is ~1.5s on the transaction pooler.
+
+      Now: one query for every still-pending follow_request notification this
+      member has, matched against the accepted ids in memory. Each row still
+      needs its own update because the merged JSON differs per row, but they no
+      longer wait on each other.
+    */
+    if (pendingIds.length > 0) {
+      const idSet = new Set(pendingIds)
       const pendingNotifications = await this.prisma.notification.findMany({
         where: {
           userId,
           type: 'follow_request',
-          AND: [
-            { data: { path: ['requestId'], equals: requestId } },
-            { data: { path: ['status'], equals: 'pending' } },
-          ],
+          data: { path: ['status'], equals: 'pending' },
         },
       })
-      for (const notification of pendingNotifications) {
-        await this.prisma.notification.update({
-          where: { id: notification.id },
-          data: {
-            data: { ...(notification.data as Record<string, unknown>), status: 'accepted' },
-            isRead: true,
-          },
-        })
-      }
+
+      await Promise.all(
+        pendingNotifications
+          .filter((n) => idSet.has((n.data as Record<string, unknown>)?.requestId as string))
+          .map((notification) =>
+            this.prisma.notification.update({
+              where: { id: notification.id },
+              data: {
+                data: { ...(notification.data as Record<string, unknown>), status: 'accepted' },
+                isRead: true,
+              },
+            }),
+          ),
+      )
     }
 
-    await this.redis.invalidateProfile(userId)
-    for (const request of accepted) {
-      await this.redis.invalidateRelationship(request.senderId, userId)
-      await this.redis.invalidateProfile(request.senderId)
-      await this.notifications.enqueue({
-        userId: request.senderId,
-        type: 'follow_request_accepted',
-        title: 'Follow Request Accepted',
-        body: 'Your follow request was accepted',
-        data: { userId },
-      })
-    }
+    // Cache busts and notifications for every accepted sender, together rather
+    // than one sender at a time.
+    await Promise.all([
+      this.redis.invalidateProfile(userId),
+      ...accepted.flatMap((request) => [
+        this.redis.invalidateRelationship(request.senderId, userId),
+        this.redis.invalidateProfile(request.senderId),
+        this.notifications.enqueue({
+          userId: request.senderId,
+          type: 'follow_request_accepted',
+          title: 'Follow Request Accepted',
+          body: 'Your follow request was accepted',
+          data: { userId },
+        }),
+      ]),
+    ])
     if (accepted.length > 0) {
       this.logger.log(`Auto-accepted ${accepted.length} follow requests for user ${userId} (went public)`)
     }
@@ -1066,7 +1279,7 @@ export class ProfileService {
    * and their content for free, because profile visibility across feed, search,
    * posts, comments and messaging is gated on `state = 'active'`.
    */
-  async deactivateAccount(userId: string): Promise<{ state: string }> {
+  async deactivateAccount(userId: string, accessToken?: string): Promise<{ state: string }> {
     const profile = await this.loadForStateChange(userId)
 
     await this.prisma.profile.update({
@@ -1082,7 +1295,7 @@ export class ProfileService {
       newData: { username: profile.username },
     })
     // Sign every device out, so the account really does go quiet.
-    await this.revokeSessions(userId)
+    await this.revokeSessions(accessToken)
 
     this.logger.log(`Account deactivated for ${userId}`)
     return { state: 'deactivated' }
@@ -1096,7 +1309,7 @@ export class ProfileService {
    * happens later, in `purgeAccount` — either from the daily job or the moment an
    * expired account tries to sign in.
    */
-  async requestAccountDeletion(userId: string): Promise<{ scheduledFor: string; graceDays: number }> {
+  async requestAccountDeletion(userId: string, accessToken?: string): Promise<{ scheduledFor: string; graceDays: number }> {
     const profile = await this.loadForStateChange(userId)
 
     const requestedAt = new Date()
@@ -1114,7 +1327,7 @@ export class ProfileService {
       entityId: userId,
       newData: { username: profile.username, graceDays: this.deletionGraceDays, scheduledFor: scheduledFor.toISOString() },
     })
-    await this.revokeSessions(userId)
+    await this.revokeSessions(accessToken)
 
     this.logger.log(`Deletion scheduled for ${userId} at ${scheduledFor.toISOString()}`)
     return { scheduledFor: scheduledFor.toISOString(), graceDays: this.deletionGraceDays }
@@ -1199,6 +1412,12 @@ export class ProfileService {
   }
 
   private async afterStateChange(userId: string, username: string, event: string): Promise<void> {
+    // Not inside the try: the guard consults this on every request, so a stale
+    // entry would keep letting the member through for up to five seconds. It is a
+    // synchronous map delete and cannot throw, but it must not sit behind
+    // something that can.
+    accountStateCache.invalidate(userId)
+
     try {
       await this.redis.invalidateProfile(userId)
       await this.redis.invalidateUsername(username)
@@ -1208,11 +1427,19 @@ export class ProfileService {
     }
   }
 
-  private async revokeSessions(userId: string): Promise<void> {
+  /**
+   * Best effort: the state change has already committed, and failing to reach
+   * Supabase should not undo it. Takes the caller's JWT because that is what
+   * admin.signOut accepts — it was being handed a user id, so this never
+   * actually revoked anything and the warning was never logged either, since
+   * the id was rejected rather than throwing here.
+   */
+  private async revokeSessions(accessToken?: string): Promise<void> {
+    if (!accessToken) return
     try {
-      await this.authService.logout(userId)
+      await this.authService.logout(accessToken)
     } catch (error) {
-      this.logger.warn(`Could not revoke sessions for ${userId}: ${(error as Error).message}`)
+      this.logger.warn(`Could not revoke sessions: ${(error as Error).message}`)
     }
   }
 
@@ -1287,6 +1514,7 @@ export class ProfileService {
       firstName: profile.firstName ?? null,
       lastName: profile.lastName ?? null,
       bio: profile.bio,
+      city: profile.city ?? null,
       avatarUrl: profile.avatarUrl,
       bannerUrl: profile.bannerUrl,
       websiteUrl: profile.websiteUrl,
@@ -1303,6 +1531,11 @@ export class ProfileService {
       onboardingCompleted: profile.onboardingCompletedAt !== null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),
+      // Fail closed. redactForViewer fills these in when the owner allows it,
+      // so any path that skips it discloses nothing rather than everything.
+      lastActiveAt: null,
+      isOnline: false,
+      email: null,
       professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt
         ? this.mapProfessionalProfile(profile.professionalProfile)
         : null,

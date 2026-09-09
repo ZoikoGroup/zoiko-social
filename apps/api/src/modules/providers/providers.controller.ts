@@ -186,6 +186,23 @@ export class ProvidersController {
     return { data: await this.providers.listAvailability(id) }
   }
 
+  /**
+   * Bookable slots for one service on one date, each reporting how much room is
+   * left. Readable without signing in, so the schedule is visible before signup.
+   */
+  @Get(':id/slots')
+  @UseGuards(OptionalAuthGuard)
+  async listSlots(
+    @Param('id') id: string,
+    @Query('serviceId') serviceId?: string,
+    @Query('date') date?: string,
+  ) {
+    if (!serviceId || !date) {
+      throw new BadRequestException({ code: 'MISSING_PARAMS', message: 'serviceId and date are required' })
+    }
+    return { data: await this.providers.listSlots(id, serviceId, date) }
+  }
+
   @Post('availability')
   @UseGuards(JwtAuthGuard)
   async createAvailability(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateAvailabilityInput) {

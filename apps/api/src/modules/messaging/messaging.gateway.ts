@@ -4,6 +4,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -13,6 +14,7 @@ import { JwtVerificationService } from '../auth/jwt-verification.service'
 import { MessagingService } from './messaging.service'
 import { PresenceService } from './presence.service'
 import { RealtimeService } from '../realtime/realtime.service'
+import { registerSocketAuth } from '../realtime/socket-auth.middleware'
 
 interface AuthSocket extends Socket {
   data: { userId?: string }
@@ -35,11 +37,19 @@ interface CallSignal {
   conversationName?: string
 }
 
+/**
+ * How long a call may ring before it is treated as abandoned.
+ *
+ * Comfortably longer than any caller waits, and short enough that a ring nobody
+ * cancelled cannot greet the next person who signs in.
+ */
+const RING_TIMEOUT_MS = 60_000
+
 @WebSocketGateway({
   cors: { origin: true, credentials: true },
   transports: ['websocket', 'polling'],
 })
-export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(MessagingGateway.name)
 
   /**
@@ -53,6 +63,8 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     {
       callerId: string
       callType: 'audio' | 'video'
+      /** When the ring began, so an abandoned one can be recognised as stale. */
+      startedAt: number
       acceptedAt: number | null
       isGroup: boolean
       // Users who have accepted (started media). A "participant" is the caller or
@@ -71,31 +83,29 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     private readonly realtimeService: RealtimeService,
   ) {}
 
-  async handleConnection(client: AuthSocket): Promise<void> {
-    const token =
-      (client.handshake.auth?.token as string | undefined) ??
-      client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '')
+  afterInit(server: Server): void {
+    // Both gateways share the default namespace; registerSocketAuth is
+    // idempotent per server, so whichever initialises first installs it.
+    registerSocketAuth(server, this.jwtVerification, this.logger)
+  }
 
-    if (!token) {
-      client.emit('error', { code: 'UNAUTHENTICATED', message: 'Access token required' })
+  async handleConnection(client: AuthSocket): Promise<void> {
+    // Identity is already resolved by the auth middleware; this only enforces it
+    // and does the post-auth setup. No second verify.
+    const userId = client.data.userId
+    if (!userId) {
+      const reason = (client.data as { authError?: string }).authError
+      client.emit('error', {
+        code: reason === 'Access token required' ? 'UNAUTHENTICATED' : 'AUTH_FAILED',
+        message: reason ?? 'Invalid or expired token',
+      })
       client.disconnect(true)
       return
     }
 
-    try {
-      const user = await this.jwtVerification.verify(token)
-      client.data.userId = user.id
-      await client.join(`user:${user.id}`)
-
-      // Set online
-      await this.presenceService.setOnline(user.id)
-
-      client.emit('connected', { userId: user.id })
-    } catch (err) {
-      this.logger.error(`Messaging socket auth failed: ${(err as Error).message}`)
-      client.emit('error', { code: 'AUTH_FAILED', message: 'Invalid or expired token' })
-      client.disconnect(true)
-    }
+    await client.join(`user:${userId}`)
+    await this.presenceService.setOnline(userId)
+    client.emit('connected', { userId })
   }
 
   async handleDisconnect(client: AuthSocket): Promise<void> {
@@ -170,7 +180,13 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() body: { conversationId?: string; messageId?: string },
   ): Promise<void> {
     if (!client.data.userId || !body?.conversationId) return
-    await this.messagingService.markConversationRead(client.data.userId, body.conversationId, body.messageId)
+    // markConversationRead now rejects a non-member, and a message that is not
+    // in this conversation. Both payload fields come from the client, so a
+    // rejection is expected traffic rather than a fault — log it and move on
+    // instead of erroring the socket over a read receipt.
+    await this.messagingService
+      .markConversationRead(client.data.userId, body.conversationId, body.messageId)
+      .catch((err: Error) => this.logger.warn(`messages:read rejected: ${err.message}`))
   }
 
   @SubscribeMessage('presence:subscribe')
@@ -298,10 +314,79 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.activeCalls.set(conversationId, {
       callerId: userId,
       callType: body.callType ?? 'audio',
+      startedAt: Date.now(),
       acceptedAt: null,
       isGroup,
       acceptedBy: new Set<string>(),
     })
+    /*
+     * Ring the device as well as the socket.
+     *
+     * The relay above reaches only a recipient whose app is already open. A phone
+     * in a pocket got nothing at all — no ring, and afterwards not even the
+     * missed-call notification, since that is written when the call closes.
+     *
+     * Not awaited: signalling must not wait on a push service, and a ring that
+     * arrives late is worse than useless.
+     */
+    const identity = await this.messagingService.getCallIdentity(userId)
+    void this.messagingService
+      .pushIncomingCall(
+        conversationId,
+        userId,
+        identity.displayName ?? 'Someone',
+        body.callType ?? 'audio',
+        isGroup ? undefined : body.toUserId,
+      )
+      .catch((err: Error) => this.logger.warn(`Call push failed: ${err.message}`))
+  }
+
+  /**
+   * The call currently ringing for this member, if any.
+   *
+   * Answering from a device notification needs this. The invite is a one-shot
+   * socket event, so an app opened from that notification has already missed it —
+   * it has to be able to ask whether it is still being called.
+   *
+   * In-memory and therefore per-process, like the call state it reads. That is a
+   * limitation the call feature already has, not a new one.
+   */
+  async getRingingFor(userId: string): Promise<{
+    conversationId: string
+    callerId: string
+    callType: 'audio' | 'video'
+    isGroup: boolean
+  } | null> {
+    for (const [conversationId, call] of this.activeCalls) {
+      if (call.acceptedAt) continue // in progress, not ringing
+
+      /*
+       * A ring nobody ended is not still ringing.
+       *
+       * Call state is cleared by call:end or call:cancel, and neither arrives if
+       * the caller's tab simply closes or their network drops — so the entry sat
+       * there indefinitely and the next person to sign in was told they were being
+       * called, by someone who had long since given up. Expiring on age catches
+       * every way a ring can be abandoned without intercepting each one.
+       */
+      if (Date.now() - call.startedAt > RING_TIMEOUT_MS) {
+        this.activeCalls.delete(conversationId)
+        continue
+      }
+      if (call.callerId === userId) continue // this member is the caller
+
+      /*
+       * Membership is the whole of the authorisation here, and its absence was a
+       * leak: without it this returned the first call ringing anywhere in the
+       * system, handing any caller a stranger's conversation id and the identity
+       * of whoever was dialling — and raising an incoming-call screen for a call
+       * they were never part of.
+       */
+      if (!(await this.messagingService.isMember(userId, conversationId))) continue
+
+      return { conversationId, callerId: call.callerId, callType: call.callType, isGroup: call.isGroup }
+    }
+    return null
   }
 
   @SubscribeMessage('call:accept')

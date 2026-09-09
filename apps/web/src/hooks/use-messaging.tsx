@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { useAuth } from '@/hooks/use-auth'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
@@ -25,6 +26,27 @@ export interface LastMessage {
   body: string | null
   senderId: string
   createdAt: string
+  /** A location or poll has no body, so the preview needs the type instead. */
+  type?: string
+}
+
+/**
+ * What a community chat knows about itself beyond being a conversation: who the
+ * viewer is in it, and which of the room's locks are on. Absent on DMs and
+ * groups, which is how the UI tells them apart.
+ */
+export interface CommunityChatInfo {
+  id: string
+  slug: string
+  name: string
+  avatarUrl: string | null
+  membersCount: number
+  myRole: string
+  isMod: boolean
+  isAdmin: boolean
+  chatEnabled: boolean
+  announcementOnly: boolean
+  slowModeSeconds: number
 }
 
 export interface Conversation {
@@ -44,6 +66,8 @@ export interface Conversation {
   isArchived: boolean
   createdAt: string
   updatedAt: string
+  /** Set only on a community chat. */
+  community?: CommunityChatInfo
 }
 
 export interface MessageData {
@@ -58,6 +82,17 @@ export interface MessageData {
   type: string
   body: string | null
   mediaUrls: string[]
+  /** A shared location lives here, as { location: { lat, lng, label? } }. */
+  metadata?: Record<string, unknown> | null
+  /** Set when this message was forwarded from another conversation. */
+  forwardedFrom?: string | null
+  /** Present only on a poll message. */
+  poll?: {
+    id: string
+    question: string
+    totalVotes: number
+    options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+  } | null
   parentId: string | null
   /** WhatsApp-style snippet of the replied-to message (null if not a reply). */
   parent?: {
@@ -154,6 +189,7 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
 
   const unreadCount = conversations.reduce((sum, c) => sum + c.unreadCount, 0)
   const { warning: toastWarning, success: toastSuccess } = useToast()
+  const tm = useTranslations('messaging')
   const wasOfflineRef = useRef(false)
   // Live mirror of the open conversation for use inside the stable socket
   // handler below. Previously a plain object was created inside that effect
@@ -179,9 +215,19 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         setConversationsError('Not signed in — auth token not available')
         return
       }
-      const res = await fetch(`${API_URL}/api/v1/messaging/conversations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      // Community chats come from their own endpoint: they have no rows in the
+      // table the inbox paginates over, so the server cannot return them in the
+      // same page without breaking that pagination. Fetched alongside rather
+      // than after, and allowed to fail on its own — an unreachable communities
+      // endpoint must not empty someone's inbox.
+      const [res, communityRes] = await Promise.all([
+        fetch(`${API_URL}/api/v1/messaging/conversations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`${API_URL}/api/v1/messaging/communities`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null),
+      ])
       if (res.ok) {
         const json = await res.json()
         const raw = json?.data?.data ?? json?.data ?? []
@@ -192,7 +238,24 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         const list = Array.isArray(raw)
           ? raw.map((c: Conversation) => ({ ...c, participants: Array.isArray(c.participants) ? c.participants : [] }))
           : []
-        setConversations(list)
+
+        let communityChats: Conversation[] = []
+        if (communityRes?.ok) {
+          const cJson = await communityRes.json().catch(() => null)
+          const cRaw = cJson?.data?.data ?? cJson?.data ?? []
+          if (Array.isArray(cRaw)) {
+            communityChats = cRaw.map((c: Conversation) => ({
+              ...c,
+              participants: Array.isArray(c.participants) ? c.participants : [],
+            }))
+          }
+        }
+
+        // Guard against the same chat arriving from both sources. It cannot
+        // today, but a future change that gives a community chat member rows
+        // would otherwise duplicate every row in the list.
+        const seen = new Set(list.map((c) => c.id))
+        setConversations([...list, ...communityChats.filter((c) => !seen.has(c.id))])
         setConversationsError(null)
       } else {
         const body = await res.json().catch(() => null)
@@ -276,18 +339,27 @@ export function MessagingProvider({ children }: { children: ReactNode }): React.
         })
       }
 
-      // Listen for connection state changes
-      const onDisconnect = () => {
+      // Listen for connection state changes.
+      //
+      // The reason matters. Signing out calls disconnectSocket(), which emits
+      // 'io client disconnect' \u2014 we asked for it, so warning that the visitor is
+      // offline is wrong, and it fired on every sign-out. 'io server disconnect'
+      // is excluded too: Socket.IO does not auto-reconnect after either, so
+      // "Trying to reconnect\u2026" would be untrue. Everything else \u2014 transport
+      // close, ping timeout \u2014 is a real drop that does retry.
+      const DELIBERATE = new Set(['io client disconnect', 'io server disconnect'])
+      const onDisconnect = (reason: string) => {
+        if (DELIBERATE.has(reason)) return
         if (!wasOfflineRef.current) {
           wasOfflineRef.current = true
-          toastWarning('You\'re offline', 'Trying to reconnect\u2026')
+          toastWarning(tm('offline'), tm('reconnecting'))
         }
       }
 
       const onConnect = () => {
         if (wasOfflineRef.current) {
           wasOfflineRef.current = false
-          toastSuccess('Connected', 'Back online')
+          toastSuccess(tm('connected'), tm('backOnline'))
         }
       }
 

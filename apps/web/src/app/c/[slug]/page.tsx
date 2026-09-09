@@ -16,12 +16,14 @@ import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
 import { ReportButton } from '@/components/ReportButton'
 import { CommunityEvents } from '@/components/communities/CommunityEvents'
+import { useFormat } from '@/hooks/use-format'
 
 type Tab = 'posts' | 'events' | 'about' | 'members'
 
 const PRIVACY_ICON = { public: Globe, private: Lock, invite_only: Mail } as const
 
 export default function CommunityPage({ params }: { params: Promise<{ slug: string }> }): React.JSX.Element {
+  const { n } = useFormat()
   const { slug } = use(params)
   const { user } = useAuth()
   const router = useRouter()
@@ -157,7 +159,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                   <div className="flex items-center gap-3 mt-1 text-label-sm text-outline">
                     <span className="flex items-center gap-1"><PrivacyIcon className="w-3.5 h-3.5" />{community.privacy.replace('_', ' ')}</span>
                     <button onClick={() => setMembersOpen(true)} className="flex items-center gap-1 hover:text-on-surface cursor-pointer">
-                      <Users className="w-3.5 h-3.5" />{community.membersCount.toLocaleString()} members
+                      <Users className="w-3.5 h-3.5" />{n(community.membersCount)} members
                     </button>
                     {community.category && <span className="capitalize">{community.category.label}</span>}
                   </div>
@@ -261,7 +263,7 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                 ) : (
                   <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-6 text-center">
                     <button onClick={() => setMembersOpen(true)} className="px-5 py-2 rounded-lg bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
-                      View all {community.membersCount.toLocaleString()} members
+                      View all {n(community.membersCount)} members
                     </button>
                   </section>
                 )

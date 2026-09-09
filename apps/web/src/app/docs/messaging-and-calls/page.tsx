@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   MessageSquare, Send, SmilePlus, CheckCheck, Palette, Video, Phone, ShieldCheck,
+  Users, BarChart3, Sparkles, Paperclip, MapPin,
 } from 'lucide-react'
 import { DocHeader, JumpLinks, H2, P, UL, LI, Strong, Callout, FeatureGrid } from '../_components/Prose'
 import { DocsFooterNav } from '../_components/DocsFooterNav'
@@ -21,6 +22,9 @@ export default function MessagingAndCallsPage(): React.JSX.Element {
       <JumpLinks
         items={[
           { href: '#starting-a-conversation', label: 'Starting a conversation' },
+          { href: '#community-chats', label: 'Community chats' },
+          { href: '#polls-and-attachments', label: 'Polls & attachments' },
+          { href: '#the-ai-assistant', label: 'The AI assistant' },
           { href: '#message-requests', label: 'Message requests' },
           { href: '#reactions-and-read-receipts', label: 'Reactions & read receipts' },
           { href: '#conversation-themes', label: 'Conversation themes' },
@@ -39,8 +43,55 @@ export default function MessagingAndCallsPage(): React.JSX.Element {
         items={[
           { icon: Send, title: 'One-to-one messages', body: 'Direct, private conversations between you and one other person.' },
           { icon: MessageSquare, title: 'Group chats', body: 'Bring several people together in one conversation — great for families, friend groups, or event attendees.' },
+          { icon: Users, title: 'Community chats', body: 'Every community you join has its own conversation, listed under the Communities tab in Messages.' },
         ]}
       />
+
+      <H2 id="community-chats">Community chats</H2>
+      <P>
+        Joining a community gives you its chat automatically — there is nothing to set up, and it
+        appears under the <Strong>Communities</Strong> tab in Messages alongside your other
+        conversations. Leaving the community removes it again.
+      </P>
+      <P>
+        Because a community chat can be large, its moderators have a few controls an ordinary group
+        does not:
+      </P>
+      <UL>
+        <LI><Strong>Announcement mode</Strong> — only moderators can post, everyone else can read. Useful for notices.</LI>
+        <LI><Strong>Slow mode</Strong> — a waiting period between messages, to keep a busy room readable.</LI>
+        <LI><Strong>Pinned messages</Strong> — moderators can pin something important so it stays easy to find.</LI>
+        <LI><Strong>Chat off</Strong> — a community can turn its chat off entirely.</LI>
+      </UL>
+      <Callout variant="note">
+        If you cannot type in a community chat, it is one of these settings rather than a fault — the
+        composer explains which.
+      </Callout>
+
+      <H2 id="polls-and-attachments">Polls, attachments & location</H2>
+      <FeatureGrid
+        items={[
+          { icon: BarChart3, title: 'Polls', body: 'Ask a question with a set of options in any conversation. Everyone sees results update as people vote.' },
+          { icon: Paperclip, title: 'Attachments', body: 'Send photos, videos, voice notes and documents. Videos are capped at five minutes.' },
+          { icon: MapPin, title: 'Location', body: 'Share where you are — useful when arranging to meet about a rescue, adoption or sale.' },
+        ]}
+      />
+      <P>
+        Anything you send can be <Strong>forwarded</Strong> to another conversation, and you can{' '}
+        <Strong>reply to a specific message</Strong> — tapping the quoted reply jumps back to the
+        original and highlights it.
+      </P>
+
+      <H2 id="the-ai-assistant">The ZoikoSocial assistant</H2>
+      <P>
+        <Sparkles className="w-4 h-4 inline -mt-0.5 mr-1.5 text-primary" aria-hidden />
+        ZoikoSocial has an assistant you can message like any other account, for questions about
+        using the platform or about animal care. It appears in Messages as a normal conversation.
+      </P>
+      <Callout variant="warning">
+        The assistant is not a veterinarian. For anything urgent or medical, contact a real vet — the
+        Vet Finder will help you reach one.
+      </Callout>
 
       <H2 id="message-requests">Message requests</H2>
       <P>

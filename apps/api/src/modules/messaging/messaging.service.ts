@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -8,6 +9,11 @@ import { PresenceService } from './presence.service'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service'
+import { aiThreadHint } from './ai-thread-hint'
+import { PushService } from '../push/push.service'
+import { CommunityChatService } from './community-chat.service'
+import { NotificationPreferenceService } from '../push/notification-preference.service'
+import { PREFERENCE_KEYS } from '../comms/comms.types'
 import type {
   ConversationResponse,
   SuggestionResponse,
@@ -31,6 +37,9 @@ export class MessagingService {
     private readonly presence: PresenceService,
     private readonly profanity: ProfanityService,
     private readonly aiAssistant: AiAssistantService,
+    private readonly push: PushService,
+    private readonly pushPreferences: NotificationPreferenceService,
+    private readonly communityChat: CommunityChatService,
   ) {}
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
@@ -42,18 +51,23 @@ export class MessagingService {
     // Every member gets a thread with ZoikoSocial AI. Provisioned lazily on the
     // first inbox load rather than at signup, so accounts that predate the
     // assistant get one too. Only on the first page — deeper pages skip it.
-    if (!cursor) await this.ensureAiThread(userId)
-
     // Pinned conversations belong at the top of the list, not the top of a page,
     // so they are fetched whole on the first page and excluded from the
     // paginated remainder. A member pins a handful of chats, so this is bounded.
-    const pinnedIds = (
-      await this.prisma.conversationSetting.findMany({
+    //
+    // Run together with the assistant-thread check: they touch different tables
+    // and neither needs the other's result. A single database round-trip costs
+    // 150-750 ms here depending on where the caller and the database sit, so
+    // awaiting them one after the other spent a whole one for nothing.
+    const [, pinnedSettings] = await Promise.all([
+      cursor ? Promise.resolve() : this.ensureAiThread(userId),
+      this.prisma.conversationSetting.findMany({
         where: { userId, isPinned: true },
         select: { conversationId: true },
         take: PINNED_LIMIT,
-      })
-    ).map((s) => s.conversationId)
+      }),
+    ])
+    const pinnedIds = pinnedSettings.map((s) => s.conversationId)
 
     const memberships = await this.prisma.conversationMember.findMany({
       where: {
@@ -134,7 +148,7 @@ export class MessagingService {
         avatarUrl: conv.avatarUrl,
         theme: conv.theme ?? null,
         lastMessage: lastMsg
-          ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
+          ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString(), type: lastMsg.type }
           : null,
         unreadCount: unreadMap.get(conv.id) ?? 0,
         isOnline,
@@ -334,7 +348,11 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
       select: { isDeleted: true },
     })
-    return !!member && !member.isDeleted
+    if (member && !member.isDeleted) return true
+    // A community chat has no ConversationMember rows by design — membership is
+    // derived from community_members. Without this the socket room refuses every
+    // community member and the chat never goes live.
+    return this.communityChat.isChatMember(userId, conversationId)
   }
 
   /**
@@ -347,7 +365,11 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
       select: { isDeleted: true },
     })
-    if (!member || member.isDeleted) return null
+    if (!member || member.isDeleted) {
+      // Community chat has no member row; a non-member throws here rather than
+      // returning null, which the controller maps to the same 404.
+      await this.communityChat.assertCanRead(userId, conversationId)
+    }
 
     const conv = await this.prisma.conversation.findUnique({
       where: { id: conversationId },
@@ -390,6 +412,52 @@ export class MessagingService {
     }
   }
 
+  /**
+   * Prisma include for a poll and the votes needed to draw it.
+   *
+   * Options come back ordered by id, which is stable but NOT the order they
+   * were written in — message_poll_options has no position column. Two-option
+   * polls can therefore show reversed. Fixing it properly needs a migration.
+   */
+  private static readonly POLL_INCLUDE = {
+    select: {
+      id: true,
+      question: true,
+      options: {
+        orderBy: { id: 'asc' as const },
+        select: { id: true, text: true, votes: { select: { userId: true } } },
+      },
+    },
+  } as const
+
+  /**
+   * Shapes a poll for the client, resolving each option's count and whether
+   * this viewer picked it. Counting here rather than sending raw votes keeps
+   * one member's choice from being visible to everyone else.
+   */
+  private mapPoll(
+    poll: {
+      id: string
+      question: string
+      options: { id: string; text: string; votes: { userId: string }[] }[]
+    } | null,
+    userId: string,
+  ) {
+    if (!poll) return null
+    const totalVotes = poll.options.reduce((sum, o) => sum + o.votes.length, 0)
+    return {
+      id: poll.id,
+      question: poll.question,
+      totalVotes,
+      options: poll.options.map((o) => ({
+        id: o.id,
+        text: o.text,
+        votes: o.votes.length,
+        votedByMe: o.votes.some((v) => v.userId === userId),
+      })),
+    }
+  }
+
   /** Prisma include fragment for the parent-message snippet. */
   private static readonly PARENT_INCLUDE = {
     select: {
@@ -407,7 +475,9 @@ export class MessagingService {
       where: { conversationId_userId: { conversationId, userId } },
     })
     if (!member || member.isDeleted) {
-      throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+      // Community chat: derived membership, and it throws the same
+      // CONVERSATION_NOT_FOUND for a non-member.
+      await this.communityChat.assertCanRead(userId, conversationId)
     }
 
     const take = 51
@@ -435,6 +505,7 @@ export class MessagingService {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
         parent: MessagingService.PARENT_INCLUDE,
+        poll: MessagingService.POLL_INCLUDE,
         reactions: {
           select: { emoji: true, userId: true },
         },
@@ -470,6 +541,12 @@ export class MessagingService {
         type: msg.type,
         body: msg.body,
         mediaUrls: msg.mediaUrls,
+        // A location's coordinates and a poll's options live here. Without
+        // them the client receives a message with a type and nothing to draw,
+        // which is how a shared location arrived as an empty bubble.
+        metadata: msg.metadata ?? null,
+        poll: this.mapPoll(msg.poll, userId),
+        forwardedFrom: msg.forwardedFrom,
         parentId: msg.parentId,
         parent: this.mapParentSnippet(msg.parent),
         isDeleted: msg.isDeleted,
@@ -487,7 +564,16 @@ export class MessagingService {
     }
   }
 
-  async sendMessage(userId: string, conversationId: string, input: { body?: string; type?: string; parentId?: string; mediaUrls?: string[] }) {
+  async sendMessage(userId: string, conversationId: string, input: { 
+    body?: string; 
+    type?: string; 
+    parentId?: string; 
+    mediaUrls?: string[];
+    metadata?: Record<string, unknown>;
+    poll?: { question: string; options: string[] };
+    /** Set by forwarding. Everything else about the send is unchanged. */
+    forwardedFrom?: string;
+  }) {
     // Run EVERY pre-flight read concurrently. These used to be 3–4 sequential
     // awaits (membership → other member → block check → reply-parent), and
     // against a distant database each serial round-trip stacked up into seconds
@@ -524,14 +610,18 @@ export class MessagingService {
     ])
 
     if (!member || member.isDeleted) {
-      throw new NotFoundException({ code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' })
+      // Community chat. Derived membership, and the same call enforces the
+      // posting rules — chat switched off, announcement-only, muted member,
+      // slow mode — each throwing with the reason so the composer can say which
+      // lock it hit rather than "something went wrong".
+      await this.communityChat.assertCanPost(userId, conversationId)
     }
 
     // Re-check block state on every DM send. Blocks are otherwise only evaluated
     // when the conversation is first created, so a user blocked AFTER the DM
     // already exists could keep messaging into it. (Group membership is gated at
     // add-member time instead.)
-    if (member.conversation.type === 'dm') {
+    if (member && member.conversation.type === 'dm') {
       const other = member.conversation.members[0]
       const blockedIds = new Set(myBlocks.flatMap((b) => [b.blockerId, b.blockedId]))
       if (other && blockedIds.has(other.userId)) {
@@ -539,8 +629,8 @@ export class MessagingService {
       }
     }
 
-    if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0)) {
-      throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content or media' })
+    if (!input.body && (!input.mediaUrls || input.mediaUrls.length === 0) && !input.poll && (!input.metadata || Object.keys(input.metadata).length === 0)) {
+      throw new BadRequestException({ code: 'EMPTY_MESSAGE', message: 'Message must have content, media, a poll, or location' })
     }
     if (input.body) this.profanity.assertClean(input.body, { actorId: userId, entityType: 'message' })
 
@@ -559,13 +649,28 @@ export class MessagingService {
         body: input.body ?? null,
         type: input.type ?? 'text',
         parentId: input.parentId ?? null,
+        forwardedFrom: input.forwardedFrom ?? null,
         mediaUrls: input.mediaUrls ?? [],
+        ...(input.metadata !== undefined
+          ? { metadata: input.metadata as Prisma.InputJsonValue }
+          : {}),
+        ...(input.poll && {
+          poll: {
+            create: {
+              question: input.poll.question,
+              options: {
+                create: input.poll.options.map(text => ({ text })),
+              },
+            },
+          },
+        }),
       },
       include: {
         sender: {
           select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
         parent: MessagingService.PARENT_INCLUDE,
+        poll: MessagingService.POLL_INCLUDE,
       },
     })
 
@@ -583,6 +688,12 @@ export class MessagingService {
       type: message.type,
       body: message.body,
       mediaUrls: message.mediaUrls,
+      metadata: message.metadata ?? null,
+      // Vote counts are per-viewer ("did I pick this?"), and this event goes to
+      // the whole room. A fresh poll has no votes, so an empty tally is correct
+      // for every recipient here; voting refreshes it per person after that.
+      poll: this.mapPoll(message.poll, ''),
+      forwardedFrom: message.forwardedFrom,
       parentId: message.parentId,
       parent: this.mapParentSnippet(message.parent),
       createdAt: message.createdAt.toISOString(),
@@ -602,7 +713,7 @@ export class MessagingService {
     // off the critical path: the sender's message is already delivered, and the
     // reply arrives over the same socket moments later. The sender-is-AI guard is
     // what stops the assistant replying to itself.
-    const recipientId = member.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
+    const recipientId = member?.conversation.type === 'dm' ? member.conversation.members[0]?.userId : undefined
     if (input.body && recipientId && this.aiAssistant.isAiProfile(recipientId) && !this.aiAssistant.isAiProfile(userId)) {
       void this.dispatchAiReply(conversationId, userId, input.body).catch((err: Error) =>
         this.logger.warn(`AI reply failed for ${conversationId}: ${err.message}`),
@@ -621,6 +732,9 @@ export class MessagingService {
       type: message.type,
       body: message.body,
       mediaUrls: message.mediaUrls,
+      metadata: message.metadata ?? null,
+      poll: this.mapPoll(message.poll, userId),
+      forwardedFrom: message.forwardedFrom,
       parentId: message.parentId,
       parent: this.mapParentSnippet(message.parent),
       isDeleted: message.isDeleted,
@@ -666,6 +780,11 @@ export class MessagingService {
     const aiId = this.aiAssistant.getAiProfileId()
     if (!aiId || aiId === userId) return
 
+    // Skips the lookup below, which otherwise cost a database round-trip on every
+    // first-page inbox load. Cleared when a member deletes a conversation, since
+    // that is the one thing that makes the answer stale.
+    if (aiThreadHint.has(userId)) return
+
     try {
       const existing = await this.prisma.conversation.findFirst({
         where: {
@@ -673,9 +792,27 @@ export class MessagingService {
           isDeleted: false,
           AND: [{ members: { some: { userId } } }, { members: { some: { userId: aiId } } }],
         },
-        select: { id: true },
+        // The member's own row comes along because its existence is not the same
+        // question as whether they can see the thread: deleting a conversation
+        // soft-deletes that row, and the inbox lists only live ones.
+        select: { id: true, members: { where: { userId }, select: { isDeleted: true } } },
       })
-      if (existing) return
+
+      if (existing) {
+        // Deleting the thread used to be permanent for the assistant. The
+        // conversation still existed, so this check said "already provisioned" and
+        // returned, while the inbox filtered the deleted row out — the member lost
+        // the assistant with no way back. Restore their side instead of creating a
+        // second thread, which would split the history in two.
+        if (existing.members[0]?.isDeleted) {
+          await this.prisma.conversationMember.update({
+            where: { conversationId_userId: { conversationId: existing.id, userId } },
+            data: { isDeleted: false, deletedAt: null },
+          })
+        }
+        aiThreadHint.add(userId)
+        return
+      }
 
       const conversation = await this.prisma.conversation.create({
         data: {
@@ -687,6 +824,7 @@ export class MessagingService {
       })
 
       await this.sendMessage(aiId, conversation.id, { body: this.aiAssistant.greeting })
+      aiThreadHint.add(userId)
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       this.logger.warn(`Could not provision AI thread for ${userId}: ${reason}`)
@@ -735,6 +873,7 @@ export class MessagingService {
     }
 
     const publishes: Array<Promise<void>> = []
+    const pushTargets: string[] = []
     for (const om of otherMembers) {
       publishes.push(this.realtime.publishToUser(om.userId, 'conversation:activity', activity))
       if (!mutedIds.has(om.userId)) {
@@ -746,9 +885,71 @@ export class MessagingService {
             data: { conversationId, messageId: message.id },
           }),
         )
+        pushTargets.push(om.userId)
       }
     }
     await Promise.all(publishes)
+
+    await this.pushMessage(pushTargets, conversationId, message)
+  }
+
+  /**
+   * Sends the device notification for a new message.
+   *
+   * Messages need their own path because they never reach the notification
+   * writer, which is where every other type gets its push. They are not written
+   * to the notifications table at all — a chat has its own surface and does not
+   * belong in Alerts — so the socket event above is the whole of the in-app story.
+   * Without this, likes and follows pushed and messages silently did not, which is
+   * the wrong way round: a message is the notification people most expect.
+   *
+   * Recipients here have already been filtered for a muted conversation. The
+   * category preference is checked on top of that, so "no message notifications
+   * on my device" is honoured even for a chat that is not muted.
+   */
+  private async pushMessage(
+    userIds: string[],
+    conversationId: string,
+    message: { id: string; body: string | null; type?: string; sender: { displayName: string } },
+    notificationType: 'message' | 'call' = 'message',
+  ): Promise<void> {
+    if (userIds.length === 0) {
+      this.logger.debug(`message ${message.id}: no push recipients (all muted or alone)`)
+      return
+    }
+
+    // A body is absent for an attachment, and a raw empty string reads as a bug
+    // on the lock screen. Describe the thing instead.
+    const preview =
+      message.body?.trim() ||
+      (message.type && message.type !== 'text' ? `Sent ${message.type === 'image' ? 'a photo' : 'an attachment'}` : 'Sent a message')
+
+    await Promise.all(
+      userIds.map(async (userId) => {
+        try {
+          if (!(await this.pushPreferences.allowsPush(userId, PREFERENCE_KEYS.messagesActivity))) {
+            this.logger.debug(`message push skipped for ${userId}: category or master switch off`)
+            return
+          }
+          const result = await this.push.sendToUser(userId, {
+            title: message.sender.displayName,
+            body: preview.slice(0, 180),
+            type: notificationType,
+            id: message.id,
+            url: `/messages?conversation=${conversationId}`,
+          })
+          // Debug, not info: useful when bringing this up or diagnosing a
+          // "no notification arrived" report, and noise on every message otherwise.
+          this.logger.debug(
+            `message push for ${userId}: sent=${result.sent} pruned=${result.pruned}`,
+          )
+        } catch (err) {
+          // The message is sent and the socket event has gone out. A push that
+          // fails must not turn a delivered message into an error.
+          this.logger.warn(`Push for message ${message.id} failed: ${(err as Error).message}`)
+        }
+      }),
+    )
   }
 
   /**
@@ -827,6 +1028,252 @@ export class MessagingService {
       parent: null,
       createdAt: message.createdAt.toISOString(),
     })
+
+    /*
+     * A missed call is the one call record worth a device notification.
+     *
+     * This publishes to the conversation room only, which reaches whoever has the
+     * thread open and nobody else — so someone whose app was closed missed the
+     * call and then heard nothing about it at all. That is the failure this
+     * feature exists to prevent.
+     *
+     * Only `missed`: a call that connected was witnessed by both parties, and a
+     * declined one was declined by the person being notified. Announcing either
+     * is noise.
+     */
+    if (call.status === 'missed') {
+      const recipients = await this.unmutedRecipients(conversationId, callerId)
+      await this.pushMessage(recipients, conversationId, { ...message, body }, 'call')
+    }
+  }
+
+  /**
+   * Rings a member's device for an incoming call.
+   *
+   * The invite itself travels over the socket, which reaches only someone whose
+   * app is already open — so a closed app never rang at all. This is the part that
+   * reaches a phone in a pocket.
+   *
+   * Sent while the call is ringing rather than after it, unlike the missed-call
+   * record: a notification that arrives once the caller has given up is a worse
+   * outcome than none. Nothing here is awaited by the signalling path.
+   */
+  async pushIncomingCall(
+    conversationId: string,
+    callerId: string,
+    callerName: string,
+    callType: 'audio' | 'video',
+    toUserId?: string,
+  ): Promise<void> {
+    try {
+      const recipients = toUserId
+        ? [toUserId]
+        : await this.unmutedRecipients(conversationId, callerId)
+      if (recipients.length === 0) return
+
+      // A muted conversation should not ring a device, exactly as it does not
+      // notify for a message. Checked here for the direct case, since that skips
+      // unmutedRecipients above.
+      const allowed = toUserId
+        ? (await this.unmutedRecipients(conversationId, callerId)).includes(toUserId)
+        : true
+      if (!allowed) return
+
+      await Promise.all(
+        recipients.map(async (userId) => {
+          if (!(await this.pushPreferences.allowsPush(userId, PREFERENCE_KEYS.messagesActivity))) return
+          await this.push.sendToUser(userId, {
+            title: callerName,
+            body: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
+            type: 'call_invite',
+            id: conversationId,
+            url: `/messages?conversation=${conversationId}&call=incoming`,
+            // One slot: a re-dial replaces the previous ring rather than stacking.
+            collapseKey: 'call.incoming',
+          })
+        }),
+      )
+    } catch (err) {
+      this.logger.warn(`Call push failed for ${conversationId}: ${(err as Error).message}`)
+    }
+  }
+
+  /**
+   * Members of a conversation, other than the sender, who have not muted it.
+   *
+   * The message fan-out computes this inline because it already needs both
+   * queries for its socket publishes. The call path needs the same answer without
+   * that context, so it asks here rather than repeating the reasoning.
+   */
+  private async unmutedRecipients(conversationId: string, senderId: string): Promise<string[]> {
+    const members = await this.prisma.conversationMember.findMany({
+      where: { conversationId, userId: { not: senderId }, isDeleted: false },
+      select: { userId: true },
+    })
+    if (members.length === 0) return []
+
+    const settings = await this.prisma.conversationSetting.findMany({
+      where: { conversationId, userId: { in: members.map((m) => m.userId) }, isMuted: true },
+      select: { userId: true },
+    })
+    const muted = new Set(settings.map((s) => s.userId))
+    return members.map((m) => m.userId).filter((id) => !muted.has(id))
+  }
+
+  /**
+   * Forwards a message into other conversations.
+   *
+   * Deliberately built on sendMessage rather than inserting rows directly: that
+   * is where membership, block checks, community posting rules, the realtime
+   * publish, the lastMessageAt bump and push all live. A second write path would
+   * have started out missing at least one of them, and forwarding is exactly the
+   * feature someone would use to get a message into a conversation they are not
+   * allowed to post in.
+   *
+   * A forwarded poll is copied as a NEW poll with no votes. Pointing two chats
+   * at one tally would let people in one conversation move a result the other
+   * one is reading.
+   */
+  async forwardMessage(userId: string, messageId: string, conversationIds: string[]) {
+    const source = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        conversationId: true,
+        isDeleted: true,
+        type: true,
+        body: true,
+        mediaUrls: true,
+        metadata: true,
+        poll: { select: { question: true, options: { orderBy: { id: 'asc' as const }, select: { text: true } } } },
+      },
+    })
+    if (!source || source.isDeleted) {
+      throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+    }
+
+    // You must be able to READ the source. Without this, any message id in the
+    // system could be copied into a conversation of the caller's choosing.
+    const sourceMember = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: source.conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!sourceMember || sourceMember.isDeleted) {
+      await this.communityChat.assertCanRead(userId, source.conversationId)
+    }
+
+    // Forwarding into the conversation it came from is a no-op worth refusing
+    // rather than silently duplicating.
+    const targets = [...new Set(conversationIds)].filter((id) => id !== source.conversationId)
+    if (targets.length === 0) {
+      throw new BadRequestException({ code: 'NO_TARGETS', message: 'Choose a different conversation' })
+    }
+
+    const payload = {
+      ...(source.body !== null ? { body: source.body } : {}),
+      type: source.type,
+      mediaUrls: source.mediaUrls,
+      ...(source.metadata !== null && source.metadata !== undefined
+        ? { metadata: source.metadata as Record<string, unknown> }
+        : {}),
+      ...(source.poll
+        ? { poll: { question: source.poll.question, options: source.poll.options.map((o) => o.text) } }
+        : {}),
+      forwardedFrom: source.id,
+    }
+
+    // Sequential, not parallel: each send does its own membership and rule
+    // checks, and one refusal must not take the others down with it.
+    const results: { conversationId: string; ok: boolean; error?: string }[] = []
+    for (const conversationId of targets) {
+      try {
+        await this.sendMessage(userId, conversationId, payload)
+        results.push({ conversationId, ok: true })
+      } catch (e) {
+        const message =
+          e instanceof Error && 'response' in e && typeof e.response === 'object' && e.response
+            ? ((e.response as { message?: string }).message ?? 'Could not forward')
+            : 'Could not forward'
+        results.push({ conversationId, ok: false, error: message })
+      }
+    }
+
+    return { forwarded: results.filter((r) => r.ok).length, results }
+  }
+
+  /**
+   * Casts, changes or withdraws this member's vote on a poll.
+   *
+   * One choice per person: picking a second option moves the vote rather than
+   * adding one, and picking the same option again withdraws it. That is what
+   * every chat poll does, and it keeps the totals meaningful without needing a
+   * separate "multiple choice" flag the composer cannot set anyway.
+   */
+  async voteOnPoll(userId: string, messageId: string, optionId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        conversationId: true,
+        isDeleted: true,
+        poll: { select: { id: true, options: { select: { id: true } } } },
+      },
+    })
+    if (!message || message.isDeleted || !message.poll) {
+      throw new NotFoundException({ code: 'POLL_NOT_FOUND', message: 'Poll not found' })
+    }
+
+    // Same membership rule as reading the conversation — including the derived
+    // one for community chat, where there is no member row.
+    const member = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId: message.conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!member || member.isDeleted) {
+      await this.communityChat.assertCanRead(userId, message.conversationId)
+    }
+
+    // The option MUST belong to this poll. Without this check a member of one
+    // conversation could vote on any option id in the system, including polls
+    // in conversations they cannot see.
+    const optionIds = message.poll.options.map((o) => o.id)
+    if (!optionIds.includes(optionId)) {
+      throw new BadRequestException({ code: 'INVALID_OPTION', message: 'That option is not in this poll' })
+    }
+
+    const existing = await this.prisma.messagePollVote.findFirst({
+      where: { userId, optionId: { in: optionIds } },
+      select: { optionId: true },
+    })
+
+    if (existing?.optionId === optionId) {
+      await this.prisma.messagePollVote.delete({
+        where: { optionId_userId: { optionId, userId } },
+      })
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.messagePollVote.deleteMany({ where: { userId, optionId: { in: optionIds } } }),
+        this.prisma.messagePollVote.create({ data: { optionId, userId } }),
+      ])
+    }
+
+    const fresh = await this.prisma.messagePoll.findUnique({
+      where: { id: message.poll.id },
+      ...MessagingService.POLL_INCLUDE,
+    })
+    const mine = this.mapPoll(fresh, userId)
+
+    // Broadcast the tallies only. "Did I pick this" is per-viewer, so each
+    // client keeps its own answer and merges the counts — sending one member's
+    // choice to the room would make every vote public.
+    await this.realtime.publish(`conversation:${message.conversationId}`, 'message:poll', {
+      conversationId: message.conversationId,
+      messageId,
+      totalVotes: mine?.totalVotes ?? 0,
+      options: mine?.options.map((o) => ({ id: o.id, votes: o.votes })) ?? [],
+    })
+
+    return mine
   }
 
   async deleteMessage(userId: string, messageId: string, forEveryone = false): Promise<void> {
@@ -965,7 +1412,40 @@ export class MessagingService {
 
   // ── MARK AS READ ───────────────────────────────────────────────────────────
 
+  /**
+   * Mark a conversation read up to a message.
+   *
+   * The member row update was always safe — it filters on both ids, so a
+   * non-member simply matched nothing. The receipt upsert was not: it keyed on
+   * `messageId` and `userId` alone and never looked at `conversationId`, so any
+   * authenticated caller could write a `read` receipt against *any* message id
+   * in the system, for a conversation they had no part in. Reachable from both
+   * `POST /messaging/conversations/:id/read` and the `messages:read` socket
+   * event, whose payloads are caller-controlled — the Zod schema checked that
+   * the id was a UUID, not that it was theirs.
+   *
+   * Nothing reads `MessageReceipt` back yet, so the damage was a polluted table
+   * plus a message-existence oracle (the FK to Message rejects ids that do not
+   * exist). The moment a "Seen by" surface is built on it, it would have become
+   * a forged read receipt on someone else's private thread.
+   *
+   * Two checks now, matching how the rest of this service and PetsService guard
+   * nested records: the caller must be a member, and the message must belong to
+   * this conversation.
+   */
   async markConversationRead(userId: string, conversationId: string, lastReadMessageId?: string): Promise<void> {
+    const isConversationMember = await this.prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      select: { isDeleted: true },
+    })
+    if (!isConversationMember || isConversationMember.isDeleted) {
+      // Community chat keeps its bookmark on community_members instead — see
+      // CommunityChatService for why there is no member row to update.
+      await this.communityChat.assertCanRead(userId, conversationId)
+      await this.communityChat.markRead(userId, conversationId)
+      return
+    }
+
     const now = new Date()
     await this.prisma.conversationMember.updateMany({
       where: { conversationId, userId },
@@ -973,6 +1453,13 @@ export class MessagingService {
     })
 
     if (lastReadMessageId) {
+      const message = await this.prisma.message.findFirst({
+        where: { id: lastReadMessageId, conversationId },
+        select: { id: true },
+      })
+      if (!message) {
+        throw new NotFoundException({ code: 'MESSAGE_NOT_FOUND', message: 'Message not found' })
+      }
       await this.prisma.messageReceipt.upsert({
         where: { messageId_userId: { messageId: lastReadMessageId, userId } },
         create: { messageId: lastReadMessageId, userId, status: 'read', readAt: now },
@@ -1449,7 +1936,7 @@ export class MessagingService {
       avatarUrl: conv.avatarUrl,
       theme: conv.theme ?? null,
       lastMessage: lastMsg
-        ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString() }
+        ? { body: lastMsg.body, senderId: lastMsg.senderId, createdAt: lastMsg.createdAt.toISOString(), type: lastMsg.type }
         : null,
       unreadCount: 0,
       isOnline,

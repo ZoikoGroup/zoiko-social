@@ -35,10 +35,12 @@ ON CONFLICT (id) DO UPDATE
 -- ── STORAGE RLS — CHAT MEDIA (public read, owner write) ───────────────────────
 -- Path: chat-media/{user_id}/chat/{filename}
 
+DROP POLICY IF EXISTS "chat_media_public_read" ON storage.objects;
 CREATE POLICY "chat_media_public_read"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'chat-media');
 
+DROP POLICY IF EXISTS "chat_media_owner_upload" ON storage.objects;
 CREATE POLICY "chat_media_owner_upload"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -49,6 +51,7 @@ CREATE POLICY "chat_media_owner_upload"
     AND public.current_user_state() NOT IN ('suspended', 'banned')
   );
 
+DROP POLICY IF EXISTS "chat_media_owner_update" ON storage.objects;
 CREATE POLICY "chat_media_owner_update"
   ON storage.objects FOR UPDATE
   USING (
@@ -56,6 +59,7 @@ CREATE POLICY "chat_media_owner_update"
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
+DROP POLICY IF EXISTS "chat_media_owner_delete" ON storage.objects;
 CREATE POLICY "chat_media_owner_delete"
   ON storage.objects FOR DELETE
   USING (

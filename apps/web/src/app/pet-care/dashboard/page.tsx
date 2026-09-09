@@ -23,6 +23,7 @@ import { ProfileCard } from '@/components/ProfileCard'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { RightPanel } from '@/components/RightPanel'
 import { MobileTabs } from '@/components/MobileTabs'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 type DashboardTab = 'overview' | 'services' | 'bookings' | 'availability' | 'reviews'
 
@@ -310,6 +311,7 @@ function OverviewTab({ services, bookings, reviews }: {
   bookings: PetCareBooking[]
   reviews: ProviderReview[]
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const activeServices = services.filter((s) => s.isActive).length
   const upcomingBookings = bookings.filter((b) => b.status === 'pending' || b.status === 'confirmed' || b.status === 'in_progress')
   const completedBookings = bookings.filter((b) => b.status === 'completed')
@@ -342,7 +344,7 @@ function OverviewTab({ services, bookings, reviews }: {
                   <p className="text-label-sm font-semibold text-on-surface truncate">{b.service.name}</p>
                   <p className="text-[11px] text-outline flex items-center gap-1">
                     <CalendarRange className="w-3 h-3" />
-                    {new Date(b.scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {formatDate(b.scheduledAt, 'dayMonthTimePadded')}
                     <span className="mx-1">·</span>
                     {b.seeker.displayName}
                   </p>
@@ -371,7 +373,7 @@ function OverviewTab({ services, bookings, reviews }: {
                       <Star key={s} className={`w-3 h-3 ${s <= r.rating ? 'text-amber-400 fill-current' : 'text-outline/30'}`} />
                     ))}
                   </div>
-                  <span className="text-outline ml-auto">{new Date(r.createdAt).toLocaleDateString()}</span>
+                  <span className="text-outline ml-auto">{formatDate(r.createdAt, 'dayMonthYear')}</span>
                 </div>
                 {r.body && <p className="text-label-sm text-on-surface-variant mt-1 line-clamp-2">{r.body}</p>}
               </div>
@@ -488,7 +490,7 @@ function ServicesTab({ providerId, services, onRefresh }: {
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-[11px] font-semibold text-outline hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
                     >
                       {service.isActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                      {service.isActive ? 'Pause' : 'Activate'}
+                      <span>{service.isActive ? 'Pause' : 'Activate'}</span>
                     </button>
                     <button
                       onClick={() => void deleteService(service.id)}
@@ -496,7 +498,7 @@ function ServicesTab({ providerId, services, onRefresh }: {
                       className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container text-[11px] font-semibold text-outline hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer disabled:opacity-40"
                     >
                       {deleting === service.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                      Delete
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
@@ -544,7 +546,7 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
 }): React.JSX.Element {
   const [name, setName] = useState(service?.name ?? '')
   const [description, setDescription] = useState(service?.description ?? '')
-  const [priceDollars, setPriceDollars] = useState(service ? String(service.priceCents / 100) : '')
+  const [priceRupees, setPriceDollars] = useState(service ? String(service.priceCents / 100) : '')
   const [duration, setDuration] = useState(service?.durationMinutes ? String(service.durationMinutes) : '')
   const [category, setCategory] = useState(service?.category ?? 'other')
   const [saving, setSaving] = useState(false)
@@ -553,8 +555,8 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
   const isEditing = !!service
 
   async function submit(): Promise<void> {
-    if (!name.trim() || !priceDollars || saving) return
-    const priceCents = Math.round(parseFloat(priceDollars) * 100)
+    if (!name.trim() || !priceRupees || saving) return
+    const priceCents = Math.round(parseFloat(priceRupees) * 100)
     if (priceCents <= 0) { setError('Price must be greater than 0'); return }
     setSaving(true); setError('')
     try {
@@ -607,8 +609,8 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-label-sm font-medium text-on-surface block mb-1.5">Price ($) *</label>
-              <input type="number" step="0.01" min="0" value={priceDollars}
+              <label className="text-label-sm font-medium text-on-surface block mb-1.5">Price (₹) *</label>
+              <input type="number" step="0.01" min="0" value={priceRupees}
                 onChange={(e) => setPriceDollars(e.target.value)}
                 placeholder="0.00" className={inputCss} />
             </div>
@@ -624,11 +626,11 @@ function ServiceFormModal({ providerId, service, onClose, onSaved }: {
               <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
             </div>
           )}
-          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceDollars}
+          <button onClick={() => void submit()} disabled={saving || !name.trim() || !priceRupees}
             className="w-full py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            {saving ? 'Saving…' : isEditing ? 'Update Service' : 'Add Service'}
+            <span>{saving ? 'Saving…' : isEditing ? 'Update Service' : 'Add Service'}</span>
           </button>
         </div>
       </div>
@@ -700,6 +702,7 @@ function BookingCard({ booking, onRefresh }: {
   booking: PetCareBooking
   onRefresh: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { format } = useCurrency()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [showCancelReason, setShowCancelReason] = useState(false)
@@ -745,7 +748,7 @@ function BookingCard({ booking, onRefresh }: {
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-label-sm text-outline">
               <span className="flex items-center gap-1">
                 <CalendarRange className="w-3 h-3" />
-                {new Date(booking.scheduledAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {formatDate(booking.scheduledAt, 'weekdayDayMonthTimePadded')}
               </span>
               <span className="flex items-center gap-1"><PawPrint className="w-3 h-3" /> {booking.seeker.displayName}</span>
               {booking.petName && <span>Pet: {booking.petName}</span>}
@@ -876,13 +879,13 @@ function AvailabilityTab({ providerId, availability, onRefresh }: {
     <div className="space-y-4">
       <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-label-md text-on-surface">Weekly Business Hours</h2>
+          <h2 className="font-bold text-label-md text-on-surface">Weekly Business Hours (UTC)</h2>
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
           >
             {showForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-            {showForm ? 'Cancel' : 'Add Hours'}
+            <span>{showForm ? 'Cancel' : 'Add Hours'}</span>
           </button>
         </div>
 
@@ -912,7 +915,7 @@ function AvailabilityTab({ providerId, availability, onRefresh }: {
               className="w-full py-2 rounded-lg bg-primary text-white text-[11px] font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-1.5"
             >
               {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <SaveIcon className="w-3 h-3" />}
-              {saving ? 'Adding…' : 'Add Slot'}
+              <span>{saving ? 'Adding…' : 'Add Slot'}</span>
             </button>
           </div>
         )}
@@ -978,6 +981,7 @@ function ReviewsTab({ reviews }: {
   reviews: ProviderReview[]
   onRefresh: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const avg = reviews.length > 0
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : '—'
@@ -1042,7 +1046,7 @@ function ReviewsTab({ reviews }: {
                       ))}
                     </div>
                   </div>
-                  <span className="text-[11px] text-outline">{new Date(review.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  <span className="text-[11px] text-outline">{formatDate(review.createdAt, 'dayMonthYear')}</span>
                 </div>
                 {review.body && <p className="text-label-sm text-on-surface-variant mt-2">{review.body}</p>}
               </div>

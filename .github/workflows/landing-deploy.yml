@@ -12,20 +12,13 @@ name: Deploy Landing → Vercel
 # paths correctly. Root-level vercel.json is generated dynamically.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Manual only. This path deploys to Vercel/Render, which the project has moved off
+# in favour of the GCP VM workflows (*-deploy-vm.yml). Left in place rather than
+# deleted so the fallback still exists, but the push trigger is gone: it failed on
+# every push to main, and a permanently red check trains everyone to ignore CI,
+# which is how a real failure gets missed.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/landing/**'
-      - 'packages/ui/**'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-  pull_request:
-    types: [opened, synchronize, reopened]
-    paths:
-      - 'apps/landing/**'
-      - 'packages/ui/**'
 
 concurrency:
   group: landing-${{ github.ref }}

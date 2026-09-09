@@ -10,9 +10,13 @@ import {
   ChevronLeft, Heart, Bookmark, Clock, BookOpen, ExternalLink, Trash2,
   BadgeCheck, ShieldCheck, Globe, Newspaper, MessageCircle, Send, Loader2,
 } from 'lucide-react'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { newsApi, type NewsArticle, type NewsComment } from '@/lib/api'
 import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
+import { formatDateTime } from '@/lib/datetime'
+import { useFormat } from '@/hooks/use-format'
+import { useToast } from '@/hooks/use-toast'
 
 type Tier = 'institutional' | 'verified' | 'community'
 const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color: string; bgColor: string }> = {
@@ -21,14 +25,17 @@ const TIER_CONFIG: Record<Tier, { label: string; icon: typeof ShieldCheck; color
   community:     { label: 'Community',      icon: Globe,       color: 'text-primary',   bgColor: 'bg-teal-50 border-teal-200' },
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+function fmtDate(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'dayMonthYearLong')
 }
 
 export default function ArticlePage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { n } = useFormat()
+  const { locale } = useDateFormat()
   const { id } = use(params)
   const { user, profile } = useAuth()
   const router = useRouter()
+  const toast = useToast()
   const [article, setArticle] = useState<NewsArticle | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [liked, setLiked] = useState(false)
@@ -83,9 +90,18 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
   }
 
   async function deleteComment(commentId: string): Promise<void> {
+    // Removed from the list first, so a failed delete had the comment quietly
+    // return on the next load with nothing having said why.
+    const previous = comments
     setComments((prev) => prev.filter((c) => c.id !== commentId))
     setCommentsCount((n) => Math.max(0, n - 1))
-    await newsApi.deleteComment(id, commentId).catch(() => {})
+    try {
+      await newsApi.deleteComment(id, commentId)
+    } catch {
+      setComments(previous)
+      setCommentsCount((n) => n + 1)
+      toast.error('Not deleted', 'Could not delete that comment. Please try again.')
+    }
   }
 
   async function toggleLike(): Promise<void> {
@@ -134,7 +150,10 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
 
   const tier = TIER_CONFIG[(article.tier as Tier)] ?? TIER_CONFIG.community
   const TierIcon = tier.icon
-  const isOwner = !!user && user.id === article.author.id
+  // An ingested article has no member author, so nobody can own or delete it.
+  // This read straight through `article.author`, which is null on every
+  // external article — and every published article is currently external.
+  const isOwner = !!user && !!article.author && user.id === article.author.id
 
   return (
     <>
@@ -161,11 +180,33 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
               <p className="text-body-md text-on-surface-variant mt-3 leading-relaxed">{article.excerpt}</p>
 
               <div className="flex items-center gap-3 mt-5 pb-5 border-b border-outline-variant/20">
-                <Link href={`/profile/${article.author.username}`}><UserAvatar name={article.author.displayName} image={article.author.avatarUrl ?? undefined} size="md" verified={article.author.isVerified} /></Link>
+                {/*
+                  A member's article links to their profile; an ingested one
+                  credits the publisher, which has no profile to link to.
+
+                  Only the avatar and the name differ, so the layout around them
+                  stays outside the branch — the first attempt at this opened the
+                  wrapper inside each arm and left the tags unbalanced.
+                */}
+                {article.author ? (
+                  <Link href={`/profile/${article.author.username}`}>
+                    <UserAvatar name={article.author.displayName} image={article.author.avatarUrl ?? undefined} size="md" verified={article.author.isVerified} />
+                  </Link>
+                ) : (
+                  <UserAvatar
+                    name={article.sourceName ?? 'News'}
+                    size="md"
+                    verified={article.tier === 'institutional' || article.tier === 'verified'}
+                  />
+                )}
                 <div className="flex-1 min-w-0">
-                  <Link href={`/profile/${article.author.username}`} className="text-label-md font-semibold text-on-surface hover:underline">{article.author.displayName}</Link>
+                  {article.author ? (
+                    <Link href={`/profile/${article.author.username}`} className="text-label-md font-semibold text-on-surface hover:underline">{article.author.displayName}</Link>
+                  ) : (
+                    <span className="text-label-md font-semibold text-on-surface">{article.sourceName ?? 'News'}</span>
+                  )}
                   <div className="flex items-center gap-2 text-[11px] text-outline">
-                    <span>{fmtDate(article.publishedAt)}</span>
+                    <span>{fmtDate(article.publishedAt, locale)}</span>
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" /><BookOpen className="w-3 h-3" />{article.readMinutes} min read</span>
                   </div>
                 </div>
@@ -174,7 +215,26 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                 )}
               </div>
 
-              <div className="prose-article mt-5 text-body-md text-on-surface leading-relaxed whitespace-pre-line">{article.body}</div>
+              {/*
+                An ingested article has no stored body — the licence covers the
+                headline, the excerpt and the link, not the text. That left an
+                empty column here, and the only way to actually read the piece
+                was a footnote below the fold. So when there is no body, the page
+                offers the way to read it instead of nothing.
+              */}
+              {article.body ? (
+                <div className="prose-article mt-5 text-body-md text-on-surface leading-relaxed whitespace-pre-line">{article.body}</div>
+              ) : article.sourceUrl ? (
+                <a
+                  href={article.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-5 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-label-md font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Read the full article at {article.sourceName ?? 'the source'}
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              ) : null}
 
               {article.sourceName && (
                 <div className="mt-6 p-3 rounded-xl bg-surface-container border border-outline-variant/20 flex items-center gap-2 text-label-sm">
@@ -189,7 +249,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
 
               <div className="flex items-center gap-2 mt-6 pt-5 border-t border-outline-variant/20">
                 <button onClick={toggleLike} className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-label-sm font-semibold transition-colors cursor-pointer ${liked ? 'border-red-300 text-red-500 bg-red-50' : 'border-outline-variant/50 text-on-surface-variant hover:border-red-300 hover:text-red-500'}`}>
-                  <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />{likesCount > 0 ? likesCount.toLocaleString() : 'Like'}
+                  <Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />{likesCount > 0 ? n(likesCount) : 'Like'}
                 </button>
                 <button onClick={toggleSave} className={`flex items-center gap-1.5 px-4 py-2 rounded-full border text-label-sm font-semibold transition-colors cursor-pointer ${saved ? 'border-primary/40 text-primary bg-primary/10' : 'border-outline-variant/50 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
                   <Bookmark className={`w-4 h-4 ${saved ? 'fill-current' : ''}`} />{saved ? 'Saved' : 'Save'}
@@ -222,7 +282,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                   <div className="flex justify-end mt-2">
                     <button onClick={postComment} disabled={!newComment.trim() || postingComment}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer">
-                      {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Comment
+                      {postingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}<span>Comment</span>
                     </button>
                   </div>
                 </div>
@@ -251,7 +311,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
                           <p className="text-label-sm text-on-surface-variant leading-relaxed whitespace-pre-line mt-0.5">{c.body}</p>
                         </div>
                         <div className="flex items-center gap-3 mt-1 px-1">
-                          <span className="text-[11px] text-outline">{fmtDate(c.createdAt)}</span>
+                          <span className="text-[11px] text-outline">{fmtDate(c.createdAt, locale)}</span>
                           {canDelete && (
                             <button onClick={() => deleteComment(c.id)} className="text-[11px] text-outline hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center gap-1">
                               <Trash2 className="w-3 h-3" />Delete
@@ -269,7 +329,7 @@ export default function ArticlePage({ params }: { params: Promise<{ id: string }
               <div className="text-center pt-4">
                 <button onClick={loadMoreComments} disabled={loadingMoreComments}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-outline-variant/50 text-label-sm font-semibold text-on-surface-variant hover:border-primary hover:text-primary transition-colors cursor-pointer">
-                  {loadingMoreComments && <Loader2 className="w-4 h-4 animate-spin" />}Load more comments
+                  {loadingMoreComments && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load more comments</span>
                 </button>
               </div>
             )}

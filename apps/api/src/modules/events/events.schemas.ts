@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const EVENT_CATEGORIES = [
   'adoption_drive', 'vet_camp', 'workshop', 'meetup', 'fundraiser', 'competition', 'awareness',
@@ -26,12 +27,12 @@ export const CreateEventSchema = z
     /** Initial invitees for an invite-only event — validated to exist, host excluded. */
     invitees: z.array(z.string().min(1)).max(500).optional(),
     isOnline: z.boolean().optional(),
-    coverUrl: z.string().url().max(600).optional(),
-    videoUrl: z.string().url().max(600).optional(),
+    coverUrl: httpUrl(600).optional(),
+    videoUrl: httpUrl(600).optional(),
     category: z.enum(EVENT_CATEGORIES).optional(),
     isFree: z.boolean().optional(),
     price: z.string().trim().max(60).optional(),
-    bookingUrl: z.string().url().max(600).optional(),
+    bookingUrl: httpUrl(600).optional(),
     capacity: z.number().int().min(1).max(1_000_000).optional(),
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
@@ -58,12 +59,12 @@ export const UpdateEventSchema = z
     /** Additional invitees to add on edit (invite-only events only). */
     invitees: z.array(z.string().min(1)).max(500).optional(),
     isOnline: z.boolean().optional(),
-    coverUrl: z.string().url().max(600).nullable().optional(),
-    videoUrl: z.string().url().max(600).nullable().optional(),
+    coverUrl: httpUrl(600).nullable().optional(),
+    videoUrl: httpUrl(600).nullable().optional(),
     category: z.enum(EVENT_CATEGORIES).nullable().optional(),
     isFree: z.boolean().optional(),
     price: z.string().trim().max(60).nullable().optional(),
-    bookingUrl: z.string().url().max(600).nullable().optional(),
+    bookingUrl: httpUrl(600).nullable().optional(),
     capacity: z.number().int().min(1).max(1_000_000).nullable().optional(),
     latitude: z.number().min(-90).max(90).nullable().optional(),
     longitude: z.number().min(-180).max(180).nullable().optional(),

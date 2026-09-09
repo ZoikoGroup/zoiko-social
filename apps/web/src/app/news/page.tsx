@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { newsApi, type NewsArticle, type NewArticle } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
@@ -41,14 +42,6 @@ const CATEGORIES: { id: string; label: string }[] = [
 function compact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
 }
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (s < 3600) return `${Math.max(1, Math.floor(s / 60))}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  if (s < 604800) return `${Math.floor(s / 86400)}d ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 function TierBadge({ tier }: { tier: string }): React.JSX.Element {
   const config = TIER_CONFIG[(tier as Tier)] ?? TIER_CONFIG.community
   const Icon = config.icon
@@ -72,13 +65,39 @@ function SaveButton({ article, small }: { article: NewsArticle; small?: boolean 
   }
   const sz = small ? 'w-3.5 h-3.5' : 'w-4 h-4'
   return (
-    <button onClick={toggle} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${saved ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'}`}>
+    <button onClick={toggle} aria-label={saved ? "Remove from saved" : "Save article"} className={`p-1.5 rounded-lg transition-colors cursor-pointer ${saved ? 'text-primary bg-primary/10' : 'text-outline hover:text-primary hover:bg-surface-container'}`}>
       <Bookmark className={`${sz} ${saved ? 'fill-current' : ''}`} />
     </button>
   )
 }
 
+/**
+ * Who to credit for an article.
+ *
+ * An ingested article has no author — it belongs to a publisher, not a member —
+ * so `author` is null on every external item. Both attribution blocks below
+ * used to read straight through it, which crashed the whole page on the first
+ * card it rendered.
+ */
+function byline(a: NewsArticle): { name: string; avatar: string | undefined; verified: boolean } {
+  if (a.author) {
+    return {
+      name: a.author.displayName,
+      avatar: a.author.avatarUrl ?? undefined,
+      verified: a.author.isVerified,
+    }
+  }
+  return {
+    name: a.sourceName ?? 'News',
+    avatar: undefined,
+    // Institutional and independently verified publishers earn the tick; a
+    // community source does not, or the tick stops distinguishing anything.
+    verified: a.tier === 'institutional' || a.tier === 'verified',
+  }
+}
+
 export default function NewsPage(): React.JSX.Element {
+  const { ago } = useDateFormat()
   const { isAuthenticated } = useAuth()
   const [category, setCategory] = useState('all')
   const [tier, setTier] = useState<Tier | 'all'>('all')
@@ -146,7 +165,10 @@ export default function NewsPage(): React.JSX.Element {
                 className="w-full pl-10 pr-4 py-2.5 bg-surface-container-lowest border border-outline-variant/40 focus:border-primary focus:outline-none rounded-xl text-label-md transition-all placeholder:text-outline/50" />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+            {/* Wraps for the same reason the Marketplace bar does: seven chips
+                do not fit, and no-scrollbar hides any sign that the row scrolls,
+                so "Climate & Habitat" reads as a broken label. */}
+            <div className="flex flex-wrap gap-2 pb-1">
               {CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => setCategory(cat.id)}
                   className={`px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
@@ -195,8 +217,14 @@ export default function NewsPage(): React.JSX.Element {
                     <div className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
                       <Link href={`/news/${featured[0]!.id}`} aria-label={featured[0]!.title} className="absolute inset-0 z-10" />
                       <div className="relative h-48 sm:h-56 overflow-hidden bg-surface-container">
-                        {featured[0]!.coverUrl && (
+                        {featured[0]!.coverUrl ? (
                           <Img src={featured[0]!.coverUrl} alt="" priority className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          /* The headline below sits in white over a dark gradient,
+                             which needs something behind it. */
+                          <div className="w-full h-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center">
+                            <Newspaper className="w-12 h-12 text-primary/50" />
+                          </div>
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                         <div className="absolute bottom-4 left-4 right-4">
@@ -210,10 +238,10 @@ export default function NewsPage(): React.JSX.Element {
                       </div>
                       <div className="p-3.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <UserAvatar name={featured[0]!.author.displayName} image={featured[0]!.author.avatarUrl ?? undefined} size="sm" verified={featured[0]!.author.isVerified} />
-                          <span className="text-[11px] text-outline">{featured[0]!.author.displayName}</span>
+                          <UserAvatar name={byline(featured[0]!).name} image={byline(featured[0]!).avatar} size="sm" verified={byline(featured[0]!).verified} />
+                          <span className="text-[11px] text-outline">{byline(featured[0]!).name}</span>
                           <span className="text-[10px] text-outline/60">·</span>
-                          <span className="text-[11px] text-outline">{timeAgo(featured[0]!.publishedAt)}</span>
+                          <span className="text-[11px] text-outline">{ago(featured[0]!.publishedAt)}</span>
                         </div>
                         <span className="relative z-20"><SaveButton article={featured[0]!} /></span>
                       </div>
@@ -225,8 +253,15 @@ export default function NewsPage(): React.JSX.Element {
                           <div key={a.id} className="relative block bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md transition-all group">
                             <Link href={`/news/${a.id}`} aria-label={a.title} className="absolute inset-0 z-10" />
                             <div className="relative h-32 overflow-hidden bg-surface-container">
-                              {a.coverUrl && (
+                              {a.coverUrl ? (
                                 <Img src={a.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                              ) : (
+                                /* 80% of articles have no cover. The gradient and
+                                   white headline above assume an image behind them,
+                                   so without one the card was grey text on grey. */
+                                <div className="w-full h-full bg-gradient-to-br from-primary/25 to-secondary/25 flex items-center justify-center">
+                                  <Newspaper className="w-8 h-8 text-primary/50" />
+                                </div>
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                               <div className="absolute top-2 left-2"><TierBadge tier={a.tier} /></div>
@@ -235,7 +270,7 @@ export default function NewsPage(): React.JSX.Element {
                               </div>
                             </div>
                             <div className="p-3 flex items-center justify-between">
-                              <span className="text-[10px] text-outline/60">{timeAgo(a.publishedAt)} · {a.readMinutes} min</span>
+                              <span className="text-[10px] text-outline/60">{ago(a.publishedAt)} · {a.readMinutes} min</span>
                               <span className="relative z-20"><SaveButton article={a} small /></span>
                             </div>
                           </div>
@@ -275,11 +310,11 @@ export default function NewsPage(): React.JSX.Element {
                             </div>
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-outline-variant/10">
                               <div className="flex items-center gap-2 min-w-0">
-                                <UserAvatar name={a.author.displayName} image={a.author.avatarUrl ?? undefined} size="sm" verified={a.author.isVerified} />
+                                <UserAvatar name={byline(a).name} image={byline(a).avatar} size="sm" verified={byline(a).verified} />
                                 <div className="min-w-0">
-                                  <span className="text-[10px] font-medium text-on-surface-variant truncate block">{a.author.displayName}</span>
+                                  <span className="text-[10px] font-medium text-on-surface-variant truncate block">{byline(a).name}</span>
                                   <div className="flex items-center gap-1.5 text-[10px] text-outline/60">
-                                    <Clock className="w-3 h-3" /><span>{timeAgo(a.publishedAt)}</span>
+                                    <Clock className="w-3 h-3" /><span>{ago(a.publishedAt)}</span>
                                     <span>·</span><BookOpen className="w-3 h-3" /><span>{a.readMinutes} min</span>
                                   </div>
                                 </div>
@@ -299,7 +334,7 @@ export default function NewsPage(): React.JSX.Element {
                   {hasMore && (
                     <div className="text-center pt-4">
                       <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
-                        {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More Articles
+                        {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load More Articles</span>
                       </button>
                     </div>
                   )}
@@ -383,7 +418,7 @@ function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPu
               ) : (
                 <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
                   {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}
-                  {uploading ? 'Uploading…' : 'Add cover image'}
+                  <span>{uploading ? 'Uploading…' : 'Add cover image'}</span>
                 </span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
@@ -409,7 +444,7 @@ function WriteArticleModal({ onClose, onPublished }: { onClose: () => void; onPu
           <p className="text-[11px] text-outline">Your trust tier is set automatically from your verified status.</p>
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Publishing…' : 'Publish Article'}
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{posting ? 'Publishing…' : 'Publish Article'}</span>
           </button>
         </div>
       </div>

@@ -16,11 +16,33 @@ export interface PetCareService {
   priceDisplay: string
   durationMinutes: number | null
   category: string
+  /** Animals this service is for. Empty means unstated, never "no pets". */
+  species: string[]
   isActive: boolean
   createdAt: string
 }
 
 export type ServiceCategory = 'grooming' | 'boarding' | 'walking' | 'training' | 'sitting' | 'daycare' | 'vet_escort' | 'other'
+
+/**
+ * Animals a provider or an individual service can be offered for. Matches the
+ * list AddPetModal uses, so "pets served" lines up with the species people
+ * actually record on their pets. Selecting none means unstated — it is never
+ * used to restrict who may book, since people book for a friend's or a
+ * neighbour's animal too.
+ */
+export const PET_SPECIES_OPTIONS = [
+  'Dog', 'Cat', 'Bird', 'Parrot', 'Rabbit', 'Fish', 'Reptile', 'Horse', 'Other',
+] as const
+
+/**
+ * What a pet care business can say it offers, in the order it is presented.
+ * The same vocabulary as the bookable service records, so a provider's profile
+ * and its services do not describe the same work in different words.
+ */
+export const PET_CARE_SERVICE_OPTIONS: readonly ServiceCategory[] = [
+  'grooming', 'boarding', 'walking', 'training', 'sitting', 'daycare', 'vet_escort', 'other',
+]
 
 export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   grooming: 'Grooming',
@@ -50,6 +72,8 @@ export interface NewService {
   priceCents: number
   durationMinutes?: number
   category?: ServiceCategory | string  // pet-care categories or vet categories (see lib/vet)
+  /** Animals this service is for. Omitted or empty means unstated. */
+  species?: string[]
 }
 
 export interface UpdateServiceInput {
@@ -58,6 +82,7 @@ export interface UpdateServiceInput {
   priceCents?: number
   durationMinutes?: number
   category?: ServiceCategory | string
+  species?: string[]
   isActive?: boolean
 }
 
@@ -114,7 +139,8 @@ export interface NewBooking {
   consultMode?: 'in_clinic' | 'home_visit' | 'video'
   reason?: string
   notes?: string
-  paymentMethod?: 'pay_at_visit' | 'pay_now'
+  /** `pay_now` is not accepted — no booking payment route exists yet. */
+  paymentMethod?: 'pay_at_visit'
 }
 
 export interface VisitSummaryInput {
@@ -158,6 +184,16 @@ export interface AvailabilitySlot {
   startTime: string
   endTime: string
   kind: string
+}
+
+/** One bookable slot, sized by the chosen service's duration. */
+export interface BookingSlot {
+  startAt: string
+  endAt: string
+  capacity: number
+  booked: number
+  available: number
+  isFull: boolean
 }
 
 export interface NewAvailabilitySlot {
@@ -260,6 +296,16 @@ export const petCareApi = {
   /** List availability slots for a provider */
   listAvailability: (providerId: string) =>
     cachedGet<AvailabilitySlot[]>(`/providers/${providerId}/availability`, 30_000),
+
+  /**
+   * Bookable slots for a service on a date. Cached briefly only — a slot filling
+   * up is exactly the kind of change a booker needs to see.
+   */
+  listSlots: (providerId: string, serviceId: string, date: string) =>
+    cachedGet<BookingSlot[]>(
+      `/providers/${providerId}/slots?serviceId=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`,
+      5_000,
+    ),
 
   /** Create an availability slot (provider only) */
   createAvailability: (input: NewAvailabilitySlot) =>

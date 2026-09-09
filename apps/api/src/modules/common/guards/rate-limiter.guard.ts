@@ -19,7 +19,12 @@ import { RATE_LIMIT_KEY, type RateLimitMetadata } from '../decorators/rate-limit
  * Per-route limits can be set with:
  *   @RateLimit({ limit: 10, windowSeconds: 60 })
  *
- * Graceful degradation: if Redis is unavailable, all requests pass through.
+ * Graceful degradation: if Redis is unavailable the limiter does NOT switch
+ * off — RateLimiterService falls back to a per-instance in-process window, so
+ * an outage loosens the ceiling (each pod counts separately) rather than
+ * removing it. This comment used to say "all requests pass through", which was
+ * true once and is exactly the kind of stale claim that gets a reviewer to wave
+ * through a real fail-open later.
  */
 /**
  * In-process fixed-window counter for read-only requests. Per-instance rather
@@ -83,7 +88,7 @@ export class RateLimiterGuard implements CanActivate {
     const userId = (request as unknown as Record<string, unknown>).auth_user
       ? ((request as unknown as Record<string, unknown>).auth_user as { id: string }).id
       : undefined
-    const ip = request.ip ?? request.socket?.remoteAddress ?? 'unknown'
+    const ip = this.clientIp(request)
     const identifier = userId ?? ip
 
     // Determine the route name for limit lookup
@@ -152,6 +157,32 @@ export class RateLimiterGuard implements CanActivate {
     return `${controllerName}.${handlerName}`
   }
 
+  /**
+   * The caller's real address, as far as it can be trusted.
+   *
+   * The API sits behind Cloudflare and Fastify is not configured with
+   * `trustProxy`, so `request.ip` is a Cloudflare edge address. Every anonymous
+   * caller arriving through the same edge therefore shared a single rate-limit
+   * bucket: one abuser consumed the anonymous allowance for everyone routed
+   * through that datacentre, and a per-IP limit isolated nobody. Authenticated
+   * callers were unaffected — they key on user id.
+   *
+   * `CF-Connecting-IP` is set by Cloudflare and overwritten on every request, so
+   * a client cannot forge it while traffic reaches the origin only through
+   * Cloudflare.
+   *
+   * X-Forwarded-For is deliberately NOT consulted. On a direct connection it is
+   * just a client-supplied header, so trusting it would hand an attacker a fresh
+   * identity per request — a worse hole than the one being closed. If the origin
+   * ever becomes directly reachable, restrict it to Cloudflare's ranges at the
+   * firewall rather than adding header fallbacks here.
+   */
+  private clientIp(request: FastifyRequest): string {
+    const forwarded = request.headers['cf-connecting-ip']
+    if (typeof forwarded === 'string' && forwarded.length > 0) return forwarded
+    return request.ip ?? request.socket?.remoteAddress ?? 'unknown'
+  }
+
   private getRouteLimit(request: FastifyRequest): { limit: number; windowSeconds: number; prefix: string } | null {
     const url = request.url ?? ''
     const method = request.method ?? 'GET'
@@ -184,15 +215,22 @@ export class RateLimiterGuard implements CanActivate {
   }
 
   private throwRateLimited(result: { remaining: number; resetTime: number; total: number }): never {
+    /*
+     * Flat payload, not a pre-built { success, error } envelope.
+     *
+     * HttpExceptionFilter builds that envelope itself and reads `code` from the
+     * top level of the thrown payload. Wrapping it here meant the filter found no
+     * code, fell back to INTERNAL_ERROR, and replaced this message with Nest's
+     * default — so a rate-limited caller received
+     * `{"code":"INTERNAL_ERROR","message":"Http Exception"}` at HTTP 429. A client
+     * could not tell it had been throttled, and a person saw nothing meaningful.
+     */
+    const retryAfterSeconds = Math.max(1, Math.ceil((result.resetTime - Date.now()) / 1000))
     throw new HttpException(
       {
-        success: false,
-        error: {
-          code: 'RATE_LIMITED',
-          message: 'Too many requests. Please try again later.',
-          remaining: result.remaining,
-          resetTime: result.resetTime,
-        },
+        code: 'RATE_LIMITED',
+        message: 'Too many requests. Please try again later.',
+        retryAfterSeconds,
       },
       HttpStatus.TOO_MANY_REQUESTS,
     )

@@ -154,22 +154,57 @@ export class CommentsService {
       // Mentions in comment body
       const mentionUsernames = parseMentions(body)
       if (mentionUsernames.length) {
+      /*
+        "Allow tagging" is honoured here.
+
+        The toggle wrote to user_settings and nothing ever read it, so turning
+        it off changed nothing: you were still tagged, and still notified. The
+        filter lives on the lookup rather than after it, so a person who has
+        opted out never becomes a mention row OR a notification.
+
+        `userSettings: null` is deliberate — the column defaults to true, and a
+        member who has never opened settings has no row at all. Requiring one
+        would silently stop mentions working for most accounts.
+      */
         const mentioned = await this.prisma.profile.findMany({
-          where: { username: { in: mentionUsernames }, state: 'active', id: { notIn: [userId, post.authorId] } },
+          where: {
+            username: { in: mentionUsernames },
+            state: 'active',
+            id: { notIn: [userId, post.authorId] },
+            OR: [
+              { userSettings: { allowTagging: true } },
+              { userSettings: null },
+            ],
+          },
           select: { id: true },
         })
-        for (const m of mentioned) {
-          await this.prisma.mention.create({
-            data: { mentionedUserId: m.id, actorId: userId, commentId: comment.id, postId },
-          })
-          await this.notifications.enqueue({
+        /*
+          One insert for all of them, and the notifications queued together.
+
+          This ran a create and an enqueue per mentioned person, in turn. A
+          database round-trip is ~1.5s on the transaction pooler and a queue
+          round-trip ~200ms, so mentioning three people added roughly five
+          seconds to posting a comment — all of it before the comment came back.
+
+          `createMany` returns no rows, which is fine: nothing here reads them.
+        */
+        await Promise.all([
+          this.prisma.mention.createMany({
+            data: mentioned.map((m) => ({
+              mentionedUserId: m.id,
+              actorId: userId,
+              commentId: comment.id,
+              postId,
+            })),
+          }),
+          ...mentioned.map((m) => this.notifications.enqueue({
             userId: m.id,
             type: 'mention',
             title: 'Mentioned You',
             body: `${actor?.displayName ?? 'Someone'} mentioned you in a comment`,
             data: { postId, commentId: comment.id, username: actor?.username },
-          })
-        }
+          })),
+        ])
       }
     })
 

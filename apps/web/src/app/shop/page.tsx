@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { usePagedList } from '@/hooks/use-cache'
 import { Img } from '@/components/Img'
 import { Header } from '@/components/Header'
@@ -10,7 +11,7 @@ import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
-  ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus,
+  ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus, ImageOff,
 } from 'lucide-react'
 import { shopApi, type Product, type NewProduct } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
@@ -18,16 +19,19 @@ import { useCurrency } from '@/hooks/use-currency'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { UserAvatar } from '@/components/UserAvatar'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { CURRENCIES, DEFAULT_CURRENCY } from '@/lib/currency'
 
-const CATEGORIES: { id: string; label: string; icon: string }[] = [
-  { id: 'all',         label: 'All Products',   icon: '🛍️' },
-  { id: 'food',        label: 'Food & Treats',  icon: '🍖' },
-  { id: 'toys',        label: 'Toys & Play',    icon: '🧸' },
-  { id: 'health',      label: 'Health & Meds',  icon: '💊' },
-  { id: 'grooming',    label: 'Grooming',       icon: '✂️' },
-  { id: 'accessories', label: 'Accessories',    icon: '🧣' },
-  { id: 'beds',        label: 'Beds & Crates',  icon: '🛏️' },
-  { id: 'tech',        label: 'Tech & Gadgets', icon: '📱' },
+// `id` doubles as the key into shop.categories, so the label is looked up at
+// render rather than stored here.
+const CATEGORIES: { id: string; icon: string }[] = [
+  { id: 'all',         icon: '🛍️' },
+  { id: 'food',        icon: '🍖' },
+  { id: 'toys',        icon: '🧸' },
+  { id: 'health',      icon: '💊' },
+  { id: 'grooming',    icon: '✂️' },
+  { id: 'accessories', icon: '🧣' },
+  { id: 'beds',        icon: '🛏️' },
+  { id: 'tech',        icon: '📱' },
 ]
 
 const SORTS: { id: string; label: string }[] = [
@@ -57,6 +61,7 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 }
 
 export default function ShopPage(): React.JSX.Element {
+  const ts = useTranslations('shop')
   const { format } = useCurrency()
   const { isAuthenticated } = useAuth()
   const [category, setCategory] = useState('all')
@@ -120,11 +125,15 @@ export default function ShopPage(): React.JSX.Element {
               </select>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
+            {/* Wraps rather than scrolls. Eight chips do not fit the column, and
+                with the scrollbar hidden by no-scrollbar the ones past the edge
+                read as broken labels — "Beds & Crates" showed as "Beds & Cra" —
+                rather than as content to scroll to. */}
+            <div className="flex flex-wrap gap-2 pb-1">
               {CATEGORIES.map((cat) => (
                 <button key={cat.id} onClick={() => setCategory(cat.id)}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-label-sm font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${category === cat.id ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30 hover:border-primary/30 hover:text-primary'}`}>
-                  <span>{cat.icon}</span>{cat.label}
+                  <span>{cat.icon}</span><span>{ts(`categories.${cat.id}`)}</span>
                 </button>
               ))}
             </div>
@@ -136,7 +145,7 @@ export default function ShopPage(): React.JSX.Element {
             ) : products.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
                 <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4"><Package className="w-7 h-7 text-outline" /></div>
-                <h3 className="text-label-md font-bold text-on-surface mb-1">No products yet</h3>
+                <h3 className="text-label-md font-bold text-on-surface mb-1">{ts('noProducts')}</h3>
                 <p className="text-label-sm text-outline mb-4">Be the first to list an item in the marketplace.</p>
                 {isAuthenticated && <button onClick={() => setSellOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Sell an Item</button>}
               </div>
@@ -147,8 +156,16 @@ export default function ShopPage(): React.JSX.Element {
                     <div key={p.id} onMouseEnter={() => { void shopApi.get(p.id).catch(() => {}) }} className="group relative bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all">
                       <Link href={`/shop/${p.id}`} aria-label={p.title} className="absolute inset-0 z-10" />
                       <div className="relative aspect-square bg-surface-container overflow-hidden">
-                        {p.coverUrl && (
+                        {p.coverUrl ? (
                           <Img src={p.coverUrl} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          /* Listings created before a photo was required. An empty
+                             grey square reads as a broken image; this reads as a
+                             listing without one. */
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-outline/60">
+                            <ImageOff className="w-7 h-7" />
+                            <span className="text-[10px] font-medium">No photo</span>
+                          </div>
                         )}
                         {p.compareAt && p.compareAt > p.price && (
                           <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold">SALE</span>
@@ -178,7 +195,7 @@ export default function ShopPage(): React.JSX.Element {
                 {hasMore && (
                   <div className="text-center pt-4">
                     <button onClick={loadMore} disabled={loadingMore} className="px-6 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-xl text-label-sm font-semibold text-on-surface-variant hover:border-primary/30 hover:text-primary transition-all cursor-pointer inline-flex items-center gap-2">
-                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}Load More
+                      {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}<span>Load More</span>
                     </button>
                   </div>
                 )}
@@ -196,6 +213,7 @@ export default function ShopPage(): React.JSX.Element {
 }
 
 function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: Product) => void }): React.JSX.Element {
+  const ts = useTranslations('shop')
   const { profile } = useAuth()
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
@@ -206,12 +224,19 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
   const [shipping, setShipping] = useState('')
   const [description, setDescription] = useState('')
   const [coverUrl, setCoverUrl] = useState('')
+  // Product.currency defaults to USD server-side, and this form never sent one —
+  // so a seller typing 999 on an INR platform listed it as $999 and every viewer
+  // saw ~₹83,000. All nine existing rows are stored USD for that reason. The
+  // seller states it now, defaulting to the platform base.
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
   const [uploading, setUploading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
 
   const priceNum = parseFloat(price)
-  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0
+  // A photo is required, matching CreateProductSchema. Enforced here as well so
+  // the reason is visible before submitting rather than coming back as a 400.
+  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0 && coverUrl !== ''
 
   async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0]; e.target.value = ''
@@ -225,12 +250,12 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
     setPosting(true); setError('')
     try {
       const input: NewProduct = {
-        title: title.trim(), price: priceNum, category, condition,
+        title: title.trim(), price: priceNum, currency, category, condition,
         ...(compareAt && !isNaN(parseFloat(compareAt)) ? { compareAt: parseFloat(compareAt) } : {}),
         ...(stock && !isNaN(parseInt(stock, 10)) ? { stock: parseInt(stock, 10) } : {}),
         ...(shipping.trim() ? { shipping: shipping.trim() } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
-        ...(coverUrl ? { coverUrl } : {}),
+        coverUrl,
       }
       onListed(await shopApi.create(input))
     } catch (err) { setError(err instanceof Error ? err.message : 'Failed to list') } finally { setPosting(false) }
@@ -254,7 +279,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
                 <img src={coverUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 <span className="flex flex-col items-center gap-1 text-outline text-label-sm">
-                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}{uploading ? 'Uploading…' : 'Add product photo'}
+                  {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-6 h-6" />}<span>{uploading ? 'Uploading…' : 'Add product photo — required'}</span>
                 </span>
               )}
               <input type="file" accept="image/*" onChange={handleCover} className="hidden" />
@@ -263,6 +288,14 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={160} placeholder="Product title"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-md border border-outline-variant/30 focus:border-primary focus:outline-none" />
           <div className="flex gap-2">
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              aria-label="Currency"
+              className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer"
+            >
+              {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>)}
+            </select>
             <input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="decimal" placeholder="Price"
               className="flex-1 px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
             <input value={compareAt} onChange={(e) => setCompareAt(e.target.value)} inputMode="decimal" placeholder="Compare-at (optional)"
@@ -270,7 +303,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           </div>
           <div className="flex gap-2">
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="flex-1 px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
-              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              {CATEGORIES.filter((c) => c.id !== 'all').map((c) => <option key={c.id} value={c.id}>{ts(`categories.${c.id}`)}</option>)}
             </select>
             <select value={condition} onChange={(e) => setCondition(e.target.value)} className="px-3 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none cursor-pointer">
               <option value="new">New</option>
@@ -288,7 +321,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           {error && <p className="text-label-sm text-red-500">{error}</p>}
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {posting && <Loader2 className="w-4 h-4 animate-spin" />}{posting ? 'Listing…' : 'List Item'}
+            {posting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{posting ? 'Listing…' : 'List Item'}</span>
           </button>
         </div>
       </div>

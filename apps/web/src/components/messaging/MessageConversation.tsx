@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
-  Send, Paperclip, Smile, Phone, Video, ArrowLeft, Info,
+  Send, Smile, Phone, Video, ArrowLeft, Info,
   Reply, Forward, Copy, Edit3, Trash2,
   X, Check, CheckCheck, Loader2, Clock, AlertCircle, Plus,
   MoreVertical, MoreHorizontal, Flag, UserMinus2, UserCheck2, VolumeX, Volume2,
-  FileText, EyeOff, Palette, LogOut,
+  FileText, EyeOff, Palette, LogOut, Pin, ShieldAlert,
+  MapPin, BarChart2, Image as ImageIcon, ChevronDown,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { cn } from '@/lib/utils'
 import { SkeletonMessageList } from '@/components/Skeletons'
 import { useToast } from '@/hooks/use-toast'
@@ -24,6 +26,16 @@ import { useMessaging } from '@/hooks/use-messaging'
 import { usePresence } from '@/hooks/use-presence'
 import { messagingApi } from '@/lib/messaging-api'
 import { useAuth } from '@/hooks/use-auth'
+import Link from 'next/link'
+import {
+  useCommunityChat,
+  CommunityHeaderInfo,
+  CommunityPinnedBar,
+  CommunityComposerLock,
+  CommunityMembersSheet,
+  CommunityChatSettings,
+} from './CommunityChat'
+import { isAiAssistant } from '@/lib/ai-assistant'
 import { getSocket } from '@/lib/socket'
 import { getAuthToken } from '@/lib/auth'
 import { compressImage } from '@/lib/image'
@@ -31,12 +43,18 @@ import { moderationApi, networkApi, profileApi, type Relationship } from '@/lib/
 import { EmptyState } from '@/components/messaging/EmptyState'
 import { ReactionPicker } from '@/components/messaging/ReactionPicker'
 import { SharedPostPreview } from '@/components/messaging/SharedPostPreview'
+import { LocationBubble, PollBubble, locationFrom } from './MessageAttachments'
+import { ForwardModal } from './ForwardModal'
 import { ReportContentModal } from '@/components/ReportContentModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { PollCreatorModal } from './PollCreatorModal'
+import { LocationPickerModal } from './LocationPickerModal'
 import { useCall } from '@/hooks/use-call'
 import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
 import type { Socket } from 'socket.io-client'
+import { formatDateTime } from '@/lib/datetime'
+import { useTranslations } from 'next-intl'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -51,14 +69,117 @@ const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍']
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 
+
+/**
+ * Makes the chat header's avatar and name open something.
+ *
+ * A direct message goes to the other person's profile. A group has no single
+ * profile, so it opens the details panel — the same place its member list and
+ * settings live, which is where tapping a group name leads elsewhere too.
+ *
+ * Rendered as a plain wrapper when there is nowhere to go: the assistant has a
+ * profile like anyone else, but a conversation whose participant has not loaded
+ * yet must not be a dead link that looks live.
+ */
+
+/**
+ * Wraps anything that identifies a person so that tapping it opens their profile.
+ *
+ * Falls back to a plain span when there is no username — a participant that has
+ * not loaded yet must not become a link that goes nowhere. Kept as one component
+ * so the avatar in a group message, the chat header and the details panel cannot
+ * drift apart in whether they are tappable.
+ */
+function IdentityLink({
+  username,
+  className,
+  children,
+}: {
+  username: string | undefined
+  className?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  if (!username) return <span className={className}>{children}</span>
+  return (
+    <Link
+      href={`/profile/${username}`}
+      className={cn(className, 'cursor-pointer hover:opacity-80 transition-opacity')}
+      aria-label={`View @${username}`}
+    >
+      {children}
+    </Link>
+  )
+}
+
+function HeaderIdentity({
+  username,
+  isGroup,
+  onShowInfo,
+  children,
+}: {
+  /* Not optional-with-`?`: it is always passed, and may be undefined while the
+     participant loads. Under exactOptionalPropertyTypes those are different
+     things, and the build rejects the second for the first. */
+  username: string | undefined
+  isGroup: boolean
+  onShowInfo: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  // -mx/px pairs keep the tap target generous without shifting the layout the
+  // header already had.
+  const shared =
+    'flex items-center gap-2.5 md:gap-3 flex-1 min-w-0 rounded-lg -mx-1 px-1 py-0.5 hover:bg-surface-container/60 transition-colors text-left cursor-pointer'
+
+  if (isGroup) {
+    return (
+      <div 
+        role="button"
+        tabIndex={0}
+        onClick={onShowInfo} 
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onShowInfo() }}
+        className={shared} 
+        aria-label="Group details"
+      >
+        {children}
+      </div>
+    )
+  }
+
+  if (!username) {
+    return <div className="flex items-center gap-2.5 md:gap-3 flex-1 min-w-0">{children}</div>
+  }
+
+  return (
+    <Link href={`/profile/${username}`} className={shared} aria-label={`View @${username}`}>
+      {children}
+    </Link>
+  )
+}
+
+/**
+ * How far the thread slides to uncover the times. Wide enough for "10:32 PM" at
+ * the smallest size the label is drawn, and no wider — the gesture should feel
+ * like a peek rather than a page.
+ */
+const TIME_REVEAL_PX = 76
+
+/**
+ * How long a mouse button is held before the time appears. Long enough not to
+ * fire while someone is clicking or double-clicking to react, short enough that
+ * holding does not feel like waiting.
+ */
+const HOLD_TO_SEE_TIME_MS = 400
+
 export function MessageConversation({
   conversationId,
   onBack,
   conversation,
   onNewMessage,
 }: MessageConversationProps): React.JSX.Element {
+  const tmsg = useTranslations('messaging')
+  const { locale } = useDateFormat()
   const { user, profile } = useAuth()
-  const { markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
+  const { conversations, markRead, retryFetchConversations, setActiveConversationId } = useMessaging()
   const { isUserTyping, subscribePresence, unsubscribePresence, getPresence } = usePresence()
 
   const [messages, setMessages] = useState<MessageData[]>([])
@@ -70,6 +191,8 @@ export function MessageConversation({
   const [replyingTo, setReplyingTo] = useState<MessageData | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
+  const [showPollModal, setShowPollModal] = useState(false)
+  const [showLocationModal, setShowLocationModal] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ message: MessageData; x: number; y: number } | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -98,14 +221,120 @@ export function MessageConversation({
   const avatarUrl = conversation?.avatarUrl ?? otherParticipant?.avatarUrl ?? null
   const isVerified = otherParticipant?.isVerified ?? false
   const otherUserId = otherParticipant?.id ?? null
+
+  // The assistant has no ears and no camera, so calling it is not a thing that can
+  // happen. Hiding the buttons is the honest version of that — a call that connects
+  // to silence, or an invite nothing ever answers, is worse than no button at all.
+  const isCommunity = conversation?.type === 'community'
+  const communityInfo = conversation?.community ?? null
+  const isAiChat = isDM && isAiAssistant(otherParticipant?.username)
   const activeTheme = getChatTheme(themeId)
   const { success: toastSuccess, error: toastError } = useToast()
   const { startCall } = useCall()
+  const {
+    access: communityAccess,
+    pinned: pinnedMessage,
+    refresh: refreshCommunityAccess,
+    setAccess: setCommunityAccess,
+    setPinned: setPinnedMessage,
+  } = useCommunityChat(conversationId, isCommunity)
+  const [showCommunityMembers, setShowCommunityMembers] = useState(false)
+  /** The message currently flashing because someone jumped to it. */
+  const [flashMessageId, setFlashMessageId] = useState<string | null>(null)
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Messages that arrived while the reader was scrolled up. */
+  const [unseenCount, setUnseenCount] = useState(0)
+  /** The message being forwarded, while the picker is open. */
+  const [forwardingMessage, setForwardingMessage] = useState<MessageData | null>(null)
 
   // Block/mute/report state for the other DM participant.
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [reportUserOpen, setReportUserOpen] = useState(false)
   const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
+
+  /*
+   * Swipe left to read the time on every message.
+   *
+   * A message carries a small label already, but it only shows a clock for today —
+   * anything older reads "Aug 21", so the time of an older message was simply not
+   * available. Rather than crowd every bubble with one, the times sit just off the
+   * right edge and the whole column slides over to uncover them, which is the
+   * gesture people already know from Instagram and WhatsApp.
+   *
+   * Kept in a ref as well as state: the touch handlers need the current offset
+   * without re-subscribing on every frame.
+   */
+  const [timeReveal, setTimeReveal] = useState(0)
+
+  /*
+   * Press and hold a message to read its time — the mouse equivalent of the swipe.
+   *
+   * A swipe is a touch gesture and does nothing with a mouse, so on a laptop there
+   * was no way to reach the time at all. Long press is free here: touch already
+   * uses it for the message menu, but a mouse opens that with right-click, so
+   * holding the button has no meaning yet.
+   *
+   * Shown while held and gone on release. Nothing to dismiss, and no state left
+   * behind if the pointer leaves the window mid-press.
+   */
+  const [heldMessage, setHeldMessage] = useState<{ id: string; x: number; y: number } | null>(null)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdOrigin = useRef<{ x: number; y: number } | null>(null)
+
+  const cancelHold = useCallback(() => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current)
+      holdTimer.current = null
+    }
+    holdOrigin.current = null
+    setHeldMessage(null)
+  }, [])
+
+  const startHold = useCallback((messageId: string, e: React.MouseEvent) => {
+    // Left button only: right-click already opens the message menu.
+    if (e.button !== 0) return
+    const { clientX: x, clientY: y } = e
+    holdOrigin.current = { x, y }
+    holdTimer.current = setTimeout(() => setHeldMessage({ id: messageId, x, y }), HOLD_TO_SEE_TIME_MS)
+  }, [])
+
+  const moveDuringHold = useCallback((e: React.MouseEvent) => {
+    const origin = holdOrigin.current
+    if (!origin || holdTimer.current === null) return
+    // Selecting text inside a bubble is a drag, and should not be read as a hold.
+    if (Math.abs(e.clientX - origin.x) > 8 || Math.abs(e.clientY - origin.y) > 8) cancelHold()
+  }, [cancelHold])
+  const swipeStart = useRef<{ x: number; y: number; active: boolean } | null>(null)
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    if (!touch) return
+    swipeStart.current = { x: touch.clientX, y: touch.clientY, active: false }
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    const start = swipeStart.current
+    const touch = e.touches[0]
+    if (!start || !touch) return
+
+    const dx = touch.clientX - start.x
+    const dy = touch.clientY - start.y
+
+    // Only claim the gesture once it is clearly horizontal and leftward. Reading
+    // back through a conversation is a vertical scroll, and stealing that to
+    // reveal timestamps would make the thread feel broken.
+    if (!start.active) {
+      if (Math.abs(dy) > Math.abs(dx) || dx > -10) return
+      start.active = true
+    }
+
+    setTimeReveal(Math.min(TIME_REVEAL_PX, Math.max(0, -dx)))
+  }, [])
+
+  const endSwipe = useCallback(() => {
+    swipeStart.current = null
+    setTimeReveal(0)
+  }, [])
 
   useEffect(() => {
     if (!otherUserId) return undefined
@@ -132,6 +361,33 @@ export function MessageConversation({
     }
   }
 
+  /**
+   * Mutes this conversation's notifications.
+   *
+   * Deliberately not `networkApi.mute`, which this panel used to call: that hides
+   * someone's posts from the feed and leaves the chat exactly as noisy as it was,
+   * so a button reading "mute notifications" muted something else entirely. It
+   * also needed a single other participant, which left the option dead in groups.
+   */
+  async function handleToggleConversationMute(): Promise<void> {
+    if (!conversationId) return
+    const wasMuted = !!conversation?.isMuted
+    try {
+      if (wasMuted) {
+        await messagingApi.unmute(conversationId)
+        toastSuccess('Unmuted', 'You will be notified about new messages here again.')
+      } else {
+        await messagingApi.mute(conversationId)
+        toastSuccess('Muted', 'You will not be notified about new messages here.')
+      }
+      // The inbox carries the flag this label reads; without the refetch the row
+      // keeps its old bell and the label flips back when the panel is reopened.
+      await retryFetchConversations()
+    } catch (e) {
+      toastError('Action failed', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
   async function handleUnblock(): Promise<void> {
     if (!otherUserId) return
     try {
@@ -148,6 +404,106 @@ export function MessageConversation({
     await networkApi.block(otherUserId)
     setRelationship((r) => r ? { ...r, blocked: true, following: false, followedBy: false } : r)
     toastSuccess('Blocked', `${displayName} can no longer see your profile or message you.`)
+  }
+
+  /**
+   * Pin or unpin, moderators only. The bar updates from the socket event the
+   * server broadcasts, so every member's view moves together rather than only
+   * the moderator who pressed it.
+   */
+  async function handleTogglePin(messageId: string): Promise<void> {
+    if (!conversationId) return
+    try {
+      const { pinned } = await messagingApi.togglePinMessage(messageId)
+      const next = pinned ? await messagingApi.pinnedMessage(conversationId) : null
+      setPinnedMessage(next)
+      toastSuccess(pinned ? 'Pinned' : 'Unpinned', pinned ? 'Everyone will see this at the top.' : 'Removed from the top of the chat.')
+    } catch (e) {
+      toastError('Could not pin', e instanceof Error ? e.message : 'Please try again')
+    }
+  }
+
+  /**
+   * Scrolls to a message and flashes it — the reply quote and the pinned bar
+   * both land here.
+   *
+   * The flash is React state rather than classes written onto the node. The
+   * previous version added ring utilities directly to the DOM, which any
+   * re-render inside the 1.4s window silently undid, so the highlight often
+   * never appeared.
+   *
+   * A parent older than the loaded page has no element to scroll to. Saying so
+   * beats scrolling nowhere and looking broken.
+   */
+  const jumpToMessage = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`)
+    if (!el) {
+      toastError('Message not loaded', 'Scroll up to load older messages, then try again.')
+      return
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // Clear first so tapping the same quote twice restarts the animation
+    // instead of doing nothing because the class is already applied.
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current)
+    setFlashMessageId(null)
+    requestAnimationFrame(() => setFlashMessageId(messageId))
+    flashTimerRef.current = setTimeout(() => setFlashMessageId(null), 1400)
+  }, [toastError])
+
+  /**
+   * Sends a message on to other chats.
+   *
+   * Reports partial success honestly: forwarding into three chats where one is
+   * in announcement mode succeeds twice and fails once, and saying "forwarded"
+   * would hide the one that did not arrive.
+   */
+  const handleForward = useCallback(async (messageId: string, conversationIds: string[]): Promise<void> => {
+    try {
+      const { forwarded, results } = await messagingApi.forwardMessage(messageId, conversationIds)
+      const failed = results.filter((r) => !r.ok)
+      setForwardingMessage(null)
+      if (forwarded === 0) {
+        toastError('Could not forward', failed[0]?.error ?? 'Please try again')
+        return
+      }
+      if (failed.length > 0) {
+        toastSuccess(
+          `Forwarded to ${forwarded}`,
+          `${failed.length} could not be delivered: ${failed[0]?.error ?? 'not allowed'}`,
+        )
+        return
+      }
+      toastSuccess('Forwarded', `Sent to ${forwarded} ${forwarded === 1 ? 'chat' : 'chats'}.`)
+    } catch (e) {
+      toastError('Could not forward', e instanceof Error ? e.message : 'Please try again')
+    }
+  }, [toastSuccess, toastError])
+
+  /**
+   * Records a vote and swaps in the server's tally.
+   *
+   * No optimistic update: the server decides whether this moves an existing
+   * vote or withdraws it, and guessing wrong would flicker the bars the wrong
+   * way before correcting itself.
+   */
+  const handleVote = useCallback(async (messageId: string, optionId: string): Promise<void> => {
+    try {
+      const poll = await messagingApi.votePoll(messageId, optionId)
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, poll } : m)))
+    } catch (e) {
+      toastError('Could not vote', e instanceof Error ? e.message : 'Please try again')
+    }
+  }, [toastError])
+
+  /** Moderator removal of someone else's message. Always for everyone. */
+  async function handleModerateDelete(messageId: string): Promise<void> {
+    if (!window.confirm('Remove this message for everyone in the community?')) return
+    try {
+      await messagingApi.moderateDeleteMessage(messageId)
+      toastSuccess('Removed', 'The message is no longer visible to anyone.')
+    } catch (e) {
+      toastError('Could not remove', e instanceof Error ? e.message : 'Please try again')
+    }
   }
 
   /** Removes the thread from this member's inbox; the other copy is untouched. */
@@ -213,13 +569,16 @@ export function MessageConversation({
 
   const handleStartCall = useCallback((callType: 'audio' | 'video') => {
     if (!conversationId) return
+    // Belt and braces: the buttons are not rendered for the assistant, but nothing
+    // else should be able to open a call to it either.
+    if (isAiChat) return
     if (isDM && otherUserId) {
       startCall({ conversationId, peerUserId: otherUserId, peerName: displayName, peerAvatar: avatarUrl, callType })
     } else if (!isDM) {
       // Group/community conversation — the invite fans out to all members
       startCall({ conversationId, callType, isGroup: true, conversationName: displayName || 'Group call' })
     }
-  }, [conversationId, isDM, otherUserId, displayName, avatarUrl, startCall])
+  }, [conversationId, isAiChat, isDM, otherUserId, displayName, avatarUrl, startCall])
 
   // Connect socket
   useEffect(() => {
@@ -291,6 +650,46 @@ export function MessageConversation({
       }
     }
 
+    const handlePollVote = (data: {
+      conversationId: string
+      messageId: string
+      totalVotes: number
+      options: { id: string; votes: number }[]
+    }) => {
+      if (data.conversationId !== conversationId) return
+      const counts = new Map(data.options.map((o) => [o.id, o.votes]))
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId && m.poll
+            ? {
+                ...m,
+                poll: {
+                  ...m.poll,
+                  totalVotes: data.totalVotes,
+                  // votedByMe stays as this viewer left it — the broadcast
+                  // deliberately carries no one's individual choice.
+                  options: m.poll.options.map((o) => ({ ...o, votes: counts.get(o.id) ?? o.votes })),
+                },
+              }
+            : m,
+        ),
+      )
+    }
+
+    const handleMessagePinned = (data: { conversationId: string; messageId: string | null }) => {
+      if (data.conversationId !== conversationId) return
+      if (!data.messageId) { setPinnedMessage(null); return }
+      void messagingApi.pinnedMessage(data.conversationId).then(setPinnedMessage).catch(() => {})
+    }
+
+    // Announcement mode or slow mode changing while someone has the composer
+    // open: refetch so their box locks itself rather than letting them type a
+    // message the server will refuse.
+    const handleCommunitySettings = (data: { conversationId: string }) => {
+      if (data.conversationId !== conversationId) return
+      void refreshCommunityAccess()
+    }
+
     const handleMessageExpired = (data: { messageId: string; conversationId: string; viewCount: number }) => {
       if (data.conversationId === conversationId) {
         setMessages((prev) =>
@@ -313,6 +712,9 @@ export function MessageConversation({
     socket.on('message:new', handleNewMessage)
     socket.on('message:edited', handleEditedMessage)
     socket.on('message:deleted', handleDeletedMessage)
+    socket.on('message:pinned', handleMessagePinned)
+    socket.on('message:poll', handlePollVote)
+    socket.on('community:settings', handleCommunitySettings)
     socket.on('message:reaction', handleReaction)
     socket.on('message:expired', handleMessageExpired)
     socket.on('conversation:theme', handleThemeChange)
@@ -324,12 +726,15 @@ export function MessageConversation({
       socket.off('message:new', handleNewMessage)
       socket.off('message:edited', handleEditedMessage)
       socket.off('message:deleted', handleDeletedMessage)
+      socket.off('message:pinned', handleMessagePinned)
+      socket.off('message:poll', handlePollVote)
+      socket.off('community:settings', handleCommunitySettings)
       socket.off('message:reaction', handleReaction)
       socket.off('message:expired', handleMessageExpired)
       socket.off('conversation:theme', handleThemeChange)
       socket.emit('conversation:leave', { conversationId })
     }
-  }, [socket, conversationId, markRead])
+  }, [socket, conversationId, markRead, refreshCommunityAccess, setPinnedMessage])
 
   // Subscribe to presence for all participants
   useEffect(() => {
@@ -407,11 +812,25 @@ export function MessageConversation({
   )
   const someoneTyping = typingUsers.length > 0
 
-  const typingText = isOnline
+  /*
+    The assistant always reads as online.
+
+    It is a real profile that never signs in — deliberately, so the whole
+    messaging stack works on it without special cases — so the presence lookup
+    honestly finds nothing and the header used to fall through to "Offline".
+    That reads as a fault in a chat that answers immediately.
+
+    Shown as online rather than as its own status because it is available
+    whenever the app is: there is no state in which the thread accepts a message
+    and nothing answers.
+  */
+  const typingText = isAiChat
     ? 'Active now'
-    : otherPresence?.lastSeen
-      ? `Last seen ${formatLastSeen(otherPresence.lastSeen)}`
-      : 'Offline'
+    : isOnline
+      ? 'Active now'
+      : otherPresence?.lastSeen
+        ? tmsg('lastSeen', { when: formatLastSeen(otherPresence.lastSeen, locale) })
+        : 'Offline'
 
   const typingLabel = useMemo(() => {
     if (typingUsers.length === 0) return ''
@@ -480,10 +899,26 @@ export function MessageConversation({
     // incoming message doesn't interrupt someone reading older history.
     const nearBottom =
       !container || container.scrollHeight - container.scrollTop - container.clientHeight < 200
-    if (prevId === null || nearBottom) {
+
+    // Your OWN message always wins. Pressing send is an unambiguous statement
+    // that you are done reading history — leaving the view parked where it was
+    // meant a message could be sent and never seen, which is how this looked
+    // broken.
+    const last = messages[messages.length - 1]
+    const sentByMe = !!last && last.sender.id === user?.id
+
+    if (prevId === null || sentByMe || nearBottom) {
       messagesEndRef.current?.scrollIntoView({ behavior: prevId === null ? 'auto' : 'smooth' })
+      // rAF, not a bare call: setState directly in an effect body is a React 19
+      // lint error and does cause a cascading render.
+      requestAnimationFrame(() => setUnseenCount(0))
+      return
     }
-  }, [messages])
+
+    // Someone else's message, and the reader is up in the history. Yanking them
+    // to the bottom loses their place mid-sentence, so it is offered instead.
+    requestAnimationFrame(() => setUnseenCount((n) => n + 1))
+  }, [messages, user?.id])
 
   // Load more messages (infinite scroll)
   const loadMoreMessages = useCallback(async () => {
@@ -507,12 +942,25 @@ export function MessageConversation({
   }, [conversationId, nextCursor, loadingMore, fetchMessages])
 
   const handleScroll = useCallback(() => {
-    if (!messagesContainerRef.current || !nextCursor || loadingMore) return
-    const { scrollTop } = messagesContainerRef.current
-    if (scrollTop < 100) {
+    const container = messagesContainerRef.current
+    if (!container) return
+
+    // Scrolling back down to the end is the same statement as tapping the pill.
+    if (container.scrollHeight - container.scrollTop - container.clientHeight < 120) {
+      setUnseenCount((n) => (n === 0 ? n : 0))
+    }
+
+    if (!nextCursor || loadingMore) return
+    if (container.scrollTop < 100) {
       void loadMoreMessages()
     }
   }, [nextCursor, loadingMore, loadMoreMessages])
+
+  /** Jump to the newest message and dismiss the catch-up pill. */
+  const scrollToLatest = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setUnseenCount(0)
+  }, [])
 
   // Send message with optimistic update
   const sendMessage = useCallback(async (body: string, parentId: string | null, tempId: string) => {
@@ -595,7 +1043,15 @@ export function MessageConversation({
     }
 
     void sendMessage(body, parentId, tempId)
-  }, [conversationId, input, replyingTo, user, profile, socket, sendMessage])
+
+    // Slow mode restarts with every message. A client-side countdown would
+    // drift against the server's clock and then confidently offer a composer
+    // that gets refused, so the server is asked again instead.
+    if (isCommunity && communityAccess?.slowModeSeconds) void refreshCommunityAccess()
+  }, [
+    conversationId, input, replyingTo, user, profile, socket, sendMessage,
+    isCommunity, communityAccess?.slowModeSeconds, refreshCommunityAccess,
+  ])
 
   const handleRetry = useCallback(async (tempId: string) => {
     setMessages((prev) => prev.filter((m) => m.id !== tempId))
@@ -898,6 +1354,18 @@ export function MessageConversation({
           <ArrowLeft className="size-5" />
         </Button>
       )}
+      {/*
+        Tapping the avatar or the name opens the profile, which is what every
+        messaging app trains people to expect and what this header did not do —
+        the name was a <p> and the avatar a plain div, so there was nothing to
+        tap. A group has no single profile to open, so it reveals the details
+        panel instead, which is the equivalent destination.
+      */}
+      <HeaderIdentity
+        username={otherParticipant?.username}
+        isGroup={!isDM}
+        onShowInfo={() => setShowInfo(true)}
+      >
       <div className="relative flex-shrink-0">
         <Avatar className="size-10 ring-2 ring-primary/10">
           {avatarUrl ? (
@@ -921,7 +1389,13 @@ export function MessageConversation({
             </svg>
           )}
         </div>
-        {someoneTyping ? (
+        {isCommunity ? (
+          <CommunityHeaderInfo
+            membersCount={communityInfo?.membersCount ?? 0}
+            access={communityAccess}
+            onOpenMembers={() => setShowCommunityMembers(true)}
+          />
+        ) : someoneTyping ? (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[11.5px] font-medium text-primary truncate max-w-[160px]">{typingLabel}</span>
             <div className="flex items-center gap-[3px] flex-shrink-0">
@@ -936,25 +1410,30 @@ export function MessageConversation({
           </p>
         )}
       </div>
+      </HeaderIdentity>
       <div className="flex items-center gap-0.5 md:gap-1">
-        <Button
-          onClick={() => handleStartCall('audio')}
-          variant="ghost"
-          size="icon"
-          className="size-9 rounded-full text-primary hover:bg-primary/10"
-          aria-label="Audio call"
-        >
-          <Phone className="size-[18px]" />
-        </Button>
-        <Button
-          onClick={() => handleStartCall('video')}
-          variant="ghost"
-          size="icon"
-          className="size-9 rounded-full text-primary hover:bg-primary/10"
-          aria-label="Video call"
-        >
-          <Video className="size-[18px]" />
-        </Button>
+        {!isAiChat && !isCommunity && (
+          <>
+            <Button
+              onClick={() => handleStartCall('audio')}
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-primary hover:bg-primary/10"
+              aria-label={tmsg('voiceCall')}
+            >
+              <Phone className="size-[18px]" />
+            </Button>
+            <Button
+              onClick={() => handleStartCall('video')}
+              variant="ghost"
+              size="icon"
+              className="size-9 rounded-full text-primary hover:bg-primary/10"
+              aria-label={tmsg('videoCall')}
+            >
+              <Video className="size-[18px]" />
+            </Button>
+          </>
+        )}
         <Button
           onClick={() => setShowInfo((s) => !s)}
           variant="ghost"
@@ -1030,16 +1509,31 @@ export function MessageConversation({
                   <span className="font-medium text-xs">Leave group</span>
                 </Button>
               )}
-              <Button
-                className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
-                size="sm"
-                type="button"
-                variant="ghost"
-                onClick={() => void handleDeleteConversation()}
-              >
-                <Trash2 className="size-4" />
-                <span className="font-medium text-xs">Delete Conversation</span>
-              </Button>
+              {/*
+                Not offered for the assistant, because it cannot be deleted.
+
+                Every member is guaranteed an assistant thread, so the inbox
+                re-provisions it on load — restoring the member's side if they
+                had deleted it, which is deliberate: losing the assistant with
+                no way back was the bug that behaviour fixed.
+
+                The consequence was a menu item that reported "Deleted" and then
+                had its work undone by the refetch on the next line, so the
+                thread never left the list. A control that cannot do what it
+                says should not be shown.
+              */}
+              {!isAiChat && (
+                <Button
+                  className="w-full justify-start gap-2 rounded bg-transparent text-destructive hover:bg-accent"
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void handleDeleteConversation()}
+                >
+                  <Trash2 className="size-4" />
+                  <span className="font-medium text-xs">Delete Conversation</span>
+                </Button>
+              )}
               <Button
                 className="w-full justify-start gap-2 rounded bg-transparent text-yellow-600 hover:bg-accent"
                 size="sm"
@@ -1100,7 +1594,7 @@ export function MessageConversation({
 
         <DropdownMenuItem
           className="flex items-center gap-2 rounded px-2 py-1.5 text-xs cursor-pointer"
-          onClick={() => {}}
+          onClick={() => setForwardingMessage(msg)}
         >
           <Forward className="size-3.5" />
           <span>Forward</span>
@@ -1244,8 +1738,6 @@ export function MessageConversation({
           >
             <Plus className="size-3.5" />
           </button>
-          <div className="w-px h-4 bg-outline-variant/40 mx-0.5" />
-          {renderMessageActions(msg, isMine)}
         </div>
       </div>
     )
@@ -1285,19 +1777,17 @@ export function MessageConversation({
                   ? '📄 Document'
                   : snippet.type === 'gif'
                     ? 'GIF'
-                    : 'Message'
+                    : snippet.type === 'location'
+                      ? '📍 Location'
+                      : snippet.type === 'poll'
+                        ? '📊 Poll'
+                        : 'Message'
 
     return (
       <button
         onClick={(e) => {
           e.stopPropagation()
-          const el = document.getElementById(`msg-${msg.parentId}`)
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          // Flash-highlight the original message, WhatsApp-style
-          if (el) {
-            el.classList.add('ring-2', 'ring-primary/60', 'transition-all', 'duration-300')
-            setTimeout(() => el.classList.remove('ring-2', 'ring-primary/60'), 1400)
-          }
+          if (msg.parentId) jumpToMessage(msg.parentId)
         }}
         className={cn(
           'w-full flex flex-col items-start mb-1.5 px-2.5 py-1.5 rounded-lg border-l-[3px] text-left cursor-pointer transition-colors',
@@ -1423,12 +1913,31 @@ export function MessageConversation({
     <Card ref={setConversationEl} className="flex h-full w-full flex-col overflow-hidden shadow-none border-0 rounded-none">
       {renderHeader()}
 
-      <CardContent className="flex-1 p-0 overflow-hidden flex">
-        <div className="flex flex-1 flex-col overflow-hidden">
+      <CardContent className="flex-1 p-0 overflow-hidden flex relative">
+        {isCommunity && showCommunityMembers && conversationId && (
+          <CommunityMembersSheet
+            conversationId={conversationId}
+            onClose={() => setShowCommunityMembers(false)}
+          />
+        )}
+        <div className="relative flex flex-1 flex-col overflow-hidden">
+          {isCommunity && pinnedMessage && (
+            <CommunityPinnedBar
+              pinned={pinnedMessage}
+              canUnpin={!!communityAccess?.isMod}
+              onJump={jumpToMessage}
+              onUnpin={() => void handleTogglePin(pinnedMessage.id)}
+            />
+          )}
+
           {/* Messages area */}
           <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={endSwipe}
+            onTouchCancel={endSwipe}
             className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 md:px-5 space-y-1 bg-surface-container-low/60"
             style={activeTheme.wallpaper ? { backgroundImage: activeTheme.wallpaper } : undefined}
           >
@@ -1481,10 +1990,17 @@ export function MessageConversation({
                   {showDateChip && (
                     <div className="flex justify-center py-3">
                       <span className="px-3 py-1 bg-surface-container rounded-full text-[11px] font-semibold text-outline shadow-sm">
-                        {formatDateChip(msg.createdAt)}
+                        {formatDateChip(msg.createdAt, locale)}
                       </span>
                     </div>
                   )}
+                  {/*
+                    Slid left by the swipe, with the time parked just beyond the right
+                    edge so it comes into view as the row moves. A transform rather than
+                    a margin: it runs on the compositor, so dragging a long thread stays
+                    smooth. The transition applies only on release — animating every
+                    frame of the drag would leave the rows lagging behind the finger.
+                  */}
                   <div
                     className={cn(
                       'flex flex-col relative group/message',
@@ -1492,12 +2008,53 @@ export function MessageConversation({
                       showAvatar ? 'mt-3' : 'mt-0.5',
                       !isPending && !isFailed && 'animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out',
                     )}
+                    style={{
+                      transform: timeReveal > 0 ? `translateX(-${timeReveal}px)` : undefined,
+                      transition: timeReveal === 0 ? 'transform 180ms ease-out' : 'none',
+                    }}
                   >
-                    {/* Row: avatar + bubble + time */}
-                    <div className={cn('flex gap-2 max-w-full', isMine ? 'flex-row-reverse' : 'flex-row')}>
+                    {/*
+                      The time every message has and no message showed: the label under a
+                      bubble reads "Aug 21" once it is not today, so the clock was simply
+                      unavailable for anything older. aria-hidden because it repeats what
+                      the bubble's own title already tells a screen reader.
+                    */}
+                    <span
+                      aria-hidden
+                      className="absolute top-1/2 -translate-y-1/2 text-[10px] tabular-nums text-outline whitespace-nowrap pointer-events-none"
+                      style={{
+                        left: '100%',
+                        marginLeft: 10,
+                        opacity: timeReveal / TIME_REVEAL_PX,
+                        transition: timeReveal === 0 ? 'opacity 180ms ease-out' : 'none',
+                      }}
+                    >
+                      {formatDateTime(msg.createdAt, locale, 'timePadded')}
+                    </span>
+                    {/*
+                      Row: avatar + bubble + time.
+
+                      w-full, not max-w-full: the bubble below caps itself at a
+                      percentage, and a percentage needs a width to be a percentage
+                      *of*. With the parent column aligning this row by items-end,
+                      the row sized to its own contents — so the cap referred back
+                      to the thing it was supposed to be capping, and the bubble
+                      collapsed to its narrowest legal width, one word per line.
+                      Full width makes it definite; row-reverse still parks a sent
+                      message on the right.
+                    */}
+                    <div className={cn('flex w-full gap-2', isMine ? 'flex-row-reverse' : 'flex-row')}>
                       {/* Avatar for others */}
                       {!isMine && (
-                        <div className={cn('flex-shrink-0 self-end', showAvatar ? '' : 'invisible')}>
+                        /*
+                          In a group the only way to find out who someone was meant leaving
+                          and searching for them. Their avatar now opens their profile,
+                          which is what tapping a face means everywhere else.
+                        */
+                        <IdentityLink
+                          username={msg.sender.username}
+                          className={cn('flex-shrink-0 self-end', showAvatar ? '' : 'invisible')}
+                        >
                           <Avatar className="size-8">
                             {msg.sender.avatarUrl ? (
                               <AvatarImage alt={msg.sender.displayName} src={msg.sender.avatarUrl} />
@@ -1507,17 +2064,42 @@ export function MessageConversation({
                               </AvatarFallback>
                             )}
                           </Avatar>
+                        </IdentityLink>
+                      )}
+
+                      {/*
+                        Actions live beside the bubble, not inside the reaction
+                        pill. Mixing "react with 😂" and "delete this for
+                        everyone" into one strip put a destructive action a few
+                        pixels from a playful one, and the pill had to be hovered
+                        precisely to reach either.
+
+                        Always on the outer edge — left of your own messages,
+                        right of theirs — so it never covers the text.
+                      */}
+                      {isMine && !isPending && (
+                        <div className="hidden md:flex self-center flex-shrink-0 opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          {renderMessageActions(msg, isMine)}
                         </div>
                       )}
 
                       <div className={cn('relative max-w-[85%] sm:max-w-[75%] md:max-w-[65%]', isMine ? 'items-end' : 'items-start', 'flex flex-col gap-0.5')}>
-                        {/* Floating hover toolbar — anchored to the bubble corner */}
+                        {/* Reactions only — the actions menu sits beside the bubble instead. */}
                         {renderReactionBar(msg, isMine, isPending)}
-                        {/* Message bubble */}
-                        <div>
+                        {/*
+                          Message bubble. The title carries the full date and time: the
+                          swipe that reveals it is a touch gesture, and a mouse needs its
+                          own way to the same fact.
+                        */}
+                        <div className={cn(flashMessageId === msg.id && 'message-flash')}>
                           <div
                             id={`msg-${msg.id}`}
+                            title={formatDateTime(msg.createdAt, locale, 'dayMonthYearTime')}
                             onDoubleClick={() => void handleReact(msg.id, '❤️')}
+                            onMouseDown={(e) => startHold(msg.id, e)}
+                            onMouseMove={moveDuringHold}
+                            onMouseUp={cancelHold}
+                            onMouseLeave={cancelHold}
                             onTouchStart={(e) => {
                               const touch = e.currentTarget
                               const touchX = e.touches[0]?.clientX ?? 0
@@ -1596,7 +2178,7 @@ export function MessageConversation({
                                 <button onClick={() => { setEditingMessageId(null); setEditText('') }} className="text-muted-foreground hover:text-foreground cursor-pointer flex-shrink-0">
                                   <X className="size-3.5" />
                                 </button>
-                                <button onClick={handleEdit} className="text-primary hover:text-primary/80 cursor-pointer flex-shrink-0">
+                                <button onClick={handleEdit} aria-label="Save edit" className="text-primary hover:text-primary/80 cursor-pointer flex-shrink-0">
                                   <Check className="size-3.5" />
                                 </button>
                               </div>
@@ -1605,12 +2187,35 @@ export function MessageConversation({
                                 {/* Quoted reply (WhatsApp-style) */}
                                 {renderReplyQuote(msg, isMine)}
 
+                                {/*
+                                  Provenance. Without it a forwarded message
+                                  reads as something the sender wrote, which is
+                                  how rumours travel.
+                                */}
+                                {msg.forwardedFrom && (
+                                  <span className={cn(
+                                    'flex items-center gap-1 text-[10.5px] italic mb-0.5',
+                                    isMine ? 'text-white/70' : 'text-muted-foreground',
+                                  )}>
+                                    <Forward className="size-3" />
+                                    Forwarded
+                                  </span>
+                                )}
+
                                 {/* Media content */}
                                 {renderMedia(msg, !!msg.parentId)}
 
                                 {/* Shared post — Instagram-style preview card */}
                                 {msg.type === 'shared_post' ? (
                                   <SharedPostPreview url={msg.body} isMine={isMine} />
+                                ) : msg.poll ? (
+                                  <PollBubble
+                                    poll={msg.poll}
+                                    isMine={isMine}
+                                    onVote={(optionId) => handleVote(msg.id, optionId)}
+                                  />
+                                ) : locationFrom(msg.metadata) ? (
+                                  <LocationBubble location={locationFrom(msg.metadata)!} isMine={isMine} />
                                 ) : msg.body && (
                                   <p className="mt-1">{msg.body}</p>
                                 )}
@@ -1625,7 +2230,7 @@ export function MessageConversation({
 
                         {/* Time + status */}
                         <div className={cn('flex items-center gap-1 px-1', isMine ? 'justify-end' : 'justify-start')}>
-                          <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.createdAt)}</span>
+                          <span className="text-[10px] text-muted-foreground">{formatMessageTime(msg.createdAt, locale)}</span>
 
                           {isMine && isPending && (
                             <Clock className="size-3 text-muted-foreground animate-pulse" />
@@ -1651,6 +2256,13 @@ export function MessageConversation({
 
                         </div>
                       </div>
+
+                      {/* Their messages: actions on the right — still the outer edge. */}
+                      {!isMine && !isPending && (
+                        <div className="hidden md:flex self-center flex-shrink-0 opacity-0 group-hover/message:opacity-100 focus-within:opacity-100 transition-opacity duration-150">
+                          {renderMessageActions(msg, isMine)}
+                        </div>
+                      )}
                     </div>
                   </div>
                   </div>
@@ -1659,6 +2271,24 @@ export function MessageConversation({
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/*
+            The catch-up pill.
+
+            Shown only when someone else's message landed while the reader was up
+            in the history — their own send scrolls outright, and so does anything
+            arriving while they are already at the bottom. This is the one case
+            where scrolling automatically would take the page away mid-sentence.
+          */}
+          {unseenCount > 0 && (
+            <button
+              onClick={scrollToLatest}
+              className="absolute left-1/2 -translate-x-1/2 bottom-3 z-10 flex items-center gap-1.5 pl-3 pr-2.5 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-lg hover:bg-primary/90 active:scale-95 transition-all cursor-pointer animate-in fade-in slide-in-from-bottom-2 duration-200"
+            >
+              {unseenCount === 1 ? '1 new message' : `${unseenCount} new messages`}
+              <ChevronDown className="size-3.5" />
+            </button>
+          )}
 
           {/* Input bar */}
           <div className="px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:px-4 md:py-3 bg-background border-t border-outline-variant/20 flex-shrink-0">
@@ -1676,6 +2306,13 @@ export function MessageConversation({
               </div>
             )}
 
+            {isCommunity && communityAccess && !communityAccess.canPost && communityAccess.reason ? (
+              <CommunityComposerLock
+                key={communityAccess.retryAfterSeconds}
+                reason={communityAccess.reason}
+                retryAfterSeconds={communityAccess.retryAfterSeconds}
+              />
+            ) : (
             <div className="flex items-end gap-2">
               {/* Hidden file input */}
               <input
@@ -1688,23 +2325,40 @@ export function MessageConversation({
 
               {/* Pill container: attach + input + emoji */}
               <div className="flex-1 flex items-end gap-0.5 bg-surface-container rounded-3xl pl-1.5 pr-1.5 py-1 min-h-[44px]">
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="ghost"
-                  size="icon"
-                  disabled={uploadingFile}
-                  className="size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  aria-label="Attach file"
-                >
-                  {uploadingFile ? <Loader2 className="size-5 animate-spin" /> : <Paperclip className="size-5" />}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={uploadingFile}
+                      className="size-9 rounded-full flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      aria-label="Attach"
+                    >
+                      {uploadingFile ? <Loader2 className="size-5 animate-spin" /> : <Plus className="size-5" />}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" sideOffset={12} className="w-48 p-1 rounded-xl shadow-xl">
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => fileInputRef.current?.click()}>
+                      <ImageIcon className="size-4 text-primary" />
+                      <span className="font-medium text-foreground/90">Photos & Videos</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => setShowPollModal(true)}>
+                      <BarChart2 className="size-4 text-emerald-500" />
+                      <span className="font-medium text-foreground/90">Poll</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer rounded-lg py-2" onClick={() => setShowLocationModal(true)}>
+                      <MapPin className="size-4 text-rose-500" />
+                      <span className="font-medium text-foreground/90">Location</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={editingMessageId ? 'Edit message…' : replyingTo ? 'Reply…' : 'Type a message…'}
+                  placeholder={editingMessageId ? tmsg('editMessage') : replyingTo ? tmsg('reply') : tmsg('typeMessage')}
                   rows={1}
                   className="flex-1 px-2 py-2 bg-transparent text-[14.5px] focus:outline-none resize-none min-h-[36px] max-h-[120px] placeholder:text-muted-foreground/70 self-center"
                   maxLength={650}
@@ -1737,6 +2391,7 @@ export function MessageConversation({
                 )}
               </Button>
             </div>
+            )}
 
             {/* Quick emoji picker */}
             {showEmojiPicker && (
@@ -1779,6 +2434,12 @@ export function MessageConversation({
                 </button>
               </div>
               <div className="p-5 flex flex-col items-center text-center border-b border-outline-variant/20">
+                {/*
+                  The details panel showed a face and a handle with no way to reach
+                  the profile behind them — the place a member is most likely to go
+                  looking for it.
+                */}
+                <IdentityLink username={otherParticipant?.username} className="flex flex-col items-center">
                 <Avatar className="size-20 ring-4 ring-primary/10">
                   {avatarUrl ? (
                     <AvatarImage alt={displayName} src={avatarUrl} />
@@ -1792,19 +2453,38 @@ export function MessageConversation({
                 {otherParticipant?.username && (
                   <p className="text-sm text-muted-foreground mt-0.5">@{otherParticipant.username}</p>
                 )}
+                </IdentityLink>
+                {/* Same reasoning as the header: no presence to report. */}
                 <span className={cn(
                   'inline-flex items-center gap-1.5 text-xs font-medium mt-2 px-2.5 py-1 rounded-full',
-                  isOnline ? 'text-green-700 bg-green-50' : 'text-muted-foreground bg-surface-container',
+                  isAiChat || isOnline
+                    ? 'text-green-700 bg-green-50'
+                    : 'text-muted-foreground bg-surface-container',
                 )}>
-                  <span className={cn('size-1.5 rounded-full', isOnline ? 'bg-green-500' : 'bg-muted-foreground/40')} />
-                  {isOnline ? 'Active now' : 'Offline'}
+                  <span className={cn(
+                    'size-1.5 rounded-full',
+                    isAiChat || isOnline ? 'bg-green-500' : 'bg-muted-foreground/40',
+                  )} />
+                  {isAiChat || isOnline ? 'Active now' : 'Offline'}
                 </span>
               </div>
+              {isCommunity && communityAccess?.isAdmin && conversationId && (
+                <CommunityChatSettings
+                  conversationId={conversationId}
+                  access={communityAccess}
+                  onSaved={(next) => {
+                    setCommunityAccess((a) => (a ? { ...a, ...next } : a))
+                    toastSuccess('Saved', 'Chat settings updated for everyone.')
+                  }}
+                  onError={(m) => toastError('Could not save', m)}
+                />
+              )}
+
               <div className="p-4 space-y-1">
                 {[
                   {
-                    label: relationship?.muted ? 'Unmute notifications' : 'Mute notifications',
-                    onClick: otherUserId ? () => void handleToggleMute() : undefined,
+                    label: conversation?.isMuted ? 'Unmute notifications' : 'Mute notifications',
+                    onClick: () => void handleToggleConversationMute(),
                   },
                   {
                     label: relationship?.blocked ? 'Unblock user' : 'Block user',
@@ -1816,7 +2496,11 @@ export function MessageConversation({
                     label: 'Report user',
                     onClick: otherUserId ? () => setReportUserOpen(true) : undefined,
                   },
-                  { label: 'Delete conversation', danger: true },
+                  {
+                    label: 'Delete conversation',
+                    danger: true,
+                    onClick: () => void handleDeleteConversation(),
+                  },
                 ].map(({ label, danger, onClick }) => (
                   <button
                     key={label}
@@ -1844,6 +2528,35 @@ export function MessageConversation({
           onSelect={(emoji) => void handleReact(reactionPickerMsg.messageId, emoji)}
           onClose={() => setReactionPickerMsg(null)}
         />
+      )}
+
+      {/*
+        The time, while a message is held.
+
+        Rendered here rather than beside the bubble so it is never clipped by the
+        thread's own scroll box, and pointer-events-none so holding never turns
+        into hovering something else.
+      */}
+      {heldMessage && (
+        <div
+          className="fixed z-[60] pointer-events-none animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            // Nudged above the cursor and clamped to the viewport, so a message at
+            // the very edge does not push the label off-screen.
+            left: Math.min(Math.max(12, heldMessage.x - 60), (typeof window !== 'undefined' ? window.innerWidth : 0) - 180),
+            top: Math.max(12, heldMessage.y - 52),
+          }}
+        >
+          <div className="px-3 py-1.5 rounded-xl bg-popover border border-outline-variant/25 shadow-2xl">
+            <p className="text-[11.5px] font-medium text-on-surface whitespace-nowrap tabular-nums">
+              {formatDateTime(
+                messages.find((m) => m.id === heldMessage.id)?.createdAt ?? '',
+                locale,
+                'dayMonthYearTime',
+              )}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Context menu */}
@@ -1887,13 +2600,33 @@ export function MessageConversation({
 
             {[
               { label: 'Reply', icon: Reply, action: () => { setReplyingTo(contextMenu.message); setContextMenu(null) } },
-              { label: 'Forward', icon: Forward, action: () => setContextMenu(null) },
+              { label: 'Forward', icon: Forward, action: () => { setForwardingMessage(contextMenu.message); setContextMenu(null) } },
               { label: 'Copy', icon: Copy, action: () => { void navigator.clipboard.writeText(contextMenu.message.body ?? ''); setContextMenu(null) } },
               ...(isOwnMessage(contextMenu.message)
                 ? [
                     { label: 'Edit', icon: Edit3, action: () => { setEditingMessageId(contextMenu.message.id); setEditText(contextMenu.message.body ?? ''); setContextMenu(null) } },
                     { label: 'Delete for me', icon: Trash2, action: () => void handleDelete(contextMenu.message.id) },
                     { label: 'Delete for everyone', icon: Trash2, action: () => void handleDelete(contextMenu.message.id, true), danger: true },
+                  ]
+                : []),
+              // Moderator powers, on anyone's message including their own. Kept
+              // last so the destructive one is never where "Copy" was a moment
+              // ago in a DM.
+              ...(isCommunity && communityAccess?.isMod
+                ? [
+                    {
+                      label: pinnedMessage?.id === contextMenu.message.id ? 'Unpin message' : 'Pin message',
+                      icon: Pin,
+                      action: () => { void handleTogglePin(contextMenu.message.id); setContextMenu(null) },
+                    },
+                    ...(isOwnMessage(contextMenu.message)
+                      ? []
+                      : [{
+                          label: 'Remove for everyone',
+                          icon: ShieldAlert,
+                          action: () => { void handleModerateDelete(contextMenu.message.id); setContextMenu(null) },
+                          danger: true,
+                        }]),
                   ]
                 : []),
             ].map(({ label, icon: Icon, action, danger }: { label: string; icon: React.ComponentType<{ className?: string }>; action: () => void; danger?: boolean }) => (
@@ -1993,6 +2726,50 @@ export function MessageConversation({
           onClose={() => setConfirmBlockOpen(false)}
         />
       )}
+      {forwardingMessage && user?.id && (
+        <ForwardModal
+          conversations={conversations}
+          currentConversationId={conversationId}
+          currentUserId={user.id}
+          onClose={() => setForwardingMessage(null)}
+          onForward={(ids) => handleForward(forwardingMessage.id, ids)}
+        />
+      )}
+
+      {showPollModal && (
+        <PollCreatorModal
+          onClose={() => setShowPollModal(false)}
+          onSend={async (poll) => {
+            setShowPollModal(false)
+            if (!conversationId) return
+            try {
+              await messagingApi.sendMessage(conversationId, {
+                type: 'poll',
+                poll,
+              })
+            } catch (e) {
+              toastError('Could not send poll', e instanceof Error ? e.message : 'Please try again')
+            }
+          }}
+        />
+      )}
+      {showLocationModal && (
+        <LocationPickerModal
+          onClose={() => setShowLocationModal(false)}
+          onSend={async (location) => {
+            setShowLocationModal(false)
+            if (!conversationId) return
+            try {
+              await messagingApi.sendMessage(conversationId, {
+                type: 'location',
+                metadata: { location },
+              })
+            } catch (e) {
+              toastError('Could not share location', e instanceof Error ? e.message : 'Please try again')
+            }
+          }}
+        />
+      )}
     </Card>
   )
 }
@@ -2020,32 +2797,27 @@ function isSameDay(a: string, b: string): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-function formatDateChip(dateStr: string): string {
+function formatDateChip(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const yesterday = new Date(now)
   yesterday.setDate(now.getDate() - 1)
   if (date.toDateString() === now.toDateString()) return 'Today'
   if (date.toDateString() === yesterday.toDateString()) return 'Yesterday'
-  return date.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
-  })
+  return formatDateTime(date, locale, 'weekdayDayMonthYear')
 }
 
-function formatMessageTime(dateStr: string): string {
+function formatMessageTime(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const isToday = date.toDateString() === now.toDateString()
   if (isToday) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return formatDateTime(date, locale, 'timePadded')
   }
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateTime(date, locale, 'dayMonth')
 }
 
-function formatLastSeen(dateStr: string): string {
+function formatLastSeen(dateStr: string, locale: string): string {
   const date = new Date(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -2057,5 +2829,5 @@ function formatLastSeen(dateStr: string): string {
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return formatDateTime(date, locale, 'dayMonth')
 }

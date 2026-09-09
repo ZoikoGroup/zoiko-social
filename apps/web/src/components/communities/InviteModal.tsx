@@ -166,7 +166,7 @@ function InviteSheet({ communityId, onClose }: Omit<InviteModalProps, 'open'>): 
               className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
             >
               {creatingLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-              Create invite link
+              <span>Create invite link</span>
             </button>
           )}
         </div>

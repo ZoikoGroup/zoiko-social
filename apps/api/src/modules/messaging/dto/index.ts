@@ -1,8 +1,9 @@
 import { z } from 'zod'
+import { httpUrl } from '../../common/schemas/http-url'
 
 // ── Enums ───────────────────────────────────────────────────────────────────
 
-export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'voice_note' | 'document' | 'gif' | 'sticker' | 'location' | 'contact'
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'voice_note' | 'document' | 'gif' | 'sticker' | 'location' | 'contact' | 'poll'
 export type MessageRequestStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
 export type PresenceStatus = 'online' | 'offline' | 'away' | 'do_not_disturb'
 export type PrivacySetting = 'everyone' | 'my_connections' | 'my_followers' | 'nobody'
@@ -23,9 +24,14 @@ export const CreateConversationSchema = z.object({
 
 export const SendMessageSchema = z.object({
   body: z.string().max(5000).optional(),
-  type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact']).default('text'),
+  type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact', 'poll']).default('text'),
   parentId: z.string().uuid().optional(),
-  mediaUrls: z.array(z.string().url()).max(10).optional(),
+  mediaUrls: z.array(httpUrl()).max(10).optional(),
+  metadata: z.record(z.any()).optional(),
+  poll: z.object({
+    question: z.string().min(1).max(255),
+    options: z.array(z.string().min(1).max(100)).min(2).max(10),
+  }).optional(),
 })
 
 export const EditMessageSchema = z.object({
@@ -110,6 +116,8 @@ export interface ConversationResponse {
     body: string | null
     senderId: string
     createdAt: string
+    /** Needed so the inbox can preview a message that has no body at all. */
+    type?: string
   } | null
   unreadCount: number
   isOnline: boolean
@@ -140,6 +148,17 @@ export interface MessageResponse {
   type: string
   body: string | null
   mediaUrls: string[]
+  /** A shared location's coordinates live here. */
+  metadata?: unknown
+  /** Present only on a poll message. */
+  poll?: {
+    id: string
+    question: string
+    totalVotes: number
+    options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+  } | null
+  /** Set when this message was forwarded from another conversation. */
+  forwardedFrom?: string | null
   parentId: string | null
   isDeleted: boolean
   editedAt: string | null

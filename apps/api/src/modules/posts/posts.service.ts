@@ -67,13 +67,19 @@ export interface PostPage {
 
 const MAX_PAGE = 30
 
+/**
+ * Must mirror postInclude() exactly. The two are declared separately, and that
+ * drift is how the account-state gate went missing on the direct post-by-id
+ * path: the query selected what the type described, and neither carried
+ * `state`. Change one, change the other.
+ */
 type PostWithRelations = Prisma.PostGetPayload<{
   include: {
     media: true
     author: {
       select: {
         id: true; username: true; displayName: true; avatarUrl: true
-        verificationTier: true; isPrivate: true
+        verificationTier: true; isPrivate: true; state: true
         professionalProfile: { select: { category: true } }
       }
     }
@@ -115,10 +121,30 @@ export class PostsService {
     const hashtags = caption ? parseHashtags(caption) : []
     const mentionUsernames = caption ? parseMentions(caption) : []
 
-    // Resolve mentioned users up front (invalid usernames silently dropped)
+    /*
+      Resolve mentioned users up front (invalid usernames silently dropped).
+
+      "Allow tagging" is honoured here. The toggle wrote to user_settings and
+      nothing ever read it, so turning it off changed nothing — you were still
+      tagged and still notified. Filtering on the lookup rather than afterwards
+      means someone who opted out becomes neither a mention row nor a
+      notification, and the block check below has less to consider.
+
+      `userSettings: null` is deliberate: the column defaults to true, and a
+      member who has never opened settings has no row. Requiring one would
+      silently stop mentions working for most accounts.
+    */
     const mentionedUsers = mentionUsernames.length
       ? await this.prisma.profile.findMany({
-          where: { username: { in: mentionUsernames }, state: 'active', id: { not: authorId } },
+          where: {
+            username: { in: mentionUsernames },
+            state: 'active',
+            id: { not: authorId },
+            OR: [
+              { userSettings: { allowTagging: true } },
+              { userSettings: null },
+            ],
+          },
           select: { id: true, username: true },
         })
       : []
@@ -207,34 +233,41 @@ export class PostsService {
       void this.redis.trendIncr(tag)
     }
 
-    const author = await this.prisma.profile.findUnique({
-      where: { id: authorId },
-      select: { username: true, displayName: true },
-    })
+    /*
+      Both reads at once. They are independent, and every database round-trip on
+      this path is paid before the author gets their post back — measured at
+      ~1.5s each on the transaction pooler, so awaiting them in turn spent a
+      whole one for nothing.
+    */
+    const [author, blocks] = await Promise.all([
+      this.prisma.profile.findUnique({
+        where: { id: authorId },
+        select: { username: true, displayName: true },
+      }),
+      mentionedUsers.length > 0
+        ? this.prisma.blockedUser.findMany({
+            where: { blockedId: authorId, blockerId: { in: mentionedUsers.map((u) => u.id) } },
+            select: { blockerId: true },
+          })
+        : Promise.resolve([]),
+    ])
 
     // Mention notifications (skip if the mentioned user blocked the author).
     // One query for every block rather than one per mention.
-    const blockedBy = new Set(
-      mentionedUsers.length > 0
-        ? (
-            await this.prisma.blockedUser.findMany({
-              where: { blockedId: authorId, blockerId: { in: mentionedUsers.map((u) => u.id) } },
-              select: { blockerId: true },
-            })
-          ).map((b) => b.blockerId)
-        : [],
-    )
+    const blockedBy = new Set(blocks.map((b) => b.blockerId))
 
-    for (const mentioned of mentionedUsers) {
-      if (blockedBy.has(mentioned.id)) continue
-      await this.notifications.enqueue({
+    // Queued together rather than one after another: they do not depend on each
+    // other, and the queue round-trip is ~200ms apiece.
+    await Promise.all(mentionedUsers.map((mentioned) => {
+      if (blockedBy.has(mentioned.id)) return Promise.resolve()
+      return this.notifications.enqueue({
         userId: mentioned.id,
         type: 'mention',
         title: 'Mentioned You',
         body: `${author?.displayName ?? 'Someone'} mentioned you in a post`,
         data: { postId: post.id, username: author?.username, actorId: authorId },
       })
-    }
+    }))
 
     // Feed fanout: bust followers' first pages + realtime post:new
     await this.feedFanout.enqueue(post.id, authorId)
@@ -351,6 +384,21 @@ export class PostsService {
     cursor: string | null,
     limit = 15,
   ): Promise<PostPage> {
+    /*
+     * The community has to still exist. This checked membership only, and a
+     * member row outlives the community it belongs to — so after an owner deleted
+     * a community, GET /communities/:id/posts kept answering 200 with its posts
+     * while GET /communities/:slug answered 404. The container was gone and its
+     * feed was still serving.
+     */
+    const community = await this.prisma.community.findUnique({
+      where: { id: communityId },
+      select: { isDeleted: true },
+    })
+    if (!community || community.isDeleted) {
+      throw new NotFoundException({ code: 'COMMUNITY_NOT_FOUND', message: 'Community not found' })
+    }
+
     const member = await this.prisma.communityMember.findUnique({
       where: { communityId_userId: { communityId, userId: viewerId } },
       select: { status: true },
@@ -433,6 +481,28 @@ export class PostsService {
           data: { postsCount: { decrement: 1 } },
         })
       }
+
+      /*
+       * Take the engagement with it.
+       *
+       * Deleting a post used to leave its comments marked live and its likes in
+       * place, still pointing at content nobody can reach. A live comment on a
+       * deleted post is a row waiting to be counted or listed by anything that
+       * queries comments without joining back to check the post — and it means a
+       * member who deletes a post has not really deleted the conversation on it.
+       * Verified against the database: comments survived, and a like from a
+       * deletion the week before was still there.
+       *
+       * Comments are soft-deleted to match how the post itself is removed, so the
+       * moderation trail is preserved. Likes are join rows carrying no content of
+       * their own, so they are removed outright.
+       */
+      // Comment carries isDeleted but no deletedAt, unlike Post.
+      await tx.comment.updateMany({
+        where: { postId, isDeleted: false },
+        data: { isDeleted: true },
+      })
+      await tx.like.deleteMany({ where: { postId } })
     })
 
     await this.redis.invalidatePost(postId)
@@ -453,7 +523,13 @@ export class PostsService {
       isDeleted: boolean
       visibility?: string
       communityId?: string | null
-      author?: { isPrivate: boolean }
+      // `state` is required, not optional. Passing only `isPrivate` used to let
+      // the caller silently skip the account-state check inside
+      // assertCanViewAuthor — which is exactly how deactivated and banned
+      // authors' posts stayed readable by direct id. Every loader already
+      // selects it; making it required means the compiler catches the next one
+      // that does not.
+      author?: { isPrivate: boolean; state: string }
     },
     viewerId?: string,
   ): Promise<void> {
@@ -461,8 +537,8 @@ export class PostsService {
     if (post.isDeleted) throw notFound
     if (post.authorId === viewerId) return // own post — any visibility
 
-    // Account-level gate (block + private account → accepted followers only)
-    await this.assertCanViewAuthor(post.authorId, viewerId, post.author?.isPrivate)
+    // Account-level gate (state + block + private account → accepted followers only)
+    await this.assertCanViewAuthor(post.authorId, viewerId, post.author)
 
     // Per-post visibility gate (applies even when the author's account is public)
     const visibility = post.visibility ?? 'public'
@@ -488,7 +564,11 @@ export class PostsService {
     if (follow?.status !== 'active') throw notFound
   }
 
-  async assertCanViewAuthor(authorId: string, viewerId?: string, knownIsPrivate?: boolean): Promise<void> {
+  async assertCanViewAuthor(
+    authorId: string,
+    viewerId?: string,
+    knownAuthor?: { isPrivate: boolean; state: string },
+  ): Promise<void> {
     if (authorId === viewerId) return
 
     const notFound = new NotFoundException({ code: 'POST_NOT_FOUND', message: 'Post not found' })
@@ -505,8 +585,15 @@ export class PostsService {
       if (blocked) throw notFound
     }
 
-    let isPrivate = knownIsPrivate
-    if (isPrivate === undefined) {
+    // The account-state gate runs on both paths. It used to run only on the
+    // lookup path, so any caller that already had `isPrivate` in hand skipped
+    // it — deactivating or banning an account hid it from the feed, search and
+    // the profile grid, but left every post reachable by direct id.
+    let isPrivate: boolean
+    if (knownAuthor) {
+      if (knownAuthor.state !== 'active') throw notFound
+      isPrivate = knownAuthor.isPrivate
+    } else {
       const author = await this.prisma.profile.findUnique({
         where: { id: authorId },
         select: { isPrivate: true, state: true },
@@ -537,6 +624,10 @@ export class PostsService {
           avatarUrl: true,
           verificationTier: true,
           isPrivate: true,
+          // `state` is not displayed — it is the account-level gate. Without it
+          // here, assertCanViewPost had no way to tell a deactivated or banned
+          // author from an active one on the direct post-by-id path.
+          state: true,
           professionalProfile: { select: { category: true } },
         },
       },

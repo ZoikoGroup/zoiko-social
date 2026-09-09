@@ -9,13 +9,33 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/web-deploy-vm.yml'
 
+# Shares a group with landing-deploy-vm.yml on purpose: both deploys check out
+# the same working tree (~/zoiko-social-frontend) and run `git pull` in it, so
+# running them at once races on the ref lock. Both watch packages/** and
+# pnpm-lock.yaml, so any change to either fires both. Queue rather than cancel —
+# a cancelled run is a deploy that silently never happened.
+concurrency:
+  group: frontend-vm-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Backstop: if SSH hangs rather than the command running long, the job
+    # should fail in minutes rather than occupy a runner for six hours.
+    timeout-minutes: 35
     steps:
       - name: Deploy frontend over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
+          # appleboy/ssh-action kills the remote command after 10 minutes by
+          # default, and nothing here set it. The build runs BEFORE the
+          # container is swapped, so hitting that ceiling left production
+          # untouched and simply never deployed.
+          command_timeout: 30m
+          # Bounds connection setup separately, so an unreachable host still
+          # fails in a minute rather than sitting for the whole window.
+          timeout: 60s
           host: ${{ secrets.GCP_SSH_HOST }}
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
@@ -23,11 +43,24 @@ jobs:
             set -e
             cd ~/zoiko-social-frontend
             git pull origin main
-            pnpm install
+            pnpm install --frozen-lockfile
             pnpm turbo build --filter=@zoiko/web
             pm2 restart zoiko-web || pm2 start npm --name zoiko-web -- start --cwd ~/zoiko-social-frontend/apps/web
             pm2 save
-            sleep 3
-            curl -sf -o /dev/null http://127.0.0.1:3000 || exit 1
+            # Poll rather than sleeping a fixed interval. A single check after 3s
+            # reports a false failure whenever Next takes longer than that to
+            # start serving — the same problem d7dc137 fixed for the API, where a
+            # 5s wait failed against a ~9s boot.
+            for i in $(seq 1 15); do
+              if curl -sf http://127.0.0.1:3000 > /dev/null; then
+                echo "Health check passed after ${i} attempt(s)"
+                break
+              fi
+              if [ "$i" -eq 15 ]; then
+                echo "Health check failed after 15 attempts (30s)"
+                exit 1
+              fi
+              sleep 2
+            done
             echo "Frontend deploy successful"
             pm2 status zoiko-web

@@ -138,7 +138,7 @@ export function ImageCropper({
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             {processing && <Loader2 className="w-4 h-4 animate-spin" />}
-            {processing ? 'Applying…' : 'Apply'}
+            <span>{processing ? 'Applying…' : 'Apply'}</span>
           </button>
         </div>
       </div>

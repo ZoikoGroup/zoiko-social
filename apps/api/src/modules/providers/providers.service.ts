@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
@@ -15,7 +15,10 @@ import type {
 // ── Provider types ───────────────────────────────────────────────────────────
 
 type ProviderRow = Prisma.ServiceProviderGetPayload<{
-  include: { addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: {
+    addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    _count: { select: { services: true } }
+  }
 }>
 
 export interface HoursEntry { day: number; open: string; close: string; closed?: boolean }
@@ -50,7 +53,12 @@ export interface ProviderResponse {
   longitude: number | null
   rating: number
   reviewCount: number
+  /** True only when the owner allows bookings AND at least one service is active. */
   availableForBooking: boolean
+  /** Active, non-deleted services. Lets a client explain why booking is unavailable. */
+  activeServiceCount: number
+  /** Concurrent bookings allowed per slot. 1 means one at a time. */
+  slotCapacity: number
   addedBy: { id: string; username: string; displayName: string; avatarUrl: string | null; isVerified: boolean }
   createdAt: string
 }
@@ -73,6 +81,15 @@ export interface TeamMemberResponse {
 
 type ServiceRow = Prisma.PetCareServiceGetPayload<Record<string, never>>
 
+export interface SlotResponse {
+  startAt: string
+  endAt: string
+  capacity: number
+  booked: number
+  available: number
+  isFull: boolean
+}
+
 export interface ServiceResponse {
   id: string
   providerId: string
@@ -82,6 +99,8 @@ export interface ServiceResponse {
   priceDisplay: string
   durationMinutes: number | null
   category: string
+  /** Animals this service is for. Empty means unstated, never "no pets". */
+  species: string[]
   isActive: boolean
   createdAt: string
 }
@@ -177,7 +196,13 @@ export class ProvidersService {
   // ════════════════════════════════════════════════════════════════════════════
 
   private providerInclude() {
-    return { addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return {
+      addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      // Counted so availableForBooking can reflect whether anything is actually
+      // bookable. The stored column defaults to true, so a listing created with
+      // no services still advertised itself as open for bookings.
+      _count: { select: { services: { where: { isActive: true, isDeleted: false } } } },
+    }
   }
 
   private parseHours(raw: unknown): HoursEntry[] | null {
@@ -229,7 +254,13 @@ export class ProvidersService {
       hours, licenseNo: p.licenseNo, isVerified: p.isVerified,
       openNow: this.computeOpenNow(hours, p.is24x7), distanceKm,
       latitude: p.latitude, longitude: p.longitude,
-      rating: p.rating, reviewCount: p.reviewCount, availableForBooking: p.availableForBooking,
+      rating: p.rating, reviewCount: p.reviewCount,
+      // Both conditions matter: the owner can pause bookings with the stored
+      // flag, and a listing with no active service has nothing to book even
+      // when the flag says otherwise.
+      availableForBooking: p.availableForBooking && p._count.services > 0,
+      activeServiceCount: p._count.services,
+      slotCapacity: p.slotCapacity,
       addedBy: {
         id: p.addedByUser.id, username: p.addedByUser.username, displayName: p.addedByUser.displayName,
         avatarUrl: p.addedByUser.avatarUrl, isVerified: p.addedByUser.verificationTier === 'professional',
@@ -425,6 +456,7 @@ export class ProvidersService {
       description: s.description, priceCents: s.priceCents,
       priceDisplay: this.formatPrice(s.priceCents),
       durationMinutes: s.durationMinutes, category: s.category,
+      species: s.species,
       isActive: s.isActive, createdAt: s.createdAt.toISOString(),
     }
   }
@@ -450,6 +482,7 @@ export class ProvidersService {
         name: input.name, description: input.description ?? null,
         priceCents: input.priceCents, durationMinutes: input.durationMinutes ?? null,
         category: input.category ?? 'other',
+        species: input.species ?? [],
       },
     })
     return this.mapService(s)
@@ -467,6 +500,7 @@ export class ProvidersService {
         ...(input.priceCents !== undefined ? { priceCents: input.priceCents } : {}),
         ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
         ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.species !== undefined ? { species: input.species } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },
     })
@@ -527,11 +561,19 @@ export class ProvidersService {
   ): Promise<BookingPage> {
     const take = Math.min(limit, MAX)
     const decoded = cursor ? decodeCursor(cursor) : null
+    // Accepts one status or a comma-separated set, so the client can filter by a
+    // group ("upcoming" is pending + confirmed + in_progress) in the query rather
+    // than paging everything back and discarding rows it did not want.
+    const statuses = status
+      ? status.split(',').map((s) => s.trim()).filter(Boolean)
+      : []
     const where: Prisma.PetCareBookingWhereInput = {
       isDeleted: false,
       ...(role === 'seeker' ? { seekerId: userId } : {}),
       ...(role === 'provider' ? { provider: { addedBy: userId } } : {}),
-      ...(status ? { status } : {}),
+      ...(statuses.length
+        ? { status: statuses.length === 1 ? statuses[0] : { in: statuses } }
+        : {}),
       ...(decoded
         ? { OR: [
             { createdAt: { lt: new Date(decoded.createdAt) } },
@@ -569,26 +611,165 @@ export class ProvidersService {
     return this.mapBooking(b)
   }
 
+  // ── Bookable slots ──────────────────────────────────────────────────────────
+  // Business hours were configurable but never enforced, and nothing stopped two
+  // people booking the same minute. These turn the working window into discrete
+  // slots the length of the chosen service, and report how much room is left.
+  //
+  // Times are interpreted in UTC, matching how provider_availability already
+  // stores HH:mm with no zone. A provider timezone is the obvious next step; it
+  // is deliberately not guessed here.
+
+  private static readonly ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'in_progress', 'completed']
+
+  private minutesOf(hhmm: string): number | null {
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm)
+    if (!m) return null
+    const h = Number(m[1]); const min = Number(m[2])
+    if (h > 23 || min > 59) return null
+    return h * 60 + min
+  }
+
+  /** Availability windows that apply on a given date, as [startMin, endMin]. */
+  private windowsFor(rows: Array<{ dayOfWeek: number | null; date: Date | null; startTime: string; endTime: string; kind: string }>, date: Date): Array<[number, number]> {
+    const sameDay = (d: Date | null): boolean =>
+      d !== null && d.toISOString().slice(0, 10) === date.toISOString().slice(0, 10)
+
+    // An explicit "unavailable" for the date closes it regardless of the pattern.
+    if (rows.some((r) => r.kind === 'unavailable' && sameDay(r.date))) return []
+
+    const overrides = rows.filter((r) => r.kind === 'override' && sameDay(r.date))
+    const source = overrides.length > 0
+      ? overrides
+      : rows.filter((r) => r.kind === 'weekly' && r.dayOfWeek === date.getUTCDay())
+
+    return source
+      .map((r) => [this.minutesOf(r.startTime), this.minutesOf(r.endTime)] as [number | null, number | null])
+      .filter((w): w is [number, number] => w[0] !== null && w[1] !== null && w[1] > w[0])
+  }
+
+  /**
+   * Bookable slots for a provider on one date.
+   *
+   * KNOWN LIMITATION — availability is interpreted in UTC. `date` is midnight UTC
+   * and each slot is that instant plus the minutes-from-midnight parsed out of the
+   * provider's stored "HH:MM". So a provider who enters 09:00 has slots offered at
+   * 09:00Z, which is 14:30 in India and 05:00 in New York, and the picker renders
+   * them in each viewer's local zone.
+   *
+   * The fix is a timezone on ServiceProvider and a wall-clock-to-instant conversion
+   * per date, which also has to handle DST. It has not landed yet, so the two hours
+   * forms say "(UTC)" rather than implying local time. There are currently no
+   * providerAvailability rows at all, which makes this the cheapest moment to do it
+   * properly — no stored hours need reinterpreting.
+   */
+  async listSlots(providerId: string, serviceId: string, dateStr: string): Promise<SlotResponse[]> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw new BadRequestException({ code: 'INVALID_DATE', message: 'Date must be YYYY-MM-DD' })
+    }
+    const date = new Date(`${dateStr}T00:00:00.000Z`)
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException({ code: 'INVALID_DATE', message: 'Date must be YYYY-MM-DD' })
+    }
+
+    const [provider, service] = await Promise.all([
+      this.prisma.serviceProvider.findUnique({
+        where: { id: providerId },
+        select: { id: true, isDeleted: true, availableForBooking: true, slotCapacity: true },
+      }),
+      this.prisma.petCareService.findUnique({
+        where: { id: serviceId },
+        select: { id: true, providerId: true, durationMinutes: true, isActive: true, isDeleted: true },
+      }),
+    ])
+    if (!provider || provider.isDeleted) throw new NotFoundException({ code: 'PROVIDER_NOT_FOUND', message: 'Provider not found' })
+    if (!service || service.isDeleted || !service.isActive || service.providerId !== providerId) {
+      throw new NotFoundException({ code: 'SERVICE_NOT_FOUND', message: 'Service not found or inactive' })
+    }
+    if (!provider.availableForBooking) return []
+
+    const step = service.durationMinutes ?? 60
+    const rows = await this.prisma.providerAvailability.findMany({
+      where: { providerId, isDeleted: false },
+      select: { dayOfWeek: true, date: true, startTime: true, endTime: true, kind: true },
+    })
+
+    const dayEnd = new Date(date.getTime() + 24 * 60 * 60 * 1000)
+    const taken = await this.prisma.petCareBooking.groupBy({
+      by: ['scheduledAt'],
+      where: {
+        providerId,
+        serviceId,
+        isDeleted: false,
+        status: { in: ProvidersService.ACTIVE_BOOKING_STATUSES },
+        scheduledAt: { gte: date, lt: dayEnd },
+      },
+      _count: { _all: true },
+    })
+    const bookedAt = new Map(taken.map((t) => [t.scheduledAt.toISOString(), t._count._all]))
+
+    // Keyed by start time so overlapping or repeated windows cannot offer the
+    // same slot twice. Nothing stops two identical weekly rows existing, and
+    // without this a duplicated window doubles every time in the picker.
+    const byStart = new Map<string, SlotResponse>()
+    for (const [startMin, endMin] of this.windowsFor(rows, date)) {
+      for (let m = startMin; m + step <= endMin; m += step) {
+        const startAt = new Date(date.getTime() + m * 60_000)
+        const key = startAt.toISOString()
+        if (byStart.has(key)) continue
+        const booked = bookedAt.get(key) ?? 0
+        byStart.set(key, {
+          startAt: key,
+          endAt: new Date(startAt.getTime() + step * 60_000).toISOString(),
+          capacity: provider.slotCapacity,
+          booked,
+          available: Math.max(0, provider.slotCapacity - booked),
+          isFull: booked >= provider.slotCapacity,
+        })
+      }
+    }
+    return [...byStart.values()].sort((a, b) => a.startAt.localeCompare(b.startAt))
+  }
+
   async createBooking(userId: string, input: CreateBookingInput): Promise<BookingResponse> {
     // Validate provider
     const provider = await this.prisma.serviceProvider.findUnique({
       where: { id: input.providerId },
-      select: { id: true, addedBy: true, isDeleted: true, availableForBooking: true, name: true },
+      select: { id: true, addedBy: true, isDeleted: true, availableForBooking: true, name: true, slotCapacity: true },
     })
     if (!provider || provider.isDeleted) throw new NotFoundException({ code: 'PROVIDER_NOT_FOUND', message: 'Provider not found' })
     if (provider.addedBy === userId) throw new BadRequestException({ code: 'OWN_SERVICE', message: 'You cannot book your own service' })
+    if (!provider.availableForBooking) {
+      throw new BadRequestException({ code: 'NOT_ACCEPTING_BOOKINGS', message: 'This provider is not accepting bookings' })
+    }
 
     // Validate service
     const service = await this.prisma.petCareService.findUnique({
       where: { id: input.serviceId },
-      select: { id: true, providerId: true, priceCents: true, name: true, isActive: true, isDeleted: true },
+      select: { id: true, providerId: true, priceCents: true, name: true, isActive: true, isDeleted: true, durationMinutes: true },
     })
     if (!service || service.isDeleted || !service.isActive || service.providerId !== input.providerId) {
       throw new NotFoundException({ code: 'SERVICE_NOT_FOUND', message: 'Service not found or inactive' })
     }
 
     const scheduledAt = new Date(input.scheduledAt)
-    const endAt = input.endAt ? new Date(input.endAt) : null
+    const step = service.durationMinutes ?? 60
+    // Derived rather than trusted from the client: the end of a booking is the
+    // service's duration, and letting the caller state it lets two bookings
+    // claim the same slot while disagreeing about how long they run.
+    const endAt = new Date(scheduledAt.getTime() + step * 60_000)
+
+    // The requested time has to be a real slot. Business hours were previously
+    // decorative — a booking could be made at 03:00 against 09:00–17:00 hours.
+    const dateStr = scheduledAt.toISOString().slice(0, 10)
+    const slots = await this.listSlots(input.providerId, input.serviceId, dateStr)
+    const slot = slots.find((s) => s.startAt === scheduledAt.toISOString())
+    if (!slot) {
+      throw new BadRequestException({
+        code: 'SLOT_UNAVAILABLE',
+        message: 'That time is not an available slot for this service',
+      })
+    }
 
     // If a Health Passport pet is attached, verify ownership and snapshot its details.
     let petId: string | null = null
@@ -607,18 +788,39 @@ export class ProvidersService {
       petBreed = pet.breed
     }
 
-    const b = await this.prisma.petCareBooking.create({
-      data: {
-        serviceId: input.serviceId, providerId: input.providerId, seekerId: userId,
-        scheduledAt, endAt,
-        location: input.location ?? null, latitude: input.latitude ?? null, longitude: input.longitude ?? null,
-        petId, petName, petSpecies, petBreed, petWeightKg: input.petWeightKg ?? null,
-        consultMode: input.consultMode ?? null, reason: input.reason ?? null,
-        notes: input.notes ?? null, priceCents: service.priceCents,
-        paymentMethod: input.paymentMethod ?? 'pay_at_visit',
-      },
-      include: this.bookingInclude(),
-    })
+    // Counting then inserting is only safe if nothing can slip in between, so
+    // both run in one serializable transaction. Two people submitting the last
+    // space at once leaves one committed and the other retried or aborted by
+    // Postgres, rather than both landing and overfilling the slot.
+    const b = await this.prisma.$transaction(async (tx) => {
+      const booked = await tx.petCareBooking.count({
+        where: {
+          providerId: input.providerId,
+          serviceId: input.serviceId,
+          scheduledAt,
+          isDeleted: false,
+          status: { in: ProvidersService.ACTIVE_BOOKING_STATUSES },
+        },
+      })
+      if (booked >= provider.slotCapacity) {
+        throw new ConflictException({
+          code: 'SLOT_FULL',
+          message: 'That slot has just filled up. Please choose another time.',
+        })
+      }
+      return tx.petCareBooking.create({
+        data: {
+          serviceId: input.serviceId, providerId: input.providerId, seekerId: userId,
+          scheduledAt, endAt,
+          location: input.location ?? null, latitude: input.latitude ?? null, longitude: input.longitude ?? null,
+          petId, petName, petSpecies, petBreed, petWeightKg: input.petWeightKg ?? null,
+          consultMode: input.consultMode ?? null, reason: input.reason ?? null,
+          notes: input.notes ?? null, priceCents: service.priceCents,
+          paymentMethod: input.paymentMethod ?? 'pay_at_visit',
+        },
+        include: this.bookingInclude(),
+      })
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
     // Notify the provider
     const seeker = await this.prisma.profile.findUnique({ where: { id: userId }, select: { displayName: true } })

@@ -4,9 +4,13 @@ import { Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { LOW_CHURN_WORKER_OPTS } from '../queue/worker-options'
+import { ThrottledErrorLog, isFatalRedisError } from '../redis/redis-failure'
 
 @Processor('messaging', LOW_CHURN_WORKER_OPTS)
 export class MessagingProcessor extends WorkerHost {
+  private readonly workerErrorLog = new ThrottledErrorLog()
+  private stopped = false
+
   private readonly logger = new Logger(MessagingProcessor.name)
 
   constructor(
@@ -93,6 +97,35 @@ export class MessagingProcessor extends WorkerHost {
       where: { id: requestId, status: 'pending' },
       data: { status: 'expired' },
     })
+  }
+
+  /**
+   * Stops the worker when Redis will never answer again.
+   *
+   * Bounding the *connection* retries was not enough: a BullMQ worker polls for
+   * jobs on a timer, and with an exhausted request quota every poll failed and
+   * printed a stack trace. That was still 115,000 log lines and, eventually, a
+   * dead API — the outage caused by the polling rather than by Redis.
+   *
+   * A worker that cannot reach its queue has nothing to do, so it closes. Jobs
+   * are not lost by this: producers already fall back to writing inline when the
+   * queue is unavailable. Recovery is a restart, which is the right shape for a
+   * quota that resets on a billing period rather than in a few seconds.
+   */
+  @OnWorkerEvent('error')
+  onError(error: Error): void {
+    if (!isFatalRedisError(error)) {
+      const line = this.workerErrorLog.next(`Messaging worker error: ${error.message}`)
+      if (line) this.logger.warn(line)
+      return
+    }
+
+    if (this.stopped) return
+    this.stopped = true
+    this.logger.error(`Stopping the messaging worker — Redis is refusing commands: ${error.message}`)
+    // Detached: this handler is called from the worker's own event loop, and
+    // awaiting its close from inside would deadlock.
+    void this.worker.close().catch(() => undefined)
   }
 
   @OnWorkerEvent('completed')

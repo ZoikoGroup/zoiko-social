@@ -8,6 +8,7 @@ import { MobileTabs } from '@/components/MobileTabs'
 import { PostGrid } from '@/components/feed/PostGrid'
 import { hashtagsApi, ApiError, type PostItem, type TagEverything } from '@/lib/api'
 import { TagSections } from '@/components/TagSections'
+import { useFormat } from '@/hooks/use-format'
 
 /** Whether any non-post section has something, so an empty state stays honest. */
 function hasOtherResults(e: TagEverything | null): boolean {
@@ -17,6 +18,7 @@ function hasOtherResults(e: TagEverything | null): boolean {
 }
 
 export default function HashtagPage({ params }: { params: Promise<{ tag: string }> }): React.JSX.Element {
+  const { n } = useFormat()
   const { tag } = use(params)
   const decodedTag = decodeURIComponent(tag)
   const [posts, setPosts] = useState<PostItem[]>([])
@@ -82,7 +84,7 @@ export default function HashtagPage({ params }: { params: Promise<{ tag: string 
             <div>
               <h1 className="font-headline text-headline-md text-on-surface">#{decodedTag}</h1>
               <p className="text-label-sm text-outline">
-                {postsCount.toLocaleString()} post{postsCount === 1 ? '' : 's'}
+                {n(postsCount)} post{postsCount === 1 ? '' : 's'}
               </p>
             </div>
           </div>

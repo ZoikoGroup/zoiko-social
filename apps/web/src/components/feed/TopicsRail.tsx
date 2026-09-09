@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Hash, TrendingUp } from 'lucide-react'
 import { hashtagsApi } from '@/lib/api'
+import { useFormat } from '@/hooks/use-format'
 
 interface TopicChip {
   tag: string
@@ -11,6 +12,7 @@ interface TopicChip {
 }
 
 function TopicChip({ tag, postsCount }: TopicChip): React.JSX.Element {
+  const { n } = useFormat()
   return (
     <Link
       href={`/explore/tags/${encodeURIComponent(tag)}`}
@@ -21,7 +23,7 @@ function TopicChip({ tag, postsCount }: TopicChip): React.JSX.Element {
         {tag}
       </span>
       <span className="rounded-full bg-surface-container px-1.5 py-0.5 text-[11px] font-medium text-outline group-hover:bg-primary/10 group-hover:text-primary/80">
-        {postsCount.toLocaleString()}
+        {n(postsCount)}
       </span>
     </Link>
   )

@@ -129,7 +129,7 @@ export function ReportContentModal({ targetType, targetId, onClose, onReported }
                 className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                Submit report
+                <span>Submit report</span>
               </button>
             </div>
           </>

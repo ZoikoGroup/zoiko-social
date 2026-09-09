@@ -1,8 +1,9 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const MediaItemSchema = z.object({
-  url: z.string().url().max(600),
-  thumbnailUrl: z.string().url().max(600).optional(),
+  url: httpUrl(600),
+  thumbnailUrl: httpUrl(600).optional(),
   width: z.number().int().positive().max(10_000).optional(),
   height: z.number().int().positive().max(10_000).optional(),
   fileSize: z.number().int().positive().max(50 * 1024 * 1024).optional(),

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -20,6 +21,7 @@ import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { SafetyBanner } from '@/components/SafetyBanner'
 
 export default function PetCarePage(): React.JSX.Element {
+  const tp = useTranslations('petCare')
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
@@ -70,14 +72,14 @@ export default function PetCarePage(): React.JSX.Element {
                   <HeartHandshake className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h1 className="font-headline text-headline-md text-on-surface leading-tight">Pet Care Services</h1>
-                  <p className="text-label-sm text-outline">Grooming, boarding, walking & more</p>
+                  <h1 className="font-headline text-headline-md text-on-surface leading-tight">{tp('title')}</h1>
+                  <p className="text-label-sm text-outline">{tp('subtitle')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <DocsHelpLink href="/docs/marketplace-and-services#booking-a-provider" />
                 <Link href="/pet-care/my-bookings" className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-outline-variant/40 text-label-sm text-outline hover:text-on-surface hover:bg-surface-container transition-colors">
-                  <Calendar className="w-4 h-4" /> My Bookings
+                  <Calendar className="w-4 h-4" /> <span>{tp('myBookings')}</span>
                 </Link>
                 <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                   <Plus className="w-4 h-4" /> Add
@@ -116,7 +118,7 @@ export default function PetCarePage(): React.JSX.Element {
                 <h3 className="text-label-md font-bold text-on-surface">No providers yet</h3>
                 <p className="text-label-sm text-outline mt-1 mb-4">Be the first to add a pet care service for the community.</p>
                 <button onClick={() => setAddOpen(true)} className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold cursor-pointer">
-                  Add a Service
+                  {tp('addService')}
                 </button>
               </div>
             ) : (
@@ -140,7 +142,7 @@ export default function PetCarePage(): React.JSX.Element {
         <AddProviderModal
           category="pet_care"
           serviceTypes={['Grooming', 'Boarding', 'Walking', 'Training', 'Pet Sitting', 'Daycare', 'Other']}
-          title="Add a Service"
+          title={tp('addService')}
           onClose={() => setAddOpen(false)}
           onAdded={(p) => patchItems((prev) => [p, ...prev])}
         />

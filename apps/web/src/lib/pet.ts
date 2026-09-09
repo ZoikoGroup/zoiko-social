@@ -5,6 +5,8 @@
  * public passport page; it lives here so the three views can never drift.
  */
 
+import { formatDateTime } from '@/lib/datetime'
+
 /** Approximate age as a short label — "7 mo", "3 yrs". Null when no birthdate. */
 export function ageOf(birthdate: string | null | undefined): string | null {
   if (!birthdate) return null
@@ -17,12 +19,15 @@ export function ageOf(birthdate: string | null | undefined): string | null {
   return `${years} yr${years > 1 ? 's' : ''}`
 }
 
-/** A birthdate rendered for reading — "4 Mar 2021". Null when absent. */
-export function formatPetDate(date: string | null | undefined): string | null {
+/**
+ * A birthdate rendered for reading — "4 Mar 2021". Null when absent.
+ *
+ * Took no locale and so followed the browser's, not the one chosen in the app.
+ */
+export function formatPetDate(date: string | null | undefined, locale: string): string | null {
   if (!date) return null
-  const d = new Date(date)
-  if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  const formatted = formatDateTime(date, locale, 'dayMonthYear')
+  return formatted === '' ? null : formatted
 }
 
 /** Neutered/spayed label. Undefined for null so callers can omit the row entirely. */

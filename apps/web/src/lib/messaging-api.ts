@@ -49,7 +49,132 @@ export interface MessagingPrivacy {
   messageRequestExpiry: number | null
 }
 
+
+/** Why the composer is locked. Mirrors the API's PostBlockedReason. */
+export type PostBlockedReason = 'chat_disabled' | 'announcement_only' | 'muted' | 'slow_mode' | null
+
+export interface CommunityChatAccess {
+  conversationId: string
+  communityId: string
+  role: string
+  isMod: boolean
+  isAdmin: boolean
+  canPost: boolean
+  reason: PostBlockedReason
+  retryAfterSeconds: number
+  announcementOnly: boolean
+  slowModeSeconds: number
+  chatEnabled: boolean
+}
+
+export interface PinnedMessage {
+  id: string
+  body: string | null
+  type: string
+  createdAt: string
+  pinnedAt: string | null
+  senderId: string
+  senderName: string
+}
+
+export interface CommunityChatMember {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  isVerified: boolean
+  role: string
+  isMuted: boolean
+}
+
+
+/** What the server hands back for a message it just stored. */
+export interface SentMessage {
+  id: string
+  conversationId: string
+  type: string
+  body: string | null
+  mediaUrls: string[]
+  createdAt: string
+}
+
 export const messagingApi = {
+  // ── Sending ───────────────────────────────────────────────────────────────
+  /**
+   * Sends a message of any type.
+   *
+   * The chat's own send path is a socket round-trip with an optimistic bubble,
+   * which suits text. This is for the kinds that are composed in a dialog and
+   * arrive complete — a poll, a shared location — where there is nothing to
+   * render optimistically and the payload carries structure rather than a body.
+   */
+  sendMessage: (
+    conversationId: string,
+    body: {
+      body?: string
+      type?: string
+      parentId?: string
+      mediaUrls?: string[]
+      metadata?: Record<string, unknown>
+      poll?: { question: string; options: string[] }
+    },
+  ) =>
+    mutate<SentMessage>(`/messaging/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  /**
+   * Copies a message into other conversations. At most five.
+   *
+   * Reports per-target results rather than one pass/fail: a forward into three
+   * chats where one is announcement-only should say which one was refused, not
+   * claim the whole thing failed.
+   */
+  forwardMessage: (messageId: string, conversationIds: string[]) =>
+    mutate<{
+      forwarded: number
+      results: { conversationId: string; ok: boolean; error?: string }[]
+    }>(`/messaging/messages/${messageId}/forward`, {
+      method: 'POST',
+      body: JSON.stringify({ conversationIds }),
+    }),
+
+  /** Cast, move or withdraw a poll vote. One choice per member. */
+  votePoll: (messageId: string, optionId: string) =>
+    mutate<{
+      id: string
+      question: string
+      totalVotes: number
+      options: { id: string; text: string; votes: number; votedByMe: boolean }[]
+    }>(`/messaging/messages/${messageId}/poll/vote`, {
+      method: 'POST',
+      body: JSON.stringify({ optionId }),
+    }),
+
+  // ── Community chat ────────────────────────────────────────────────────────
+  /** The viewer's role and whether the room's locks currently apply to them. */
+  communityAccess: (conversationId: string) =>
+    request<CommunityChatAccess>(`/messaging/conversations/${conversationId}/community`),
+  communityMembers: (conversationId: string) =>
+    request<CommunityChatMember[]>(`/messaging/conversations/${conversationId}/community/members`),
+  updateCommunityChatSettings: (
+    conversationId: string,
+    body: { chatEnabled?: boolean; announcementOnly?: boolean; slowModeSeconds?: number },
+  ) =>
+    mutate<{ chatEnabled: boolean; announcementOnly: boolean; slowModeSeconds: number }>(
+      `/messaging/conversations/${conversationId}/community/settings`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+  pinnedMessage: (conversationId: string) =>
+    request<PinnedMessage | null>(`/messaging/conversations/${conversationId}/pinned`),
+  /** Toggle: pinning the pinned message unpins it. */
+  togglePinMessage: (messageId: string) =>
+    mutate<{ pinned: boolean }>(`/messaging/messages/${messageId}/pin`, { method: 'POST' }),
+  /** Moderator removal of someone else's message; always for everyone. */
+  moderateDeleteMessage: (messageId: string) =>
+    mutate<void>(`/messaging/messages/${messageId}/moderate`, { method: 'DELETE' }),
+
   // ── Message requests (DMs from people you don't follow) ───────────────────
   requests: () =>
     request<{ incoming: IncomingMessageRequest[]; outgoing: OutgoingMessageRequest[] }>('/messaging/requests'),

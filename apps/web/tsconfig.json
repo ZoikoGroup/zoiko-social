@@ -30,14 +30,8 @@
       "@/*": [
         "./src/*"
       ],
-      "@zoiko/types": [
-        "../../packages/types/src/index.ts"
-      ],
       "@zoiko/ui": [
         "../../packages/ui/src/index.ts"
-      ],
-      "@zoiko/validation": [
-        "../../packages/validation/src/index.ts"
       ]
     }
   },

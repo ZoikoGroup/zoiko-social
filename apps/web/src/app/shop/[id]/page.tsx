@@ -9,18 +9,19 @@ import { LocationLink } from '@/components/LocationLink'
 import { UserAvatar } from '@/components/UserAvatar'
 import { Img } from '@/components/Img'
 import {
-  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, ShoppingBag,
-} from 'lucide-react'
+  ChevronLeft, Heart, Truck, Package, BadgeCheck, Trash2, Loader2, MessageCircle, Check, ShoppingBag, ImageOff } from 'lucide-react'
 import { shopApi, orderApi, type Product } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { ReportButton } from '@/components/ReportButton'
+import { useToast } from '@/hooks/use-toast'
 
 export default function ProductPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
   const { format } = useCurrency()
   const { id } = use(params)
   const { user } = useAuth()
   const router = useRouter()
+  const toast = useToast()
   const [product, setProduct] = useState<Product | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -47,7 +48,14 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
     catch { setSaved(!next); setSavesCount((c) => c + (next ? -1 : 1)) }
   }
   async function remove(): Promise<void> {
-    await shopApi.remove(id).catch(() => {})
+    // It used to navigate to the shop whether or not the delete worked, so a
+    // failure looked exactly like success until the listing turned up again.
+    try {
+      await shopApi.remove(id)
+    } catch {
+      toast.error('Not deleted', 'Could not delete this listing. Please try again.')
+      return
+    }
     router.push('/shop')
   }
   async function sendEnquiry(): Promise<void> {
@@ -116,8 +124,22 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             {/* Gallery */}
             <div>
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-surface-container border border-outline-variant/20">
-                {gallery[slide] && (
+                {gallery[slide] ? (
                   <Img src={gallery[slide]} alt="" priority className="w-full h-full object-cover" />
+                ) : (
+                  /*
+                    A listing with no photo rendered nothing at all here — an
+                    empty grey square that reads as an image that failed to
+                    load. The marketplace grid already says "No photo" for the
+                    same case; this is the other half of that fix.
+
+                    Most listings in the catalogue currently have no cover, so
+                    this is the common path rather than an edge case.
+                  */
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-on-surface-variant">
+                    <ImageOff className="w-10 h-10" />
+                    <span className="text-label-sm font-medium">No photo for this listing</span>
+                  </div>
                 )}
                 {onSale && <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-red-500 text-white text-[11px] font-bold">SALE</span>}
               </div>
@@ -171,7 +193,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
                 ) : (
                   <>
                     <button onClick={buyNow} disabled={checkingOut || !product.inStock} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-60 cursor-pointer">
-                      {checkingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}Buy Now
+                      {checkingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}<span>Buy Now</span>
                     </button>
                     <button onClick={() => setEnquireOpen(true)} disabled={enquiryState === 'sent'} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-outline-variant/50 text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container disabled:opacity-60 cursor-pointer">
                       {enquiryState === 'sent' ? <><Check className="w-4 h-4" />Enquiry sent</> : <><MessageCircle className="w-4 h-4" />Contact Seller</>}
@@ -206,7 +228,7 @@ export default function ProductPage({ params }: { params: Promise<{ id: string }
             <div className="flex gap-2 mt-3">
               <button onClick={() => setEnquireOpen(false)} className="flex-1 py-2.5 rounded-xl border border-outline-variant/50 text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container cursor-pointer">Cancel</button>
               <button onClick={sendEnquiry} disabled={enquiryState === 'sending'} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-                {enquiryState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}Send
+                {enquiryState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}<span>Send</span>
               </button>
             </div>
           </div>

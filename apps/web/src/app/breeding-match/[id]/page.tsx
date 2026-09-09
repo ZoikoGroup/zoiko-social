@@ -119,7 +119,7 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
             <div>
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${female ? 'bg-pink-500/10 text-pink-600' : 'bg-blue-500/10 text-blue-600'}`}>
-                  {female ? <Venus className="w-3 h-3" /> : <Mars className="w-3 h-3" />}{female ? 'Female' : 'Male'}
+                  {female ? <Venus className="w-3 h-3" /> : <Mars className="w-3 h-3" />}<span>{female ? 'Female' : 'Male'}</span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-surface-container text-[10px] font-semibold text-on-surface-variant capitalize">{profile.species}</span>
                 {profile.status !== 'available' && <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-[10px] font-semibold text-red-600 capitalize">{profile.status}</span>}
@@ -309,7 +309,7 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} rows={4} placeholder="Tell them about your pet, health tests, and intentions…"
               className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
             <button onClick={sendRequest} disabled={reqState === 'sending'} className="w-full mt-3 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-              {reqState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}Send request
+              {reqState === 'sending' && <Loader2 className="w-4 h-4 animate-spin" />}<span>Send request</span>
             </button>
           </div>
         </div>
@@ -376,7 +376,7 @@ function LitterModal({ requestId, onClose, onSaved }: { requestId: string; onClo
             <div className="mt-3"><label className={label}>Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} rows={2} className={`${input} resize-none`} /></div>
             {error && <p className="text-label-sm text-red-500 mt-2">{error}</p>}
             <button onClick={save} disabled={saving} className="w-full mt-3 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}Save litter
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Save litter</span>
             </button>
           </>
         )}
@@ -411,7 +411,7 @@ function ReviewModal({ requestId, onClose, onSaved }: { requestId: string; onClo
         <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} placeholder="How was the experience? (optional)" className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
         {error && <p className="text-label-sm text-red-500 mt-2">{error}</p>}
         <button onClick={save} disabled={saving} className="w-full mt-3 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}Submit review
+          {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Submit review</span>
         </button>
       </div>
     </div>

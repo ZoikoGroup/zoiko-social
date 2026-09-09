@@ -246,7 +246,7 @@ export function LocationInput({
                 className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-label-sm font-medium text-primary hover:bg-surface-container cursor-pointer border-b border-outline-variant/20"
               >
                 {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
-                {locating ? 'Getting your location…' : 'Use my current location'}
+                <span>{locating ? 'Getting your location…' : 'Use my current location'}</span>
               </button>
             </li>
           )}

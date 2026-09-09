@@ -156,6 +156,115 @@ workbox.routing.registerRoute(
   }),
 )
 
+// ── Push notifications ───────────────────────────────────────────────────────
+// The server encrypts a small JSON payload to this browser's subscription keys.
+// It is deliberately small — a push payload has a hard size limit — so this only
+// gets what it needs to draw the notification and know where a tap should go.
+
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    // A push with no body, or a body that is not ours. Showing a generic
+    // notification is better than showing nothing: on some browsers a push event
+    // that displays no notification counts against the origin's permission.
+    payload = {}
+  }
+
+  const title = payload.title || 'ZoikoSocial'
+
+  /*
+   * A ringing call is not a message. It stays on screen until answered or
+   * dismissed rather than fading after a few seconds, it vibrates in a pattern
+   * a phone in a pocket can be felt through, and it offers the two things
+   * anyone wants from a ringing phone without opening the app first.
+   *
+   * The sound is the system's notification sound. A web push cannot carry a
+   * ringtone — the Notification API's `sound` was removed — so a real ringtone
+   * only plays once the app is open and can use the audio element.
+   */
+  const isCall = payload.type === 'call_invite'
+
+  const options = {
+    body: payload.body || '',
+    icon: '/icon-192.png',
+    // A badge is a monochrome mask that Android tints itself, so it must be a
+    // PNG with a usable alpha channel. This pointed at favicon.svg, which
+    // Chromium cannot decode — an embedded raster inside an <svg> — so the
+    // badge silently failed to draw on every Android notification.
+    badge: '/badge-96.png',
+    ...(isCall
+      ? {
+          requireInteraction: true,
+          vibrate: [400, 200, 400, 200, 400],
+          actions: [
+            { action: 'answer', title: 'Answer' },
+            { action: 'decline', title: 'Decline' },
+          ],
+        }
+      : {}),
+    // Same tag collapses related alerts instead of stacking twelve of them, and
+    // renotify lets a newer one still surface rather than being silently merged.
+    // The server sends a collapse key that groups related types — a like and a
+    // reaction share one — falling back to the type when it has no group.
+    tag: payload.collapseKey || payload.type || 'zoiko',
+    renotify: true,
+    data: { url: payload.url || '/notifications', id: payload.id, type: payload.type },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+
+  // Declining is the one action that wants no app: closing the notification is
+  // the whole of it, and opening a window to say "you declined" would be worse
+  // than doing nothing.
+  if (event.action === 'decline') return
+
+  const target = (event.notification.data && event.notification.data.url) || '/notifications'
+
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+
+      // Prefer an open tab over a new one. Opening a second tab of an app the
+      // member already has open is the most common way notifications become
+      // annoying, and navigating the existing one keeps their place in the app.
+      for (const client of clientList) {
+        if ('focus' in client) {
+          await client.focus()
+          if ('navigate' in client) {
+            try {
+              await client.navigate(target)
+            } catch {
+              // Cross-origin or a client that refuses navigation — focusing it is
+              // still the better outcome than a duplicate tab.
+            }
+          }
+          return
+        }
+      }
+
+      if (self.clients.openWindow) await self.clients.openWindow(target)
+    })(),
+  )
+})
+
+// A subscription can be rotated by the browser or the push service without the
+// member doing anything. Without this the endpoint we hold goes stale and every
+// later notification silently fails, so the page is told to re-subscribe.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of clientList) client.postMessage({ type: 'push-resubscribe' })
+    })(),
+  )
+})
+
 // ── Log registration success ─────────────────────────────────────────────────
 console.log(
   `[ZoikoSocial SW] Active — caching static assets, fonts, images, and pages.`,

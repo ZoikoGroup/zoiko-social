@@ -13,26 +13,42 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { OptionalAuthGuard } from './guards/optional-auth.guard'
 import { CurrentUser } from './decorators/current-user.decorator'
 import type { AuthenticatedUser } from './guards/jwt-auth.guard'
+import { AccessToken } from './decorators/access-token.decorator'
+import { AllowInactiveAccount } from './decorators/allow-inactive.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
+// ── Password policy ────────────────────────────────────────────────────────
+// Mirrors apps/web/src/lib/password-policy.ts. Enforced here as well so the
+// rule holds for any client, not only the one that renders the hint.
+//
+// 72 is the ceiling because bcrypt hashes at most 72 bytes and silently drops
+// the rest — two passwords sharing their first 72 bytes would both work.
+const PasswordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters.')
+  .max(72, 'Password must be 72 characters or fewer.')
+  .refine((v) => /[a-z]/.test(v), 'Password must include a lowercase letter.')
+  .refine((v) => /[A-Z]/.test(v), 'Password must include an uppercase letter.')
+  .refine((v) => /[0-9]/.test(v), 'Password must include a number.')
+
 const RegisterSchema = z.object({
   email: z.string().email('Valid email is required'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: PasswordSchema,
   displayName: z.string().min(1).max(50).optional(),
 })
 
 const LoginSchema = z
   .object({
-    // Accepts email, username, or phone number
+    // Accepts an email address or a username.
     identifier: z.string().min(1).max(255).optional(),
     // Back-compat: older clients send `email`
     email: z.string().min(1).max(255).optional(),
     password: z.string().min(1, 'Password is required'),
   })
   .refine((body) => body.identifier || body.email, {
-    message: 'Email, username, or phone is required',
+    message: 'Email or username is required',
     path: ['identifier'],
   })
 
@@ -46,7 +62,7 @@ const ForgotPasswordSchema = z.object({
 
 const ResetPasswordSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
-  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  newPassword: PasswordSchema,
 })
 
 const OAuthCallbackSchema = z.object({
@@ -97,9 +113,28 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  async logout(@CurrentUser() user: AuthenticatedUser) {
-    await this.authService.logout(user.id)
-    return { success: true }
+  async logout(@AccessToken() accessToken: string | undefined) {
+    // revokedEverywhere is forwarded rather than dropped: the client needs to
+    // know whether it can honestly claim every device was signed out.
+    const { revokedEverywhere } = await this.authService.logout(accessToken)
+    return { success: true, revokedEverywhere }
+  }
+
+  /**
+   * Restores the caller's own deactivated or pending-deletion account.
+   *
+   * Needs @AllowInactiveAccount() because the guard refuses every other route for
+   * these two states — which is precisely why login used to perform the restore
+   * silently, with no way for the member to decline it. Rate-limited like the other
+   * credential-adjacent routes: it flips account state, so it should not be
+   * hammerable even with a valid token.
+   */
+  @Post('reactivate')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @AllowInactiveAccount()
+  async reactivate(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.reactivate(user.id)
   }
 
   @Post('forgot-password')

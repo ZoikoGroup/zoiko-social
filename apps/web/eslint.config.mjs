@@ -1,7 +1,7 @@
 import nextConfig from 'eslint-config-next'
 import tsPlugin from '@typescript-eslint/eslint-plugin'
 
-export default [
+const config = [
   // Global ignores — standalone config object required in ESLint 9 flat config
   { ignores: ['.next/**', 'out/**', 'node_modules/**'] },
 
@@ -35,3 +35,5 @@ export default [
     },
   },
 ]
+
+export default config

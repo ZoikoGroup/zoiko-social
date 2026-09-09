@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 export const CreateListingSchema = z.object({
   /** Free tags; normalised server-side so #Beagle and beagle are one tag. */
@@ -11,8 +12,14 @@ export const CreateListingSchema = z.object({
   size: z.enum(['small', 'medium', 'large']).optional(),
   description: z.string().trim().max(3000).optional(),
   location: z.string().trim().max(200).optional(),
-  coverUrl: z.string().url().max(600).optional(),
-  photos: z.array(z.string().url().max(600)).max(10).optional(),
+  /**
+   * Required on create: for a living animal the photo *is* the listing — nobody
+   * adopts or enquires from a placeholder, and 67% of existing rows have none, so
+   * the grid was mostly empty boxes. Optional on update so a listing predating this
+   * rule can still be edited without re-uploading.
+   */
+  coverUrl: httpUrl(600),
+  photos: z.array(httpUrl(600)).max(10).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   vaccinated: z.boolean().optional(),

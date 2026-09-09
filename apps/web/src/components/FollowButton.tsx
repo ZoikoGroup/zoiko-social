@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { networkApi } from '@/lib/api'
+import { useTranslations } from 'next-intl'
 
 /**
  * Instagram-parity follow button state machine.
@@ -40,16 +41,18 @@ interface FollowButtonProps {
   onStateChange?: (state: FollowButtonState) => void
 }
 
-const LABELS: Record<FollowButtonState, string> = {
-  none: 'Follow',
-  follow_back: 'Follow Back',
-  following: 'Following',
-  requested: 'Requested',
+// Keys into the `follow` namespace, resolved at render — this map is module scope.
+const LABEL_KEYS: Record<FollowButtonState, string> = {
+  none: 'follow',
+  follow_back: 'followBack',
+  following: 'following',
+  requested: 'requested',
 }
 
 export function FollowButton({
   userId, initialState, followsViewer = initialState === 'follow_back', className = '', onStateChange,
 }: FollowButtonProps): React.JSX.Element {
+  const t = useTranslations('follow')
   const [state, setState] = useState<FollowButtonState>(initialState)
   const [busy, setBusy] = useState(false)
 
@@ -97,7 +100,7 @@ export function FollowButton({
           : 'bg-primary text-white hover:bg-primary/90'
       } ${className}`}
     >
-      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : LABELS[state]}
+      {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t(LABEL_KEYS[state])}
     </button>
   )
 }

@@ -15,6 +15,7 @@ import { providersApi, type Provider, type NewProvider } from '@/lib/api'
 import { uploadCommunityImage } from '@/lib/community-image'
 import { useAuth } from '@/hooks/use-auth'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { PET_SPECIES_OPTIONS } from '@/lib/pet-care-api'
 
 interface ServiceDirectoryProps {
   category: 'vet' | 'pet_care'
@@ -123,7 +124,14 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-bold text-label-md text-on-surface truncate">{p.name}</h3>
-                        {p.serviceType && <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">{p.serviceType}</span>}
+                        {/* One chip per service. Older records only have the
+                            joined string, so fall back to splitting it. */}
+                        {(p.specialties.length > 0
+                          ? p.specialties
+                          : (p.serviceType ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+                        ).slice(0, 3).map((t) => (
+                          <span key={t} className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded flex-shrink-0">{t}</span>
+                        ))}
                       </div>
                       {p.description && <p className="text-label-sm text-on-surface-variant mt-1 line-clamp-2">{p.description}</p>}
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-outline">
@@ -156,7 +164,9 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
   onClose: () => void; onAdded: (p: Provider) => void
 }): React.JSX.Element {
   const { profile } = useAuth()
-  const [form, setForm] = useState<NewProvider>({ category, name: '', serviceType: serviceTypes[0] ?? '' })
+  // Starts empty rather than defaulting to the first option: a silent default
+  // is how every listing ended up tagged "Grooming".
+  const [form, setForm] = useState<NewProvider>({ category, name: '', serviceType: '', specialties: [] })
   const [coverUrl, setCoverUrl] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -207,10 +217,90 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
             </div>
           </button>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickCover} />
-          <input value={form.name} onChange={(e) => set('name', e.target.value)} maxLength={120} placeholder="Name" className={input} />
-          <select value={form.serviceType} onChange={(e) => set('serviceType', e.target.value)} className={input}>
-            {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          {/* Every other field says "(optional)", so the one required field has
+              to say so too — otherwise the disabled submit button has no
+              visible cause. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              maxLength={120}
+              required
+              aria-required="true"
+              placeholder="Business or provider name"
+              className={input}
+            />
+          </div>
+          {/* A pet care business rarely does one thing. The single serviceType
+              field forced a choice, and people worked around it by typing
+              "Boarding, Grooming, Day Care" into a 60-character box. These write
+              to specialties[], which already existed with a working filter and
+              was never populated; serviceType keeps a joined copy so older
+              records and the free-text search keep working. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Services offered <span className="text-outline font-normal">(pick any)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {serviceTypes.map((t) => {
+                const selected = (form.specialties ?? []).includes(t)
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      const next = selected
+                        ? (form.specialties ?? []).filter((v) => v !== t)
+                        : [...(form.specialties ?? []), t]
+                      setForm((f) => ({ ...f, specialties: next, serviceType: next.join(', ') }))
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Describes the provider, and is never used to restrict who may book:
+              people book for a friend's or a neighbour's animal too. The API has
+              filtered on species all along; nothing ever collected it. */}
+          <div>
+            <label className="text-label-sm font-medium text-on-surface block mb-1.5">
+              Pets served <span className="text-outline font-normal">(optional)</span>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {PET_SPECIES_OPTIONS.map((s) => {
+                const selected = (form.species ?? []).includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => set('species', selected
+                      ? (form.species ?? []).filter((v) => v !== s)
+                      : [...(form.species ?? []), s])}
+                    className={`px-3 py-1.5 rounded-full text-label-sm font-medium border transition-colors cursor-pointer ${
+                      selected
+                        ? 'bg-primary text-white border-primary'
+                        : 'border-outline-variant/40 text-outline hover:border-primary/40'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           <textarea value={form.description ?? ''} onChange={(e) => set('description', e.target.value)} maxLength={2000} rows={2} placeholder="Description (optional)" className={`${input} resize-none`} />
           <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={120} placeholder="Location / city" className={input} />
           <input value={form.address ?? ''} onChange={(e) => set('address', e.target.value)} maxLength={300} placeholder="Address (optional)" className={input} />
@@ -223,7 +313,7 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
           <button onClick={submit} disabled={saving || !form.name.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}Add listing
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>Add listing</span>
           </button>
         </div>
       </div>

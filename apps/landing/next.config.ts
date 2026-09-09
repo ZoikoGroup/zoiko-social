@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingRoot: path.resolve(__dirname, '../..'),
   reactStrictMode: true,
+  async redirects() {
+    // The landing page used to live at /home and was deployed there.
+    // Keep those links working now that it is served at the root.
+    return [{ source: '/home', destination: '/', permanent: true }]
+  },
   async headers() {
     return [
       {

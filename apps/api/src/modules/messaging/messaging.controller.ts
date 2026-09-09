@@ -16,6 +16,13 @@ import { ContactService } from './contact.service'
 import { MessageRequestService } from './message-request.service'
 import { GroupService } from './group.service'
 import { ProfessionalMessagingService } from './professional-messaging.service'
+import { CommunityChatService } from './community-chat.service'
+import {
+  UpdateCommunityChatSettingsSchema,
+  type UpdateCommunityChatSettingsInput,
+} from './community-chat.schemas'
+import { VotePollSchema, type VotePollInput } from './poll.schemas'
+import { ForwardMessageSchema, type ForwardMessageInput } from './forward.schemas'
 import {
   CreateConversationSchema,
   SendMessageSchema,
@@ -45,6 +52,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 import { RateLimit } from '../common/decorators/rate-limit.decorator'
+import { MessagingGateway } from './messaging.gateway'
 
 @Controller('messaging')
 @UseGuards(JwtAuthGuard)
@@ -55,7 +63,97 @@ export class MessagingController {
     private readonly messageRequestService: MessageRequestService,
     private readonly groupService: GroupService,
     private readonly professionalMessaging: ProfessionalMessagingService,
+    private readonly gateway: MessagingGateway,
+    private readonly communityChat: CommunityChatService,
   ) {}
+
+  // ── COMMUNITY CHAT ─────────────────────────────────────────────────────────
+  //
+  // Its own list endpoint rather than a branch inside the inbox: community chats
+  // have no conversation_members rows (membership is derived), and the inbox is
+  // a keyset pagination over exactly that table. See CommunityChatService.
+
+  @Get('communities')
+  async getCommunityChats(@CurrentUser() user: AuthenticatedUser) {
+    const data = await this.communityChat.listForUser(user.id)
+    return { data }
+  }
+
+  /** Role, posting permission and the reason it is withheld — drives the composer. */
+  @Get('conversations/:id/community')
+  async getCommunityChatAccess(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.communityChat.assertCanRead(user.id, id)
+  }
+
+  @Get('conversations/:id/community/members')
+  async getCommunityChatMembers(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.communityChat.listMembers(user.id, id, limit ? Number(limit) : 50)
+    return { data }
+  }
+
+  @Patch('conversations/:id/community/settings')
+  async updateCommunityChatSettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateCommunityChatSettingsSchema))
+    body: UpdateCommunityChatSettingsInput,
+  ) {
+    return this.communityChat.updateSettings(user.id, id, body)
+  }
+
+  /** Copies a message into up to five other conversations. */
+  @Post('messages/:id/forward')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 20, windowSeconds: 60, prefix: 'message.forward' })
+  async forwardMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ForwardMessageSchema)) body: ForwardMessageInput,
+  ) {
+    return this.messagingService.forwardMessage(user.id, id, body.conversationIds)
+  }
+
+  /** Cast, move or withdraw a vote. One choice per member. */
+  @Post('messages/:id/poll/vote')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 60, windowSeconds: 60, prefix: 'poll.vote' })
+  async voteOnPoll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(VotePollSchema)) body: VotePollInput,
+  ) {
+    return this.messagingService.voteOnPoll(user.id, id, body.optionId)
+  }
+
+  @Get('conversations/:id/pinned')
+  async getPinnedMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    const data = await this.communityChat.getPinned(user.id, id)
+    return { data }
+  }
+
+  /** Toggle: pinning the pinned message unpins it. Moderators only. */
+  @Post('messages/:id/pin')
+  @HttpCode(HttpStatus.OK)
+  async togglePinMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.communityChat.pinMessage(user.id, id)
+  }
+
+  /**
+   * Moderator removal, which is not the same endpoint as deleting your own
+   * message: this one acts on someone else's and always removes it for everyone.
+   */
+  @Delete('messages/:id/moderate')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async moderateDeleteMessage(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    await this.communityChat.moderateDelete(user.id, id)
+  }
 
   // ── CONVERSATIONS ──────────────────────────────────────────────────────────
 
@@ -97,6 +195,21 @@ export class MessagingController {
     @Param('id') id: string,
   ) {
     return this.messagingService.getConversationById(user.id, id)
+  }
+
+  /**
+   * The call ringing for this member right now, or null.
+   *
+   * A call invite is a one-shot socket event, so an app opened from a device
+   * notification has already missed it and would otherwise show nothing to
+   * answer. This lets it ask.
+   */
+  @Get('calls/ringing')
+  async ringingCall(@CurrentUser() user: AuthenticatedUser) {
+    const ringing = await this.gateway.getRingingFor(user.id)
+    if (!ringing) return { data: null }
+    const caller = await this.messagingService.getCallIdentity(ringing.callerId)
+    return { data: { ...ringing, caller } }
   }
 
   @Delete('conversations/:id')

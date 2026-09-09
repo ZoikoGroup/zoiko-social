@@ -104,6 +104,20 @@ interface BrowseFilters {
   nearLng?: number
 }
 
+/**
+ * How many messages of a thread are returned.
+ *
+ * The whole thread used to load, oldest first, with a join to each sender, every
+ * time the page opened. That is fine for the short exchange most of these are, and
+ * grows without limit for the ones that are not — a long negotiation re-fetched in
+ * full on every visit.
+ *
+ * Ordered newest-first so the cap keeps the recent end of the conversation, then
+ * reversed for display. Anything older needs pagination, which no caller asks for
+ * yet; a thread this long is the signal to build it.
+ */
+const RECENT_THREAD_MESSAGES = 200
+
 @Injectable()
 export class BreedingService {
   constructor(
@@ -548,9 +562,12 @@ export class BreedingService {
     await this.loadThread(requestId, userId)
     const msgs = await this.prisma.breedingRequestMessage.findMany({
       where: { requestId },
-      orderBy: { createdAt: 'asc' },
+      // Newest first so the cap keeps the recent end, reversed just below.
+      orderBy: { createdAt: 'desc' },
+      take: RECENT_THREAD_MESSAGES,
       include: { sender: { select: { id: true, username: true, displayName: true, avatarUrl: true } } },
     })
+    msgs.reverse()
     return msgs.map((m) => ({
       id: m.id, body: m.body, flagged: m.flagged, createdAt: m.createdAt.toISOString(), mine: m.senderId === userId,
       sender: { id: m.sender.id, username: m.sender.username, displayName: m.sender.displayName, avatarUrl: m.sender.avatarUrl },

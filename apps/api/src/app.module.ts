@@ -4,6 +4,7 @@ import { AppService } from './app.service'
 import { ConfigModule } from './modules/config/config.module'
 import { DatabaseModule } from './modules/database/database.module'
 import { CommonModule } from './modules/common/common.module'
+import { CommsModule } from './modules/comms/comms.module'
 import { AuditLogModule } from './modules/common/audit-log/audit-log.module'
 import { ModerationModule } from './modules/common/moderation/moderation.module'
 import { AuthModule } from './modules/auth/auth.module'
@@ -14,6 +15,7 @@ import { QueueModule } from './modules/queue/queue.module'
 import { ProfileModule } from './modules/profile/profile.module'
 import { NetworkModule } from './modules/network/network.module'
 import { NotificationsModule } from './modules/notifications/notifications.module'
+import { PushModule } from './modules/push/push.module'
 import { PostsModule } from './modules/posts/posts.module'
 import { FeedModule } from './modules/feed/feed.module'
 import { EngagementModule } from './modules/engagement/engagement.module'
@@ -26,6 +28,7 @@ import { AdoptionModule } from './modules/adoption/adoption.module'
 import { ProvidersModule } from './modules/providers/providers.module'
 import { LostFoundModule } from './modules/lost-found/lost-found.module'
 import { NewsModule } from './modules/news/news.module'
+import { AdminModule } from './modules/admin/admin.module'
 import { ShopModule } from './modules/shop/shop.module'
 import { BreedingModule } from './modules/breeding/breeding.module'
 import { HealthModule } from './health/health.module'
@@ -48,12 +51,14 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
     RealtimeModule,
     QueueModule,
     CommonModule,
+    CommsModule,
     AuditLogModule,
     ModerationModule,
     AuthModule,
     ProfileModule,
     NetworkModule,
     NotificationsModule,
+    PushModule,
     PostsModule,
     FeedModule,
     EngagementModule,
@@ -66,6 +71,7 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module'
     ProvidersModule,
     LostFoundModule,
     NewsModule,
+    AdminModule,
     ShopModule,
     BreedingModule,
     AnalyticsModule,

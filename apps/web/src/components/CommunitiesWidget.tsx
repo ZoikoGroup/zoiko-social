@@ -4,15 +4,17 @@ import Link from 'next/link'
 import { Users, Plus } from 'lucide-react'
 import { communitiesApi, type CommunityCard } from '@/lib/api'
 import { useCachedValue } from '@/hooks/use-cache'
+import { useTranslations } from 'next-intl'
 
 export function CommunitiesWidget(): React.JSX.Element {
+  const t = useTranslations('communities')
   const { data, isLoading: loading } = useCachedValue<CommunityCard[]>('communities:mine', () => communitiesApi.mine())
   const communities = (data ?? []).slice(0, 4)
 
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-label-md font-bold text-on-surface">My Groups</h3>
+        <h3 className="text-label-md font-bold text-on-surface">{t('myGroups')}</h3>
         <Link href="/communities" className="text-outline hover:text-primary transition-colors cursor-pointer p-0.5 rounded" aria-label="Browse communities">
           <Plus className="w-4 h-4" />
         </Link>

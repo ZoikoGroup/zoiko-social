@@ -12,6 +12,7 @@ import {
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS,
 } from '@/lib/pet-care-api'
 import { VET_SERVICE_CATEGORIES, VET_SERVICE_CATEGORY_LABELS, todayHoursLabel } from '@/lib/vet'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { VetClinicFormModal } from '@/components/vet/VetClinicFormModal'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
@@ -28,6 +29,7 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 export default function ClinicDashboardPage(): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [clinics, setClinics] = useState<Provider[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -114,7 +116,7 @@ export default function ClinicDashboardPage(): React.JSX.Element {
                   {clinics.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               ) : <h1 className="font-headline text-label-lg font-bold text-on-surface truncate">{active?.name}</h1>}
-              <p className="text-[12px] text-outline flex items-center gap-1"><Clock className="w-3 h-3" />{active ? todayHoursLabel(active.hours, active.is24x7) : ''}</p>
+              <p className="text-[12px] text-outline flex items-center gap-1"><Clock className="w-3 h-3" />{active ? todayHoursLabel(active.hours, active.is24x7, locale) : ''}</p>
             </div>
             <div className="flex items-center gap-2">
               {active && <Link href={`/vet-finder/${active.id}`} className="px-3 py-1.5 rounded-lg bg-surface-container text-on-surface-variant text-[12px] font-semibold hover:bg-surface-container-high">View</Link>}
@@ -188,6 +190,7 @@ function AppointmentsTab({ appointments, onChanged }: { appointments: PetCareBoo
 }
 
 function AppointmentRow({ a, onChanged, onSummary, compact }: { a: PetCareBooking; onChanged?: () => void; onSummary?: () => void; compact?: boolean }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { format } = useCurrency()
   const [busy, setBusy] = useState(false)
   const dt = new Date(a.scheduledAt)
@@ -209,7 +212,7 @@ function AppointmentRow({ a, onChanged, onSummary, compact }: { a: PetCareBookin
             <p className="text-label-md font-semibold text-on-surface truncate">{a.service.name}</p>
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${BOOKING_STATUS_COLORS[a.status] ?? ''}`}>{BOOKING_STATUS_LABELS[a.status] ?? a.status}</span>
           </div>
-          <p className="text-[12px] text-outline flex items-center gap-1 mt-0.5"><Calendar className="w-3 h-3" />{dt.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>
+          <p className="text-[12px] text-outline flex items-center gap-1 mt-0.5"><Calendar className="w-3 h-3" />{formatDate(dt, 'weekdayDayMonthTime')}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-[12px] text-on-surface-variant">
             <span className="flex items-center gap-1"><PawPrint className="w-3 h-3 text-primary" />{a.pet?.name ?? a.petName ?? 'Pet'}{a.pet?.species ? ` · ${a.pet.species}` : ''}</span>
             <span>{a.seeker.displayName}</span>
@@ -465,7 +468,7 @@ function ModalFooter({ onClose, onSave, saving, disabled, saveLabel }: { onClose
   return (
     <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
       <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
-      <button onClick={onSave} disabled={saving || disabled} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">{saving && <Loader2 className="w-4 h-4 animate-spin" />}{saveLabel}</button>
+      <button onClick={onSave} disabled={saving || disabled} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">{saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>{saveLabel}</span></button>
     </div>
   )
 }

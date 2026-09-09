@@ -53,6 +53,9 @@ function build(overrides: {
     authService as unknown as AuthService,
     config as unknown as ConfigService,
     { createSignedDownloadUrl: jest.fn() } as unknown as SupabaseStorageService,
+    // Only used to read an email for a profile that publishes one, which none
+    // of these cases does.
+    { auth: { admin: { getUserById: jest.fn() } } } as never,
   )
   return { service, prisma, redis, realtime, auditLog, authService }
 }
@@ -72,10 +75,19 @@ describe('ProfileService.deactivateAccount', () => {
     expect(authService.deleteAccount).not.toHaveBeenCalled()
   })
 
-  it('signs every device out', async () => {
+  // Supabase revokes by JWT — admin.signOut takes "a valid, logged-in JWT" and
+  // there is no revoke-by-id. This previously asserted the user id was passed,
+  // which is exactly why every logout failed.
+  it('signs every device out using the caller token', async () => {
+    const { service, authService } = build()
+    await service.deactivateAccount(USER_ID, 'jwt-token')
+    expect(authService.logout).toHaveBeenCalledWith('jwt-token')
+  })
+
+  it('skips the revoke when there is no token rather than calling with nothing', async () => {
     const { service, authService } = build()
     await service.deactivateAccount(USER_ID)
-    expect(authService.logout).toHaveBeenCalledWith(USER_ID)
+    expect(authService.logout).not.toHaveBeenCalled()
   })
 
   it('audits the deactivation', async () => {
@@ -365,5 +377,141 @@ describe('ProfileService.completeOnboarding', () => {
     await expect(service.completeOnboarding(USER_ID, input)).rejects.toMatchObject({
       response: { code: 'ONBOARDING_ALREADY_COMPLETE' },
     })
+  })
+})
+
+/*
+  The email gate.
+
+  Worth its own tests because the failure mode is silent: nothing about a
+  profile page looks wrong when it publishes an address the member never agreed
+  to publish. The cases below fix each rule so a later refactor has to break a
+  test rather than a promise.
+*/
+describe('ProfileService.getProfileById — the email gate', () => {
+  const OWNER = 'member-1'
+  const EMAIL = 'member@example.com'
+
+  const RECORD = {
+    id: OWNER,
+    username: 'someone',
+    displayName: 'Someone',
+    firstName: null,
+    lastName: null,
+    bio: null,
+    city: null,
+    avatarUrl: null,
+    bannerUrl: null,
+    websiteUrl: null,
+    state: 'active',
+    role: 'user',
+    verificationTier: 'none',
+    isPrivate: false,
+    followersCount: 0,
+    followingCount: 0,
+    postsCount: 0,
+    trustScore: 0,
+    currency: null,
+    usernameChangedAt: null,
+    onboardingCompletedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+    professionalProfile: null,
+  }
+
+  function buildGate(opts: { settings?: unknown; isPrivate?: boolean; authFails?: boolean } = {}) {
+    const getUserById = jest.fn().mockImplementation(async () =>
+      opts.authFails
+        ? { data: { user: null }, error: { message: 'auth unreachable' } }
+        : { data: { user: { id: OWNER, email: EMAIL } }, error: null },
+    )
+    const prisma = {
+      profile: {
+        findUnique: jest.fn().mockResolvedValue({ ...RECORD, isPrivate: opts.isPrivate ?? false }),
+      },
+      // `settings: null` stands for a member who has never opened Settings.
+      userSettings: {
+        findUnique: jest.fn().mockResolvedValue(
+          opts.settings === undefined ? { showLocation: false, showLastActive: false, showEmail: false } : opts.settings,
+        ),
+      },
+      userPresence: { findFirst: jest.fn().mockResolvedValue(null) },
+    }
+    const redis = {
+      getProfile: jest.fn().mockResolvedValue(null),
+      setProfile: jest.fn().mockResolvedValue(undefined),
+    }
+
+    const service = new ProfileService(
+      prisma as unknown as PrismaService,
+      redis as unknown as RedisService,
+      {} as unknown as RealtimeService,
+      {} as unknown as NotificationQueueService,
+      {} as unknown as AuditLogService,
+      {} as unknown as ProfanityService,
+      {} as unknown as AuthService,
+      {} as unknown as ConfigService,
+      {} as unknown as SupabaseStorageService,
+      { auth: { admin: { getUserById } } } as never,
+    )
+    return { service, getUserById }
+  }
+
+  it('publishes the address to a logged-out visitor once the member switches it on', async () => {
+    const { service } = buildGate({ settings: { showLocation: false, showLastActive: false, showEmail: true } })
+    const profile = await service.getProfileById(OWNER)
+    expect(profile.email).toBe(EMAIL)
+  })
+
+  it('withholds it from a signed-in stranger while the toggle is off', async () => {
+    const { service, getUserById } = buildGate({
+      settings: { showLocation: false, showLastActive: false, showEmail: false },
+    })
+    const profile = await service.getProfileById(OWNER, 'someone-else')
+    expect(profile.email).toBeNull()
+    // Not merely hidden after the fact: auth was never asked.
+    expect(getUserById).not.toHaveBeenCalled()
+  })
+
+  it('withholds it when the member has no settings row at all', async () => {
+    // The column defaults to false, and a missing row has to mean the same
+    // thing — reading it as "show" would publish an address nobody chose to.
+    const { service } = buildGate({ settings: null })
+    const profile = await service.getProfileById(OWNER, 'someone-else')
+    expect(profile.email).toBeNull()
+  })
+
+  it('withholds it on a private account even with the toggle on', async () => {
+    const { service } = buildGate({
+      settings: { showLocation: false, showLastActive: false, showEmail: true },
+      isPrivate: true,
+    })
+    const profile = await service.getProfileById(OWNER, 'someone-else')
+    expect(profile.email).toBeNull()
+  })
+
+  it('always shows the owner their own address, whatever the toggle says', async () => {
+    const { service } = buildGate({ settings: { showLocation: false, showLastActive: false, showEmail: false } })
+    const profile = await service.getProfileById(OWNER, OWNER)
+    expect(profile.email).toBe(EMAIL)
+  })
+
+  it('returns null rather than failing the request when auth is unreachable', async () => {
+    const { service } = buildGate({
+      settings: { showLocation: false, showLastActive: false, showEmail: true },
+      authFails: true,
+    })
+    const profile = await service.getProfileById(OWNER)
+    expect(profile.email).toBeNull()
+    expect(profile.username).toBe('someone')
+  })
+
+  it('keeps the address out of the shared cache entry', async () => {
+    // One cache entry serves every viewer, so anything viewer-specific written
+    // into it would leak to the next reader.
+    const { service } = buildGate({ settings: { showLocation: false, showLastActive: false, showEmail: true } })
+    await service.getProfileById(OWNER)
+    const redis = (service as unknown as { redis: { setProfile: jest.Mock } }).redis
+    expect(redis.setProfile).toHaveBeenCalledWith(OWNER, expect.objectContaining({ email: null }))
   })
 })

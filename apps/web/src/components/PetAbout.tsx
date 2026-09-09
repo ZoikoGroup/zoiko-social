@@ -3,6 +3,7 @@
 import { Cake, Palette, ScanLine, Scissors, Home, Scale, Pencil } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ageOf, formatPetDate, neuteredLabel } from '@/lib/pet'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 interface AboutPet {
   species: string
@@ -41,10 +42,11 @@ export function PetAbout({
   showMicrochip = true,
   className = '',
 }: PetAboutProps): React.JSX.Element | null {
+  const { locale } = useDateFormat()
   const age = ageOf(pet.birthdate)
-  const born = formatPetDate(pet.birthdate)
+  const born = formatPetDate(pet.birthdate, locale)
   const neutered = neuteredLabel(pet.neutered)
-  const adopted = formatPetDate(pet.adoptionDate)
+  const adopted = formatPetDate(pet.adoptionDate, locale)
 
   const rows: Row[] = []
   if (age) rows.push({ Icon: Cake, label: 'Age', value: age, hint: born ?? undefined })

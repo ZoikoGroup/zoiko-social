@@ -173,7 +173,16 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     const supabase = createClient()
     const trimmed = identifier.trim()
     try {
-      // Email or phone → authenticate directly with Supabase
+      /*
+        Email → straight to Supabase; a username needs the API to resolve it.
+
+        There was a third branch here for phone numbers. It worked, and nobody
+        could reach it: no part of the product ever stored a phone — not signup,
+        not settings, not edit profile — so it could never match an account, and
+        0 of 51 accounts in auth had one. Removed along with the word "phone" on
+        the login field, rather than left as a method people were invited to try
+        and could not use.
+      */
       if (trimmed.includes('@')) {
         const { error } = await supabase.auth.signInWithPassword({ email: trimmed.toLowerCase(), password })
         if (error) {
@@ -181,14 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         }
         return {}
       }
-      if (/^\+?[0-9()\s-]{7,20}$/.test(trimmed)) {
-        const { error } = await supabase.auth.signInWithPassword({ phone: trimmed.replace(/[()\s-]/g, ''), password })
-        if (error) {
-          return { error: error.message === 'Invalid login credentials' ? 'Invalid credentials' : error.message }
-        }
-        return {}
-      }
-
       // Username → the API resolves it server-side and returns a session
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
         method: 'POST',
@@ -304,7 +305,83 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       // Socket module unavailable — nothing to disconnect
     }
 
+    /*
+     * Hand back the push subscription before the session goes.
+     *
+     * A subscription belongs to a browser, and the server records which member
+     * it belongs to. Leaving it in place on sign-out meant this browser kept
+     * receiving that person's notifications afterwards — and, if someone else
+     * signed in here, receiving them on that person's screen. It has to be
+     * released while the token is still valid, which is why it happens before
+     * the Supabase sign-out below.
+     */
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration()
+      const subscription = await reg?.pushManager.getSubscription()
+      if (subscription) {
+        const { mutate } = await import('@/lib/api')
+        await mutate('/push/subscriptions', {
+          method: 'DELETE',
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        }).catch(() => undefined)
+        await subscription.unsubscribe().catch(() => undefined)
+      }
+    } catch {
+      // No service worker, or the browser refused — signing out still proceeds.
+    }
+
+    /*
+     * Drop cached pages belonging to the session that is ending.
+     *
+     * The worker keeps up to fifty navigated pages for a day so the app works
+     * offline. They are keyed by URL alone, with no notion of who was signed in,
+     * so on a shared device the next person to sign in and then lose their
+     * connection would be served the previous person's rendered pages. Static
+     * assets, fonts and images are left alone — those belong to nobody.
+     */
+    try {
+      if (typeof caches !== 'undefined') {
+        const names = await caches.keys()
+        await Promise.all(
+          names.filter((n) => n.startsWith('zk-pages')).map((n) => caches.delete(n)),
+        )
+      }
+    } catch {
+      // Cache Storage unavailable or blocked — not a reason to stay signed in.
+    }
+
     const supabase = createClient()
+
+    /*
+      The access token has to be captured BEFORE signing out, and the API told
+      first.
+
+      This used to run the other way round: sign out on the client, then POST to
+      /auth/logout with no Authorization header at all. That route is behind the
+      auth guard, so the call could only ever return 401 — an error on the console
+      for every single sign-out, silently swallowed by the catch below.
+
+      Order matters beyond the header. The client's own signOut revokes the
+      session, so a call made afterwards presents a token GoTrue has already
+      discarded. Asking the server first means the service-role revocation
+      actually lands, which is what still ends the session on the server when the
+      client-side call below fails and falls back to local-only scope.
+    */
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessToken = session?.access_token
+
+    if (accessToken) {
+      try {
+        await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+      } catch {
+        // The client-side signOut below is the other half of this; a failure
+        // here is not a reason to keep somebody signed in.
+      }
+    }
+
     try {
       // Global scope revokes the refresh token server-side
       await supabase.auth.signOut()
@@ -315,12 +392,6 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
       } catch {
         // Even local cleanup failed — the redirect below still leaves the app in a signed-out state
       }
-    }
-
-    try {
-      await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/v1/auth/logout', { method: 'POST' })
-    } catch {
-      // Ignore API logout errors
     }
 
     window.location.href = '/login'

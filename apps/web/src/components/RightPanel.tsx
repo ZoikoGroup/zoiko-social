@@ -3,13 +3,17 @@
 import { useState } from 'react'
 import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { Bell, AtSign, MapPin, TrendingUp, Calendar, ShieldCheck, ChevronRight, AlertTriangle, PawPrint, Info } from 'lucide-react'
 import { LocationLink } from '@/components/LocationLink'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { UserAvatar } from './UserAvatar'
 import { FollowButton, initialFollowState } from './FollowButton'
 import { SkeletonWidget } from './Skeletons'
-import { networkApi, hashtagsApi, eventsApi, lostFoundApi, PROFESSIONAL_CATEGORY_LABELS, type FollowSuggestion, type EventItem, type LostFoundReport } from '@/lib/api'
+import { networkApi, hashtagsApi, eventsApi, lostFoundApi, type FollowSuggestion, type EventItem, type LostFoundReport } from '@/lib/api'
+import { formatDateTime, formatDayLabel } from '@/lib/datetime'
+import { useTranslations } from 'next-intl'
+import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
 interface Trending { tag: string; postsCount: number }
 
@@ -18,15 +22,10 @@ function formatCount(n: number): string {
   return String(n)
 }
 
-function alertWhen(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-  const sameDay = d.toDateString() === now.toDateString()
-  const yst = new Date(now); yst.setDate(now.getDate() - 1)
-  const isYst = d.toDateString() === yst.toDateString()
-  const day = sameDay ? 'Today' : isYst ? 'Yesterday' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  return `${day}  ·  ${time}`
+function alertWhen(iso: string, locale: string): string {
+  // formatDayLabel handles the today/yesterday wording per locale, so this no
+  // longer hand-rolls the calendar comparison or the English words.
+  return `${formatDayLabel(iso, locale)}  ·  ${formatDateTime(iso, locale, 'time')}`
 }
 
 function Section({
@@ -40,13 +39,14 @@ function Section({
   icon?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
+  const t = useTranslations('panel')
   return (
     <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <h3 className="flex items-center gap-1.5 text-label-md font-bold text-on-surface">{icon}{title}</h3>
         {href && (
           <Link href={href} className="text-[11px] text-primary hover:underline font-medium">
-            View all
+            {t('viewAll')}
           </Link>
         )}
       </div>
@@ -55,17 +55,21 @@ function Section({
   )
 }
 
-function eventDate(iso: string): { mon: string; day: string } {
+function eventDate(iso: string, locale: string): { mon: string; day: string } {
   const d = new Date(iso)
-  return { mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(), day: String(d.getDate()) }
+  return { mon: formatDateTime(d, locale, 'month').toUpperCase(), day: String(d.getDate()) }
 }
-function eventWhen(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+function eventWhen(iso: string, locale: string): string {
+  return formatDateTime(iso, locale, 'weekdayDayMonthTime')
 }
 
 type BottomTab = 'today' | 'trending' | 'trust'
 
 export function RightPanel(): React.JSX.Element {
+  const profLabel = useProfessionalLabel()
+  const t = useTranslations('panel')
+  const tm = useTranslations('modules')
+  const { locale } = useDateFormat()
   const { data, isLoading: loading } = useCachedValue<{
     suggestions: FollowSuggestion[]; trending: Trending[]; events: EventItem[]; alerts: LostFoundReport[]
   }>('rightpanel', async () => {
@@ -88,13 +92,13 @@ export function RightPanel(): React.JSX.Element {
   return (
     <div className="space-y-gutter">
       {/* Local Alerts — recent lost & found reports */}
-      <Section title="Local Alerts" href="/lost-found" icon={<Bell className="w-4 h-4 text-on-surface-variant" />}>
+      <Section title={t('localAlerts')} href="/lost-found" icon={<Bell className="w-4 h-4 text-on-surface-variant" />}>
         {loading ? (
           <SkeletonWidget />
         ) : alerts.length === 0 ? (
           <div className="flex items-center gap-2 text-label-sm text-outline py-2">
             <MapPin className="w-4 h-4 text-primary flex-shrink-0" />
-            <span>No active alerts — check Lost &amp; Found for the latest.</span>
+            <span>{t('noAlerts')}</span>
           </div>
         ) : (
           <div className="space-y-3.5">
@@ -107,10 +111,10 @@ export function RightPanel(): React.JSX.Element {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-label-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
-                      {lost ? `${a.petName ?? a.species} Reported Lost` : `${a.petName ?? a.species} Found`}
+                      {lost ? t('reportedLost', { name: a.petName ?? a.species }) : t('reportedFound', { name: a.petName ?? a.species })}
                     </p>
                     {a.lastSeenLocation && <LocationLink location={a.lastSeenLocation} showIcon={false} className="text-[11px] text-outline max-w-full" />}
-                    <p className="text-[11px] text-outline">{alertWhen(a.createdAt)}</p>
+                    <p className="text-[11px] text-outline">{alertWhen(a.createdAt, locale)}</p>
                   </div>
                 </Link>
               )
@@ -120,19 +124,19 @@ export function RightPanel(): React.JSX.Element {
       </Section>
 
       {/* People & Orgs to Follow — real network suggestions */}
-      <Section title="People &amp; Orgs to Follow" href="/network">
+      <Section title={t('peopleToFollow')} href="/network">
         {loading ? (
           <SkeletonWidget />
         ) : suggestions.length === 0 ? (
           <p className="text-label-sm text-outline py-1 flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5" />
-            No suggestions yet.
+            {t('noSuggestions')}
           </p>
         ) : (
           <div className="space-y-3.5">
             {suggestions.map((person) => {
               const categoryLabel = person.professionalCategory
-                ? (PROFESSIONAL_CATEGORY_LABELS[person.professionalCategory] ?? person.professionalCategory)
+                ? profLabel(person.professionalCategory)
                 : null
               return (
                 <div key={person.id} className="flex items-center gap-3">
@@ -165,7 +169,7 @@ export function RightPanel(): React.JSX.Element {
       {/* Today / Trending / Trust tabbed widget */}
       <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
         <div className="flex items-center gap-5 px-4 pt-3 border-b border-outline-variant/30">
-          {([['today', 'Today'], ['trending', 'Trending'], ['trust', 'Trust']] as [BottomTab, string][]).map(([key, label]) => (
+          {([['today', t('today')], ['trending', t('trending')], ['trust', t('trust')]] as [BottomTab, string][]).map(([key, label]) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -182,20 +186,20 @@ export function RightPanel(): React.JSX.Element {
           {tab === 'today' && (
             <>
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-label-md font-bold text-on-surface">Events</h4>
-                <Link href="/events" className="text-[11px] text-primary hover:underline font-medium">View all</Link>
+                <h4 className="text-label-md font-bold text-on-surface">{tm('events')}</h4>
+                <Link href="/events" className="text-[11px] text-primary hover:underline font-medium">{t('viewAll')}</Link>
               </div>
               {loading ? (
                 <SkeletonWidget />
               ) : events.length === 0 ? (
                 <div className="flex items-center gap-2 text-label-sm text-outline py-2">
                   <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
-                  <span>No upcoming events yet — create one on the Events page.</span>
+                  <span>{t('noEvents')}</span>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {events.map((e) => {
-                    const d = eventDate(e.startsAt)
+                    const d = eventDate(e.startsAt, locale)
                     return (
                       <Link key={e.id} href="/events" className="flex items-center gap-3 group">
                         <div className="flex flex-col items-center justify-center w-11 h-11 rounded-lg bg-primary/10 flex-shrink-0">
@@ -204,7 +208,7 @@ export function RightPanel(): React.JSX.Element {
                         </div>
                         <div className="min-w-0">
                           <p className="text-label-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">{e.title}</p>
-                          <p className="text-[11px] text-outline truncate">{eventWhen(e.startsAt)}</p>
+                          <p className="text-[11px] text-outline truncate">{eventWhen(e.startsAt, locale)}</p>
                         </div>
                       </Link>
                     )
@@ -220,7 +224,7 @@ export function RightPanel(): React.JSX.Element {
             ) : trending.length === 0 ? (
               <div className="flex items-center gap-2 text-label-sm text-outline py-2">
                 <TrendingUp className="w-4 h-4 text-primary flex-shrink-0" />
-                <span>Nothing trending yet.</span>
+                <span>{t('nothingTrending')}</span>
               </div>
             ) : (
               <div className="space-y-2.5">
@@ -242,18 +246,16 @@ export function RightPanel(): React.JSX.Element {
               <div className="flex items-start gap-2 mb-3">
                 <ShieldCheck className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-label-md font-bold text-on-surface leading-tight">Build trust on ZoikoSocial</h4>
-                  <p className="text-[11px] text-on-surface-variant mt-1">
-                    Verify your profile to show credibility and unlock exclusive features.
-                  </p>
-                  <DocsHelpLink href="/docs/profile-and-pets#professional-verification" label="Learn more" className="mt-1" />
+                  <h4 className="text-label-md font-bold text-on-surface leading-tight">{t('buildTrust')}</h4>
+                  <p className="text-[11px] text-on-surface-variant mt-1">{t('buildTrustBody')}</p>
+                  <DocsHelpLink href="/docs/profile-and-pets#professional-verification" label={t('learnMore')} className="mt-1" />
                 </div>
               </div>
               <Link
                 href="/settings"
                 className="flex items-center justify-center gap-1 w-full py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"
               >
-                Verify Your Profile
+                {t('verifyProfile')}
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -263,12 +265,12 @@ export function RightPanel(): React.JSX.Element {
 
       {/* Footer */}
       <footer className="flex flex-wrap gap-x-3 gap-y-1.5 px-2 text-[11px] text-outline">
-        <Link href="/docs/getting-started" className="hover:text-primary hover:underline">About</Link>
-        <Link href="/settings" className="hover:text-primary hover:underline">Accessibility</Link>
-        <Link href="/docs" className="hover:text-primary hover:underline">Help Center</Link>
-        <Link href="/settings" className="hover:text-primary hover:underline">Privacy &amp; Terms</Link>
-        <Link href="/settings" className="hover:text-primary hover:underline">Ad Choices</Link>
-        <Link href="/docs/safety-and-trust" className="hover:text-primary hover:underline">Community Guidelines</Link>
+        <Link href="/docs/getting-started" className="hover:text-primary hover:underline">{t('about')}</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">{t('accessibility')}</Link>
+        <Link href="/docs" className="hover:text-primary hover:underline">{tm('helpCenter')}</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">{t('privacyTerms')}</Link>
+        <Link href="/settings" className="hover:text-primary hover:underline">{t('adChoices')}</Link>
+        <Link href="/docs/safety-and-trust" className="hover:text-primary hover:underline">{t('guidelines')}</Link>
         <p className="mt-1.5 w-full">&copy; 2026 ZoikoSocial. All rights reserved.</p>
       </footer>
     </div>

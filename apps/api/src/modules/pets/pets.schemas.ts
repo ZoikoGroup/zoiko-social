@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { httpUrl } from '../common/schemas/http-url'
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
 
@@ -7,7 +8,7 @@ export const CreatePetSchema = z.object({
   species: z.string().trim().min(1).max(40),
   breed: z.string().trim().max(60).optional(),
   sex: z.enum(['male', 'female', 'unknown']).optional(),
-  avatarUrl: z.string().url().max(600).optional(),
+  avatarUrl: httpUrl(600).optional(),
   bio: z.string().trim().max(500).optional(),
   birthdate: DATE.optional(),
   // About details. No weight here — it is tracked over time as a health record
@@ -37,8 +38,8 @@ export const CreateDiaryEntrySchema = z
     kind: z.enum(['note', 'milestone', 'photo', 'checkup']).optional(),
     title: z.string().trim().max(120).optional(),
     body: z.string().trim().max(2000).optional(),
-    photoUrl: z.string().url().max(600).optional(),
-    photoUrls: z.array(z.string().url().max(600)).max(8).optional(),
+    photoUrl: httpUrl(600).optional(),
+    photoUrls: z.array(httpUrl(600)).max(8).optional(),
     tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
     entryDate: DATE.optional(),
   })
@@ -51,8 +52,8 @@ export const UpdateDiaryEntrySchema = z.object({
   kind: z.enum(['note', 'milestone', 'photo', 'checkup']).optional(),
   title: z.string().trim().max(120).optional(),
   body: z.string().trim().max(2000).optional(),
-  photoUrl: z.string().url().max(600).optional(),
-  photoUrls: z.array(z.string().url().max(600)).max(8).optional(),
+  photoUrl: httpUrl(600).optional(),
+  photoUrls: z.array(httpUrl(600)).max(8).optional(),
   tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
   entryDate: DATE.optional(),
 })
@@ -61,7 +62,7 @@ export const CreateHealthRecordSchema = z.object({
   type: z.enum(['vaccination', 'vet_visit', 'medication', 'allergy', 'weight', 'note']),
   title: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(2000).optional(),
-  attachments: z.array(z.string().url().max(600)).max(10).optional(),
+  attachments: z.array(httpUrl(600)).max(10).optional(),
   recordDate: DATE.optional(),
   nextDue: DATE.optional(),
 })
@@ -70,7 +71,7 @@ export const UpdateHealthRecordSchema = z.object({
   type: z.enum(['vaccination', 'vet_visit', 'medication', 'allergy', 'weight', 'note']).optional(),
   title: z.string().trim().min(1).max(120).optional(),
   notes: z.string().trim().max(2000).optional(),
-  attachments: z.array(z.string().url().max(600)).max(10).optional(),
+  attachments: z.array(httpUrl(600)).max(10).optional(),
   recordDate: DATE.optional(),
   nextDue: DATE.optional(),
 })

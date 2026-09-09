@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import {
   Calendar, Clock, MapPin, Loader2, X, Check, AlertCircle,
   PawPrint, Star, MoreHorizontal, Ban, User,
 } from 'lucide-react'
+import { providersApi } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { Header } from '@/components/Header'
@@ -18,8 +20,23 @@ import {
   BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
 } from '@/lib/pet-care-api'
+import { useDateFormat } from '@/hooks/use-date-format'
+
+// The six raw statuses were more filters than the row could fit — the last was
+// clipped behind a scrollbar. These group them by the question someone actually
+// asks: is it still happening, is it over, or did it fall through. Each card
+// still carries its exact status badge, so no detail is lost. "All" stays as the
+// default so a page of only completed bookings never looks empty.
+// labelKey indexes petCare.status — resolved at render.
+const STATUS_GROUPS: ReadonlyArray<{ labelKey: string; value: string }> = [
+  { labelKey: 'all', value: '' },
+  { labelKey: 'upcoming', value: 'pending,confirmed,in_progress' },
+  { labelKey: 'past', value: 'completed' },
+  { labelKey: 'cancelled', value: 'cancelled' },
+]
 
 export default function MyBookingsPage(): React.JSX.Element {
+  const tp = useTranslations('petCare')
   const router = useRouter()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [role, setRole] = useState<'seeker' | 'provider'>('seeker')
@@ -33,23 +50,38 @@ export default function MyBookingsPage(): React.JSX.Element {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [reviewBooking, setReviewBooking] = useState<PetCareBooking | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  // Most people never list a service, and for them "As Provider" is a tab that
+  // can only ever be empty. Only offer the choice to someone who has a listing.
+  const [isProvider, setIsProvider] = useState(false)
+
+  // Derived rather than stored: the toggle only renders for a provider, so
+  // someone who stops being one cannot be left stranded in the provider view.
+  const viewRole = isProvider ? role : 'seeker'
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace('/login')
   }, [authLoading, isAuthenticated, router])
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return
+    providersApi.mine()
+      .then((mine) => setIsProvider(mine.length > 0))
+      .catch(() => setIsProvider(false)) // a failed check just hides the toggle
+  }, [authLoading, isAuthenticated])
+
+
+  useEffect(() => {
     if (authLoading || !isAuthenticated) return undefined
     const t = setTimeout(() => {
       setLoading(true)
       setError('')
-      petCareApi.listBookings(role, statusFilter || undefined)
+      petCareApi.listBookings(viewRole, statusFilter || undefined)
         .then((page) => setBookings(page.data))
         .catch((e) => setError(e.message || 'Failed to load bookings'))
         .finally(() => setLoading(false))
     }, 0)
     return () => clearTimeout(t)
-  }, [authLoading, isAuthenticated, role, statusFilter, refreshKey])
+  }, [authLoading, isAuthenticated, viewRole, statusFilter, refreshKey])
 
   async function handleCancel(bookingId: string): Promise<void> {
     if (cancelling) return
@@ -81,9 +113,17 @@ export default function MyBookingsPage(): React.JSX.Element {
 
   if (authLoading || !isAuthenticated) return <LoadingSkeleton />
 
-  const tabClass = (active: boolean) =>
-    `px-4 py-2 rounded-full text-label-sm font-semibold transition-all cursor-pointer ${
-      active ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface hover:bg-surface-container'
+  // Two different questions, so two different controls. The role segmented box
+  // asks who you are; the underlined tabs ask which bookings to show. They read
+  // as one filter row when both are pills.
+  const roleClass = (active: boolean) =>
+    `px-4 py-2 rounded-lg text-label-sm font-semibold transition-all cursor-pointer ${
+      active ? 'bg-primary text-white shadow-sm' : 'text-outline hover:text-on-surface'
+    }`
+
+  const statusClass = (active: boolean) =>
+    `px-1 pb-2 text-label-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+      active ? 'border-primary text-primary' : 'border-transparent text-outline hover:text-on-surface'
     }`
 
   return (
@@ -99,38 +139,42 @@ export default function MyBookingsPage(): React.JSX.Element {
           <div className="lg:col-span-6 space-y-gutter pb-20">
             <div className="flex items-center justify-between px-1">
               <div>
-                <h1 className="font-headline text-headline-md text-on-surface leading-tight">My Bookings</h1>
-                <p className="text-label-sm text-outline">Manage your pet care appointments</p>
+                <h1 className="font-headline text-headline-md text-on-surface leading-tight">{tp('myBookings')}</h1>
+                <p className="text-label-sm text-outline">{tp('myBookingsSubtitle')}</p>
               </div>
               <button
                 onClick={() => router.push('/pet-care')}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary/10 text-primary text-label-sm font-semibold hover:bg-primary/20 transition-colors cursor-pointer"
               >
-                <Calendar className="w-4 h-4" /> Book a Service
+                <Calendar className="w-4 h-4" /> <span>{tp('bookService')}</span>
               </button>
             </div>
 
-            {/* Role + Status filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex gap-1.5 bg-surface-container-low rounded-xl p-1">
-                <button onClick={() => setRole('seeker')} className={tabClass(role === 'seeker')}>
-                  <PawPrint className="w-3.5 h-3.5 inline mr-1" /> As Customer
-                </button>
-                <button onClick={() => setRole('provider')} className={tabClass(role === 'provider')}>
-                  <User className="w-3.5 h-3.5 inline mr-1" /> As Provider
-                </button>
-              </div>
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {['', 'pending', 'confirmed', 'in_progress', 'completed', 'cancelled'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatusFilter(s)}
-                    className={tabClass(statusFilter === s)}
-                  >
-                    {s ? BOOKING_STATUS_LABELS[s] ?? s : 'All'}
+            {/* Only a provider has two sets of bookings to switch between. */}
+            {isProvider && (
+              <div className="flex items-center gap-3">
+                <span className="text-label-sm text-outline shrink-0">{tp('viewingAs')}</span>
+                <div className="flex gap-1 bg-surface-container-low rounded-xl p-1">
+                  <button onClick={() => setRole('seeker')} className={roleClass(viewRole === 'seeker')}>
+                    <PawPrint className="w-3.5 h-3.5 inline mr-1" /> <span>{tp('asCustomer')}</span>
                   </button>
-                ))}
+                  <button onClick={() => setRole('provider')} className={roleClass(viewRole === 'provider')}>
+                    <User className="w-3.5 h-3.5 inline mr-1" /> <span>{tp('asProvider')}</span>
+                  </button>
+                </div>
               </div>
+            )}
+
+            <div className="flex gap-5 border-b border-outline-variant/30">
+              {STATUS_GROUPS.map((g) => (
+                <button
+                  key={g.labelKey}
+                  onClick={() => setStatusFilter(g.value)}
+                  className={statusClass(statusFilter === g.value)}
+                >
+                  {tp(`status.${g.labelKey}`)}
+                </button>
+              ))}
             </div>
 
             {error && (
@@ -146,13 +190,15 @@ export default function MyBookingsPage(): React.JSX.Element {
             ) : bookings.length === 0 ? (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-12 text-center">
                 <Calendar className="w-10 h-10 text-outline/40 mx-auto mb-3" />
-                <h3 className="text-label-md font-bold text-on-surface">No bookings found</h3>
+                <h3 className="text-label-md font-bold text-on-surface">{tp('noBookingsFound')}</h3>
                 <p className="text-label-sm text-outline mt-1 mb-4">
-                  {role === 'seeker' ? 'You haven\'t booked any services yet.' : 'No one has booked your services yet.'}
+                  {viewRole === 'seeker' ? tp('noBookingsSeeker') : tp('noBookingsProvider')}
                 </p>
-                {role === 'seeker' && (
+                {viewRole === 'seeker' && (
                   <button onClick={() => router.push('/pet-care')} className="px-5 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold cursor-pointer">
-                    Browse Services
+                    {/* Same label as the header button — both land on /pet-care,
+                        and two names for one destination read as two places. */}
+                    Book a Service
                   </button>
                 )}
               </div>
@@ -162,7 +208,7 @@ export default function MyBookingsPage(): React.JSX.Element {
                   <BookingCard
                     key={booking.id}
                     booking={booking}
-                    role={role}
+                    role={viewRole}
                     onCancel={() => setCancelId(booking.id)}
                     onStatusUpdate={(status) => void handleStatusUpdate(booking.id, status)}
                     actionLoading={actionLoading === booking.id}
@@ -193,7 +239,7 @@ export default function MyBookingsPage(): React.JSX.Element {
               <button onClick={() => setCancelId(null)} className="flex-1 py-2.5 rounded-xl border border-outline-variant cursor-pointer">Keep Booking</button>
               <button onClick={() => void handleCancel(cancelId)} disabled={cancelling}
                 className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}Cancel Booking
+                {cancelling && <Loader2 className="w-4 h-4 animate-spin" />}<span>Cancel Booking</span>
               </button>
             </div>
           </div>
@@ -224,6 +270,7 @@ function BookingCard({
   actionLoading: boolean
   onReview?: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const { format } = useCurrency()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -275,11 +322,11 @@ function BookingCard({
             <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[12px] text-outline">
               <span className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                {datetime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                {formatDate(datetime, 'weekdayDayMonth')}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {datetime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                {formatDate(datetime, 'timePadded')}
               </span>
               {booking.location && (
                 <span className="flex items-center gap-1">
@@ -320,7 +367,7 @@ function BookingCard({
                     {action === 'in_progress' && <Clock className="w-3.5 h-3.5 text-purple-500" />}
                     {action === 'completed' && <Star className="w-3.5 h-3.5 text-green-500" />}
                     {action === 'cancelled' && <Ban className="w-3.5 h-3.5 text-red-500" />}
-                    {action === 'confirmed' && 'Confirm'}
+                    <span>{action === 'confirmed' && 'Confirm'}</span>
                     {action === 'in_progress' && 'Start Service'}
                     {action === 'completed' && 'Mark Completed'}
                     {action === 'cancelled' && 'Cancel'}
@@ -358,6 +405,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
   onClose: () => void
   onSubmitted: () => void
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [body, setBody] = useState('')
@@ -411,7 +459,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
               </div>
               <div className="min-w-0">
                 <p className="text-label-sm font-semibold text-on-surface truncate">{booking.service.name}</p>
-                <p className="text-[11px] text-outline">{booking.provider.name} · {new Date(booking.scheduledAt).toLocaleDateString()}</p>
+                <p className="text-[11px] text-outline">{booking.provider.name} · {formatDate(booking.scheduledAt, 'dayMonthYear')}</p>
               </div>
             </div>
 
@@ -456,7 +504,7 @@ function ReviewModal({ booking, onClose, onSubmitted }: {
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2 hover:bg-primary/90"
               >
                 {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {saving ? 'Submitting…' : 'Submit Review'}
+                <span>{saving ? 'Submitting…' : 'Submit Review'}</span>
               </button>
             </div>
           </>

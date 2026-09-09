@@ -215,7 +215,7 @@ function SettingsForm({ community, onClose, onSaved, onDeleted }: Omit<Community
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {saving ? 'Saving…' : 'Save changes'}
+            <span>{saving ? 'Saving…' : 'Save changes'}</span>
           </button>
         </div>
       </div>

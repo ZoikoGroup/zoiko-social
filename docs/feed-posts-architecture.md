@@ -1,7 +1,7 @@
 # ZoikoSocial — Feed & Posts Module Architecture
 
-**Version:** 1.0 · **Status:** Design — ready for implementation · **Owner:** Platform Engineering
-**Companion:** [profile-network-architecture.md](./profile-network-architecture.md) (implemented & verified)
+**Version:** 1.1 · **Status:** Implemented — §4 reflects shipped behaviour · **Owner:** Platform Engineering
+**Companions:** [profile-network-architecture.md](./profile-network-architecture.md) (implemented & verified) · [news-pipeline.md](./news-pipeline.md) (how the second feed stream is produced)
 
 This document specifies the production architecture for the **Feed & Posts Module**. It reuses every proven pattern from the Profile & Network build — transactional counters, L1/L2 Redis caching, viewer-context batch decoration, cursor pagination, BullMQ delivery, Socket.IO rooms, privacy gates — and introduces nothing that duplicates existing infrastructure.
 
@@ -467,15 +467,57 @@ GET /feed?cursor=…
   2. Post hydration             → L1/L2 post:{id} cache, batch-miss → single IN query
   3. Viewer decoration          → 2 IN-queries: my likes, my saves (batch, no N+1)
   4. Author hydration           → existing profile:{id} L1/L2 cache
-  5. Response                   → { data, nextCursor, hasMore }
+  5. News attachment            → `withNews()` — see 4.3
+  6. Response                   → { data, news, nextCursor, hasMore }
 ```
 
-**First page cached:** `feed:first:{userId}` (60s TTL, L2 only) — the most-hit query in the product costs Redis-only on repeat opens. Invalidated when anyone the user follows posts (fanout job deletes followers' first-page keys — cheap DEL fan-out even in Phase 1).
+**First page cached:** `feed:first:{userId}` (60s TTL, L2 only) — the most-hit query in the product costs Redis-only on repeat opens. Invalidated when anyone the user follows posts (fanout job deletes followers' first-page keys — cheap DEL fan-out even in Phase 1). News is attached *after* the cache, never inside it: the payload is shared across requests for that viewer, and articles publish on their own schedule.
 
-### 4.3 Frontend behavior
+### 4.3 News is a second stream, not a garnish
 
-- **Infinite scroll** — IntersectionObserver sentinel, fetches next cursor at 80% scroll; the existing SWR client cache makes back-navigation instant.
-- **New-post banner, not injection** — on `post:new` socket event, show "New posts ↑" pill (Instagram/Twitter pattern); tapping prepends without scroll-jank. Pull-to-refresh does the same via `GET /feed` with no cursor.
+Home carries two independent streams. Posts are ranked; news is chronological
+(featured first). They are never scored against each other — an article has
+readers and a post has a following, so a common ranking would either bury news
+permanently or let one popular article outrank everything a member follows.
+
+**News pages in its own right: `NEWS_PER_PAGE = 30`.** The count used to be
+derived from the post count (`floor(postCount / 5)`), which assumed posts are
+the feed. That assumption fails badly at current scale — **15 posts exist
+platform-wide against 262 published articles** — so the old arithmetic produced
+three to six cards a page and left almost the entire catalogue unreachable.
+
+**The cursor carries two positions**, `posts.news`, base64-encoded and opaque to
+the client. The streams advance independently: once the posts are exhausted the
+post offset stops moving while the news offset keeps going. A cursor issued
+before this change is a bare integer, which still parses as the post offset with
+news starting at zero — one replayed page of articles, absorbed by the client's
+dedupe-by-id.
+
+**`hasMore` is true while *either* stream has more.** It previously described the
+posts alone, so a feed with 15 posts reported itself finished on page one. A page
+whose posts are spent now returns empty `data` with 30 cards attached — the right
+answer when the people you follow have stopped posting but the world has not.
+
+**Placement — `newsSlots(articleCount, postCount)`** (exported from
+`feed.service.ts`, unit-tested). Returns one index per article: the position of
+the post it follows. At most one card sits between consecutive posts; the
+remainder is positioned at or past the end, where the client appends it.
+
+Uniqueness is a *correctness* property, not a nicety: the client keys its lookup
+by this index, so a repeated value does not render two cards, it silently drops
+one. The tests include an exhaustive sweep over every article/post combination up
+to 40×40. The client holds a **list** per index for the same reason — a later
+page's posts can occupy indices a previous page's overflow already claimed.
+
+Ingestion, cover handling and the refresh schedule are covered separately in
+[news-pipeline.md](./news-pipeline.md).
+
+### 4.4 Frontend behavior
+
+- **Infinite scroll** — IntersectionObserver sentinel with a 400px root margin; appends posts and news, deduping both by id.
+- **New-post banner, not injection** — on `post:new` socket event, show "New posts ↑" pill (Instagram/Twitter pattern). It shares one refresh path with the end-of-feed control below.
+- **End of feed is stated, not implied** — when `hasMore` goes false the feed shows "You're all caught up" with a Refresh button. Previously the list simply stopped, leaving nothing to distinguish "you have seen everything" from "the next page failed".
+- **Refresh replaces, never merges** — a refresh asks for what is current, and merging a fresh ranking into a stale one produces an order matching neither. It deliberately renders no skeleton, so asking for the latest never blanks the page being read.
 - **Prefetch** — page N+1 fetched when page N renders; images beyond the fold get `loading="lazy"`; blurhash placeholders paint instantly.
 - **Optimistic create** — composer inserts the post locally on submit; reconciles with the 201 payload.
 
@@ -483,7 +525,23 @@ GET /feed?cursor=…
 
 ## 5. Feed Ranking Strategy
 
-**Now:** strict reverse-chronological `(created_at, id) DESC`. Honest, cheap, and correct for a young network where users follow few accounts.
+**Now (shipped):** both Home and Explore rank a bounded recent pool with the
+affinity-based scoring engine in `PersonalizationService` —
+`interest × engagement × recency × trust` — then diversify by author (Home caps
+posts per author; Explore caps at 2). Cold start, meaning a viewer with no
+affinity profile yet, collapses to popularity-and-recency, so the change is
+invisible until the model has data.
+
+Paging is offset-based over that ranked order, cached per viewer in Redis and
+only trusted when *continuing* a scroll — a fresh visit re-ranks rather than
+replaying a snapshot from three minutes ago.
+
+News does **not** pass through this. It is a separate chronological stream, for
+the reasons in §4.3.
+
+> Superseded: this section previously described strict reverse-chronological
+> `(created_at, id) DESC` keyset pagination, and §4.1 still shows that query.
+> Both describe the original design, not the current code.
 
 **Design for later — pluggable scoring at the FeedSource seam:**
 
@@ -693,7 +751,7 @@ Base `/api/v1` · Bearer JWT (local JWKS verify) · envelope `{success, data} | 
 
 | Endpoint | Notes |
 |---|---|
-| `GET /feed?cursor&limit` | home feed (§4); first page L2-cached |
+| `GET /feed?cursor&limit` | home feed (§4); first page L2-cached. Returns `{ data, news, nextCursor, hasMore }` — `limit` caps at 30 posts, `news` carries up to 30 article cards with their placement indices, and `hasMore` reflects **both** streams, so a page of `data: []` with news attached is normal and not the end |
 | `GET /profiles/:id/posts?cursor` | profile grid; privacy-gated; media-only variant `?mediaOnly=1` |
 | `GET /me/saved?cursor` | private saved grid |
 | `GET /me/liked?cursor` | optional own-likes list |

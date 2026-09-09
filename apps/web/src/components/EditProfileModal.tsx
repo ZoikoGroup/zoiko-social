@@ -7,11 +7,21 @@ import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { ImageCropper } from '@/components/ImageCropper'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
+import { useDateFormat } from '@/hooks/use-date-format'
 
-// Baked output sizes for the crop editor — kept small for tiny, fast-loading files
+// Baked output sizes for the crop editor.
+//
+// The banner renders about 600 CSS px wide (six columns of a 1280px container),
+// so a 2x display already wants ~1200 device px and 1280 left no headroom at
+// all — every banner was being drawn at close to 1:1 and looked soft. 1600 gives
+// room on dense screens without the file getting silly.
+//
+// 0.7 WebP was visibly blocky on photographs, which is most banners. 0.85 is the
+// usual point where artefacts stop being obvious; a 1600x400 banner still lands
+// well under 300 KB.
 const AVATAR_OUTPUT = 400 // square
-const BANNER_OUTPUT = { width: 1280, height: 320 } // 4:1
-const IMAGE_QUALITY = 0.7 // aggressive WebP compression
+const BANNER_OUTPUT = { width: 1600, height: 400 } // 4:1, matched by ProfileHeader
+const IMAGE_QUALITY = 0.85
 
 type CropTarget = { src: string; kind: 'avatar' | 'banner' }
 
@@ -34,10 +44,12 @@ export function EditProfileModal({ open, profile, onClose, onSaved }: EditProfil
 }
 
 function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalProps, 'open'>): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [username, setUsername] = useState(profile.username)
   const [bio, setBio] = useState(profile.bio ?? '')
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '')
+  const [city, setCity] = useState(profile.city ?? '')
   const [isPrivate, setIsPrivate] = useState(profile.isPrivate)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile.avatarUrl)
@@ -164,6 +176,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
       const updated = await profileApi.update({
         displayName: displayName.trim() || profile.displayName,
         bio: bio.trim(),
+        city: city.trim() || null,
         websiteUrl: websiteUrl.trim() || null,
         isPrivate,
         ...(avatarUrl ? { avatarUrl } : {}),
@@ -282,7 +295,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
             {usernameLocked ? (
               <p className="text-[11px] text-outline mt-1">
                 Username can be changed once every 30 days — next change available{' '}
-                {nextUsernameChange?.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}.
+                {formatDate(nextUsernameChange, 'dayMonthLong')}.
               </p>
             ) : usernameStatus === 'taken' ? (
               <p className="text-[11px] text-red-500 mt-1">This username is already taken.</p>
@@ -328,6 +341,18 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
             />
           </div>
 
+          <div>
+            <label className="text-label-sm font-semibold text-on-surface block mb-1.5">City / Region</label>
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="e.g. London, Berlin, Tokyo"
+              maxLength={100}
+              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
+            />
+            <p className="text-[11px] text-outline mt-1">Visible on your profile when Show location is enabled.</p>
+          </div>
+
           <label className="flex items-center justify-between cursor-pointer">
             <span className="flex items-center gap-2 text-label-md text-on-surface">
               <Lock className="w-4 h-4 text-outline" />
@@ -340,7 +365,11 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
               onClick={() => setIsPrivate((v) => !v)}
               className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${isPrivate ? 'bg-primary' : 'bg-outline-variant'}`}
             >
-              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isPrivate ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              {/* left-0.5 anchors the knob; without it the span is absolute with
+                  left:auto and lands at its static position — centred, since a
+                  button centres content — so the "on" state overflowed the track
+                  and neither state read clearly. Travel is 20px: 40 − 16 − 2 − 2. */}
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isPrivate ? 'translate-x-5' : 'translate-x-0'}`} />
             </button>
           </label>
           <p className="text-[11px] text-outline -mt-2">
@@ -362,7 +391,7 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
             className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors cursor-pointer flex items-center justify-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {saving ? 'Saving…' : 'Save changes'}
+            <span>{saving ? 'Saving…' : 'Save changes'}</span>
           </button>
         </div>
       </div>

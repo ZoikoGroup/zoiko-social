@@ -248,7 +248,7 @@ export function CallModal(): React.JSX.Element | null {
       <div className="relative z-10 mt-[calc(env(safe-area-inset-top)+1.25rem)] flex flex-col items-center px-6 text-center">
         <span className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-1.5 text-[12px] font-semibold text-white/85 backdrop-blur-md">
           {isGroup ? <Users className="size-3.5" /> : isVideo ? <Video className="size-3.5" /> : <Phone className="size-3.5" />}
-          {callKindLabel.charAt(0).toUpperCase() + callKindLabel.slice(1)}
+          <span>{callKindLabel.charAt(0).toUpperCase() + callKindLabel.slice(1)}</span>
           {isConnected && (
             <>
               <span className="size-1 rounded-full bg-white/40" />
@@ -269,7 +269,7 @@ export function CallModal(): React.JSX.Element | null {
             {!isConnected && (
               <p className="mt-0.5 flex items-center gap-1.5 text-[13px] font-medium text-white/75">
                 {isConnecting && <Loader2 className="size-3.5 animate-spin" />}
-                {statusText}
+                <span>{statusText}</span>
               </p>
             )}
           </>

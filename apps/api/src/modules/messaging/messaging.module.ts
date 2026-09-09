@@ -7,15 +7,17 @@ import { PresenceService } from './presence.service'
 import { ContactService } from './contact.service'
 import { MessageRequestService } from './message-request.service'
 import { GroupService } from './group.service'
+import { CommunityChatService } from './community-chat.service'
 import { AttachmentService } from './attachment.service'
 import { ProfessionalMessagingService } from './professional-messaging.service'
 import { MessagingPrivacyService } from './messaging-privacy.service'
 import { AuthModule } from '../auth/auth.module'
 import { SupabaseStorageModule } from '../storage/supabase-storage.module'
 import { AiAssistantModule } from '../ai-assistant/ai-assistant.module'
+import { PushModule } from '../push/push.module'
 
 @Module({
-  imports: [
+  imports: [PushModule, 
     AuthModule,
     SupabaseStorageModule,
     AiAssistantModule,
@@ -29,12 +31,14 @@ import { AiAssistantModule } from '../ai-assistant/ai-assistant.module'
     ContactService,
     MessageRequestService,
     GroupService,
+    CommunityChatService,
     AttachmentService,
     ProfessionalMessagingService,
     MessagingPrivacyService,
   ],
   exports: [
     MessagingService,
+    CommunityChatService,
     PresenceService,
     MessagingGateway,
   ],

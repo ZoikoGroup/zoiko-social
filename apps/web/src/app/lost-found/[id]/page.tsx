@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useDateFormat } from '@/hooks/use-date-format'
 import { useRouter } from 'next/navigation'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
@@ -14,12 +15,14 @@ import { Img } from '@/components/Img'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { ReportButton } from '@/components/ReportButton'
+import { formatDateTime } from '@/lib/datetime'
 
-function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+function fmtDate(iso: string | null, locale: string): string {
+  return iso ? formatDateTime(iso, locale, 'dayMonthYear') : ''
 }
 
 export default function LostFoundDetailPage({ params }: { params: Promise<{ id: string }> }): React.JSX.Element {
+  const { locale } = useDateFormat()
   const { format } = useCurrency()
   const { id } = use(params)
   const { user } = useAuth()
@@ -177,7 +180,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
 
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-label-sm text-on-surface-variant">
               {report.lastSeenLocation && <LocationLink location={report.lastSeenLocation} iconClassName="w-3.5 h-3.5" className="text-primary" />}
-              {report.lastSeenAt && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" />{fmtDate(report.lastSeenAt)}</span>}
+              {report.lastSeenAt && <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-primary" />{fmtDate(report.lastSeenAt, locale)}</span>}
               {report.contact && <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5 text-primary" />{report.contact}</span>}
               {report.reward != null && report.reward > 0 && <span className="flex items-center gap-1 text-secondary font-medium"><Gift className="w-3.5 h-3.5" />Reward {format(report.reward)}</span>}
             </div>
@@ -230,7 +233,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
               <Link href={`/profile/${report.reporter.username}`}><UserAvatar name={report.reporter.displayName} image={report.reporter.avatarUrl ?? undefined} size="sm" verified={report.reporter.isVerified} /></Link>
               <div>
                 <Link href={`/profile/${report.reporter.username}`} className="text-label-sm font-semibold text-on-surface hover:underline">{report.reporter.displayName}</Link>
-                <p className="text-[11px] text-outline">Reported {fmtDate(report.createdAt)}</p>
+                <p className="text-[11px] text-outline">Reported {fmtDate(report.createdAt, locale)}</p>
               </div>
             </div>
 
@@ -276,7 +279,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                   className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none resize-none" />
                 <button onClick={submitSighting} disabled={posting || (!message.trim() && !location.trim())}
                   className="w-full py-2 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                  {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}Report a sighting
+                  {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}<span>Report a sighting</span>
                 </button>
               </div>
             )}
@@ -293,7 +296,7 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
                       {s.location && <LocationLink location={s.location} iconClassName="w-3 h-3" className="text-[12px] text-primary mt-0.5" />}
                       {s.message && <p className="text-label-sm text-on-surface-variant mt-0.5">{s.message}</p>}
                       <p className="flex items-center gap-2 text-[11px] text-outline mt-0.5">
-                        <span>{fmtDate(s.createdAt)}</span>
+                        <span>{fmtDate(s.createdAt, locale)}</span>
                         {/* Distance from the last-seen point is the number that
                             shows whether the animal is drifting or circling. */}
                         {s.distanceKm !== null && (

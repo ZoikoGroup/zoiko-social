@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react'
+import { useTranslations } from 'next-intl'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
@@ -10,11 +11,16 @@ import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { useToast } from '@/hooks/use-toast'
 import { CURRENCIES } from '@/lib/currency'
-import { profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
+import { authApi, profileApi, settingsApi, networkApi, type UserSettings, type UpdateSettingsInput, type BlockedUserItem, type MutedUserItem } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
+import { validatePassword, PASSWORD_MIN, PASSWORD_MAX, PASSWORD_HINT } from '@/lib/password-policy'
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import { VerificationSettings } from '@/components/settings/VerificationSettings'
 import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacySettings'
+import { LanguageSwitcher } from '@/components/settings/LanguageSwitcher'
+import { useDateFormat } from '@/hooks/use-date-format'
+import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings'
 
 type SettingsTab =
   | 'account'
@@ -26,22 +32,21 @@ type SettingsTab =
   | 'preferences'
   | 'help'
 
+// Label and description come from the catalog at render time, keyed by id.
 interface SettingsSection {
   id: SettingsTab
-  label: string
   icon: typeof User
-  description: string
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: 'account',       label: 'Account',       icon: User,      description: 'Profile info, email, password' },
-  { id: 'privacy',       label: 'Privacy',        icon: Lock,      description: 'Who can see your activity' },
-  { id: 'blocked',       label: 'Blocked & Muted', icon: UserX,    description: 'Manage accounts you\'ve blocked or muted' },
-  { id: 'verification',  label: 'Verification',   icon: BadgeCheck,description: 'Apply for a verified badge' },
-  { id: 'security',      label: 'Security',       icon: Shield,    description: 'Login, 2FA, active sessions' },
-  { id: 'notifications', label: 'Notifications',  icon: Bell,      description: 'Push, email, in-app alerts' },
-  { id: 'preferences',   label: 'Preferences',    icon: Sliders,   description: 'Theme, language, accessibility' },
-  { id: 'help',          label: 'Help & About',   icon: HelpCircle,description: 'Support, terms, version info' },
+  { id: 'account',       icon: User },
+  { id: 'privacy',       icon: Lock },
+  { id: 'blocked',       icon: UserX },
+  { id: 'verification',  icon: BadgeCheck },
+  { id: 'security',      icon: Shield },
+  { id: 'notifications', icon: Bell },
+  { id: 'preferences',   icon: Sliders },
+  { id: 'help',          icon: HelpCircle },
 ]
 
 // Where each tab's matching Help Center article lives. 'help' is omitted —
@@ -58,8 +63,17 @@ const SECTION_DOCS_LINK: Partial<Record<SettingsTab, string>> = {
 
 // ── ACCOUNT ─────────────────────────────────────────────────
 
-function AccountSettings(): React.JSX.Element {
-  const { profile, user, updateEmail, changePassword } = useAuth()
+function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
+  autoOpenPassword?: boolean
+  onAutoOpenHandled?: () => void
+} = {}): React.JSX.Element {
+  const t = useTranslations('settings')
+  const { profile, user, updateEmail, changePassword, signOut } = useAuth()
+  // Deactivation revokes sessions, so this should normally be 'active' whenever
+  // settings is reachable. Read anyway: an access token outlives the revoke, and
+  // offering "disable" on an already-disabled account is how the loop appeared.
+  const isDeactivated = profile?.state === 'deactivated'
+  const isPendingDeletion = profile?.state === 'pending_deletion'
 
   // ── Delete state
   const [deleting, setDeleting] = useState(false)
@@ -76,7 +90,12 @@ function AccountSettings(): React.JSX.Element {
     setDeactivateError(null)
     try {
       await profileApi.deactivate()
-      // Sessions are revoked server-side, so land them on the public site.
+      // Revoking server-side only kills the refresh token; the access token in
+      // this browser stays valid until it expires, so without clearing the local
+      // session the visitor still looks signed in, can walk back into settings,
+      // and is offered "Temporarily Disable" on an account that is already
+      // disabled. signOut also drops the socket and the cached profile.
+      await signOut()
       window.location.href = '/'
     } catch (err) {
       setDeactivateError(err instanceof Error ? err.message : 'Failed to disable account')
@@ -94,7 +113,7 @@ function AccountSettings(): React.JSX.Element {
   const [emailSent, setEmailSent] = useState(false)
 
   // ── Password change state
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(autoOpenPassword)
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -129,8 +148,10 @@ function AccountSettings(): React.JSX.Element {
   // ── Email change
   const handleEmailChange = async (): Promise<void> => {
     const trimmed = newEmail.trim()
-    if (!trimmed || !trimmed.includes('@')) {
-      setEmailError('Please enter a valid email address')
+    // Was only checking for an "@", so "a@b" passed and the confirmation mail
+    // could never arrive.
+    if (!isValidEmail(trimmed)) {
+      setEmailError(EMAIL_INVALID_MESSAGE)
       return
     }
     if (trimmed === email) {
@@ -173,8 +194,9 @@ function AccountSettings(): React.JSX.Element {
       setPasswordError('Please enter your current password')
       return
     }
-    if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters')
+    const policyError = validatePassword(newPassword)
+    if (policyError) {
+      setPasswordError(policyError)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -209,6 +231,7 @@ function AccountSettings(): React.JSX.Element {
 
   // ── Shared modal backdrop click
   const closeAllModals = (): void => {
+    onAutoOpenHandled?.()
     setShowDeleteConfirm(false)
     setShowDeactivateConfirm(false)
     setShowEmailModal(false)
@@ -292,13 +315,26 @@ function AccountSettings(): React.JSX.Element {
         <p className="text-[11px] text-red-500 dark:text-red-400/70 mb-3">
           Take a break by hiding your account, or schedule it for deletion. Both are reversible by signing back in.
         </p>
+        {/* Says what the account already is instead of offering the same action
+            again. Signing in is what restores it, so there is nothing to press
+            here — an enabled "Temporarily Disable" on a disabled account only
+            invites a second attempt the guard would reject. */}
+        {(isDeactivated || isPendingDeletion) && (
+          <p className="mb-3 text-[11px] font-semibold text-red-600 dark:text-red-400">
+            {isDeactivated
+              ? t('account.alreadyDisabled')
+              : t('account.pendingDeletion')}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => { setShowDeactivateConfirm(true); setDeactivateError(null) }}
-            className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
-          >
-            Temporarily Disable
-          </button>
+          {!isDeactivated && !isPendingDeletion && (
+            <button
+              onClick={() => { setShowDeactivateConfirm(true); setDeactivateError(null) }}
+              className="px-4 py-2 rounded-lg border border-outline-variant text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container transition-colors cursor-pointer"
+            >
+              Temporarily Disable
+            </button>
+          )}
           <button
             onClick={() => { setShowDeleteConfirm(true); setDeleteError(null); setDeleteConfirmText('') }}
             className="px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-label-sm font-semibold hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
@@ -471,9 +507,14 @@ function AccountSettings(): React.JSX.Element {
                     type="password"
                     value={newPassword}
                     onChange={(e) => { setNewPassword(e.target.value); setPasswordError(null) }}
-                    placeholder="At least 8 characters"
+                    minLength={PASSWORD_MIN}
+                    maxLength={PASSWORD_MAX}
+                    placeholder={`${PASSWORD_MIN}–${PASSWORD_MAX} characters`}
                     className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all"
                   />
+                  {/* Stated up front rather than only on failure — the rules were
+                      previously invisible until a submit was rejected. */}
+                  <p className="mt-1 text-[11px] text-outline">{PASSWORD_HINT}</p>
                 </div>
                 <div>
                   <label className="block text-label-sm font-semibold text-on-surface mb-1">Confirm New Password</label>
@@ -481,6 +522,8 @@ function AccountSettings(): React.JSX.Element {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(null) }}
+                    minLength={PASSWORD_MIN}
+                    maxLength={PASSWORD_MAX}
                     placeholder="Re-enter new password"
                     className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all"
                   />
@@ -670,6 +713,21 @@ function PrivacySettings({ settings, loading, patch }: SettingsContextValue): Re
         </label>
       ))}
 
+      {/*
+        Show location can only display something if there IS a location.
+
+        Turning it on with no city set looks broken — the setting saves, and the
+        profile shows nothing, with nothing to explain why. It was reported as a
+        missing profile component when in fact the component is there and the
+        field was empty. Say so, and point at where to fill it in.
+      */}
+      {!!(toggles as Record<string, unknown>).showLocation && !profile?.city && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400 -mt-2">
+          You haven&apos;t set a location yet, so there is nothing to show on your profile. Add one
+          under <span className="font-semibold">Edit profile</span>.
+        </p>
+      )}
+
       {/* Message privacy was enforced server-side but had no controls at all,
           so every account sat on the defaults. */}
       <div className="pt-2 border-t border-outline-variant/20">
@@ -683,8 +741,44 @@ function PrivacySettings({ settings, loading, patch }: SettingsContextValue): Re
 
 // ── SECURITY ────────────────────────────────────────────────
 
-function SecuritySettings(): React.JSX.Element {
-  const [twoFactor, setTwoFactor] = useState(false)
+/**
+ * Everything here used to be a mock: the Change button had no handler, "Last
+ * changed 3 months ago" was a literal, and the two sessions — "Chrome on
+ * Windows", "Safari on iPhone", both in San Francisco — were a hardcoded array
+ * whose Revoke buttons had no handler either. Nothing was wired to anything.
+ *
+ * What the backend actually supports is all-or-nothing: admin.signOut(userId)
+ * ends every session for the account. There is no per-session listing or
+ * per-session revoke, so this offers the real capability instead of inventing
+ * devices to list.
+ */
+function SecuritySettings({ onChangePassword }: { onChangePassword: () => void }): React.JSX.Element {
+  const toast = useToast()
+  const [signingOutAll, setSigningOutAll] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
+
+  const handleSignOutEverywhere = async (): Promise<void> => {
+    setSigningOutAll(true)
+    setSignOutError(null)
+    try {
+      const { revokedEverywhere } = await authApi.logoutEverywhere()
+      // Claiming every device was signed out when the server could not reach
+      // Supabase would be the more comfortable message and the wrong one.
+      if (revokedEverywhere) {
+        toast.success('Signed out everywhere', 'All devices have been signed out.')
+      } else {
+        toast.warning(
+          'Signed out on this device',
+          'Your other sessions could not be ended just now — try again from Security.',
+        )
+      }
+      // This device included — the token here is revoked too.
+      window.location.href = '/login'
+    } catch (err) {
+      setSignOutError(err instanceof Error ? err.message : 'Could not sign out other devices')
+      setSigningOutAll(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -697,10 +791,16 @@ function SecuritySettings(): React.JSX.Element {
             </div>
             <div>
               <h4 className="text-label-md font-semibold text-on-surface">Password</h4>
-              <p className="text-[11px] text-outline">Last changed 3 months ago</p>
+              {/* No "last changed" line: nothing records when a password was
+                  last set, so the old text was a fixed string that read
+                  "3 months ago" the moment after you changed it. */}
+              <p className="text-[11px] text-outline">Change the password you use to sign in</p>
             </div>
           </div>
-          <button className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer">
+          <button
+            onClick={onChangePassword}
+            className="px-3 py-1.5 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
+          >
             Change
           </button>
         </div>
@@ -718,18 +818,13 @@ function SecuritySettings(): React.JSX.Element {
               <p className="text-[11px] text-outline">Add an extra layer of security to your account</p>
             </div>
           </div>
-          <button
-            onClick={() => setTwoFactor((t) => !t)}
-            role="switch"
-            aria-checked={twoFactor}
-            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 cursor-pointer ${
-              twoFactor ? 'bg-primary' : 'bg-outline-variant'
-            }`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-              twoFactor ? 'translate-x-5' : 'translate-x-0'
-            }`} />
-          </button>
+          {/* Was a toggle backed only by local state — it moved, persisted
+              nothing, and left the impression 2FA was on. Nothing in the API
+              enrols or verifies a second factor, so it says so rather than
+              pretending. */}
+          <span className="px-2.5 py-1 rounded-full bg-surface-container text-[11px] font-semibold text-outline flex-shrink-0">
+            Not available yet
+          </span>
         </div>
       </div>
 
@@ -741,25 +836,25 @@ function SecuritySettings(): React.JSX.Element {
           </div>
           <div>
             <h4 className="text-label-md font-semibold text-on-surface">Active Sessions</h4>
-            <p className="text-[11px] text-outline">You&apos;re logged in on 2 devices</p>
+            <p className="text-[11px] text-outline">
+              Signed out somewhere you no longer use? End every session at once.
+            </p>
           </div>
         </div>
-        <div className="space-y-2">
-          {[
-            { device: 'Chrome on Windows', location: 'San Francisco, CA', active: 'Active now' },
-            { device: 'Safari on iPhone', location: 'San Francisco, CA', active: '2 hours ago' },
-          ].map((s) => (
-            <div key={s.device} className="flex items-center justify-between p-2.5 rounded-lg bg-surface-container">
-              <div>
-                <p className="text-label-sm font-semibold text-on-surface">{s.device}</p>
-                <p className="text-[10px] text-outline">{s.location} · {s.active}</p>
-              </div>
-              <button className="text-[11px] text-red-500 hover:text-red-600 font-semibold cursor-pointer">
-                Revoke
-              </button>
-            </div>
-          ))}
-        </div>
+        {signOutError && (
+          <p className="mb-2 text-[11px] text-red-500">{signOutError}</p>
+        )}
+        <button
+          onClick={() => void handleSignOutEverywhere()}
+          disabled={signingOutAll}
+          className="w-full px-4 py-2 rounded-lg border border-outline-variant text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {signingOutAll && <Loader2 className="w-4 h-4 animate-spin" />}
+          <span>{signingOutAll ? 'Signing out…' : 'Sign out of all devices'}</span>
+        </button>
+        <p className="mt-2 text-[10px] text-outline">
+          This signs out this device too, so you will need to sign in again.
+        </p>
       </div>
     </div>
   )
@@ -785,6 +880,9 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
     notifCommunities: true,
     notifNews: true,
     notifPromotions: false,
+    notifMessages: true,
+    notifAdoption: true,
+    notifAccountGuidance: true,
     emailDigest: true,
     emailMarketing: false,
     pushEnabled: true,
@@ -809,6 +907,9 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
             { label: 'Event Invitations', key: 'notifEvents' },
             { label: 'Community Activity', key: 'notifCommunities' },
             { label: 'News & Updates', key: 'notifNews' },
+            { label: 'Messages & Calls', key: 'notifMessages' },
+            { label: 'Adoption Enquiries', key: 'notifAdoption' },
+            { label: 'Getting Started Tips', key: 'notifAccountGuidance' },
             { label: 'Promotions & Tips', key: 'notifPromotions' },
           ]).map((item) => (
             <label key={item.key} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-surface-container cursor-pointer transition-colors">
@@ -833,7 +934,10 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
         {([
           { label: 'Email Digest (weekly)', key: 'emailDigest', desc: 'Receive a weekly summary of your activity' },
           { label: 'Email Marketing', key: 'emailMarketing', desc: 'Product updates, tips, and offers' },
-          { label: 'Push Notifications', key: 'pushEnabled', desc: 'Receive notifications on your device' },
+          // Still the master switch for push, and now actually read when one is
+          // sent. It stays above the per-device section because it applies to
+          // every device, not just this browser.
+          { label: 'Push Notifications', key: 'pushEnabled', desc: 'Allow notifications on your devices' },
         ]).map((item) => (
           <label key={item.key} className="flex items-center justify-between gap-4 cursor-pointer">
             <div>
@@ -851,6 +955,19 @@ function NotificationSettings({ settings, loading, patch }: SettingsContextValue
           </label>
         ))}
       </div>
+
+      <hr className="border-outline-variant/30" />
+
+      <PushNotificationSettings />
+
+      {/*
+        No Quiet Hours control here yet, deliberately. The columns and the API
+        accept a window (migration 064), but honouring it means *holding* mail
+        until the window closes, which needs the deferred queue that orchestration
+        builds. A switch reading "hold non-urgent email until morning" that
+        silently changed nothing would be the same dead control this module was
+        written to fix. It goes in with the enforcement.
+      */}
     </div>
   )
 }
@@ -868,28 +985,12 @@ const THEME_OPTIONS = [
 const emptySubscribe = (): (() => void) => () => {}
 
 function PreferencesSettings({ settings, patch }: SettingsContextValue): React.JSX.Element {
+  const { date } = useDateFormat()
   const { theme, setTheme } = useTheme()
   const { currency, setCurrency, ratesLive, ratesUpdatedAt } = useCurrency()
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
-  const [language, setLanguage] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem('zoiko-language') ?? 'en'
-      } catch {
-        return 'en'
-      }
-    }
-    return 'en'
-  })
-
-  function handleLanguageChange(code: string) {
-    setLanguage(code)
-    try {
-      localStorage.setItem('zoiko-language', code)
-    } catch {
-      // localStorage unavailable
-    }
-  }
+  // The language state and its handler lived here only to drive the picker
+  // below. Nothing read the stored value, so both went with it.
 
   const activeTheme = mounted ? theme ?? 'system' : undefined
 
@@ -935,18 +1036,7 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
           <Globe className="w-4 h-4 text-primary" />
           Language & Region
         </h4>
-        <select
-          value={language}
-          onChange={(e) => handleLanguageChange(e.target.value)}
-          className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md transition-all appearance-none cursor-pointer"
-        >
-          <option value="en">US English</option>
-          <option value="en-GB">UK English</option>
-          <option value="es">Español</option>
-          <option value="fr">Français</option>
-          <option value="de">Deutsch</option>
-          <option value="pt">Português</option>
-        </select>
+        <LanguageSwitcher />
       </div>
 
       <hr className="border-outline-variant/30" />
@@ -967,7 +1057,7 @@ function PreferencesSettings({ settings, patch }: SettingsContextValue): React.J
         </select>
         <p className="text-[11px] text-outline mt-2">
           {mounted && ratesLive && ratesUpdatedAt
-            ? `Live exchange rates · updated ${new Date(ratesUpdatedAt).toLocaleString()}`
+            ? `Live exchange rates · updated ${date(ratesUpdatedAt, 'dayMonthYearTime')}`
             : 'Using approximate exchange rates (offline or unavailable).'}
         </p>
       </div>
@@ -1108,7 +1198,7 @@ function BlockedAndMutedSettings(): React.JSX.Element {
                 className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-outline-variant/40 text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer disabled:opacity-50"
               >
                 {busyId === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {tab === 'blocked' ? 'Unblock' : 'Unmute'}
+                <span>{tab === 'blocked' ? 'Unblock' : 'Unmute'}</span>
               </button>
             </div>
           ))}
@@ -1172,7 +1262,30 @@ function HelpSettings(): React.JSX.Element {
 // ── RENDER SWITCH ───────────────────────────────────────────
 
 export default function SettingsPage(): React.JSX.Element {
-  const [activeSection, setActiveSection] = useState<SettingsTab>('account')
+  const t = useTranslations('settings')
+  // Kept in the URL so it survives leaving the page. Help & About links out to
+  // real routes (/privacy, /terms, /docs); coming back with the browser's back
+  // button remounts settings, and with the section held only in state it always
+  // came back on Account rather than the tab that was open.
+  const [activeSection, setActiveSection] = useState<SettingsTab>(() => {
+    if (typeof window === 'undefined') return 'account'
+    const requested = new URLSearchParams(window.location.search).get('section')
+    return SECTIONS.some((s) => s.id === requested) ? (requested as SettingsTab) : 'account'
+  })
+
+  // replaceState rather than push: switching tabs should not make the back
+  // button walk through every tab visited before leaving the page.
+  const selectSection = useCallback((id: SettingsTab): void => {
+    setActiveSection(id)
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      url.searchParams.set('section', id)
+      window.history.replaceState(window.history.state, '', url)
+    }
+  }, [])
+  // Security's Change button lives in a different section from the modal that
+  // does the work, so it switches tabs and asks Account to open it.
+  const [openPasswordOnAccount, setOpenPasswordOnAccount] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const { signOut } = useAuth()
@@ -1187,7 +1300,12 @@ export default function SettingsPage(): React.JSX.Element {
   const renderActiveSection = (): React.JSX.Element => {
     switch (activeSection) {
       case 'account':
-        return <AccountSettings />
+        return (
+          <AccountSettings
+            autoOpenPassword={openPasswordOnAccount}
+            onAutoOpenHandled={() => setOpenPasswordOnAccount(false)}
+          />
+        )
       case 'privacy':
         return <PrivacySettings {...sharedSettings} />
       case 'blocked':
@@ -1195,7 +1313,11 @@ export default function SettingsPage(): React.JSX.Element {
       case 'verification':
         return <VerificationSettings />
       case 'security':
-        return <SecuritySettings />
+        return (
+          <SecuritySettings
+            onChangePassword={() => { setOpenPasswordOnAccount(true); selectSection('account') }}
+          />
+        )
       case 'notifications':
         return <NotificationSettings {...sharedSettings} />
       case 'preferences':
@@ -1238,7 +1360,7 @@ export default function SettingsPage(): React.JSX.Element {
                 >
                   <span className="flex items-center gap-2">
                     <activeSectionMeta.icon className="w-4 h-4 text-primary" />
-                    {activeSectionMeta.label}
+                    {t(`sections.${activeSectionMeta.id}`)}
                   </span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${mobileMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -1249,7 +1371,7 @@ export default function SettingsPage(): React.JSX.Element {
                       return (
                         <button
                           key={section.id}
-                          onClick={() => { setActiveSection(section.id); setMobileMenuOpen(false) }}
+                          onClick={() => { selectSection(section.id); setMobileMenuOpen(false) }}
                           className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors cursor-pointer ${
                             isActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container'
                           }`}
@@ -1257,9 +1379,9 @@ export default function SettingsPage(): React.JSX.Element {
                           <section.icon className="w-4 h-4" />
                           <div>
                             <p className={`text-label-sm font-semibold ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                              {section.label}
+                              {t(`sections.${section.id}`)}
                             </p>
-                            <p className="text-[10px] text-outline">{section.description}</p>
+                            <p className="text-[10px] text-outline">{t(`sections.${section.id}Desc`)}</p>
                           </div>
                         </button>
                       )
@@ -1278,7 +1400,7 @@ export default function SettingsPage(): React.JSX.Element {
                   return (
                     <button
                       key={section.id}
-                      onClick={() => setActiveSection(section.id)}
+                      onClick={() => selectSection(section.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 cursor-pointer group ${
                         isActive
                           ? 'bg-primary/10 text-primary border-r-2 border-primary'
@@ -1288,9 +1410,9 @@ export default function SettingsPage(): React.JSX.Element {
                       <section.icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-outline group-hover:text-on-surface'}`} />
                       <div>
                         <p className={`text-label-sm font-semibold ${isActive ? 'text-primary' : 'text-on-surface'}`}>
-                          {section.label}
+                          {t(`sections.${section.id}`)}
                         </p>
-                        <p className="text-[10px] text-outline">{section.description}</p>
+                        <p className="text-[10px] text-outline">{t(`sections.${section.id}Desc`)}</p>
                       </div>
                     </button>
                   )
@@ -1303,7 +1425,7 @@ export default function SettingsPage(): React.JSX.Element {
                     className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors text-label-sm font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                   >
                     {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                    {signingOut ? 'Signing out…' : 'Sign Out'}
+                    <span>{signingOut ? 'Signing out…' : 'Sign Out'}</span>
                   </button>
                 </div>
               </div>
@@ -1318,8 +1440,8 @@ export default function SettingsPage(): React.JSX.Element {
                       <activeSectionMeta.icon className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-label-md font-bold text-on-surface">{activeSectionMeta.label}</h2>
-                      <p className="text-[11px] text-outline">{activeSectionMeta.description}</p>
+                      <h2 className="text-label-md font-bold text-on-surface">{t(`sections.${activeSectionMeta.id}`)}</h2>
+                      <p className="text-[11px] text-outline">{t(`sections.${activeSectionMeta.id}Desc`)}</p>
                     </div>
                     {SECTION_DOCS_LINK[activeSection] && (
                       <DocsHelpLink href={SECTION_DOCS_LINK[activeSection]!} />

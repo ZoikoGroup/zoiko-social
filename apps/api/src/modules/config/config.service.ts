@@ -43,6 +43,27 @@ const envSchema = z.object({
   // Groq (ZoikoSocial AI assistant chat). When the key is set, the assistant replies.
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().optional(),
+  // Email (ZS-COMMS-EMAIL-001). Sending stays off until a provider key is set.
+  EMAIL_PROVIDER: z.enum(['resend', 'console']).default('console'),
+  RESEND_API_KEY: z.string().optional(),
+
+  // Web Push. All three are optional so the API still boots without them —
+  // push is simply unavailable, which is the correct behaviour for a local
+  // environment that has no keys rather than a crash on startup.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
+  // §05 requires a distinct sender per reputation stream. Separate variables so
+  // a stream can move to its own domain without a code change.
+  EMAIL_FROM_TRANSACTIONAL: z.string().optional(),
+  EMAIL_FROM_NOTIFICATION: z.string().optional(),
+  EMAIL_FROM_MARKETING: z.string().optional(),
+  EMAIL_REPLY_TO: z.string().optional(),
+  // §08: sourced from a central legal-entity registry, never hard-coded in a
+  // template. Every footer carries them and CAN-SPAM requires the address.
+  LEGAL_ENTITY_NAME: z.string().default('Zoiko Media Corp'),
+  LEGAL_POSTAL_ADDRESS: z.string().default(''),
+  APP_BASE_URL: z.string().default('http://localhost:3000'),
 })
 
 /**
@@ -186,5 +207,72 @@ export class ConfigService {
 
   get affinityTtlDays(): number {
     return this.env.AFFINITY_TTL_DAYS ?? 60
+  }
+
+  // ── Email ─────────────────────────────────────────────────────────────────
+
+  get emailProvider(): 'resend' | 'console' {
+    return this.env.EMAIL_PROVIDER
+  }
+
+  get resendApiKey(): string | undefined {
+    return this.env.RESEND_API_KEY
+  }
+
+  get vapidPublicKey(): string | undefined {
+    return this.env.VAPID_PUBLIC_KEY
+  }
+
+  get vapidPrivateKey(): string | undefined {
+    return this.env.VAPID_PRIVATE_KEY
+  }
+
+  /**
+   * The `mailto:` or URL a push service can use to reach whoever operates this
+   * server. Required by the VAPID spec; defaulted so a missing value cannot be
+   * the thing that stops push working.
+   */
+  get vapidSubject(): string {
+    return this.env.VAPID_SUBJECT ?? 'mailto:support@zoikosocial.com'
+  }
+
+  /** Push is configured only when both halves of the key pair are present. */
+  get pushConfigured(): boolean {
+    return !!this.env.VAPID_PUBLIC_KEY && !!this.env.VAPID_PRIVATE_KEY
+  }
+
+  /**
+   * True only when a real provider is selected AND its key is present.
+   * Anything else falls back to the console provider, which renders and logs
+   * but never sends — a missing key degrades to silence, not a crash.
+   */
+  get emailSendingEnabled(): boolean {
+    return this.env.EMAIL_PROVIDER === 'resend' && !!this.env.RESEND_API_KEY
+  }
+
+  /** Sender for a §05 stream, falling back to the transactional sender. */
+  emailFrom(stream: 'transactional' | 'notification' | 'marketing'): string | undefined {
+    const perStream = {
+      transactional: this.env.EMAIL_FROM_TRANSACTIONAL,
+      notification: this.env.EMAIL_FROM_NOTIFICATION,
+      marketing: this.env.EMAIL_FROM_MARKETING,
+    }[stream]
+    return perStream || this.env.EMAIL_FROM_TRANSACTIONAL
+  }
+
+  get emailReplyTo(): string | undefined {
+    return this.env.EMAIL_REPLY_TO
+  }
+
+  get legalEntityName(): string {
+    return this.env.LEGAL_ENTITY_NAME
+  }
+
+  get legalPostalAddress(): string {
+    return this.env.LEGAL_POSTAL_ADDRESS
+  }
+
+  get appBaseUrl(): string {
+    return this.env.APP_BASE_URL
   }
 }

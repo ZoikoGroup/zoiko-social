@@ -1,6 +1,8 @@
 import { DynamicModule, Module } from '@nestjs/common'
 import { BullModule } from '@nestjs/bullmq'
 import type { RedisOptions } from 'ioredis'
+import { Logger } from '@nestjs/common'
+import { ThrottledErrorLog, isFatalRedisError } from '../redis/redis-failure'
 import { MessagingProcessor } from './messaging.processor'
 
 /**
@@ -22,9 +24,25 @@ import { MessagingProcessor } from './messaging.processor'
  *   imports: [MessagingQueueModule.forRoot()]
  */
 
-/** Parse a redis:// or rediss:// URL into ioredis options for BullMQ. */
+/**
+ * Parse a redis:// or rediss:// URL into ioredis options for BullMQ.
+ *
+ * The retry policy is the important part. This connection had none, so when the
+ * Redis provider started refusing every command — an exhausted request quota,
+ * which no amount of asking again will fix — BullMQ's queue and worker retried
+ * without limit. That wrote 65,000 lines of the same error and eventually took
+ * the API down with it, which is an outage caused by the retrying rather than by
+ * Redis being unavailable.
+ *
+ * RedisService learned this already; the predicate and the throttled log are
+ * shared with it rather than reimplemented.
+ */
 function parseRedisUrl(redisUrl: string): RedisOptions {
   const u = new URL(redisUrl)
+  const logger = new Logger('MessagingQueue')
+  const errorLog = new ThrottledErrorLog()
+  let fatal = false
+
   return {
     host: u.hostname,
     port: Number(u.port || 6379),
@@ -33,6 +51,37 @@ function parseRedisUrl(redisUrl: string): RedisOptions {
     ...(u.protocol === 'rediss:' ? { tls: {} } : {}),
     // BullMQ requires this for blocking worker connections
     maxRetriesPerRequest: null,
+
+    // Commands fail fast instead of queueing up while disconnected. A buffer of
+    // messaging jobs that will never be sent is worse than an immediate refusal
+    // the caller can fall back from.
+    enableOfflineQueue: false,
+
+    /**
+     * Give up entirely once the failure is one that cannot recover, and bound the
+     * attempts even when it might. Returning null stops ioredis reconnecting.
+     */
+    retryStrategy: (times) => {
+      if (fatal) return null
+      if (times > 10) {
+        logger.warn('Giving up on Redis after 10 attempts — messaging jobs will run inline')
+        return null
+      }
+      return Math.min(times * 500, 5_000)
+    },
+
+    reconnectOnError: (err) => {
+      if (isFatalRedisError(err)) {
+        if (!fatal) {
+          fatal = true
+          logger.error(`Redis is refusing commands and will not be retried: ${err.message}`)
+        }
+        return false
+      }
+      const line = errorLog.next(`Messaging queue Redis error: ${err.message}`)
+      if (line) logger.warn(line)
+      return true
+    },
   }
 }
 

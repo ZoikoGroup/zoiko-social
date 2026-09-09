@@ -1,28 +1,35 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
-import { ArrowUp, PawPrint, SlidersHorizontal, ChevronDown, MapPin } from 'lucide-react'
+import { ArrowUp, PawPrint, ChevronDown, MapPin, Check, RefreshCw } from 'lucide-react'
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
-import { feedApi, lostFoundApi, type PostItem, type LostFoundReport } from '@/lib/api'
+import { NewsFeedCard } from './NewsFeedCard'
+import { feedApi, lostFoundApi, type PostItem, type LostFoundReport, type NewsCardItem } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
 // Topic tabs link to real hashtag discovery pages; For You shows the home feed.
-const FEED_TABS: { label: string; tag?: string }[] = [
-  { label: 'For You' },
-  { label: 'Local', tag: 'local' },
-  { label: 'Rescue', tag: 'rescue' },
-  { label: 'Vet Advice', tag: 'vetadvice' },
-  { label: 'Lost & Found', tag: 'lostandfound' },
+// labelKey indexes the `feed` namespace, except lostFound which reuses the module
+// name so the tab and the nav entry can never disagree.
+const FEED_TABS: { labelKey: string; module?: boolean; tag?: string }[] = [
+  { labelKey: 'forYou' },
+  { labelKey: 'local', tag: 'local' },
+  { labelKey: 'rescue', tag: 'rescue' },
+  { labelKey: 'vetAdvice', tag: 'vetadvice' },
+  { labelKey: 'lostFound', module: true, tag: 'lostandfound' },
 ]
 
 function FeedTabs(): React.JSX.Element {
+  const t = useTranslations('feed')
+  const tm = useTranslations('modules')
   return (
     <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/25 rounded-2xl px-3 py-2.5 shadow-sm overflow-x-auto no-scrollbar">
-      {FEED_TABS.map((t, i) => {
+      {FEED_TABS.map((tab, i) => {
         const active = i === 0
-        const isRescue = t.label === 'Rescue'
+        const isRescue = tab.labelKey === 'rescue'
+        const label = tab.module ? tm(tab.labelKey) : t(tab.labelKey)
         const cls = `flex-shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold whitespace-nowrap border transition-all cursor-pointer active:scale-[0.97] ${
           active
             ? 'bg-primary text-white border-primary shadow-sm'
@@ -30,26 +37,30 @@ function FeedTabs(): React.JSX.Element {
               ? 'bg-background text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300'
               : 'bg-background text-on-surface-variant border-outline-variant/40 hover:text-on-surface hover:border-outline-variant/70 hover:bg-surface-container-low'
         }`
-        return t.tag ? (
-          <Link key={t.label} href={`/explore/tags/${t.tag}`} className={cls}>{t.label}</Link>
+        return tab.tag ? (
+          <Link key={tab.labelKey} href={`/explore/tags/${tab.tag}`} className={cls}>{label}</Link>
         ) : (
-          <span key={t.label} className={cls}>{t.label}</span>
+          <span key={tab.labelKey} className={cls}>{label}</span>
         )
       })}
       <Link
         href="/explore"
         className="flex-shrink-0 flex items-center gap-1 px-4 py-1.5 rounded-full text-[13px] font-semibold text-outline border border-outline-variant/30 bg-background hover:text-on-surface hover:border-outline-variant/60 transition-all active:scale-[0.97]"
       >
-        More <ChevronDown className="w-3.5 h-3.5" />
+        {t('more')} <ChevronDown className="w-3.5 h-3.5" />
       </Link>
-      <button className="ml-auto flex-shrink-0 flex items-center justify-center size-8 rounded-full text-outline hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer" aria-label="Filter feed">
-        <SlidersHorizontal className="w-4 h-4" />
-      </button>
+      {/* A "Filter feed" button used to sit here with no handler. Nothing backs
+          it: GET /feed takes cursor and limit and no filter parameter at all,
+          and the topic tabs to its left are the only filtering that exists. A
+          control that cannot do what its label says is worse than no control,
+          so it is gone until there is a filter to attach it to. */}
     </div>
   )
 }
 
 function LostPetAlert({ report }: { report: LostFoundReport }): React.JSX.Element {
+  const t = useTranslations('feed')
+  const name = report.petName ?? report.species
   return (
     <Link
       href={`/lost-found/${report.id}`}
@@ -57,10 +68,14 @@ function LostPetAlert({ report }: { report: LostFoundReport }): React.JSX.Elemen
     >
       <MapPin className="w-4 h-4 text-secondary flex-shrink-0" />
       <p className="flex-1 text-label-sm text-on-surface leading-snug">
-        <span className="font-bold">Lost Pet Alert:</span>{' '}
-        {report.petName ?? report.species}{report.lastSeenLocation ? ` was last seen near ${report.lastSeenLocation}` : ''}.
+        <span className="font-bold">{t('lostPetAlert')}</span>{' '}
+        {/* One whole sentence per locale rather than English glued together —
+            German puts the location before the verb. */}
+        {report.lastSeenLocation
+          ? t('lastSeenNear', { name, location: report.lastSeenLocation })
+          : t('lostPetNamed', { name })}
       </p>
-      <span className="text-label-sm font-semibold text-secondary flex-shrink-0 whitespace-nowrap">View Details ›</span>
+      <span className="text-label-sm font-semibold text-secondary flex-shrink-0 whitespace-nowrap">{t('viewDetails')} ›</span>
     </Link>
   )
 }
@@ -89,19 +104,52 @@ function FeedSkeleton(): React.JSX.Element {
 }
 
 export function HomeFeed(): React.JSX.Element {
+  const t = useTranslations('feed')
   const [posts, setPosts] = useState<PostItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [newPostsAvailable, setNewPostsAvailable] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [lostAlert, setLostAlert] = useState<LostFoundReport | null>(null)
+  /**
+   * News cards, at indices absolute to the accumulated post list.
+   *
+   * The server places them per page, so page two's "after index 4" means index
+   * 19 once page one is already on screen. Converted on arrival rather than at
+   * render time, because the offset is only knowable when the page lands.
+   */
+  const [newsCards, setNewsCards] = useState<{ afterIndex: number; article: NewsCardItem }[]>([])
+  /** How many posts are on screen, for that conversion. */
+  const postCountRef = useRef(0)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Index → articles, so the render is a lookup rather than a scan per post.
+   *
+   * A list per index rather than a single article, because two cards can end up
+   * claiming the same slot: the server positions each page's overflow past that
+   * page's last post, and a later page's posts can then occupy those same
+   * indices. Keyed one-to-one, the second card silently replaced the first and
+   * an article simply vanished from the feed.
+   */
+  const newsAt = useMemo(() => {
+    const byIndex = new Map<number, NewsCardItem[]>()
+    for (const { afterIndex, article } of newsCards) {
+      const existing = byIndex.get(afterIndex)
+      if (existing) existing.push(article)
+      else byIndex.set(afterIndex, [article])
+    }
+    return byIndex
+  }, [newsCards])
 
   const loadFirstPage = useCallback(async (): Promise<void> => {
     try {
       const page = await feedApi.home()
       setPosts(page.data)
+      postCountRef.current = page.data.length
+      setNewsCards(page.news ?? [])
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
       setNewPostsAvailable(false)
@@ -109,6 +157,32 @@ export function HomeFeed(): React.JSX.Element {
       setLoading(false)
     }
   }, [])
+
+  /**
+   * Pulls the newest page in and returns to the top.
+   *
+   * Shared by the "new posts" pill and the end-of-feed control, because they
+   * are the same request wearing two hats: one fires when the socket says
+   * something arrived, the other when a reader who has reached the bottom asks
+   * for themselves.
+   *
+   * The list is replaced rather than appended to. A refresh is a request for
+   * what is current, and merging a fresh ranking into a stale one produces an
+   * order that matches neither.
+   *
+   * Deliberately no skeleton, unlike the first load: the posts already on
+   * screen stay put until the new ones are ready, so asking for the latest
+   * never blanks the page you were reading.
+   */
+  const refresh = useCallback(async (): Promise<void> => {
+    setRefreshing(true)
+    try {
+      await loadFirstPage()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } finally {
+      setRefreshing(false)
+    }
+  }, [loadFirstPage])
 
   useEffect(() => {
     // Deferred so state updates never run synchronously inside the effect body
@@ -158,10 +232,27 @@ export function HomeFeed(): React.JSX.Element {
           setLoadingMore(true)
           feedApi.home(nextCursor)
             .then((page) => {
+              // Captured before the append: the new page's news indices are
+              // relative to its own posts, and this is where they start.
+              const base = postCountRef.current
               setPosts((prev) => {
                 const seen = new Set(prev.map((p) => p.id))
-                return [...prev, ...page.data.filter((p) => !seen.has(p.id))]
+                const fresh = page.data.filter((p) => !seen.has(p.id))
+                postCountRef.current = prev.length + fresh.length
+                return [...prev, ...fresh]
               })
+              if (page.news?.length) {
+                setNewsCards((prev) => {
+                  // The server slices articles by page offset, but a dropped
+                  // post shifts that arithmetic — so dedupe by id rather than
+                  // trusting the slice never overlaps.
+                  const seen = new Set(prev.map((n) => n.article.id))
+                  const added = (page.news ?? [])
+                    .filter((n) => !seen.has(n.article.id))
+                    .map((n) => ({ ...n, afterIndex: base + n.afterIndex }))
+                  return added.length > 0 ? [...prev, ...added] : prev
+                })
+              }
               setNextCursor(page.nextCursor)
               setHasMore(page.hasMore)
             })
@@ -184,44 +275,94 @@ export function HomeFeed(): React.JSX.Element {
       {/* New posts pill */}
       {newPostsAvailable && (
         <button
-          onClick={() => { setLoading(true); void loadFirstPage() }}
+          onClick={() => { void refresh() }}
           className="sticky top-20 z-20 mx-auto flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold shadow-lg shadow-primary/30 hover:bg-primary/90 transition-colors cursor-pointer"
         >
           <ArrowUp className="w-4 h-4" />
-          New posts
+          <span>{t('newPosts')}</span>
         </button>
       )}
 
       {loading ? (
         <FeedSkeleton />
       ) : posts.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <PawPrint className="w-7 h-7 text-primary" />
+        <>
+          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <PawPrint className="w-7 h-7 text-primary" />
+            </div>
+            <h3 className="text-label-md font-bold text-on-surface mb-1">{t('quiet')}</h3>
+            <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">{t('quietBody')}</p>
+            <button
+              onClick={() => document.getElementById('home-composer-textarea')?.focus()}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
+            >
+              {t('shareFirst')}
+            </button>
           </div>
-          <h3 className="text-label-md font-bold text-on-surface mb-1">Your feed is quiet</h3>
-          <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">
-            Follow verified experts and organizations, or share your first update to connect with
-            your community.
-          </p>
-          <button
-            onClick={() => document.getElementById('home-composer-textarea')?.focus()}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer"
-          >
-            Share your first update
-          </button>
-        </div>
+
+          {/*
+            News still belongs here. A member who follows nobody yet has the
+            emptiest feed and the most reason to be given something to read —
+            leaving the page at a single empty-state card was the wrong answer.
+          */}
+          {newsCards.map(({ article }) => (
+            <NewsFeedCard key={article.id} article={article} />
+          ))}
+        </>
       ) : (
         <>
-          {posts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
-            />
+          {posts.map((post, i) => (
+            <Fragment key={post.id}>
+              <PostCard
+                post={post}
+                onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
+              />
+              {newsAt.get(i)?.map((article) => (
+                <NewsFeedCard key={article.id} article={article} />
+              ))}
+            </Fragment>
           ))}
+          {/*
+            Cards whose slot falls beyond the last post — a page of three posts
+            still earns one — would otherwise be computed by the server and
+            silently dropped here.
+          */}
+          {newsCards
+            .filter(({ afterIndex }) => afterIndex >= posts.length)
+            .map(({ article }) => (
+              <NewsFeedCard key={article.id} article={article} />
+            ))}
+
           <div ref={sentinelRef} className="h-1" />
           {loadingMore && <FeedSkeleton />}
+
+          {/*
+            The end of the feed, stated rather than implied.
+
+            Without this the list simply stopped: no more posts, no sentinel
+            firing, and nothing to say whether everything had been seen or the
+            next page had failed. Reaching the bottom should read as finished,
+            and it should offer the one thing wanted there — a way to check
+            whether anything has arrived since.
+          */}
+          {!hasMore && !loadingMore && (
+            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm px-6 py-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                <Check className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-label-md font-bold text-on-surface mb-1">{t('caughtUp')}</h3>
+              <p className="text-label-sm text-outline max-w-xs mx-auto mb-5">{t('caughtUpBody')}</p>
+              <button
+                onClick={() => { void refresh() }}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? t('refreshing') : t('refresh')}
+              </button>
+            </div>
+          )}
         </>
       )}
 

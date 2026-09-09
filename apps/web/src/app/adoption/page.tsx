@@ -234,10 +234,12 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
   }
 
   async function submit(): Promise<void> {
-    if (saving || !form.name.trim() || !form.species.trim()) return
+    // A photo is required by the API: the listing is an animal, and a card
+    // without one is an empty box in the grid.
+    if (saving || !form.name.trim() || !form.species.trim() || !coverUrl) return
     setSaving(true); setError('')
     try {
-      const listing = await adoptionApi.create({ ...form, name: form.name.trim(), ...(coverUrl ? { coverUrl } : {}), ...(coords ? { latitude: coords.lat, longitude: coords.lng } : {}) })
+      const listing = await adoptionApi.create({ ...form, name: form.name.trim(), coverUrl, ...(coords ? { latitude: coords.lat, longitude: coords.lng } : {}) })
       onCreated(listing); onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to create listing') } finally { setSaving(false) }
   }
@@ -307,8 +309,8 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             hint="Puts this listing on those tag pages, so someone browsing #beagle finds it."
           />
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}Vaccinated</button>
-            <button onClick={() => set('neutered', !form.neutered)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.neutered ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.neutered && <Check className="w-3.5 h-3.5" />}Neutered</button>
+            <button onClick={() => set('vaccinated', !form.vaccinated)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.vaccinated ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.vaccinated && <Check className="w-3.5 h-3.5" />}<span>Vaccinated</span></button>
+            <button onClick={() => set('neutered', !form.neutered)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-label-sm cursor-pointer ${form.neutered ? 'bg-primary text-white' : 'border border-outline-variant text-on-surface-variant'}`}>{form.neutered && <Check className="w-3.5 h-3.5" />}<span>Neutered</span></button>
           </div>
           <div>
             <p className="text-[11px] text-outline mb-1.5">Good with</p>
@@ -322,8 +324,8 @@ function ListPetModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
         </div>
         <div className="p-5 border-t border-outline-variant/20 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="px-4 py-2.5 rounded-xl border border-outline-variant text-on-surface-variant text-label-md hover:bg-surface-container cursor-pointer">Cancel</button>
-          <button onClick={submit} disabled={saving || !form.name.trim() || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}List pet
+          <button onClick={submit} disabled={saving || !form.name.trim() || !coverUrl || uploading} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}<span>List pet</span>
           </button>
         </div>
       </div>

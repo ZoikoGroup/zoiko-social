@@ -104,9 +104,49 @@ zoiko-social/
 | Password hashing | bcrypt / Argon2 |
 | Secret management | Environment variables via Vault or cloud secret manager |
 | Transport security | TLS everywhere, HSTS |
-| Media URLs | Short-lived signed S3 URLs (never public permanent links) |
-| RLS | PostgreSQL Row-Level Security on all tables |
+| Media URLs | **Mixed — see note below.** Signed URLs exist (`verification-docs`, `documents`), but `avatars`, `post-media`, `pet-media`, `news-covers` and `chat-media` are public buckets served by permanent URL |
+| RLS | Enabled on all 118 tables — but it governs **direct PostgREST access only**, not the API. See note below |
 | OWASP | Helmet.js, CSRF protection, rate limiting, input sanitisation on all surfaces |
+
+### What RLS does and does not protect
+
+Prisma connects as a role with `rolbypassrls`, so **row-level security never
+applies to anything the API does** — every rule the product enforces is
+application code, and RLS is a second fence around one specific path: direct
+PostgREST access using the `anon` key, which ships inside the browser bundle and
+is therefore public.
+
+That fence matters, and it has leaked. An audit of all 118 tables with that key
+found three with RLS switched off entirely and 33 more readable through a
+`USING (true)` policy — including story view analytics, saved-item lists,
+private enquiry messages and presence rows. Migrations `078`–`080` closed the
+ones holding private data; `081` closes the `chat-media` bucket and **is not yet
+applied**.
+
+Two lessons the audit produced, worth keeping:
+
+- A policy on a table with RLS *disabled* is decoration. That is how the poll
+  tables came to be fully open.
+- Postgres ORs permissive policies together, so adding a scoped policy beside a
+  `USING (true)` one changes nothing. `user_presence` had exactly that pair, which
+  made the `who_can_see_last_seen` privacy setting untrue rather than merely
+  bypassed.
+
+Writes were never exposed: every INSERT policy carries a real `with_check`, and a
+forged insert with the anon key is refused by the policy rather than by a foreign
+key.
+
+### Media URL exposure
+
+Only `verification-docs` and `documents` are private buckets requiring a signed
+URL. The rest are public and served by permanent, unguessable URLs — acceptable
+for avatars and post media, and the reason news covers are mirrored into our own
+storage at ingest rather than hotlinked.
+
+`chat-media` holds DM attachments and is public, which means anyone holding an
+object URL can fetch it unauthenticated and indefinitely. Migration `081` removes
+the ability to *enumerate* those URLs; making the bucket private would require
+serving short-lived signed URLs at message-read time and is a separate change.
 
 ---
 

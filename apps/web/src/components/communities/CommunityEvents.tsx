@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CalendarDays, MapPin, Users, Globe, Plus } from 'lucide-react'
 import { eventsApi, type EventItem } from '@/lib/api'
 import { EventFormModal } from '@/components/events/EventFormModal'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 /**
  * Events hosted by a community.
@@ -26,6 +27,7 @@ export function CommunityEvents({
   communityName: string
   canHost: boolean
 }): React.JSX.Element {
+  const { date: formatDate } = useDateFormat()
   const [events, setEvents] = useState<EventItem[] | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -86,18 +88,18 @@ export function CommunityEvents({
               >
                 <div className="w-12 h-12 rounded-lg bg-primary/10 flex-shrink-0 flex flex-col items-center justify-center">
                   <span className="text-[10px] font-bold uppercase text-primary leading-none">
-                    {when.toLocaleDateString('en-GB', { month: 'short' })}
+                    {formatDate(when, 'month')}
                   </span>
                   <span className="text-label-md font-bold text-primary leading-tight">{when.getDate()}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-label-sm font-semibold text-on-surface truncate">{e.title}</p>
                   <p className="flex items-center gap-2 text-[11px] text-outline mt-0.5">
-                    <span>{when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{formatDate(when, 'timePadded')}</span>
                     {place && (
                       <span className="flex items-center gap-0.5 truncate">
                         {e.isOnline ? <Globe className="w-3 h-3" /> : <MapPin className="w-3 h-3" />}
-                        {place}
+                        <span>{place}</span>
                       </span>
                     )}
                     <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{e.goingCount}</span>

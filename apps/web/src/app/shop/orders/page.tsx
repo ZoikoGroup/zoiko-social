@@ -8,6 +8,7 @@ import { ChevronLeft, Package, Loader2 } from 'lucide-react'
 import { orderApi, type Order } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
+import { useDateFormat } from '@/hooks/use-date-format'
 
 const STATUS_STYLE: Record<string, string> = {
   pending: 'bg-secondary/10 text-secondary',
@@ -18,6 +19,7 @@ const STATUS_STYLE: Record<string, string> = {
 }
 
 export default function MyOrdersPage(): React.JSX.Element {
+  const { date } = useDateFormat()
   const { format } = useCurrency()
   const { loading: authLoading, isAuthenticated } = useAuth()
   const [orders, setOrders] = useState<Order[]>([])
@@ -57,7 +59,7 @@ export default function MyOrdersPage(): React.JSX.Element {
                 <div key={o.id} className="border border-outline-variant rounded-xl p-4 bg-surface flex items-center justify-between">
                   <div>
                     <p className="font-semibold text-label-md">{format(o.amountCents / 100, o.currency)} · Qty {o.quantity}</p>
-                    <p className="text-[11px] text-outline">{new Date(o.createdAt).toLocaleString()}</p>
+                    <p className="text-[11px] text-outline">{date(o.createdAt, 'dayMonthYearTime')}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${STATUS_STYLE[o.status] ?? STATUS_STYLE.cancelled}`}>
                     {o.status}

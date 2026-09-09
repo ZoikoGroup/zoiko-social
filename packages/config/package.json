@@ -4,7 +4,6 @@
   "private": true,
   "exports": {
     "./eslint-preset": "./eslint-preset.js",
-    "./tailwind-preset": "./tailwind-preset.ts",
     "./typescript/base": "./typescript/base.json",
     "./typescript/nextjs": "./typescript/nextjs.json",
     "./typescript/nestjs": "./typescript/nestjs.json"
