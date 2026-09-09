@@ -41,14 +41,14 @@ const RegisterSchema = z.object({
 
 const LoginSchema = z
   .object({
-    // Accepts email, username, or phone number
+    // Accepts an email address or a username.
     identifier: z.string().min(1).max(255).optional(),
     // Back-compat: older clients send `email`
     email: z.string().min(1).max(255).optional(),
     password: z.string().min(1, 'Password is required'),
   })
   .refine((body) => body.identifier || body.email, {
-    message: 'Email, username, or phone is required',
+    message: 'Email or username is required',
     path: ['identifier'],
   })
 

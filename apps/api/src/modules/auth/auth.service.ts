@@ -99,9 +99,19 @@ export class AuthService {
   }
 
   /**
-   * Sign in with email, username, or phone number.
+   * Sign in with an email address or a username.
    * Usernames are resolved server-side so the username→email mapping is
    * never exposed to clients before a successful password check.
+   *
+   * Phone sign-in was removed rather than left in place. It was implemented and
+   * unreachable: nothing in the product ever stored a phone number — not
+   * signup, not settings, not edit profile, and no API route — so the branch
+   * could not match any account, and 0 of 51 accounts in auth had one. The
+   * login screen advertised it, which cost people time on a method they had no
+   * way to possess.
+   *
+   * Bringing it back needs the missing half rather than this branch: somewhere
+   * to enter a number, and an SMS provider to confirm it.
    */
   async login(identifier: string, password: string) {
     const trimmed = identifier.trim()
@@ -110,12 +120,10 @@ export class AuthService {
       message: 'Invalid credentials',
     })
 
-    let credentials: { email: string; password: string } | { phone: string; password: string }
+    let credentials: { email: string; password: string }
 
     if (trimmed.includes('@')) {
       credentials = { email: trimmed.toLowerCase(), password }
-    } else if (/^\+?[0-9()\s-]{7,20}$/.test(trimmed)) {
-      credentials = { phone: trimmed.replace(/[()\s-]/g, ''), password }
     } else {
       // Username → resolve to the account's email
       const profile = await this.prisma.profile.findUnique({

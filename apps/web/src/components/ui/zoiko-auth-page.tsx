@@ -602,14 +602,14 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
 
                   <div className="space-y-1.5">
                     <label htmlFor="email" className="block text-sm font-semibold text-gray-800">
-                      {isLogin ? t('emailOrPhone') : t('email')}
+                      {isLogin ? t('emailOrUsername') : t('email')}
                     </label>
                     <div className="relative">
                       <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
                       <input
                         id="email"
                         type={isLogin ? 'text' : 'email'}
-                        placeholder={isLogin ? t('emailOrPhonePlaceholder') : t('emailPlaceholder')}
+                        placeholder={isLogin ? t('emailOrUsernamePlaceholder') : t('emailPlaceholder')}
                         value={email}
                         autoComplete="off"
                         onChange={(e) => setEmail(e.target.value)}

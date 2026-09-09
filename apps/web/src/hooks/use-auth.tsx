@@ -173,7 +173,16 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     const supabase = createClient()
     const trimmed = identifier.trim()
     try {
-      // Email or phone → authenticate directly with Supabase
+      /*
+        Email → straight to Supabase; a username needs the API to resolve it.
+
+        There was a third branch here for phone numbers. It worked, and nobody
+        could reach it: no part of the product ever stored a phone — not signup,
+        not settings, not edit profile — so it could never match an account, and
+        0 of 51 accounts in auth had one. Removed along with the word "phone" on
+        the login field, rather than left as a method people were invited to try
+        and could not use.
+      */
       if (trimmed.includes('@')) {
         const { error } = await supabase.auth.signInWithPassword({ email: trimmed.toLowerCase(), password })
         if (error) {
@@ -181,14 +190,6 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
         }
         return {}
       }
-      if (/^\+?[0-9()\s-]{7,20}$/.test(trimmed)) {
-        const { error } = await supabase.auth.signInWithPassword({ phone: trimmed.replace(/[()\s-]/g, ''), password })
-        if (error) {
-          return { error: error.message === 'Invalid login credentials' ? 'Invalid credentials' : error.message }
-        }
-        return {}
-      }
-
       // Username → the API resolves it server-side and returns a session
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
         method: 'POST',

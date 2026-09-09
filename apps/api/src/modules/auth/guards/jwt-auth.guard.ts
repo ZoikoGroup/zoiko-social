@@ -95,7 +95,7 @@ export class JwtAuthGuard implements CanActivate {
         profile = await this.prisma.profile.findUnique({
           where: { id: user.id },
           // The two timestamps ride along so the refusal can say *when* — the web
-          // app signs in straight against Supabase for email and phone, so this
+          // app signs in straight against Supabase for email, so this
           // 403 is the only signal it reliably sees, and "deactivated 3 days ago"
           // needs a date the login response never carries on that path.
           select: { state: true, deactivatedAt: true, deletionRequestedAt: true },
