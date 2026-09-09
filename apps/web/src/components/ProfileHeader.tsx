@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin, Clock } from 'lucide-react'
+import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin, Clock, Mail } from 'lucide-react'
 import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
@@ -391,6 +391,25 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                 <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                 {profile.city}
               </p>
+            )}
+
+            {/*
+              Shown only when this member publishes it — the server decides, and
+              omits the field entirely otherwise, so this cannot leak an address
+              whose owner left the setting off.
+
+              A mailto rather than plain text: the reason to publish it on a
+              rescue network is so a coordinator or vet can make contact quickly,
+              and making them copy it out by hand works against that.
+            */}
+            {profile.email && (
+              <a
+                href={`mailto:${profile.email}`}
+                className="mt-1.5 flex items-center gap-1 text-label-sm text-primary hover:underline w-fit"
+              >
+                <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                {profile.email}
+              </a>
             )}
 
             {/*

@@ -200,6 +200,11 @@ export interface Profile {
   lastActiveAt?: string | null
   /** True only when they are online AND showing last-active. */
   isOnline?: boolean
+  /**
+   * Present only when this member publishes their address, or when it is your
+   * own profile. Never returned for a private account viewed by someone else.
+   */
+  email?: string | null
   state: string
   role: string
   verificationTier: string

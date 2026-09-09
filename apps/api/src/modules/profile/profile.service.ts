@@ -1,13 +1,7 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ConflictException,
-  ForbiddenException,
-  BadRequestException,
-} from '@nestjs/common'
+import { Injectable, Logger, NotFoundException, ConflictException, ForbiddenException, BadRequestException, Inject } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
+import { SUPABASE_ADMIN_CLIENT, type SupabaseAdminClient } from '../database/database.providers'
 import { accountStateCache } from '../auth/account-state-cache'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
@@ -187,6 +181,16 @@ export interface ProfileResponse {
   lastActiveAt: string | null
   /** True only when presence says online AND the owner shows last active. */
   isOnline: boolean
+  /**
+   * The member's email, or null.
+   *
+   * Only present when they have switched "Show email address" on, or when they
+   * are looking at their own profile. It is read from auth rather than stored
+   * on the profile: auth owns the address, and a copy here would go stale the
+   * moment someone changed it — showing a rescue coordinator an address that no
+   * longer receives mail is worse than showing none.
+   */
+  email: string | null
   professionalProfile: ProfessionalProfileResponse | null
 }
 
@@ -289,6 +293,8 @@ export class ProfileService {
     private readonly authService: AuthService,
     private readonly config: ConfigService,
     private readonly storage: SupabaseStorageService,
+    @Inject(SUPABASE_ADMIN_CLIENT)
+    private readonly supabaseAdmin: SupabaseAdminClient,
   ) {}
 
   // ── USERNAME AVAILABILITY ─────────────────────────────────────────────────
@@ -572,7 +578,7 @@ export class ProfileService {
 
     // Looking at your own profile: nothing is hidden from you, and your own
     // last-active time tells you nothing you do not already know.
-    if (isOwner) return result
+    if (isOwner) return { ...result, email: await this.authEmail(profile.id) }
 
     /*
       Defaults matter here, and they are not the same for both toggles:
@@ -586,10 +592,12 @@ export class ProfileService {
     */
     const settings = await this.prisma.userSettings.findUnique({
       where: { userId: profile.id },
-      select: { showLocation: true, showLastActive: true },
+      select: { showLocation: true, showLastActive: true, showEmail: true },
     })
     const showLocation = settings?.showLocation ?? false
     const showLastActive = settings?.showLastActive ?? true
+    // Defaults to false, so a member with no settings row publishes nothing.
+    const showEmail = settings?.showEmail ?? false
 
     /*
       Applies to a logged-out visitor too.
@@ -600,6 +608,18 @@ export class ProfileService {
     */
     if (result.city && !showLocation) {
       result = { ...result, city: null }
+    }
+
+    /*
+      The address is published only when the member switched it on.
+
+      A private account is excluded even then: the point of a private profile is
+      that non-followers see nothing personal, and an email is the most
+      contactable thing on the page. Someone wanting both should make the
+      account public.
+    */
+    if (showEmail && !profile.isPrivate) {
+      result = { ...result, email: await this.authEmail(profile.id) }
     }
 
     if (!showLastActive) return result
@@ -617,6 +637,33 @@ export class ProfileService {
       // Omitted while online: "online now" is the useful statement, and a
       // timestamp alongside it only invites the question of which to believe.
       lastActiveAt: online ? null : (presence.lastSeen?.toISOString() ?? null),
+    }
+  }
+
+  /**
+   * The member's email address, from auth.
+   *
+   * Read on demand rather than mirrored onto `profiles`. Auth owns the address,
+   * and a stored copy drifts the moment someone changes it — handing a rescue
+   * coordinator an address that no longer receives mail is worse than handing
+   * them none. There is also no trigger keeping such a column in step, so it
+   * would be wrong by default rather than by accident.
+   *
+   * The cost is one admin call, and it is only paid for a profile whose owner
+   * switched the toggle on — off by default, so the common request is unchanged.
+   * If that ever becomes the expensive part, the answer is a synced column with
+   * a trigger behind it, not an unsynced one.
+   *
+   * Returns null on any failure. A profile that renders without an email is
+   * fine; one that 500s because auth was briefly unreachable is not.
+   */
+  private async authEmail(userId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.supabaseAdmin.auth.admin.getUserById(userId)
+      if (error || !data.user?.email) return null
+      return data.user.email
+    } catch {
+      return null
     }
   }
 
@@ -1488,6 +1535,7 @@ export class ProfileService {
       // so any path that skips it discloses nothing rather than everything.
       lastActiveAt: null,
       isOnline: false,
+      email: null,
       professionalProfile: profile.professionalProfile && !profile.professionalProfile.deletedAt
         ? this.mapProfessionalProfile(profile.professionalProfile)
         : null,
