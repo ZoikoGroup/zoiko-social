@@ -36,7 +36,7 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
     title: "Platform",
     links: [
       { label: "Features", href: PLACEHOLDER },
-      { label: "Communities", href: PLACEHOLDER },
+      { label: "Communities", href: "/communities" },
       { label: "World Animal News", href: PLACEHOLDER },
       { label: "Events", href: PLACEHOLDER },
       { label: "Adopt & Foster", href: PLACEHOLDER },
