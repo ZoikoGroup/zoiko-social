@@ -1,7 +1,7 @@
 /**
  * Home2 design tokens.
  *
- * The home2 comps use a palette the shared tailwind.config does not define
+ * The home page comps use a palette the shared tailwind.config does not define
  * (it only carries the older teal/amber/sage scale). Rather than edit the
  * global config — which would restyle every existing page — the values live
  * here and are applied through Tailwind arbitrary values, so this route is

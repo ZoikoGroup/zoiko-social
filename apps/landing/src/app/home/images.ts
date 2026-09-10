@@ -1,12 +1,12 @@
 /**
- * Photography for the home2 page, in /public/home2.
+ * Photography for the home page, in /public/home.
  *
  * The files shipped with sentence-style names that did not match their
  * contents ("Gradient.png" was a dog training class), so they were renamed to
  * short slugs describing the actual picture. Each key is the filename without
  * its extension.
  */
-const dir = "/home2";
+const dir = "/home";
 
 export const IMAGES = {
   /** Two people crouched beside an alpaca, taking a selfie. Hero card. */
