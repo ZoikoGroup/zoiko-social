@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/footer";
-import { Montserrat, Inter } from "next/font/google";
+import { Montserrat, Inter, Plus_Jakarta_Sans } from "next/font/google";
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -12,6 +12,12 @@ const montserrat = Montserrat({
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta-sans",
 });
 
 /*
@@ -37,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${montserrat.variable} ${inter.variable} font-sans`}>
+      <body className={`${montserrat.variable} ${inter.variable} ${plusJakartaSans.variable} font-sans`}>
         <Header />
         <main className="min-h-screen">
           {children}
