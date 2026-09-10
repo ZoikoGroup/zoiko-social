@@ -75,13 +75,20 @@ export function ArrowLink({
 export function FilterPill({
   children,
   active = false,
+  onClick,
 }: {
   children: React.ReactNode;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <span
-      className="inline-flex cursor-default items-center rounded-full px-4 pb-2 pt-1.5 text-xs font-semibold leading-5"
+    <button
+      type="button"
+      onClick={onClick}
+      // `aria-pressed` is what tells a screen reader which filter is currently
+      // applied; the teal fill only conveys that visually.
+      aria-pressed={active}
+      className="inline-flex items-center rounded-full px-4 pb-2 pt-1.5 text-xs font-semibold leading-5 transition hover:opacity-80"
       style={
         active
           ? { background: C.brand, color: "#fff", border: `1px solid ${C.brand}` }
@@ -89,6 +96,6 @@ export function FilterPill({
       }
     >
       {children}
-    </span>
+    </button>
   );
 }

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { APP_LINKS } from "@/lib/app-links";
@@ -12,17 +15,36 @@ const TOPICS = [
   "Vet Science",
   "Rescue Response",
   "Policy",
-];
+] as const;
 
-const LEAD = {
-  image: IMAGES.panda,
-  alt: "A giant panda eating bamboo",
-  age: "2 hours ago",
-  title: "Major Policy Update on Wildlife Trade Enforcement",
-  body: "International coalition strengthens measures to combat illegal wildlife trafficking across 47 nations.",
+type Topic = (typeof TOPICS)[number];
+
+type Story = {
+  image: string;
+  alt: string;
+  age: string;
+  title: string;
+  body: string;
+  place: string;
+  /**
+   * Every topic this story belongs under. Stories are multi-tagged because
+   * real coverage rarely sits in one bucket — a trafficking crackdown is both
+   * Policy and Wildlife Crime — and it keeps each tab populated without
+   * padding the page out with filler headlines.
+   */
+  topics: Topic[];
 };
 
-const STORIES = [
+const STORIES: Story[] = [
+  {
+    image: IMAGES.panda,
+    alt: "A giant panda eating bamboo",
+    age: "2 hours ago",
+    title: "Major Policy Update on Wildlife Trade Enforcement",
+    body: "International coalition strengthens measures to combat illegal wildlife trafficking across 47 nations.",
+    place: "Global",
+    topics: ["Welfare", "Wildlife Crime", "Policy"],
+  },
   {
     image: IMAGES.goldenPortrait,
     alt: "A golden retriever looking at the camera",
@@ -30,6 +52,7 @@ const STORIES = [
     title: "New Research on Canine Cognitive Development",
     body: "Veterinary study reveals breakthrough findings on early socialization impacts.",
     place: "United States",
+    topics: ["Welfare", "Vet Science"],
   },
   {
     image: IMAGES.dolphins,
@@ -38,6 +61,7 @@ const STORIES = [
     title: "Marine Life Rescue Operation Underway",
     body: "International teams coordinate response to stranded dolphins in coastal region.",
     place: "Australia",
+    topics: ["Welfare", "Conservation", "Rescue Response"],
   },
   {
     image: IMAGES.twoDogs,
@@ -46,6 +70,7 @@ const STORIES = [
     title: "Animal Shelter Capacity Initiative Launched",
     body: "National program aims to increase shelter resources and adoption rates.",
     place: "United Kingdom",
+    topics: ["Welfare", "Rescue Response", "Policy"],
   },
   {
     image: IMAGES.catBandana,
@@ -54,6 +79,16 @@ const STORIES = [
     title: "Veterinary Access Expands in Rural Communities",
     body: "Mobile clinic partnerships bring routine care to underserved regions.",
     place: "Canada",
+    topics: ["Welfare", "Vet Science"],
+  },
+  {
+    image: IMAGES.tiger,
+    alt: "A Bengal tiger close-up",
+    age: "16 hours ago",
+    title: "Tiger Numbers Rise Across Protected Reserves",
+    body: "Anti-poaching patrols and habitat corridors credited with a third consecutive year of growth.",
+    place: "India",
+    topics: ["Conservation", "Wildlife Crime", "Policy"],
   },
 ];
 
@@ -70,8 +105,16 @@ function StoryMeta({ age }: { age: string }) {
   );
 }
 
-/** "World Animal News" — one lead story beside a 2x2 grid of secondaries. */
+/**
+ * "World Animal News" — the newest story for the selected topic runs as the
+ * lead, the rest fill the thumbnail grid beside it.
+ */
 export default function NewsSection() {
+  const [topic, setTopic] = useState<Topic>("Welfare");
+
+  const visible = STORIES.filter((story) => story.topics.includes(topic));
+  const [lead, ...rest] = visible;
+
   return (
     <section className="mx-auto max-w-[1280px] px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
       <SectionHeading
@@ -80,97 +123,110 @@ export default function NewsSection() {
       />
 
       <div className="mt-10 flex flex-wrap justify-center gap-3">
-        {TOPICS.map((topic, i) => (
-          <FilterPill key={topic} active={i === 0}>
-            {topic}
+        {TOPICS.map((name) => (
+          <FilterPill
+            key={name}
+            active={name === topic}
+            onClick={() => setTopic(name)}
+          >
+            {name}
           </FilterPill>
         ))}
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <article
-          className="flex flex-col overflow-hidden rounded-[20px] bg-white"
-          style={{ border: `1px solid ${C.line}` }}
-        >
-          <div className="relative h-48 sm:h-64">
-            <Image
-              src={LEAD.image}
-              alt={LEAD.alt}
-              fill
-              sizes="(max-width: 1024px) 100vw, 640px"
-              className="object-cover"
-            />
-          </div>
-          <div className="flex flex-1 flex-col p-6">
-            <StoryMeta age={LEAD.age} />
-            <h3
-              className="mt-3 text-xl font-bold leading-8"
-              style={{ color: C.inkDeep }}
-            >
-              {LEAD.title}
-            </h3>
-            <p className="mt-2 text-sm leading-5" style={{ color: C.muted }}>
-              {LEAD.body}
-            </p>
-            <div className="mt-auto flex flex-wrap items-center gap-6 pt-6">
-              <ArrowLink href={APP_LINKS.news}>Learn More</ArrowLink>
-              <Link
-                href={APP_LINKS.communities}
-                className="text-sm font-semibold transition hover:opacity-80"
-                style={{ color: C.brand }}
-              >
-                Discuss in Community
-              </Link>
-              <Link
-                href={APP_LINKS.safety}
-                className="text-sm font-semibold transition hover:opacity-80"
-                style={{ color: C.brand }}
-              >
-                Report Issue
-              </Link>
+      {lead ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <article
+            className="flex flex-col overflow-hidden rounded-[20px] bg-white"
+            style={{ border: `1px solid ${C.line}` }}
+          >
+            <div className="relative h-48 sm:h-64">
+              <Image
+                src={lead.image}
+                alt={lead.alt}
+                fill
+                sizes="(max-width: 1024px) 100vw, 640px"
+                className="object-cover"
+              />
             </div>
-          </div>
-        </article>
-
-        <div className="grid gap-6 sm:grid-cols-2">
-          {STORIES.map((story) => (
-            <article
-              key={story.title}
-              className="flex flex-col rounded-[20px] bg-white p-4"
-              style={{ border: `1px solid ${C.line}` }}
-            >
-              <div className="flex gap-3">
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-xl">
-                  <Image
-                    src={story.image}
-                    alt={story.alt}
-                    fill
-                    sizes="56px"
-                    className="object-cover"
-                  />
-                </div>
-                <StoryMeta age={story.age} />
-              </div>
-
+            <div className="flex flex-1 flex-col p-6">
+              <StoryMeta age={lead.age} />
               <h3
-                className="mt-3 text-sm font-bold leading-5"
+                className="mt-3 text-xl font-bold leading-8"
                 style={{ color: C.inkDeep }}
               >
-                {story.title}
+                {lead.title}
               </h3>
-              <p className="mt-2 text-xs leading-5" style={{ color: C.muted }}>
-                {story.body}
+              <p className="mt-2 text-sm leading-5" style={{ color: C.muted }}>
+                {lead.body}
               </p>
-              <p
-                className="mt-auto pt-4 text-xs leading-4"
-                style={{ color: C.muted }}
+              <div className="mt-auto flex flex-wrap items-center gap-6 pt-6">
+                <ArrowLink href={APP_LINKS.news}>Learn More</ArrowLink>
+                <Link
+                  href={APP_LINKS.communities}
+                  className="text-sm font-semibold transition hover:opacity-80"
+                  style={{ color: C.brand }}
+                >
+                  Discuss in Community
+                </Link>
+                <Link
+                  href={APP_LINKS.safety}
+                  className="text-sm font-semibold transition hover:opacity-80"
+                  style={{ color: C.brand }}
+                >
+                  Report Issue
+                </Link>
+              </div>
+            </div>
+          </article>
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            {rest.map((story) => (
+              <article
+                key={story.title}
+                className="flex flex-col rounded-[20px] bg-white p-4"
+                style={{ border: `1px solid ${C.line}` }}
               >
-                {story.place}
-              </p>
-            </article>
-          ))}
+                <div className="flex gap-3">
+                  <div className="relative size-14 shrink-0 overflow-hidden rounded-xl">
+                    <Image
+                      src={story.image}
+                      alt={story.alt}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                  </div>
+                  <StoryMeta age={story.age} />
+                </div>
+
+                <h3
+                  className="mt-3 text-sm font-bold leading-5"
+                  style={{ color: C.inkDeep }}
+                >
+                  {story.title}
+                </h3>
+                <p className="mt-2 text-xs leading-5" style={{ color: C.muted }}>
+                  {story.body}
+                </p>
+                <p
+                  className="mt-auto pt-4 text-xs leading-4"
+                  style={{ color: C.muted }}
+                >
+                  {story.place}
+                </p>
+              </article>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <p
+          className="mt-12 text-center text-sm leading-5"
+          style={{ color: C.muted }}
+        >
+          No verified stories under {topic} right now. Check back shortly.
+        </p>
+      )}
 
       <div className="mt-10 flex justify-center">
         <Link
