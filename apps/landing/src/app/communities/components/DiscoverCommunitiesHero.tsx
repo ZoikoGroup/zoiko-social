@@ -9,7 +9,6 @@ export default function DiscoverCommunitiesHero() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle search action here
-    console.log("Searching for:", searchQuery);
   };
 
   return (

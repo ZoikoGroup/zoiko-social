@@ -110,8 +110,8 @@ export default function NewVoicesSection() {
             New voices
           </h2>
           <p className="text-xs sm:text-sm text-[#5B7171] leading-relaxed font-normal max-w-3xl">
-            Newer members who've passed our quality and safety checks — so
-            visibility isn't only for the already-popular.
+            Newer members who&apos;ve passed our quality and safety checks — so
+            visibility isn&apos;t only for the already-popular.
           </p>
         </div>
 

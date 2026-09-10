@@ -76,7 +76,6 @@ export default function UserProfileModal({
 
       {/* Modal Card Wrapper */}
       <div className="relative z-10 w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-[#E2E8F0] flex flex-col max-h-[90vh] overflow-y-auto">
-        
         {/* Header / Banner Area */}
         <div className="relative w-full h-36 bg-[#F1F5F9] shrink-0">
           <img
@@ -109,9 +108,7 @@ export default function UserProfileModal({
         <div className="pt-9 px-6 pb-6 flex flex-col text-left">
           {/* User Name & Badges */}
           <div className="flex items-center gap-2 flex-wrap mb-0.5">
-            <h2 className="text-xl font-bold text-[#0B2E2E]">
-              {profile.name}
-            </h2>
+            <h2 className="text-xl font-bold text-[#0B2E2E]">{profile.name}</h2>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EBF5F5] text-[#0B5C66] text-[11px] font-semibold">
               <Check className="w-3 h-3 stroke-[3]" />
               {profile.verifiedRole}
@@ -131,7 +128,7 @@ export default function UserProfileModal({
           {/* SECTION: WHY YOU'RE SEEING THIS */}
           <div className="mb-5">
             <span className="block text-[10px] font-bold text-[#64748B] tracking-wider uppercase mb-1.5">
-              WHY YOU'RE SEEING THIS
+              WHY YOU&apos;RE SEEING THIS
             </span>
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#EBF5F5] text-[#0B5C66] text-xs font-medium">
               <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -240,7 +237,6 @@ export default function UserProfileModal({
               Block
             </button>
           </div>
-
         </div>
       </div>
     </div>

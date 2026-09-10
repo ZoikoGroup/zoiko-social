@@ -16,7 +16,6 @@ export default function DiscoverPeopleSection() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle search action
-    console.log("Searching for:", searchTerm, "Filter:", activeFilter);
   };
 
   return (

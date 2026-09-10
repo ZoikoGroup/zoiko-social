@@ -21,7 +21,7 @@ export default function TuneDiscoverySection() {
     setSelectedInterests((prev) =>
       prev.includes(interest)
         ? prev.filter((item) => item !== interest)
-        : [...prev, interest]
+        : [...prev, interest],
     );
   };
 
@@ -31,14 +31,15 @@ export default function TuneDiscoverySection() {
         {/* Outer Card Wrapper */}
         <div className="w-full bg-white rounded-3xl border border-[#E2E8F0] p-6 md:p-10 shadow-xs">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-            
             {/* Left Column: Tune your people discovery */}
             <div className="flex flex-col items-start text-left">
               <h2 className="text-xl sm:text-2xl font-bold text-[#0B2E2E] tracking-tight mb-2">
                 Tune your people discovery
               </h2>
               <p className="text-xs sm:text-sm text-[#5B7171] leading-relaxed mb-6 font-normal">
-                Adjust the interests and signals that shape who you see. Hiding or resetting never affects your existing follows, connections, or safety blocks.
+                Adjust the interests and signals that shape who you see. Hiding
+                or resetting never affects your existing follows, connections,
+                or safety blocks.
               </p>
 
               {/* Action Buttons */}
@@ -70,7 +71,7 @@ export default function TuneDiscoverySection() {
                 Your animal interests
               </h2>
               <p className="text-xs sm:text-sm text-[#5B7171] leading-relaxed mb-6 font-normal">
-                Only interests you've explicitly added are ever used.
+                Only interests you&apos;ve explicitly added are ever used.
               </p>
 
               {/* Interest Pills */}
@@ -94,7 +95,6 @@ export default function TuneDiscoverySection() {
                 })}
               </div>
             </div>
-
           </div>
         </div>
       </div>

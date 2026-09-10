@@ -108,10 +108,11 @@ export default function TrustAndSafetySection() {
               Start a community of your own
             </h3>
             <p className="text-xs sm:text-sm text-[#5B7171] leading-relaxed">
-              Creators are responsible for their community's purpose, rules,
-              moderation, and animal-welfare compliance. High-risk categories —
-              rescue coordination, professional advice, wildlife, fundraising,
-              adoption — require additional review before public discovery.
+              Creators are responsible for their community&apos;s purpose,
+              rules, moderation, and animal-welfare compliance. High-risk
+              categories — rescue coordination, professional advice, wildlife,
+              fundraising, adoption — require additional review before public
+              discovery.
             </p>
           </div>
 

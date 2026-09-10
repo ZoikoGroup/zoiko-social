@@ -435,7 +435,7 @@ export default function LocalAndAllCommunitiesSection() {
               <Check className="w-4 h-4 text-[#0B5C66]" />
             </div>
             <h4 className="text-sm font-bold text-[#0B2E2E] mb-1">
-              You've seen all matching communities
+              You&apos;ve seen all matching communities
             </h4>
             <p className="text-xs text-[#64748B] max-w-md">
               Try broadening your filters, exploring a different species or

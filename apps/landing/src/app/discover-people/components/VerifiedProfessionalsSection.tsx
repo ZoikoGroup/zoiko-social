@@ -98,7 +98,7 @@ export default function VerifiedProfessionalsSection() {
           </h2>
           <p className="text-xs sm:text-sm text-[#5B7171] leading-relaxed font-normal">
             Vets, trainers, groomers, behaviorists, and nutritionists verified
-            by Zoiko Social's Trust program.
+            by Zoiko Social&apos;s Trust program.
           </p>
         </div>
 
