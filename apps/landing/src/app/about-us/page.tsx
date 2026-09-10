@@ -1,38 +1,50 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import HeroSection from "./components/HeroSection";
-import OurPurposeSection from "./components/OurPurposeSection";
-import MeaningSection from "./components/MeaningSection";
-import WhatIsSection from "./components/WhatIsSection";
-import BuiltForSection from "./components/BuiltForSection";
+import WhoWeAreSection from "./components/WhoWeAreSection";
+import WhatWeBuildSection from "./components/WhatWeBuildSection";
+import PrinciplesSection from "./components/PrinciplesSection";
+import LocationsSection from "./components/LocationsSection";
+import StatsSection from "./components/StatsSection";
 import TrustSection from "./components/TrustSection";
-import GlobalPerspectiveSection from "./components/GlobalPerspectiveSection";
-import LifeEventsSection from "./components/LifeEventsSection";
-import EcosystemSection from "./components/EcosystemSection";
-import CommitmentSection from "./components/CommitmentSection";
+import WorkWithUsSection from "./components/WorkWithUsSection";
+import FaqSection from "./components/FaqSection";
+import CTASection from "./components/CTASection";
+import { C } from "./components/theme";
 
 /*
-  About-page metadata. Overrides the site-wide title and description in
-  layout.tsx for this route only.
+  The comps are set in Plus Jakarta Sans, which the root layout does not load
+  (it loads Montserrat and Inter for the existing pages). Loading it here
+  scopes the font to this route instead of changing the site-wide layout.
 */
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-jakarta",
+});
+
 export const metadata: Metadata = {
-    title: "About ZoikoSocial | Trusted Social Network for Animals",
-    description:
-        "Discover ZoikoSocial, a trusted social network connecting animal lovers worldwide. Engage, share, and join a safe, verified community focused on animals.",
+  title: "About Zoiko Social | Global Animal Welfare Network",
+  description:
+    "Zoiko Social is a global social platform built for animal communities, welfare, and verified news — a place to connect, discover, and help protect animal life together.",
 };
 
-export default function AboutUsPage() {
-    return (
-        <main className="flex min-h-screen flex-col overflow-hidden">
-            <HeroSection />
-            <OurPurposeSection />
-            <MeaningSection />
-            <WhatIsSection />
-            <BuiltForSection />
-            <TrustSection />
-            <GlobalPerspectiveSection />
-            <LifeEventsSection />
-            <EcosystemSection />
-            <CommitmentSection />
-        </main>
-    );
+export default function AboutUs2Page() {
+  return (
+    <div
+      className={jakarta.className}
+      style={{ background: C.page, color: C.muted }}
+    >
+      <HeroSection />
+      <WhoWeAreSection />
+      <WhatWeBuildSection />
+      <PrinciplesSection />
+      <LocationsSection />
+      <StatsSection />
+      <TrustSection />
+      <WorkWithUsSection />
+      <FaqSection />
+      <CTASection />
+    </div>
+  );
 }

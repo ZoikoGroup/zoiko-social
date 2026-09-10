@@ -1,7 +1,7 @@
 /**
- * about-us2 design tokens.
+ * about-us design tokens.
  *
- * Same palette as the home2 route. It is duplicated rather than imported so
+ * Same palette as the home page. It is duplicated rather than imported so
  * the two routes stay independent — neither can restyle the other by accident,
  * and neither depends on the other surviving. The shared tailwind.config is
  * deliberately left alone; it carries the older teal/amber scale that every

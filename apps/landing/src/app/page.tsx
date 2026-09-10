@@ -1,12 +1,24 @@
 import type { Metadata } from "next";
-import HeroSection from "./_home/components/HeroSection";
-import StatsSection from "./_home/components/StatsSection";
-import FeaturesSection from "./_home/components/FeaturesSection";
-import CommunitiesSection from "./_home/components/CommunitiesSection";
-import NewsSection from "./_home/components/NewsSection";
-import CelebrateSection from "./_home/components/CelebrateSection";
-import SafetySection from "./_home/components/SafetySection";
-import CTASection from "./_home/components/CTASection";
+import { Plus_Jakarta_Sans } from "next/font/google";
+import HeroSection from "./home/HeroSection";
+import FeaturesSection from "./home/FeaturesSection";
+import CommunitiesSection from "./home/CommunitiesSection";
+import NewsSection from "./home/NewsSection";
+import CelebrateSection from "./home/CelebrateSection";
+import CTASection from "./home/CTASection";
+import SafetySection from "./home/SafetySection";
+import { C } from "./home/theme";
+
+/*
+  The home page is set in Plus Jakarta Sans, which the root layout does not
+  load (it loads Montserrat and Inter for the other routes). Loading it here
+  scopes the font to this page instead of changing the site-wide layout.
+*/
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-jakarta",
+});
 
 /*
   Home-page metadata. This overrides the title and description set in
@@ -19,17 +31,20 @@ export const metadata: Metadata = {
 };
 
 export default function LandingPage() {
-  // The layout already renders the <main> wrapper, so this returns a fragment.
+  // The layout already renders the <main> wrapper, so this only sets the
+  // page's own background and base text colour.
   return (
-    <>
+    <div
+      className={jakarta.className}
+      style={{ background: C.page, color: C.muted }}
+    >
       <HeroSection />
-      <StatsSection />
       <FeaturesSection />
       <CommunitiesSection />
       <NewsSection />
       <CelebrateSection />
       <CTASection />
       <SafetySection />
-    </>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Photography for the about-us2 page.
+ * Photography for the about-us page.
  *
  * The supplied files were sentence-named PNGs whose names did not describe
  * their contents — "Gradient.png" was the hero photograph, and the file named
@@ -7,7 +7,7 @@
  * been renamed to content-accurate slugs and converted to WebP (3.04MB total
  * down to 0.25MB), so these paths need no escaping.
  */
-const dir = "/about-us2";
+const dir = "/about-us";
 
 export const IMAGES = {
   /** Hero: people on a boardwalk with a dog, already colour-graded teal. */
