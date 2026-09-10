@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { Bookmark, MoreHorizontal, Clock } from "lucide-react";
 
 interface CommunityCard {
@@ -87,7 +88,9 @@ const RECOMMENDED_COMMUNITIES: CommunityCard[] = [
 
 export default function RecommendedCommunitiesSection() {
   const [activeCategory, setActiveCategory] = useState("All");
-  const [bookmarkedIds, setBookmarkedIds] = useState<Record<string, boolean>>({});
+  const [bookmarkedIds, setBookmarkedIds] = useState<Record<string, boolean>>(
+    {},
+  );
 
   const toggleBookmark = (id: string) => {
     setBookmarkedIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -96,9 +99,7 @@ export default function RecommendedCommunitiesSection() {
   const filteredCommunities =
     activeCategory === "All"
       ? RECOMMENDED_COMMUNITIES
-      : RECOMMENDED_COMMUNITIES.filter(
-          (c) => c.category === activeCategory
-        );
+      : RECOMMENDED_COMMUNITIES.filter((c) => c.category === activeCategory);
 
   return (
     <section className="w-full bg-[#F7F9FA] py-10 md:py-14 text-[#0B2E2E]">
@@ -147,10 +148,12 @@ export default function RecommendedCommunitiesSection() {
                 {/* Header Image & Badges Overlay */}
                 <div>
                   <div className="relative w-full h-36 bg-[#F1F5F9] overflow-hidden">
-                    <img
+                    <Image
                       src={card.image}
                       alt={card.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                      className="object-cover"
                     />
 
                     {/* Top Left Badges */}

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 
 interface CollectionCard {
   id: string;
@@ -73,10 +74,12 @@ export default function PurposeCollectionsSection() {
               className="group relative h-48 sm:h-52 w-full rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer block"
             >
               {/* Card Image */}
-              <img
+              <Image
                 src={collection.image}
                 alt={collection.title}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
 
               {/* Dark Gradient Overlay */}

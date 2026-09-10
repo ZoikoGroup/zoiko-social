@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { Heart, MessageSquare, Share2 } from "lucide-react";
 
 interface FeedPost {
@@ -75,11 +76,13 @@ export default function RecentActivitySection() {
 
               {/* Optional Post Image */}
               {post.image && (
-                <div className="rounded-xl overflow-hidden w-full h-64 sm:h-80 mb-4 bg-[#F1F5F9]">
-                  <img
+                <div className="relative rounded-xl overflow-hidden w-full h-64 sm:h-80 mb-4 bg-[#F1F5F9]">
+                  <Image
                     src={post.image}
                     alt="Post attachment"
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 700px, 800px"
+                    className="object-cover"
                   />
                 </div>
               )}

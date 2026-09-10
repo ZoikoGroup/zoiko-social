@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import {
   MapPin,
   Clock,
@@ -273,10 +274,12 @@ export default function LocalAndAllCommunitiesSection() {
               >
                 <div>
                   <div className="relative w-full h-44 bg-[#F1F5F9] overflow-hidden">
-                    <img
+                    <Image
                       src={card.image}
                       alt={card.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="object-cover"
                     />
                     {card.badge && (
                       <div className="absolute top-3 left-3 z-10">
@@ -368,10 +371,12 @@ export default function LocalAndAllCommunitiesSection() {
               >
                 <div>
                   <div className="relative w-full h-40 bg-[#F1F5F9] overflow-hidden">
-                    <img
+                    <Image
                       src={card.image}
                       alt={card.title}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
                     />
 
                     {card.badges && card.badges.length > 0 && (

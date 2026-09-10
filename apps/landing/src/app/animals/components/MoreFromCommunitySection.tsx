@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Bookmark } from "lucide-react";
 
 interface AnimalCard {
@@ -54,7 +55,7 @@ export default function MoreFromCommunitySection() {
 
   return (
     <section className="w-full font-sans">
-      {/* Container aligned to the left edge with a outer padding gap */}
+      {/* Container aligned to the left edge with an outer padding gap */}
       <div className="w-full max-w-7xl py-8 mx-auto pl-4 sm:pl-6 md:pl-10">
         <h2 className="text-base sm:text-lg font-bold text-[#0B2E2E] mb-5 text-left">
           More from Golden Retriever Guardians
@@ -74,17 +75,19 @@ export default function MoreFromCommunitySection() {
                 <div>
                   {/* Card Media Banner */}
                   <div className="relative w-full h-48 bg-[#F1F5F9] overflow-hidden">
-                    <img
+                    <Image
                       src={animal.image}
                       alt={animal.name}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-cover"
                     />
 
                     {/* Bookmark Floating Action */}
                     <button
                       type="button"
                       onClick={() => toggleSave(animal.id)}
-                      className={`absolute top-3 right-3 w-8 h-8 rounded-lg backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-2xs ${
+                      className={`absolute top-3 right-3 w-8 h-8 rounded-lg backdrop-blur-md flex items-center justify-center transition-all cursor-pointer shadow-2xs z-10 ${
                         isSaved
                           ? "bg-[#0B5C66] text-white"
                           : "bg-white/90 text-[#334155] hover:text-[#0B5C66]"

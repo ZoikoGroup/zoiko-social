@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import {
   ShieldCheck,
   Shield,
@@ -106,12 +107,12 @@ export default function TrustAndCtaSection() {
         <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-r from-[#073B47EB] to-[#066879E0] text-white p-8 sm:p-12 md:p-16 text-center flex flex-col items-center justify-center min-h-[320px] shadow-sm">
           {/* Background Image Layer with Dark Teal Overlay */}
           <div className="absolute inset-0 z-0">
-            <img
+            <Image
               src="/people/cta.jpg"
               alt="Community background"
-              className="w-full h-full object-cover opacity-10 mix-blend-overlay"
+              fill
+              className="object-cover opacity-10 mix-blend-overlay"
             />
-            {/* Gradient Overlay for Text Readability */}
           </div>
 
           {/* CTA Content Container */}

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Bookmark,
   Share2,
@@ -32,10 +33,13 @@ export default function LunaProfilePage() {
 
         {/* Banner Image */}
         <div className="relative w-full h-48 sm:h-64 rounded-2xl overflow-hidden bg-[#E2E8F0] shadow-xs">
-          <img
+          <Image
             src="/animal/a1.png"
             alt="Luna Cover Banner"
-            className="w-full h-full object-cover"
+            fill
+            priority
+            sizes="(max-width: 1280px) 100vw, 1280px"
+            className="object-cover"
           />
         </div>
 
@@ -44,11 +48,13 @@ export default function LunaProfilePage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
             {/* Avatar & Title */}
             <div className="flex items-end gap-4">
-              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white overflow-hidden shadow-md shrink-0 bg-white -mt-12 sm:-mt-14">
-                <img
+              <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white overflow-hidden shadow-md shrink-0 bg-white -mt-12 sm:-mt-14 z-10">
+                <Image
                   src="/animal/a2.png"
                   alt="Luna Avatar"
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(max-width: 640px) 80px, 96px"
+                  className="object-cover"
                 />
               </div>
 
@@ -174,12 +180,14 @@ export default function LunaProfilePage() {
                 ].map((img, idx) => (
                   <div
                     key={idx}
-                    className="aspect-square rounded-xl overflow-hidden bg-[#F1F5F9] cursor-pointer hover:opacity-95 transition-all border border-[#E2E8F0]"
+                    className="relative aspect-square rounded-xl overflow-hidden bg-[#F1F5F9] cursor-pointer hover:opacity-95 transition-all border border-[#E2E8F0]"
                   >
-                    <img
+                    <Image
                       src={img}
                       alt={`Luna Photo ${idx + 1}`}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
+                      className="object-cover"
                     />
                   </div>
                 ))}
@@ -198,11 +206,13 @@ export default function LunaProfilePage() {
                 href="/communities/golden-retriever-guardians"
                 className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#F8FAFC] transition-all border border-transparent hover:border-[#E2E8F0] group cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-[#F1F5F9] shrink-0">
-                  <img
+                <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-[#F1F5F9] shrink-0">
+                  <Image
                     src="/animal/a3.png"
                     alt="Community avatar"
-                    className="w-full h-full object-cover"
+                    fill
+                    sizes="40px"
+                    className="object-cover"
                   />
                 </div>
                 <div className="flex flex-col">

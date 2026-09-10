@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 
 interface SpeciesHub {
   id: string;
@@ -67,10 +68,12 @@ export default function SpeciesHubsSection() {
               className="group relative h-48 sm:h-52 w-full rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer block"
             >
               {/* Background Image */}
-              <img
+              <Image
                 src={hub.image}
                 alt={hub.name}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                className="object-cover transition-transform duration-300 group-hover:scale-105"
               />
 
               {/* Bottom Gradient Overlay for Text Readability */}

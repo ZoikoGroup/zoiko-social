@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import UserProfileModal from "@/components/UserProfileModal";
 
 interface Person {
@@ -170,18 +171,22 @@ export default function AnimalLoversSection() {
                 <div>
                   {/* Banner & Full Circular Avatar */}
                   <div className="relative w-full h-28 bg-[#F1F5F9]">
-                    <img
+                    <Image
                       src={person.bgImage}
                       alt={`${person.name} background`}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="object-cover"
                     />
 
                     {/* Full Circular Avatar */}
                     <div className="absolute -bottom-5 left-4 w-11 h-11 rounded-full border-2 border-white overflow-hidden bg-white shadow-xs z-10 shrink-0">
-                      <img
+                      <Image
                         src={person.avatarImage}
                         alt={person.name}
-                        className="w-full h-full object-cover rounded-full"
+                        fill
+                        sizes="44px"
+                        className="object-cover rounded-full"
                       />
                     </div>
                   </div>

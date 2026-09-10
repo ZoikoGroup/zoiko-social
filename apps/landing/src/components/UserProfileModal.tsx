@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
+import Image from "next/image";
 import { X, Check, Clock } from "lucide-react";
 
 interface UserProfileModalProps {
@@ -78,10 +79,12 @@ export default function UserProfileModal({
       <div className="relative z-10 w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-[#E2E8F0] flex flex-col max-h-[90vh] overflow-y-auto">
         {/* Header / Banner Area */}
         <div className="relative w-full h-36 bg-[#F1F5F9] shrink-0">
-          <img
+          <Image
             src={profile.bgImage}
             alt="Profile background"
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 768px) 100vw, 448px"
+            className="object-cover"
           />
 
           {/* Close Button */}
@@ -95,11 +98,13 @@ export default function UserProfileModal({
           </button>
 
           {/* Profile Avatar */}
-          <div className="absolute -bottom-6 left-5 w-16 h-16 rounded-full border-2 border-white bg-white overflow-hidden shadow-md z-10">
-            <img
+          <div className="absolute -bottom-6 left-5 w-16 h-16 rounded-full border-2 border-white bg-white overflow-hidden shadow-md z-10 relative">
+            <Image
               src={profile.avatarImage}
               alt={profile.name}
-              className="w-full h-full object-cover rounded-full"
+              fill
+              sizes="64px"
+              className="object-cover rounded-full"
             />
           </div>
         </div>
