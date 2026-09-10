@@ -1,8 +1,8 @@
 import React from 'react'
 import Image from 'next/image'
 import {
-  MoreHorizontal, Sparkles, MessageCircle, Repeat2, Share, Bookmark, Heart, Clock,
-  ShieldCheck, ArrowUpRight, CheckCircle2, ChevronRight, Eye, Flag, ShieldAlert, AlertTriangle
+  MoreHorizontal, Sparkles, MessageCircle, Repeat2, Share, Heart, Clock,
+  ShieldCheck, CheckCircle2, ChevronRight, AlertTriangle
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -43,7 +43,7 @@ function ActionRow({ likes, comments, reposts }: ActionRowProps) {
   )
 }
 
-function ContextBanner({ icon: Icon, text, linkText }: { icon: any, text: string, linkText?: string }) {
+function ContextBanner({ icon: Icon, text, linkText }: { icon: React.ComponentType<{ className?: string; strokeWidth?: number }>, text: string, linkText?: string }) {
   return (
     <div className="flex items-center gap-2 bg-[#EEF8F9] px-3 py-2 rounded-lg mb-3 border border-[#066879]/10">
       <Icon className="w-4 h-4 text-[#066879]" strokeWidth={2} />
@@ -144,7 +144,7 @@ export function AdoptionCard() {
       <ContextBanner icon={Sparkles} text="Related to animals and topics you follow" linkText="Why this?" />
 
       <p className="text-[15px] text-teal-deep mb-4 leading-relaxed">
-        Meet Willow — a 2-year-old lab mix looking for her forever home. She's friendly, house-trained, and great with kids.
+        Meet Willow — a 2-year-old lab mix looking for her forever home. She&apos;s friendly, house-trained, and great with kids.
       </p>
 
       <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden mb-4 bg-teal-wash">
@@ -183,7 +183,7 @@ export function EventCard() {
         Community Adoption Day — Meet Your New Best Friend
       </h2>
       <p className="text-[15px] font-medium text-teal-light mb-4">
-        Saturday, Oct 4 · 11:00 AM–3:00 PM · Regent's Park, London
+        Saturday, Oct 4 · 11:00 AM–3:00 PM · Regent&apos;s Park, London
       </p>
 
       <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden mb-4 bg-teal-wash">
@@ -206,7 +206,7 @@ export function AnimalProfileUpdateCard() {
         <div className="flex items-center gap-3">
           <Image src="/discover-for-you/avatar-milo.png" alt="Milo's Journey" width={42} height={42} className="rounded-full object-cover" />
           <div>
-            <h3 className="font-bold text-[15px] text-teal-deep leading-tight">Milo's Journey</h3>
+            <h3 className="font-bold text-[15px] text-teal-deep leading-tight">Milo&apos;s Journey</h3>
             <p className="text-[13px] text-teal-muted">Rescue cat profile · 3h</p>
           </div>
         </div>
@@ -223,7 +223,7 @@ export function AnimalProfileUpdateCard() {
       <ContextBanner icon={Sparkles} text="Because you selected Animal Welfare" linkText="Why this?" />
 
       <p className="text-[15px] text-teal-deep mb-4 leading-relaxed">
-        Six months ago Milo was found injured on the street. Today he's thriving in his new home — fully recovered and loving life indoors. 🧡
+        Six months ago Milo was found injured on the street. Today he&apos;s thriving in his new home — fully recovered and loving life indoors. 🧡
       </p>
 
       <div className="relative w-full aspect-square rounded-xl overflow-hidden mb-2 bg-teal-wash">
@@ -295,9 +295,9 @@ export function CaughtUpState() {
       <div className="w-16 h-16 bg-teal-wash rounded-full flex items-center justify-center mb-6">
         <CheckCircle2 className="w-8 h-8 text-teal-light" />
       </div>
-      <h2 className="text-[24px] font-bold text-teal-deep mb-2">You're caught up</h2>
+      <h2 className="text-[24px] font-bold text-teal-deep mb-2">You&apos;re caught up</h2>
       <p className="text-[15px] text-teal-muted max-w-md mx-auto mb-8">
-        There's no newer eligible content right now. Here are a few useful places to go next.
+        There&apos;s no newer eligible content right now. Here are a few useful places to go next.
       </p>
       
       <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto px-4 sm:px-0">

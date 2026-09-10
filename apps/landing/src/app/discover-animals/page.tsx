@@ -128,7 +128,7 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
           <div className="mb-16">
             <div className="mb-6">
               <h2 className="text-[20px] md:text-[20px] md:text-[24px] font-bold text-[#073B47] font-montserrat mb-1">Recommended for You</h2>
-              <p className="text-[13px] md:text-[14px] text-gray-500 font-jakarta">Based on who you follow, your species preferences, and communities you've joined.</p>
+              <p className="text-[13px] md:text-[14px] text-gray-500 font-jakarta">Based on who you follow, your species preferences, and communities you&apos;ve joined.</p>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
@@ -344,7 +344,7 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
           <div className="mb-16">
             <div className="mb-6">
               <h2 className="text-[20px] md:text-[24px] font-bold text-[#073B47] font-montserrat mb-1">From Communities</h2>
-              <p className="text-[14px] text-gray-500">Animal profiles from communities you've joined.</p>
+              <p className="text-[14px] text-gray-500">Animal profiles from communities you&apos;ve joined.</p>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
@@ -387,7 +387,7 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
                 <div>
                   <h3 className="text-[16px] md:text-[18px] font-bold text-[#073B47] mb-1 font-jakarta">See animal profiles near you</h3>
                   <p className="text-[13px] md:text-[14px] text-gray-500 font-jakarta leading-relaxed">
-                    Set a region to discover animals in your area. We'll only ever show a safe, approximate location — never your precise position.
+                    Set a region to discover animals in your area. We&apos;ll only ever show a safe, approximate location — never your precise position.
                   </p>
                 </div>
               </div>
@@ -445,13 +445,13 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
             <div className="w-full max-w-[760px] flex flex-col gap-4">
               <details className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm group cursor-pointer hover:border-teal-wash transition-colors">
                 <summary className="flex items-center justify-between font-bold text-[#073B47] text-[14px] md:text-[16px] font-jakarta list-none">
-                  How does Zoiko Social protect an animal's location?
+                  How does Zoiko Social protect an animal&apos;s location?
                   <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-[#073B47] text-[18px] leading-none font-light flex-shrink-0">
                     +
                   </span>
                 </summary>
                 <div className="pt-4 text-[13px] md:text-[14px] text-gray-500 font-jakarta leading-relaxed">
-                  We obscure precise location data to protect vulnerable animals. Location is only shown at a safe, approximate regional level (e.g., "Sacramento, CA area") unless verified rescue organizations choose to share more specific details for adoption events.
+                  We obscure precise location data to protect vulnerable animals. Location is only shown at a safe, approximate regional level (e.g., &quot;Sacramento, CA area&quot;) unless verified rescue organizations choose to share more specific details for adoption events.
                 </div>
               </details>
               
@@ -463,7 +463,7 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
                   </span>
                 </summary>
                 <div className="pt-4 text-[13px] md:text-[14px] text-gray-500 font-jakarta leading-relaxed">
-                  Recommendations are powered by your species preferences, communities you've joined, and interactions with verified organizations. You can always refine these using the "Tune discovery" button.
+                  Recommendations are powered by your species preferences, communities you&apos;ve joined, and interactions with verified organizations. You can always refine these using the &quot;Tune discovery&quot; button.
                 </div>
               </details>
 
@@ -475,7 +475,7 @@ export default function DiscoverAnimalsPage(): React.JSX.Element {
                   </span>
                 </summary>
                 <div className="pt-4 text-[13px] md:text-[14px] text-gray-500 font-jakarta leading-relaxed">
-                  While you can't adopt directly with a single click, you can view the animal's full profile which links directly to the verified organization's official adoption portal or contact information.
+                  While you can&apos;t adopt directly with a single click, you can view the animal&apos;s full profile which links directly to the verified organization&apos;s official adoption portal or contact information.
                 </div>
               </details>
             </div>
