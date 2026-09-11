@@ -24,8 +24,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/veterinarian,clinic.png",
-    "avatar": "/communities-prefessional/veterinary,icon.png"
+    "cover": "/communities-professional/veterinarian,clinic.png",
+    "avatar": "/communities-professional/veterinary,icon.png"
   },
   {
     "id": "CalmPawsCard",
@@ -39,7 +39,7 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/dogtraining.png",
+    "cover": "/communities-professional/dogtraining.png",
     "avatar": null
   },
   {
@@ -55,8 +55,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/shelter,dog.png",
-    "avatar": "/communities-prefessional/shelter,icon.png"
+    "cover": "/communities-professional/shelter,dog.png",
+    "avatar": "/communities-professional/shelter,icon.png"
   },
   {
     "id": "DeltaEquineCard",
@@ -70,8 +70,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Request required",
     "primaryBtn": "View Community",
     "secondaryBtn": "Request to Join",
-    "cover": "/communities-prefessional/Background.png",
-    "avatar": "/communities-prefessional/horse,icon.png"
+    "cover": "/communities-professional/Background.png",
+    "avatar": "/communities-professional/horse,icon.png"
   },
   {
     "id": "PositiveReinforcementCard",
@@ -85,8 +85,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Request required",
     "primaryBtn": "View Community",
     "secondaryBtn": "Request to Join",
-    "cover": "/communities-prefessional/Background (1).png",
-    "avatar": "/communities-prefessional/Background+Border+Shadow (1).png"
+    "cover": "/communities-professional/Background (1).png",
+    "avatar": "/communities-professional/Background+Border+Shadow (1).png"
   },
   {
     "id": "CoastalWildlifeCard",
@@ -100,8 +100,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Request required",
     "primaryBtn": "View Community",
     "secondaryBtn": "Request to Join",
-    "cover": "/communities-prefessional/Background (2).png",
-    "avatar": "/communities-prefessional/fox,icon.png"
+    "cover": "/communities-professional/Background (2).png",
+    "avatar": "/communities-professional/fox,icon.png"
   },
   {
     "id": "FelineWellnessCard",
@@ -115,8 +115,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/cat,veterinary.png",
-    "avatar": "/communities-prefessional/cat,icon.png"
+    "cover": "/communities-professional/cat,veterinary.png",
+    "avatar": "/communities-professional/cat,icon.png"
   },
   {
     "id": "K9BehaviorAllianceCard",
@@ -130,8 +130,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/Background (3).png",
-    "avatar": "/communities-prefessional/dogtraining,icon.png"
+    "cover": "/communities-professional/Background (3).png",
+    "avatar": "/communities-professional/dogtraining,icon.png"
   },
   {
     "id": "DowntownHumaneCard",
@@ -146,8 +146,8 @@ const PROFESSIONAL_COMMUNITIES = [
     "status": "Open to join",
     "primaryBtn": "View Community",
     "secondaryBtn": "Join",
-    "cover": "/communities-prefessional/Background (4).png",
-    "avatar": "/communities-prefessional/shelter,icon (1).png"
+    "cover": "/communities-professional/Background (4).png",
+    "avatar": "/communities-professional/shelter,icon (1).png"
   }
 ];
 
