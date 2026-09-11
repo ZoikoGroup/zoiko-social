@@ -25,8 +25,9 @@ type Item = {
  * Menu destinations.
  *
  * The app has real pages for the feed, /explore, /network and /communities.
- * It has no trending, live, reels or near-you route yet, so those four point
- * at /explore rather than at a URL that would 404.
+ * Every Happening Now item — Trending Now, Live Now, Reels and Near You — is
+ * a page on this landing site, so they link locally rather than into the
+ * app.
  */
 const EXPLORE: readonly Item[] = [
   {
@@ -60,25 +61,25 @@ const HAPPENING_NOW: readonly Item[] = [
     label: "Trending Now",
     description: "The most-followed stories and posts right now.",
     icon: `${ICON}trending-up.svg`,
-    href: appUrl("/explore"),
+    href: "/discover-trending-now",
   },
   {
     label: "Live Now",
     description: "Live video from communities and events.",
     icon: `${ICON}play-circle.svg`,
-    href: appUrl("/explore"),
+    href: "/discover-live-now",
   },
   {
     label: "Reels",
     description: "Short videos from across the platform.",
     icon: `${ICON}film.svg`,
-    href: appUrl("/explore"),
+    href: "/discover-reels",
   },
   {
     label: "Near You",
     description: "Local communities once your region is set.",
     icon: `${ICON}map-pin.svg`,
-    href: appUrl("/explore"),
+    href: "/discover-near-you",
   },
 ];
 

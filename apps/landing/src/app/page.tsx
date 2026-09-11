@@ -25,7 +25,7 @@ const jakarta = Plus_Jakarta_Sans({
   layout.tsx, which stay as the site-wide default for every other route.
 */
 export const metadata: Metadata = {
-  title: "Zoiko Social | Global Social Network for Animal Lovers",
+  title: "Zoiko Social | Global Social Network for Animal Lovers ",
   description:
     "Join Zoiko Social, the global social network for animal lovers, communities, pets, wildlife, verified animal news, adoption, events and animal welfare.",
 };

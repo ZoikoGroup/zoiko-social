@@ -24,9 +24,9 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "About Zoiko Social | Global Animal Welfare Network",
+  title: "About ZoikoSocial | Trusted Social Network for Animals",
   description:
-    "Zoiko Social is a global social platform built for animal communities, welfare, and verified news — a place to connect, discover, and help protect animal life together.",
+   " Discover ZoikoSocial, a trusted social network connecting animal lovers worldwide. Engage, share, and join a safe, verified community focused on animals.",
 };
 
 export default function AboutUs2Page() {
