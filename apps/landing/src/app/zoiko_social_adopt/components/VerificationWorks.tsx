@@ -36,7 +36,7 @@ export default function VerificationWorks() {
           How verification works
         </div>
         <div className="text-teal-950 text-base font-normal font-['Plus_Jakarta_Sans'] leading-6">
-          A verified badge means Zoiko Social has completed its defined verification process — it isn't a guarantee of every future action or outcome.
+          A verified badge means Zoiko Social has completed its defined verification process — it isn&apos;t a guarantee of every future action or outcome.
         </div>
       </div>
 

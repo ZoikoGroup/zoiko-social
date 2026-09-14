@@ -76,7 +76,7 @@ export default function SearchFilters() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-cyan-800 text-[13.5px] font-semibold font-['Plus_Jakarta_Sans'] cursor-pointer hover:underline">Use my location</span>
-          <span className="text-gray-500 text-[13.5px] font-normal font-['Plus_Jakarta_Sans']">— we'll ask before using your device location. You can always search by city or region instead.</span>
+          <span className="text-gray-500 text-[13.5px] font-normal font-['Plus_Jakarta_Sans']">— we&apos;ll ask before using your device location. You can always search by city or region instead.</span>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">

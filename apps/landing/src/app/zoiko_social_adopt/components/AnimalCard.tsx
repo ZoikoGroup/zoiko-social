@@ -18,7 +18,7 @@ interface AnimalCardProps {
 }
 
 export default function AnimalCard({ card }: AnimalCardProps) {
-  const { name, details, location, organization, listedTime, intentBadge, statusBadge, cover } = card;
+  const { name, details, location, organization, listedTime, cover } = card;
 
   return (
     <div className="w-full h-full bg-white rounded-[20px] border border-zinc-200 overflow-hidden flex flex-col">
