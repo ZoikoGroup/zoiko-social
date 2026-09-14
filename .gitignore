@@ -59,3 +59,9 @@ supabase/.temp/
 # Local design mockups / screenshots
 *.jpeg
 WhatsApp Image*
+
+# ── TEMPORARY SCRIPTS ───────────────────────────────────────
+figma_node.json
+download_images.mjs
+compress_images.py
+img_fetcher/
