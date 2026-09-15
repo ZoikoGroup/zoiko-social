@@ -24,17 +24,16 @@ type Item = {
 /**
  * Menu destinations.
  *
- * The app has real pages for the feed, /explore, /network and /communities.
- * Every Happening Now item — Trending Now, Live Now, Reels and Near You — is
- * a page on this landing site, so they link locally rather than into the
- * app.
+ * For You and every Happening Now item — Trending Now, Live Now, Reels and
+ * Near You — are pages on this landing site, so they link locally. Animals,
+ * People and Communities go to the app, which has the real directories.
  */
 const EXPLORE: readonly Item[] = [
   {
     label: "For You",
     description: "A feed tuned to the animals and communities you follow.",
     icon: `${ICON}sparkles.svg`,
-    href: appUrl("/"),
+    href: "/discover-for-you",
   },
   {
     label: "Animals",
