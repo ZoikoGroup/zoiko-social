@@ -51,7 +51,7 @@ export function SuggestedCommunitiesWidget() {
     <div className="bg-white border border-teal-wash/30 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-[15px] text-teal-deep">Suggested communities</h3>
-        <Link href="/communities" className="text-[13px] font-medium text-teal-light hover:text-teal-deep transition-colors">
+        <Link href="/discover-communities" className="text-[13px] font-medium text-teal-light hover:text-teal-deep transition-colors">
           See all
         </Link>
       </div>

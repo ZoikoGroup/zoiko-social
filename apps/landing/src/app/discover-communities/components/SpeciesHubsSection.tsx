@@ -13,32 +13,32 @@ const SPECIES_HUBS: SpeciesHub[] = [
   {
     id: "1",
     name: "Dogs",
-    image: "/communities/c5.png",
+    image: "/discover-communities/c5.png",
   },
   {
     id: "2",
     name: "Cats",
-    image: "/communities/c6.png",
+    image: "/discover-communities/c6.png",
   },
   {
     id: "3",
     name: "Birds",
-    image: "/communities/c7.png",
+    image: "/discover-communities/c7.png",
   },
   {
     id: "4",
     name: "Horses",
-    image: "/communities/c8.png",
+    image: "/discover-communities/c8.png",
   },
   {
     id: "5",
     name: "Reptiles",
-    image: "/communities/c9.png",
+    image: "/discover-communities/c9.png",
   },
   {
     id: "6",
     name: "Small Animals",
-    image: "/communities/c10.png",
+    image: "/discover-communities/c10.png",
   },
 ];
 

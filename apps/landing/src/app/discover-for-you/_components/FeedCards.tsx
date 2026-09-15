@@ -301,7 +301,7 @@ export function CaughtUpState() {
       </p>
       
       <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto px-4 sm:px-0">
-        <Link href="/communities" className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
+        <Link href="/discover-communities" className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
           Explore Communities <ChevronRight className="w-4 h-4" />
         </Link>
         <button className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
