@@ -24,21 +24,23 @@ type Item = {
 /**
  * Menu destinations.
  *
- * The app has one /adoption page with no filtered views, so the four listing
- * items point there. The safety items go to the docs pages that cover them.
+ * Animals for Adoption, Animals Needing Foster, Near You, and Adoption Safety
+ * are pages on this landing site, so they link locally. Recently Listed has no
+ * page yet, so it points at the app; the other safety items go to the docs
+ * pages that cover them.
  */
 const FIND_AN_ANIMAL: readonly Item[] = [
   {
     label: "Animals for Adoption",
     description: "Browse animals ready for a home.",
     icon: `${ICON}paw.svg`,
-    href: appUrl("/adoption"),
+    href: "/adopt",
   },
   {
     label: "Animals Needing Foster",
     description: "Short and long-term fostering needs.",
     icon: `${ICON}heart.svg`,
-    href: appUrl("/adoption"),
+    href: "/adopt-animals-needing-foster",
   },
   {
     label: "Recently Listed",
@@ -50,7 +52,7 @@ const FIND_AN_ANIMAL: readonly Item[] = [
     label: "Near You",
     description: "Listings near your set region.",
     icon: `${ICON}map-pin.svg`,
-    href: appUrl("/adoption"),
+    href: "/adopt-near-you",
   },
 ];
 
@@ -71,7 +73,7 @@ const ADOPT_SAFELY: readonly Item[] = [
     label: "Adoption Safety",
     description: "Guidance for a safe adoption process.",
     icon: `${ICON}shield.svg`,
-    href: appUrl("/docs/safety-and-trust"),
+    href: "/adopt-adoption-safety",
   },
   {
     label: "Report a Concern",

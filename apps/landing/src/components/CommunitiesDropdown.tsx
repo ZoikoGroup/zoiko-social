@@ -24,34 +24,34 @@ type Item = {
 /**
  * Menu destinations.
  *
- * The app has one communities directory and no sub-routes for popular, species,
- * professional or the four purpose filters, so those point at /communities
- * rather than at a URL that would 404.
+ * Every item except Memorial & Support has a page on this landing site, so
+ * those link locally. There is no memorial route yet, so that one points at
+ * the app's /communities directory rather than at a URL that would 404.
  */
 const BROWSE: readonly Item[] = [
   {
     label: "All Communities",
     description: "Every community on the platform, in one directory.",
     icon: `${ICON}list.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-all",
   },
   {
     label: "Popular",
     description: "The most active communities right now.",
     icon: `${ICON}trending-up.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-popular",
   },
   {
     label: "By Species",
     description: "Find a community for a specific animal.",
     icon: `${ICON}paw.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-by-species",
   },
   {
     label: "Professional",
     description: "Communities run by vets, trainers, and shelters.",
     icon: `${ICON}badge-check.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-professional",
   },
 ];
 
@@ -60,19 +60,19 @@ const BY_PURPOSE: readonly Item[] = [
     label: "Rescue & Adoption",
     description: "Coordinate fostering, rescue, and adoption.",
     icon: `${ICON}heart.svg`,
-    href: appUrl("/adoption"),
+    href: "/communities-rescue-adoption",
   },
   {
     label: "Training & Behavior",
     description: "Share advice on training and animal behavior.",
     icon: `${ICON}bone.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-training-behavior",
   },
   {
     label: "Wildlife & Conservation",
     description: "Follow conservation work around the world.",
     icon: `${ICON}globe.svg`,
-    href: appUrl("/communities"),
+    href: "/communities-wildlife-conservation",
   },
   {
     label: "Memorial & Support",
