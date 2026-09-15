@@ -24,9 +24,9 @@ type Item = {
 /**
  * Menu destinations.
  *
- * For You and every Happening Now item — Trending Now, Live Now, Reels and
- * Near You — are pages on this landing site, so they link locally. Animals,
- * People and Communities go to the app, which has the real directories.
+ * For You, Communities, and every Happening Now item — Trending Now, Live
+ * Now, Reels and Near You — are pages on this landing site, so they link
+ * locally. Animals and People go to the app, which has the real directories.
  */
 const EXPLORE: readonly Item[] = [
   {
@@ -51,7 +51,7 @@ const EXPLORE: readonly Item[] = [
     label: "Communities",
     description: "Groups built around species, purpose, and place.",
     icon: `${ICON}users-group.svg`,
-    href: appUrl("/communities"),
+    href: "/discover-communities",
   },
 ];
 
