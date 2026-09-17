@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Heart, Pin, Trash2, Loader2, Send } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
+import { MentionSuggestions } from '../MentionSuggestions'
 import { commentsApi, type CommentItem, type PostItem } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
+import { useMentionAutocomplete } from '@/hooks/use-mention-autocomplete'
 import { getSocket } from '@/lib/socket'
 
 function timeAgo(iso: string): string {
@@ -163,6 +165,7 @@ export function CommentThread({ post }: CommentThreadProps): React.JSX.Element {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
+  const mentions = useMentionAutocomplete(input, setInput)
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -347,15 +350,49 @@ export function CommentThread({ post }: CommentThreadProps): React.JSX.Element {
           )}
           <div className="flex items-center gap-3">
             {profile && <UserAvatar name={profile.displayName} image={profile.avatarUrl ?? undefined} size="sm" />}
-            <input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void submit() }}
-              maxLength={1000}
-              placeholder="Add a comment…"
-              className="flex-1 px-3 py-2 bg-surface-container-low rounded-full text-label-sm border border-transparent focus:border-primary focus:outline-none transition-colors"
-            />
+            <div className="relative flex-1">
+              <input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  mentions.onValueChange(e.target.value, e.target.selectionStart ?? e.target.value.length)
+                }}
+                onSelect={(e) => {
+                  const el = e.currentTarget
+                  mentions.onValueChange(el.value, el.selectionStart ?? el.value.length)
+                }}
+                onKeyDown={(e) => {
+                  // The picker gets first refusal on Enter: while a name is
+                  // highlighted, Enter chooses it rather than posting a comment
+                  // with a half-typed handle in it.
+                  if (mentions.handleKeyDown(e)) return
+                  if (e.key === 'Enter') void submit()
+                }}
+                onBlur={() => mentions.close()}
+                maxLength={1000}
+                placeholder="Add a comment…"
+                className="w-full px-3 py-2 bg-surface-container-low rounded-full text-label-sm border border-transparent focus:border-primary focus:outline-none transition-colors"
+              />
+              {mentions.open && (
+                <MentionSuggestions
+                  suggestions={mentions.suggestions}
+                  loading={mentions.loading}
+                  activeIndex={mentions.activeIndex}
+                  onHover={mentions.setActiveIndex}
+                  onSelect={(s) => {
+                    const result = mentions.select(s)
+                    if (!result) return
+                    requestAnimationFrame(() => {
+                      const el = inputRef.current
+                      if (!el) return
+                      el.focus()
+                      el.setSelectionRange(result.caret, result.caret)
+                    })
+                  }}
+                />
+              )}
+            </div>
             <button
               onClick={submit}
               disabled={!input.trim() || submitting}

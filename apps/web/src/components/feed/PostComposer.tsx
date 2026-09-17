@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { UserAvatar } from '../UserAvatar'
+import { MentionSuggestions } from '../MentionSuggestions'
 import { useAuth } from '@/hooks/use-auth'
+import { useMentionAutocomplete } from '@/hooks/use-mention-autocomplete'
 import { postsApi, type PostItem, type NewPostMedia, type PostKind, type PostMetadata } from '@/lib/api'
 import { processImage } from '@/lib/image'
 import { createClient } from '@/lib/supabase/client'
@@ -32,6 +34,8 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
   const tm = useTranslations('modules')
   const { profile } = useAuth()
   const [caption, setCaption] = useState('')
+  const captionRef = useRef<HTMLTextAreaElement>(null)
+  const mentions = useMentionAutocomplete(caption, setCaption)
   const [images, setImages] = useState<PendingImage[]>([])
   const [visibility, setVisibility] = useState<'public' | 'followers'>('public')
   const [expanded, setExpanded] = useState(false)
@@ -207,14 +211,49 @@ export function PostComposer({ onPosted, communityId, showLauncher = false }: Po
         <div className="relative flex-1">
           <textarea
             {...(showLauncher ? { id: 'home-composer-textarea' } : {})}
+            ref={captionRef}
             value={caption}
-            onChange={(e) => setCaption(e.target.value)}
+            onChange={(e) => {
+              setCaption(e.target.value)
+              mentions.onValueChange(e.target.value, e.target.selectionStart)
+            }}
+            /*
+              Moving the caret with the keyboard or mouse changes which handle
+              is being edited, so the picker has to re-read it from the new
+              position rather than only on typing.
+            */
+            onSelect={(e) => {
+              const el = e.currentTarget
+              mentions.onValueChange(el.value, el.selectionStart)
+            }}
+            onKeyDown={(e) => { mentions.handleKeyDown(e) }}
+            onBlur={() => mentions.close()}
             onFocus={() => setExpanded(true)}
             maxLength={2200}
             rows={expanded ? 3 : 1}
             placeholder={communityId ? t('shareCommunity') : t('shareUpdate')}
             className="w-full pl-4 pr-11 py-2.5 bg-surface-container-low rounded-2xl text-label-md border border-outline-variant/20 focus:border-primary focus:outline-none transition-all resize-none"
           />
+          {mentions.open && (
+            <MentionSuggestions
+              suggestions={mentions.suggestions}
+              loading={mentions.loading}
+              activeIndex={mentions.activeIndex}
+              onHover={mentions.setActiveIndex}
+              onSelect={(s) => {
+                const result = mentions.select(s)
+                if (!result) return
+                // Put the caret after the handle just inserted, rather than
+                // letting the browser drop it back at the end of the caption.
+                requestAnimationFrame(() => {
+                  const el = captionRef.current
+                  if (!el) return
+                  el.focus()
+                  el.setSelectionRange(result.caret, result.caret)
+                })
+              }}
+            />
+          )}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

@@ -350,8 +350,26 @@ export const authApi = {
     mutate<{ success: boolean; revokedEverywhere: boolean }>('/auth/logout', { method: 'POST' }),
 }
 
+/** One row in the "@" picker. */
+export interface MentionSuggestion {
+  id: string
+  username: string
+  displayName: string
+  avatarUrl: string | null
+  verificationTier: string
+}
+
 export const profileApi = {
   getMe: () => request<Profile>('/profiles/me'),
+  /*
+    Deliberately uncached: the caller debounces, every keystroke asks a
+    different question, and a stale answer here would offer a name that is no
+    longer taggable.
+  */
+  mentionable: (q: string, limit = 8) =>
+    request<{ results: MentionSuggestion[] }>(
+      `/profiles/mentionable?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ).then((r) => r.results),
   getById: (id: string) => cachedGet<Profile>(`/profiles/${id}`),
   getByUsername: (username: string) => cachedGet<Profile>(`/profiles/username/${username}`),
   /** Profile + viewer relationship in one round-trip. */
