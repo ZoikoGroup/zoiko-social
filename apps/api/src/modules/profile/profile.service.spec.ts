@@ -515,3 +515,105 @@ describe('ProfileService.getProfileById — the email gate', () => {
     expect(redis.setProfile).toHaveBeenCalledWith(OWNER, expect.objectContaining({ email: null }))
   })
 })
+
+/*
+  The picker behind "@".
+
+  Its job is to offer only people the publish step would actually tag. A name
+  that appears here and is then silently dropped is worse than an empty list:
+  the author believes they reached someone they did not.
+*/
+describe('ProfileService.searchTaggable', () => {
+  const ME = 'me-1'
+
+  function buildSearch(opts: { matches?: unknown[]; blocks?: unknown[] } = {}) {
+    const findMany = jest.fn().mockResolvedValue(opts.matches ?? [])
+    const prisma = {
+      blockedUser: { findMany: jest.fn().mockResolvedValue(opts.blocks ?? []) },
+      profile: { findMany },
+    }
+    const service = new ProfileService(
+      prisma as unknown as PrismaService,
+      {} as unknown as RedisService,
+      {} as unknown as RealtimeService,
+      {} as unknown as NotificationQueueService,
+      {} as unknown as AuditLogService,
+      {} as unknown as ProfanityService,
+      {} as unknown as AuthService,
+      {} as unknown as ConfigService,
+      {} as unknown as SupabaseStorageService,
+      {} as never,
+    )
+    return { service, findMany, prisma }
+  }
+
+  const person = (username: string, displayName: string, followersCount = 0) => ({
+    id: username, username, displayName, avatarUrl: null, verificationTier: 'none', followersCount,
+  })
+
+  it('answers an empty query without touching the database', async () => {
+    const { service, findMany } = buildSearch()
+    expect(await service.searchTaggable(ME, '   ')).toEqual([])
+    expect(findMany).not.toHaveBeenCalled()
+  })
+
+  it('searches only accounts that allow tagging', async () => {
+    /*
+      Regression. The tagging rule and the name match both want the key `OR`,
+      and merging them into one object dropped the first — so the picker
+      offered members who had switched tagging off, and publishing then
+      silently declined to tag them. They must be two ANDed conditions.
+    */
+    const { service, findMany } = buildSearch()
+    await service.searchTaggable(ME, 'rad')
+    const gate = findMany.mock.calls[0]![0].where.AND[0]
+    expect(gate.OR).toContainEqual({ userSettings: { allowTagging: true } })
+    expect(gate.OR).toContainEqual({ userSettings: null })
+    expect(gate.state).toBe('active')
+  })
+
+  it('still matches on what was typed, in its own condition', async () => {
+    const { service, findMany } = buildSearch()
+    await service.searchTaggable(ME, 'rad')
+    const match = findMany.mock.calls[0]![0].where.AND[1]
+    expect(match.OR).toContainEqual({ username: { contains: 'rad', mode: 'insensitive' } })
+  })
+
+  it('leaves out the author and anyone blocked in either direction', async () => {
+    const { service, findMany } = buildSearch({
+      blocks: [{ blockerId: ME, blockedId: 'they-blocked-by-me' }, { blockerId: 'blocked-me', blockedId: ME }],
+    })
+    await service.searchTaggable(ME, 'rad')
+    const notIn = findMany.mock.calls[0]![0].where.AND[0].id.notIn
+    expect(notIn).toContain(ME)
+    expect(notIn).toContain('they-blocked-by-me')
+    expect(notIn).toContain('blocked-me')
+  })
+
+  it('puts what the person is typing first, ahead of a bigger account', async () => {
+    // Typing "rad" means the handle starting with "rad", not the popular
+    // account that merely contains those letters.
+    const { service } = buildSearch({
+      matches: [person('conrad', 'Conrad', 9000), person('radha', 'Radha', 2)],
+    })
+    const out = await service.searchTaggable(ME, 'rad')
+    expect(out.map((p) => p.username)).toEqual(['radha', 'conrad'])
+  })
+
+  it('falls back to follower count between two equally good matches', async () => {
+    const { service } = buildSearch({
+      matches: [person('radio', 'Radio', 5), person('radha', 'Radha', 900)],
+    })
+    const out = await service.searchTaggable(ME, 'rad')
+    expect(out.map((p) => p.username)).toEqual(['radha', 'radio'])
+  })
+
+  it('honours the limit and never returns the follower count it sorted on', async () => {
+    const { service } = buildSearch({
+      matches: [person('rad1', 'A', 3), person('rad2', 'B', 2), person('rad3', 'C', 1)],
+    })
+    const out = await service.searchTaggable(ME, 'rad', 2)
+    expect(out).toHaveLength(2)
+    expect(out[0]).not.toHaveProperty('followersCount')
+  })
+})

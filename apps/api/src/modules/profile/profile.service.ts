@@ -14,6 +14,7 @@ import { SupabaseStorageService, VERIFICATION_BUCKET } from '../storage/supabase
 import { ProfessionalCategory, VerificationRequestStatus } from '@prisma/client'
 import { z } from 'zod'
 import { httpUrl } from '../common/schemas/http-url'
+import { taggableWhere } from '../posts/mention-targets'
 
 // ── Validation Schemas ─────────────────────────────────────────────────────
 
@@ -325,6 +326,84 @@ export class ProfileService {
       select: { id: true },
     })
     return { username, available: !existing, reason: existing ? 'taken' : null }
+  }
+
+  /**
+   * People the author may tag, for the picker that opens on "@".
+   *
+   * Searches the one shared definition of who is taggable, so the composer can
+   * never offer a name that publishing would silently drop. Blocked accounts —
+   * in either direction — are left out too: a picker is a discovery surface,
+   * and surfacing someone who blocked you is the thing a block exists to stop.
+   *
+   * Ordered so that what a person is typing appears first. Somebody typing
+   * "rad" means the handle starting with "rad", not the account with the most
+   * followers that happens to contain those letters somewhere.
+   */
+  async searchTaggable(
+    actorId: string,
+    query: string,
+    limit = 8,
+  ): Promise<Array<{ id: string; username: string; displayName: string; avatarUrl: string | null; verificationTier: string }>> {
+    const q = query.trim()
+    if (!q) return []
+
+    const blocks = await this.prisma.blockedUser.findMany({
+      where: { OR: [{ blockerId: actorId }, { blockedId: actorId }] },
+      select: { blockerId: true, blockedId: true },
+    })
+    const blockedIds = [...new Set(blocks.flatMap((b) => [b.blockerId, b.blockedId]))]
+
+    const matches = await this.prisma.profile.findMany({
+      /*
+        Two separate OR groups, combined with AND rather than spread into one
+        object. Spreading loses one of them: both `taggableWhere` and the name
+        match want the key `OR`, and the second silently wins — which dropped
+        the tagging filter entirely and offered people who had opted out. The
+        nesting is what keeps "may be tagged" and "matches what was typed" as
+        two conditions that both have to hold.
+      */
+      where: {
+        AND: [
+          taggableWhere([actorId, ...blockedIds]),
+          {
+            OR: [
+              { username: { contains: q, mode: 'insensitive' } },
+              { displayName: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        verificationTier: true,
+        followersCount: true,
+      },
+      // Over-fetched so the prefix ordering below has something to sort.
+      take: Math.min(limit * 4, 40),
+      orderBy: [{ followersCount: 'desc' }],
+    })
+
+    const lower = q.toLowerCase()
+    const rank = (p: (typeof matches)[number]): number => {
+      if (p.username.toLowerCase().startsWith(lower)) return 0
+      if (p.displayName.toLowerCase().startsWith(lower)) return 1
+      return 2
+    }
+
+    return matches
+      .sort((a, b) => rank(a) - rank(b) || b.followersCount - a.followersCount)
+      .slice(0, limit)
+      .map((p) => ({
+        id: p.id,
+        username: p.username,
+        displayName: p.displayName,
+        avatarUrl: p.avatarUrl,
+        verificationTier: p.verificationTier,
+      }))
   }
 
   /**

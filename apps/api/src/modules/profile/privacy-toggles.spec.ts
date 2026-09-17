@@ -11,12 +11,20 @@
  * to get subtly wrong in a way no type checker notices.
  */
 
+import { taggableWhere } from '../posts/mention-targets'
+
 /**
- * The filter both mention paths use. Kept here in the same form the services
- * pass to Prisma, so a change to either has to be a deliberate one.
+ * The real filter, not a copy of it.
+ *
+ * This used to be a hand-written duplicate of the shape the services passed to
+ * Prisma, which meant the test could keep passing while the thing it described
+ * changed underneath. Now that posts, comments and the composer's picker all
+ * share one definition, the test asserts on that definition directly.
  */
-const TAGGABLE = {
-  OR: [{ userSettings: { allowTagging: true } }, { userSettings: null }],
+const TAGGABLE = taggableWhere(['author-1']) as {
+  OR: Array<Record<string, unknown>>
+  id: { notIn: string[] }
+  state: string
 }
 
 describe('privacy toggle defaults', () => {
@@ -73,6 +81,21 @@ describe('mention filter', () => {
         (branch.userSettings as { allowTagging?: boolean }).allowTagging === false,
     )
     expect(matchesOptedOut).toBe(false)
+  })
+
+  it('never offers a deactivated, suspended or banned account', () => {
+    expect(TAGGABLE.state).toBe('active')
+  })
+
+  it('leaves the author out, so nobody is offered themselves', () => {
+    expect(TAGGABLE.id.notIn).toContain('author-1')
+  })
+
+  it('excludes everyone it is asked to, not only the author', () => {
+    // A comment excludes the post's author too: they hear about the comment as
+    // the owner of the thread, and a mention notification on top is noise.
+    const forComment = taggableWhere(['commenter', 'post-author']) as { id: { notIn: string[] } }
+    expect(forComment.id.notIn).toEqual(['commenter', 'post-author'])
   })
 })
 

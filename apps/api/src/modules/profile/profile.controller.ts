@@ -86,6 +86,27 @@ export class ProfileController {
     return { data: { suggestions } }
   }
 
+  /**
+   * The picker behind "@" in a composer.
+   *
+   * Signed in only: who may be tagged depends on who is asking — their blocks,
+   * and their own account being left out of their own suggestions — so there is
+   * no sensible anonymous answer. Declared above `:id`, or that route would
+   * claim this path and look up a profile called "mentionable".
+   */
+  @Get('mentionable')
+  @UseGuards(JwtAuthGuard)
+  async searchTaggable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsed = limit ? Number.parseInt(limit, 10) : 8
+    const take = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 20) : 8
+    const results = await this.profileService.searchTaggable(user.id, q ?? '', take)
+    return { data: { results } }
+  }
+
   // ── PROFILE CRUD ───────────────────────────────────────────────────────────
 
   @Get('me')

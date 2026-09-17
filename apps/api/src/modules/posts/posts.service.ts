@@ -13,6 +13,7 @@ import { NotificationQueueService } from '../queue/notification-queue.service'
 import { FeedFanoutService } from '../queue/feed-fanout.service'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { parseHashtags, parseMentions } from './caption-parser'
+import { taggableWhere } from './mention-targets'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import type { CreatePostInput, UpdatePostInput } from './posts.schemas'
 import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
@@ -124,26 +125,17 @@ export class PostsService {
     /*
       Resolve mentioned users up front (invalid usernames silently dropped).
 
-      "Allow tagging" is honoured here. The toggle wrote to user_settings and
-      nothing ever read it, so turning it off changed nothing — you were still
-      tagged and still notified. Filtering on the lookup rather than afterwards
-      means someone who opted out becomes neither a mention row nor a
-      notification, and the block check below has less to consider.
-
-      `userSettings: null` is deliberate: the column defaults to true, and a
-      member who has never opened settings has no row. Requiring one would
-      silently stop mentions working for most accounts.
+      "Allow tagging" is honoured on the lookup rather than afterwards, so
+      someone who opted out becomes neither a mention row nor a notification,
+      and the block check below has less to consider. `taggableWhere` is the
+      single definition of who may be tagged — the composer's picker searches
+      through the same one, so it cannot offer a name this lookup would drop.
     */
     const mentionedUsers = mentionUsernames.length
       ? await this.prisma.profile.findMany({
           where: {
             username: { in: mentionUsernames },
-            state: 'active',
-            id: { not: authorId },
-            OR: [
-              { userSettings: { allowTagging: true } },
-              { userSettings: null },
-            ],
+            ...taggableWhere([authorId]),
           },
           select: { id: true, username: true },
         })

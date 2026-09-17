@@ -11,6 +11,7 @@ import { RealtimeService } from '../realtime/realtime.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { PostsService } from '../posts/posts.service'
 import { parseMentions } from '../posts/caption-parser'
+import { taggableWhere } from '../posts/mention-targets'
 import { decodeCursor, encodeCursor } from '../common/utils/cursor-pagination'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { AffinityService, AFFINITY_WEIGHTS } from '../personalization/affinity.service'
@@ -155,26 +156,20 @@ export class CommentsService {
       const mentionUsernames = parseMentions(body)
       if (mentionUsernames.length) {
       /*
-        "Allow tagging" is honoured here.
+        "Allow tagging" is honoured on the lookup rather than after it, so
+        someone who opted out never becomes a mention row OR a notification.
 
-        The toggle wrote to user_settings and nothing ever read it, so turning
-        it off changed nothing: you were still tagged, and still notified. The
-        filter lives on the lookup rather than after it, so a person who has
-        opted out never becomes a mention row OR a notification.
+        The post's author is excluded alongside the commenter: they already
+        hear about this comment as the owner of the thread, and a second
+        notification for naming them in it is noise.
 
-        `userSettings: null` is deliberate — the column defaults to true, and a
-        member who has never opened settings has no row at all. Requiring one
-        would silently stop mentions working for most accounts.
+        `taggableWhere` is the single definition of who may be tagged, shared
+        with posts and with the composer's picker so the three cannot drift.
       */
         const mentioned = await this.prisma.profile.findMany({
           where: {
             username: { in: mentionUsernames },
-            state: 'active',
-            id: { notIn: [userId, post.authorId] },
-            OR: [
-              { userSettings: { allowTagging: true } },
-              { userSettings: null },
-            ],
+            ...taggableWhere([userId, post.authorId]),
           },
           select: { id: true },
         })
