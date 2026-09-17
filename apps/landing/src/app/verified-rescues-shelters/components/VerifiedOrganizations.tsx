@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { C } from "./theme";
 import { IMAGES } from "./images";
@@ -315,10 +316,12 @@ function OrganizationCard({
           background: `linear-gradient(110deg, ${C.brand}, #E9A15D)`,
         }}
       >
-        <img
+        <Image
           src={organization.image}
           alt={`${organization.name} banner`}
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover"
         />
 
         {/* Avatar */}
@@ -595,17 +598,11 @@ export default function VerifiedOrganizations() {
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        console.log(
-          "Current location:",
-          position.coords.latitude,
-          position.coords.longitude
-        );
-
+      () => {
         /*
          * The design only provides the location button.
-         * You can connect these coordinates to your API later
-         * to find organizations near the user.
+         * Connect the coordinates to the organization filtering/API
+         * when location-based search is implemented.
          */
       },
       () => {
