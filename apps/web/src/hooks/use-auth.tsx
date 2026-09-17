@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { profileApi, clearApiCache, type Profile } from '@/lib/api'
+import { profileApi, clearApiCache, setSessionExpiredHandler, type Profile } from '@/lib/api'
 import type { User, Session } from '@supabase/supabase-js'
 
 export interface AuthState {
@@ -128,6 +128,30 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     if (pathname === '/onboarding' || pathname.startsWith('/auth/')) return
     router.replace('/onboarding')
   }, [state.loading, needsOnboarding, pathname, router])
+
+  /*
+    The session can die without this tab being told — see the note in lib/api.
+    When the API refuses a request, that refusal is the notification, and the
+    only useful answer is to stop rendering an account that cannot act and send
+    the member somewhere they can sign in again.
+
+    Gated on believing we are signed in, so a logged-out visitor who touches a
+    protected route is left where they are rather than being bounced by a 401
+    that told us nothing new. Signing out locally clears the dead cookie, which
+    makes `onAuthStateChange` fire and reset the rest of this provider; there is
+    nothing to revoke on the server, because the token it holds is the one just
+    rejected. `next` carries the member back to the page they were on.
+  */
+  useEffect(() => {
+    if (!state.isAuthenticated) return
+
+    setSessionExpiredHandler(() => {
+      if (pathname.startsWith('/login') || pathname.startsWith('/auth/')) return
+      void createClient().auth.signOut({ scope: 'local' }).catch(() => undefined)
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`)
+    })
+    return () => setSessionExpiredHandler(null)
+  }, [state.isAuthenticated, pathname, router])
 
   useEffect(() => {
     const supabase = createClient()

@@ -17,6 +17,32 @@ export class ApiError extends Error {
   }
 }
 
+/*
+ * What to do when the API stops accepting this session.
+ *
+ * Nothing on the client used to notice a 401. The session lives in a cookie,
+ * and a cookie can go away without this tab hearing about it — another tab
+ * signing out or signing in as someone else, an expiry that could not be
+ * refreshed, a cleared site. `onAuthStateChange` never fires for any of those,
+ * so React state went on describing a signed-in account while every request
+ * was being refused.
+ *
+ * What a member saw was the server's own words for it, "Authorization token is
+ * required", printed in red under a page that still showed their name, their
+ * avatar and their profile — with nothing on screen suggesting that signing in
+ * again was the answer.
+ *
+ * A function rather than an import so that this module stays free of the auth
+ * provider; the provider registers itself and owns what happens next.
+ */
+type SessionExpiredHandler = () => void
+let sessionExpiredHandler: SessionExpiredHandler | null = null
+
+/** Registered by the auth provider. Passing null unregisters it. */
+export function setSessionExpiredHandler(handler: SessionExpiredHandler | null): void {
+  sessionExpiredHandler = handler
+}
+
 // ── Client-side GET cache (stale-while-revalidate) ─────────────────────────
 // Fresh entries are served instantly with no network; stale entries are
 // served instantly AND refreshed in the background. Any mutation clears the
@@ -139,6 +165,17 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   if (!res.ok) {
     const err = json?.error ?? {}
+    /*
+      A 401 is the API saying it does not accept this caller, whatever the shell
+      still believes. Tell the auth provider first so the app stops presenting
+      an account it cannot act as, then raise something a member can act on —
+      the server's wording is written for whoever reads the logs, not for the
+      person whose post just failed to publish.
+    */
+    if (res.status === 401) {
+      sessionExpiredHandler?.()
+      throw new ApiError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.', 401)
+    }
     throw new ApiError(err.code ?? 'UNKNOWN', err.message ?? 'Request failed', res.status)
   }
 
