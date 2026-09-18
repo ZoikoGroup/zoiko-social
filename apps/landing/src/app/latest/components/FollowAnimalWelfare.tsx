@@ -1,7 +1,5 @@
 "use client";
 
-import { C } from "./theme";
-
 export default function FollowAnimalWelfare() {
   return (
     <section

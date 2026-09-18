@@ -227,7 +227,7 @@ export default function ReviewLifecycle() {
           {/* ======================================================= */}
 
           <div className="relative flex h-full w-[980px]">
-            {steps.map((step, index) => (
+            {steps.map((step) => (
               <div
                 key={step.number}
                 className="

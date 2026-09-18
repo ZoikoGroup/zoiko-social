@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 const sources = [
   {
     name: "World Animal News",
@@ -22,7 +24,6 @@ export default function RegionalSources() {
   return (
     <section className="w-full bg-[#F5F8F8]">
       <div className="mx-auto w-full max-w-[1232px] px-6 pb-20 lg:px-0">
-
         {/* Heading */}
         <div className="mx-auto flex h-20 w-[640px] max-w-full flex-col items-center">
           <h2 className="text-center text-[30px] font-extrabold leading-[48px] text-cyan-950">
@@ -60,9 +61,11 @@ export default function RegionalSources() {
                   rounded-[10px]
                 "
               >
-                <img
+                <Image
                   src={source.image}
                   alt={source.name}
+                  width={44}
+                  height={44}
                   className="size-11 object-cover"
                 />
               </div>
@@ -103,7 +106,6 @@ export default function RegionalSources() {
             </div>
           ))}
         </div>
-
       </div>
     </section>
   );

@@ -657,7 +657,7 @@ function CaughtUpCard() {
             color: C.cyan13,
           }}
         >
-          You're caught up on Animal Welfare news
+          You&apos;re caught up on Animal Welfare news
         </h3>
 
         <p
@@ -672,9 +672,9 @@ function CaughtUpCard() {
             color: C.azure42,
           }}
         >
-          That's every eligible story for this snapshot. New stories appear
-          behind the "New stories available" control above rather than
-          reordering while you read.
+          That&apos;s every eligible story for this snapshot. New stories
+          appear behind the &quot;New stories available&quot; control above
+          rather than reordering while you read.
         </p>
 
         <div
@@ -762,9 +762,9 @@ function SourceStandards() {
           color: C.azure42,
         }}
       >
-        Every rating reflects the publisher against Zoiko Social's published
-        Source Standards. It is not a guarantee of every individual claim in
-        a story — always review the original source.
+        Every rating reflects the publisher against Zoiko Social&apos;s
+        published Source Standards. It is not a guarantee of every
+        individual claim in a story — always review the original source.
       </p>
 
       <button

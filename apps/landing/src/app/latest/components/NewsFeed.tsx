@@ -367,7 +367,7 @@ function CaughtUpCard() {
           color: C.cyan13,
         }}
       >
-        You're caught up on the latest news
+        You&apos;re caught up on the latest news
       </h3>
 
       <p
@@ -376,8 +376,8 @@ function CaughtUpCard() {
           color: C.azure42,
         }}
       >
-        That's every eligible story for this snapshot. New stories appear
-        behind the "New stories available" control above rather than
+        That&apos;s every eligible story for this snapshot. New stories appear
+        behind the &quot;New stories available&quot; control above rather than
         reordering while you browse.
       </p>
 
@@ -812,7 +812,7 @@ export default function NewsFeed() {
                 }}
               >
                 Every rating reflects the publisher against Zoiko
-                Social's published Source Standards. It is not a
+                Social&apos;s published Source Standards. It is not a
                 guarantee of every individual claim in a story —
                 always verify the original source.
               </p>
