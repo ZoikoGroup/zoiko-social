@@ -50,7 +50,7 @@ const EvidenceLegend = () => {
           <div className="bg-[#FFF5E8] rounded-md px-2 py-1 h-fit flex-shrink-0">
             <span className="text-[#C9701A] font-bold text-[10.5px]">Organization report</span>
           </div>
-          <p className="text-[#5E7076] text-[12px] leading-[1.5]">Labeled as the organization's own statement, never shown as a court or authority finding.</p>
+          <p className="text-[#5E7076] text-[12px] leading-[1.5]">Labeled as the organization&apos;s own statement, never shown as a court or authority finding.</p>
         </div>
 
         {/* Row 4 */}

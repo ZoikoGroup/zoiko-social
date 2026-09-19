@@ -8,7 +8,7 @@ const RetentionDigest = () => {
           Follow calmly, not anxiously.
         </h2>
         <p className="text-white/90 text-[13px] leading-[19.5px] mt-2 max-w-[417px]">
-          Follow Wildlife Crime and choose a cadence. You'll only hear about material case or policy changes — never every mention, comment, or reaction.
+          Follow Wildlife Crime and choose a cadence. You&apos;ll only hear about material case or policy changes — never every mention, comment, or reaction.
         </p>
       </div>
 

@@ -38,7 +38,7 @@ export default function EditorialCorrectionReport() {
               placeholder="e.g. Wildlife Trade Enforcement, or paste a link" 
               className="w-full bg-[#F7F9FA] border border-[#E5E7EB] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#066879] focus:ring-1 focus:ring-[#066879]"
             />
-            <p className="text-[#5E7076] text-xs mt-3">We resolve this to the exact published story — you'll confirm it before continuing.</p>
+            <p className="text-[#5E7076] text-xs mt-3">We resolve this to the exact published story — you&apos;ll confirm it before continuing.</p>
           </div>
 
           <div className="pt-6 border-t border-[#E5E7EB] flex gap-4">

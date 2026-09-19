@@ -23,7 +23,7 @@ export default function GlobalCoverageHero() {
           Animal news across the<br/>regions we cover.
         </h1>
         <p className="text-[#DCE5E8] text-[15px] mb-8 font-medium max-w-xl leading-relaxed">
-          Explore verified-source reporting on animal welfare, conservation, rescue, policy, and wildlife crime across Zoiko Social's active coverage regions.
+          Explore verified-source reporting on animal welfare, conservation, rescue, policy, and wildlife crime across Zoiko Social&apos;s active coverage regions.
         </p>
         <div className="flex flex-wrap gap-4">
           <button className="bg-[#E88924] hover:bg-[#c9701a] text-white px-6 py-2.5 rounded-[10px] font-bold transition text-[14px]">
@@ -42,7 +42,7 @@ export default function GlobalCoverageHero() {
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
           <p className="text-[12px] text-white/90 leading-tight">
-            Coverage depth varies by region, language, and source availability. We don't claim exhaustive reporting in every country.
+            Coverage depth varies by region, language, and source availability. We don&apos;t claim exhaustive reporting in every country.
           </p>
         </div>
       </div>

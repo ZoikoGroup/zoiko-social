@@ -19,7 +19,7 @@ const StickySidebar = () => {
           </div>
           <div className="flex items-start gap-3">
             <span className="text-[#102A32] font-bold text-[12.5px] min-w-[60px] leading-[1.3]">Acquitted /<br/>dismissed</span>
-            <span className="text-[#5E7076] text-[12.5px] leading-[1.3]">updates the record — old<br/>snippets don't linger.</span>
+            <span className="text-[#5E7076] text-[12.5px] leading-[1.3]">updates the record — old<br/>snippets don&apos;t linger.</span>
           </div>
           <div className="flex items-start gap-3">
             <span className="text-[#102A32] font-bold text-[12.5px] min-w-[60px] leading-[1.3]">Final<br/>judgment</span>

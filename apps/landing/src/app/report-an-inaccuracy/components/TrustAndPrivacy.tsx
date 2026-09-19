@@ -23,7 +23,7 @@ export default function TrustAndPrivacy() {
           </div>
           <div>
             <h3 className="text-[#102A32] font-bold text-[19px] mb-1">No public accusation</h3>
-            <p className="text-[#102A32] text-base">Reports are never displayed as public claims. There's no vote count, share button, or comment thread here.</p>
+            <p className="text-[#102A32] text-base">Reports are never displayed as public claims. There&apos;s no vote count, share button, or comment thread here.</p>
           </div>
         </div>
 
@@ -33,7 +33,7 @@ export default function TrustAndPrivacy() {
           </div>
           <div>
             <h3 className="text-[#102A32] font-bold text-[19px] mb-1">Read Source Standards</h3>
-            <p className="text-[#102A32] text-base mb-2">See how we rate publishers and what a rating does and doesn't mean.</p>
+            <p className="text-[#102A32] text-base mb-2">See how we rate publishers and what a rating does and doesn&apos;t mean.</p>
             <Link href="/source-standards" className="text-[#066879] font-semibold flex items-center gap-1 hover:underline">
               Source Standards <span className="text-xs">&rarr;</span>
             </Link>

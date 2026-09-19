@@ -30,7 +30,7 @@ export default function CoverageSnapshot() {
       </div>
       
       <p className="text-[12px] text-[#5E7076] max-w-3xl">
-        "Active regions" means regions with publishable coverage in the current window — not every region of the world. 
+        &quot;Active regions&quot; means regions with publishable coverage in the current window — not every region of the world. 
         Story and source counts reflect canonical, non-duplicate entries. Methodology v1.4, generated moments ago.
       </p>
     </div>

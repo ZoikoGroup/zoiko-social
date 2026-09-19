@@ -65,7 +65,7 @@ export default function RegionDirectory() {
     <div className="w-full max-w-[1320px] mx-auto px-6 lg:px-[24px] mb-20">
       <h2 className="text-[20px] font-extrabold text-[#073B47] mb-2">Region directory</h2>
       <p className="text-[13.5px] text-[#5E7076] font-normal mb-8">
-        Each region card links to that region's discovery view.
+        Each region card links to that region&apos;s discovery view.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

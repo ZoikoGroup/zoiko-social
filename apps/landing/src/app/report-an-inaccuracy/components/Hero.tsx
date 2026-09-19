@@ -12,7 +12,7 @@ export default function Hero() {
           <p className="text-[#5E7076] text-lg leading-relaxed max-w-lg">
             A precise, traceable way to flag a suspected factual error in a Zoiko
             Social News story — separate from safety reporting, platform
-            moderation, and legal notices. You'll get a case you can track, without
+            moderation, and legal notices. You&apos;ll get a case you can track, without
             turning this into a public accusation.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 pt-4">

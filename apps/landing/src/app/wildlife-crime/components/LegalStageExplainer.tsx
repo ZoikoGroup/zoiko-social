@@ -62,7 +62,7 @@ const LegalStageExplainer = () => {
         </div>
         <div className="bg-[#F7F9FA] border border-[#DCE5E8] rounded-xl p-4">
           <h3 className="text-[#102A32] font-bold text-[12.5px] mb-1">Status not confirmed</h3>
-          <p className="text-[#5E7076] text-[11.5px] leading-[1.5]">No badge shown — we don't infer a stage without a confirmed source record.</p>
+          <p className="text-[#5E7076] text-[11.5px] leading-[1.5]">No badge shown — we don&apos;t infer a stage without a confirmed source record.</p>
         </div>
       </div>
 

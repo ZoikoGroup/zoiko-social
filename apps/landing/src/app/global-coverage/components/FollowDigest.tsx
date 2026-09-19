@@ -9,7 +9,7 @@ export default function FollowDigest() {
             Follow Global Coverage, calmly.
           </h2>
           <p className="text-[13.5px] text-white/90 mb-0">
-            Choose a digest cadence. You'll only hear about material updates — never every mention or reaction.
+            Choose a digest cadence. You&apos;ll only hear about material updates — never every mention or reaction.
           </p>
         </div>
         <div className="flex gap-4 items-center bg-white/10 p-2 rounded-2xl w-full md:w-auto border border-white/20">
