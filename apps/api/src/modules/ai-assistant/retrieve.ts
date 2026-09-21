@@ -11,7 +11,10 @@ import { KNOWLEDGE_BASE, type KnowledgeEntry } from './knowledge-base'
  * dragging in irrelevant docs.
  */
 
-const MAX_ENTRIES = 3
+// Four rather than three: questions routinely span two features ("verify my
+// account and upload my vet documents"), and cutting at three dropped one of the
+// two topics the member actually asked about.
+const MAX_ENTRIES = 4
 /** Single words too common in pet questions to signal anything on their own. */
 const WEAK_KEYWORDS = new Set(['pet', 'pets', 'post', 'tag', 'listing', 'private'])
 

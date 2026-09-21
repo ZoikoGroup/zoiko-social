@@ -4,7 +4,7 @@ import { KNOWLEDGE_BASE } from './knowledge-base'
 describe('retrieveKnowledge', () => {
   it('returns the matching topic for a direct feature question', () => {
     const [top] = retrieveKnowledge('how do I add a health passport for my dog?')
-    expect(top?.topic).toBe('Health Passport and sharing records')
+    expect(top?.topic).toBe('Health Passport — records, reminders and weight')
   })
 
   it('returns at most the requested number of entries', () => {
@@ -38,8 +38,12 @@ describe('retrieveKnowledge', () => {
     ['can I book a groomer', 'Pet care providers, vets and bookings'],
     ['how do I sell a product', 'Shop and marketplace'],
     ['what are message requests', 'Messaging'],
-    ['how do I get verified as a vet', 'Professional verification'],
+    ['how do I get verified as a vet', 'Account verification — how to get verified'],
     ['how do I start a video call', 'Audio and video calls'],
+    ['what documents do I need for verification', 'Account verification — how to get verified'],
+    ['how do I turn on push notifications', 'Notifications and push'],
+    ['I want a refund for my order', 'Order problems — refunds, cancellations and disputes'],
+    ['how do I share my pet\'s records with the vet', 'Sharing health records — vet card and public Pet Passport link'],
   ])('routes %p to %p', (question, expected) => {
     const topics = retrieveKnowledge(question).map((e) => e.topic)
     expect(topics).toContain(expected)
