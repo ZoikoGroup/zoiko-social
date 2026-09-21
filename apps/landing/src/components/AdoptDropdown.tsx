@@ -67,7 +67,7 @@ const ADOPT_SAFELY: readonly Item[] = [
     label: "How We Verify",
     description: "What our verification process checks.",
     icon: `${ICON}badge-check.svg`,
-    href: appUrl("/docs/adoption-and-lost-found"),
+    href: "/docs/adoption-and-lost-found",
   },
   {
     label: "Adoption Safety",

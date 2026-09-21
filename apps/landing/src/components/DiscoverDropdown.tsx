@@ -39,13 +39,13 @@ const EXPLORE: readonly Item[] = [
     label: "Animals",
     description: "Individual animal profiles from across the platform.",
     icon: `${ICON}paw.svg`,
-    href: appUrl("/animals"),
+    href: "/animals",
   },
   {
     label: "People",
     description: "Connect with other animal lovers and professionals.",
     icon: `${ICON}users.svg`,
-    href: appUrl("/discover-people"),
+    href: "/discover-people",
   },
   {
     label: "Communities",

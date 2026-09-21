@@ -78,7 +78,7 @@ const BY_PURPOSE: readonly Item[] = [
     label: "Memorial & Support",
     description: "A space to remember and support one another.",
     icon: `${ICON}users.svg`,
-    href: appUrl("/communities"),
+    href: "/communities",
   },
 ];
 
