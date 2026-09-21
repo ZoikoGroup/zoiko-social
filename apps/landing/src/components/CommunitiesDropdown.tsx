@@ -180,7 +180,7 @@ export default function CommunitiesDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}communities-highlight.png`}
+                src={`${ICON}communities-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}
