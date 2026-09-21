@@ -198,7 +198,7 @@ export default function SafetyDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}safety-highlight.png`}
+                src={`${ICON}safety-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

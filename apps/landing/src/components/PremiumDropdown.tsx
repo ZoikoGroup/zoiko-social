@@ -182,7 +182,7 @@ export default function PremiumDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}premium-highlight.png`}
+                src={`${ICON}premium-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

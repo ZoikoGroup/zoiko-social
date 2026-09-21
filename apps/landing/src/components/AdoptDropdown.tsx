@@ -46,7 +46,7 @@ const FIND_AN_ANIMAL: readonly Item[] = [
     label: "Recently Listed",
     description: "The newest adoption listings.",
     icon: `${ICON}clock.svg`,
-    href: appUrl("/adoption"),
+    href: "/recently-listed",
   },
   {
     label: "Near You",
@@ -61,13 +61,13 @@ const ADOPT_SAFELY: readonly Item[] = [
     label: "Verified Rescues & Shelters",
     description: "Organizations we’ve verified directly.",
     icon: `${ICON}shield-check.svg`,
-    href: appUrl("/docs/adoption-and-lost-found"),
+    href: "/verified-rescues-shelters",
   },
   {
     label: "How We Verify",
     description: "What our verification process checks.",
     icon: `${ICON}badge-check.svg`,
-    href: appUrl("/docs/adoption-and-lost-found"),
+    href: "/docs/adoption-and-lost-found",
   },
   {
     label: "Adoption Safety",
@@ -79,7 +79,7 @@ const ADOPT_SAFELY: readonly Item[] = [
     label: "Report a Concern",
     description: "Tell us if something looks wrong.",
     icon: `${ICON}alert-triangle.svg`,
-    href: appUrl("/docs/safety-and-trust"),
+    href: "/report-a-concern",
   },
 ];
 
@@ -181,7 +181,7 @@ export default function AdoptDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}adopt-highlight.png`}
+                src={`${ICON}adopt-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

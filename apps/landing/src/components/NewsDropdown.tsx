@@ -33,19 +33,19 @@ const TOPICS: readonly Item[] = [
     label: "Latest",
     description: "The newest stories across animal welfare.",
     icon: `${ICON}file-text.svg`,
-    href: appUrl("/news"),
+    href: "/latest",
   },
   {
     label: "Animal Welfare",
     description: "Coverage of care, rescue, and welfare policy.",
     icon: `${ICON}heart.svg`,
-    href: appUrl("/news"),
+    href: "/animal-welfare",
   },
   {
     label: "Conservation",
     description: "Wildlife and habitat protection reporting.",
     icon: `${ICON}globe.svg`,
-    href: appUrl("/news"),
+    href: "/conservation",
   },
   {
     label: "Wildlife Crime",
@@ -66,13 +66,13 @@ const COVERAGE_AND_TRUST: readonly Item[] = [
     label: "Your Region",
     description: "Coverage local to your set location.",
     icon: `${ICON}map-pin.svg`,
-    href: appUrl("/news"),
+    href: "/your-region",
   },
   {
     label: "Source Standards",
     description: "How we rate the publishers we cite.",
     icon: `${ICON}badge-check.svg`,
-    href: appUrl("/docs/news"),
+    href: "/source-standards",
   },
   {
     label: "Report an Inaccuracy",
@@ -180,7 +180,7 @@ export default function NewsDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}news-highlight.png`}
+                src={`${ICON}news-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

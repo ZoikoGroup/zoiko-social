@@ -180,7 +180,7 @@ export default function MarketDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}market-highlight.png`}
+                src={`${ICON}market-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}
