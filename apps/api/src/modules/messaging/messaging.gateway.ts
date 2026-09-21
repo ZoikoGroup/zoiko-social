@@ -201,6 +201,23 @@ export class MessagingGateway implements OnGatewayInit, OnGatewayConnection, OnG
     client.emit('presence:update', { userId: body.userId, ...presence })
   }
 
+  /**
+   * "Still here", sent on a timer by every connected client.
+   *
+   * Presence expires on purpose, so that a crashed API does not leave people
+   * showing online forever. That expiry needs something to push against or it
+   * simply marks everyone offline a minute after they arrive, which is what it
+   * used to do. The socket being open is the evidence, and this is the socket
+   * saying so — the user id comes from the authenticated connection, never from
+   * the message, so a client can only ever refresh its own presence.
+   */
+  @SubscribeMessage('presence:heartbeat')
+  async onPresenceHeartbeat(@ConnectedSocket() client: AuthSocket): Promise<void> {
+    const userId = client.data.userId
+    if (!userId) return
+    await this.presenceService.touch(userId)
+  }
+
   @SubscribeMessage('presence:unsubscribe')
   async onPresenceUnsubscribe(
     @ConnectedSocket() client: AuthSocket,

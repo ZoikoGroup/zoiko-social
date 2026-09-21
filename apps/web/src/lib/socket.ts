@@ -37,7 +37,47 @@ export async function getSocket(): Promise<Socket | null> {
     reconnectionDelayMax: 10_000,
   })
 
+  startHeartbeat(socket)
+
   return socket
+}
+
+/**
+ * Tells the server the tab is still here, for as long as it is.
+ *
+ * Presence expires by design — a crashed API must not leave people showing
+ * "online" forever — but nothing on this side ever pushed back against that
+ * expiry. Connecting stamped the record once, and a minute later the member
+ * went offline while still reading the page.
+ *
+ * It lives with the socket rather than in a component because presence is a
+ * property of the connection, not of whatever happens to be on screen: the
+ * profile card, the feed and the inbox would otherwise each need to remember
+ * to do it, and a member sitting on a page that forgot would go offline again.
+ *
+ * Comfortably inside the server's window, which leaves room for the once-a-
+ * minute throttle browsers impose on a background tab.
+ */
+const HEARTBEAT_MS = 30_000
+
+function startHeartbeat(s: Socket): void {
+  let timer: ReturnType<typeof setInterval> | null = null
+
+  const stop = (): void => {
+    if (timer) clearInterval(timer)
+    timer = null
+  }
+
+  s.on('connect', () => {
+    stop()
+    timer = setInterval(() => {
+      if (s.connected) s.emit('presence:heartbeat')
+    }, HEARTBEAT_MS)
+  })
+
+  // A dropped connection stops the beat; reconnecting starts a fresh one, and
+  // the server marks the member online again as part of the handshake.
+  s.on('disconnect', stop)
 }
 
 export function disconnectSocket(): void {

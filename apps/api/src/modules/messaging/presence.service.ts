@@ -3,8 +3,32 @@ import { PrismaService } from '../prisma/prisma.service'
 import { RedisService } from '../redis/redis.service'
 import { RealtimeService } from '../realtime/realtime.service'
 
-const PRESENCE_TTL_SECONDS = 60
+/*
+  How long a presence record stays trustworthy without being refreshed.
+
+  Two things expire on this clock: the Redis key's TTL, and the staleness check
+  against `lastSeen` in the database. Both exist so that an API crash cannot
+  leave somebody showing "online" forever, since a process that dies never runs
+  setOffline.
+
+  It used to be 60 seconds, and nothing ever refreshed either signal —
+  `setOnline` stamped them once when the socket connected and that was the last
+  word on the subject. So everyone went offline exactly a minute after
+  connecting while still sitting on the page, which is what the heartbeat below
+  now prevents. The window is wide enough that a heartbeat throttled to once a
+  minute — what browsers do to a background tab — still lands inside it.
+*/
+const PRESENCE_TTL_SECONDS = 120
 const PRESENCE_KEY_PREFIX = 'presence:'
+
+/**
+ * Least time between two database writes for the same member's heartbeat.
+ *
+ * The heartbeat is client-driven, so this is what stops a tab — broken or
+ * hostile — turning a 30-second beat into a write per frame. Well under the
+ * TTL, so honest beats are never the ones dropped.
+ */
+const TOUCH_MIN_INTERVAL_MS = 10_000
 
 @Injectable()
 export class PresenceService {
@@ -23,6 +47,67 @@ export class PresenceService {
 
     // Also broadcast to followers who care
     await this.broadcastPresenceToConnections(userId, 'online')
+  }
+
+  /**
+   * "Still here" — refreshes the freshness signals without changing status.
+   *
+   * Sent periodically by every connected socket. Without it, presence answered
+   * a question nobody asked: not "is this member here?" but "did this member
+   * connect within the last minute?" — so an hour of reading the feed looked
+   * identical to having closed the tab.
+   *
+   * Status is deliberately left alone. Someone who set themselves to away or
+   * do-not-disturb stays that way however active they are; only the timestamp
+   * that proves the record is current gets moved.
+   *
+   * A member with no row is skipped rather than created. The row is written by
+   * setOnline when the socket connects, and a heartbeat arriving without one
+   * means a disconnect has already cleaned up — recreating it here would put
+   * somebody back online who is not.
+   */
+  async touch(userId: string): Promise<void> {
+    const now = Date.now()
+    if (now - (this.lastTouchAt.get(userId) ?? 0) < TOUCH_MIN_INTERVAL_MS) return
+    this.lastTouchAt.set(userId, now)
+    this.pruneTouchLog(now)
+
+    const lastSeen = new Date(now)
+    const row = await this.prisma.userPresence
+      .update({ where: { userId }, data: { lastSeen }, select: { status: true } })
+      .catch(() => null)
+    if (!row) return
+
+    try {
+      const key = `${PRESENCE_KEY_PREFIX}user:${userId}`
+      await this.redis.rawClient?.hset(key, {
+        status: row.status,
+        lastSeen: lastSeen.toISOString(),
+      })
+      await this.redis.rawClient?.expire(key, PRESENCE_TTL_SECONDS)
+    } catch {
+      // Redis is only the fast path; the row above is what getPresence falls
+      // back to, and it is already current.
+    }
+  }
+
+  /** Last heartbeat write per member, for the throttle above. */
+  private readonly lastTouchAt = new Map<string, number>()
+  private lastPruneAt = 0
+
+  /**
+   * Drops heartbeat entries for members who have long since gone.
+   *
+   * The throttle map would otherwise hold one entry per member who has ever
+   * connected to this process, for the life of the process.
+   */
+  private pruneTouchLog(now: number): void {
+    if (now - this.lastPruneAt < PRESENCE_TTL_SECONDS * 1000) return
+    this.lastPruneAt = now
+    const cutoff = now - PRESENCE_TTL_SECONDS * 1000
+    for (const [userId, at] of this.lastTouchAt) {
+      if (at < cutoff) this.lastTouchAt.delete(userId)
+    }
   }
 
   async setOffline(userId: string): Promise<void> {
