@@ -7,6 +7,7 @@ import { ArrowUp, PawPrint, ChevronDown, MapPin, Check, RefreshCw } from 'lucide
 import { PostComposer } from './PostComposer'
 import { PostCard } from './PostCard'
 import { NewsFeedCard } from './NewsFeedCard'
+import { ScrollTopButton } from './ScrollTopButton'
 import { feedApi, lostFoundApi, type PostItem, type LostFoundReport, type NewsCardItem } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
 
@@ -367,6 +368,9 @@ export function HomeFeed(): React.JSX.Element {
       )}
 
       {lostAlert && <LostPetAlert report={lostAlert} />}
+
+      {/* Instagram-style back-to-top, shared with the explore feed */}
+      <ScrollTopButton />
     </div>
   )
 }
