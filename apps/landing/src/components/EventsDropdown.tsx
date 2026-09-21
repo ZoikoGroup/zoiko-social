@@ -24,28 +24,29 @@ type Item = {
 /**
  * Menu destinations.
  *
- * The app has one /events page and no filtered views for weekend, upcoming,
- * region or event type, so every item points there rather than at a URL that
- * would 404.
+ * Online Events, This Weekend and Upcoming have their own landing pages.
+ * Otherwise the app has one /events page and no filtered views for region or
+ * event type, so the other items point there rather than at a URL that would
+ * 404.
  */
 const FIND_EVENTS: readonly Item[] = [
   {
     label: "Online Events",
     description: "Join from anywhere, no travel required.",
     icon: `${ICON}globe.svg`,
-    href: appUrl("/events"),
+    href: "/events-online",
   },
   {
     label: "This Weekend",
     description: "What's on near you in the next few days.",
     icon: `${ICON}calendar.svg`,
-    href: appUrl("/events"),
+    href: "/events-this-weekend",
   },
   {
     label: "Upcoming",
     description: "Everything coming up that you might like.",
     icon: `${ICON}clock.svg`,
-    href: appUrl("/events"),
+    href: "/events-upcoming",
   },
   {
     label: "Near You",
@@ -181,7 +182,7 @@ export default function EventsDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}events-highlight.png`}
+                src={`${ICON}events-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

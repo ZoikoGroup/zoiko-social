@@ -181,7 +181,7 @@ export default function DiscoverDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}discover-highlight.png`}
+                src={`${ICON}discover-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

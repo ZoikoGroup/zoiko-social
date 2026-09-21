@@ -181,7 +181,7 @@ export default function AdoptDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}adopt-highlight.png`}
+                src={`${ICON}adopt-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}

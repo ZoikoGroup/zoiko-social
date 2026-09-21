@@ -180,7 +180,7 @@ export default function NewsDropdown() {
             </p>
             <div className="mt-4 h-24 overflow-hidden rounded-xl">
               <Image
-                src={`${ICON}news-highlight.png`}
+                src={`${ICON}news-highlight.webp`}
                 alt=""
                 aria-hidden
                 width={204}
