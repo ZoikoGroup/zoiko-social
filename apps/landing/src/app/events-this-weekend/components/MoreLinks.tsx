@@ -3,18 +3,18 @@ import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 /**
- * Online Events and Upcoming have their own landing pages; the app has one
- * /events page and no filtered views, so everything else points there rather
- * than at a URL that would 404.
+ * Items with their own landing page link there; the app has one /events page
+ * and no filtered views, so the rest point there rather than at a URL that
+ * would 404.
  */
 const LINKS: readonly { title: string; note: string; href: string }[] = [
   { title: "Upcoming", note: "Further out than this weekend", href: "/events-upcoming" },
-  { title: "Near You", note: "Local, beyond the weekend window", href: appUrl("/events") },
+  { title: "Near You", note: "Local, beyond the weekend window", href: "/events-near-you" },
   { title: "Online Events", note: "Attend from anywhere", href: "/events-online" },
-  { title: "Community Meetups", note: "Recurring local groups", href: appUrl("/events") },
-  { title: "Training & Workshops", note: "Professional-led sessions", href: appUrl("/events") },
-  { title: "Fundraisers", note: "Support a cause directly", href: appUrl("/events") },
-  { title: "Rescue Events", note: "Adoption days and intake drives", href: appUrl("/events") },
+  { title: "Community Meetups", note: "Recurring local groups", href: "/events-community-meetups" },
+  { title: "Training & Workshops", note: "Professional-led sessions", href: "/events-training-workshops" },
+  { title: "Fundraisers", note: "Support a cause directly", href: "/events-fundraisers" },
+  { title: "Rescue Events", note: "Adoption days and intake drives", href: "/events-rescue" },
   { title: "Host an event", note: "For approved organizers", href: appUrl("/events") },
 ];
 

@@ -217,7 +217,7 @@ export default function WeekendBrowser() {
         <div
           role="group"
           aria-label="Filter weekend events"
-          className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+          className="flex flex-wrap gap-2.5 pb-1"
         >
           {FILTERS.map((f) => {
             const on = f.id === filter;
@@ -328,7 +328,7 @@ export default function WeekendBrowser() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <a
-                href={appUrl("/events")}
+                href="/events-near-you"
                 className="rounded-xl bg-white px-5 py-2.5 text-center text-sm font-bold transition hover:bg-neutral-50"
                 style={{ color: C.ink, border: `1px solid ${C.line}` }}
               >

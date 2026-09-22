@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Sora } from "next/font/google";
-import { appUrl } from "@/lib/app-links";
 
 /* The design sets the two headings in Sora, which the site does not otherwise
    load. Declaring it here rather than in the root layout keeps the extra font
@@ -24,10 +23,7 @@ type Item = {
 /**
  * Menu destinations.
  *
- * Online Events, This Weekend and Upcoming have their own landing pages.
- * Otherwise the app has one /events page and no filtered views for region or
- * event type, so the other items point there rather than at a URL that would
- * 404.
+ * Every item has its own landing page.
  */
 const FIND_EVENTS: readonly Item[] = [
   {
@@ -52,7 +48,7 @@ const FIND_EVENTS: readonly Item[] = [
     label: "Near You",
     description: "Local events once your region is set.",
     icon: `${ICON}map-pin.svg`,
-    href: appUrl("/events"),
+    href: "/events-near-you",
   },
 ];
 
@@ -61,25 +57,25 @@ const EVENT_TYPES: readonly Item[] = [
     label: "Community Meetups",
     description: "Casual gatherings for animal lovers.",
     icon: `${ICON}users.svg`,
-    href: appUrl("/events"),
+    href: "/events-community-meetups",
   },
   {
     label: "Training & Workshops",
     description: "Hands-on sessions led by professionals.",
     icon: `${ICON}bone.svg`,
-    href: appUrl("/events"),
+    href: "/events-training-workshops",
   },
   {
     label: "Fundraisers",
     description: "Support rescues and shelters directly.",
     icon: `${ICON}banknote.svg`,
-    href: appUrl("/events"),
+    href: "/events-fundraisers",
   },
   {
     label: "Rescue Events",
     description: "Adoption days and rescue drives.",
     icon: `${ICON}heart.svg`,
-    href: appUrl("/events"),
+    href: "/events-rescue",
   },
 ];
 
@@ -191,7 +187,7 @@ export default function EventsDropdown() {
               />
             </div>
             <Link
-              href={appUrl("/events")}
+              href="/events-upcoming"
               className="mt-4 flex min-h-9 items-center justify-center rounded-full bg-teal-700 px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
             >
               Explore Events

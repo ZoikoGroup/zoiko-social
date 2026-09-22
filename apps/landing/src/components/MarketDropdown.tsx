@@ -24,7 +24,8 @@ type Item = {
 /**
  * Menu destinations.
  *
- * Care providers go to /vet-finder and everything bought or booked goes to
+ * Veterinarians and Clinics & Hospitals have their own landing pages. Other
+ * care providers go to /vet-finder and everything bought or booked goes to
  * /shop. Neither page has filtered views for the individual rows, so each
  * section points at its one real page rather than at a URL that would 404.
  */
@@ -33,25 +34,25 @@ const PROFESSIONAL_CARE: readonly Item[] = [
     label: "Veterinarians",
     description: "Verified vets accepting new patients.",
     icon: `${ICON}stethoscope.svg`,
-    href: appUrl("/vet-finder"),
+    href: "/market-veterinarians",
   },
   {
     label: "Clinics & Hospitals",
     description: "Full-service animal care facilities.",
     icon: `${ICON}badge-check.svg`,
-    href: appUrl("/vet-finder"),
+    href: "/market-clinics-hospitals",
   },
   {
     label: "Specialists",
     description: "Dermatology, oncology, and more.",
     icon: `${ICON}sparkles.svg`,
-    href: appUrl("/vet-finder"),
+    href: "/vet-finder",
   },
   {
     label: "Emergency Vet Care",
     description: "Urgent care options near you.",
     icon: `${ICON}alert-triangle.svg`,
-    href: appUrl("/vet-finder"),
+    href: "/vet-finder",
   },
 ];
 
@@ -60,25 +61,25 @@ const SERVICES_AND_SUPPLIES: readonly Item[] = [
     label: "Trainers & Groomers",
     description: "Book trusted local professionals.",
     icon: `${ICON}bone.svg`,
-    href: appUrl("/shop"),
+    href: "/shop",
   },
   {
     label: "Boarding & Sitting",
     description: "Care for while you’re away.",
     icon: `${ICON}map-pin.svg`,
-    href: appUrl("/shop"),
+    href: "/shop",
   },
   {
     label: "Nutrition & Supplies",
     description: "Everyday care products and food.",
     icon: `${ICON}shopping-bag.svg`,
-    href: appUrl("/shop"),
+    href: "/shop",
   },
   {
     label: "Insurance & Care Plans",
     description: "Compare coverage options.",
     icon: `${ICON}shield-check.svg`,
-    href: appUrl("/shop"),
+    href: "/shop",
   },
 ];
 

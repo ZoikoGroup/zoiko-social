@@ -102,18 +102,18 @@ export function TrustCards() {
 }
 
 /**
- * This Weekend and Online Events have their own landing pages; the app has
- * one /events page and no filtered views, so everything else points there
- * rather than at a URL that would 404.
+ * Items with their own landing page link there; the app has one /events page
+ * and no filtered views, so the rest point there rather than at a URL that
+ * would 404.
  */
 const MORE: readonly { title: string; note: string; href: string }[] = [
   { title: "This Weekend", note: "The next few days only", href: "/events-this-weekend" },
-  { title: "Near You", note: "Local, beyond the horizon", href: appUrl("/events") },
+  { title: "Near You", note: "Local, beyond the horizon", href: "/events-near-you" },
   { title: "Online Events", note: "Attend from anywhere", href: "/events-online" },
-  { title: "Community Meetups", note: "Recurring local groups", href: appUrl("/events") },
-  { title: "Training & Workshops", note: "Professional-led sessions", href: appUrl("/events") },
-  { title: "Fundraisers", note: "Support a cause directly", href: appUrl("/events") },
-  { title: "Rescue Events", note: "Adoption days and intake drives", href: appUrl("/events") },
+  { title: "Community Meetups", note: "Recurring local groups", href: "/events-community-meetups" },
+  { title: "Training & Workshops", note: "Professional-led sessions", href: "/events-training-workshops" },
+  { title: "Fundraisers", note: "Support a cause directly", href: "/events-fundraisers" },
+  { title: "Rescue Events", note: "Adoption days and intake drives", href: "/events-rescue" },
   { title: "Host an event", note: "For approved organizers", href: appUrl("/events") },
 ];
 

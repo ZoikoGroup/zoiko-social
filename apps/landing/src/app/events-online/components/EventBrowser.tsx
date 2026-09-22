@@ -86,7 +86,7 @@ export default function EventBrowser() {
         />
       </label>
 
-      <div className="-mx-4 flex gap-2.5 overflow-x-auto px-4 py-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+      <div className="flex flex-wrap gap-2.5 py-4">
         {CHIPS.map((c) => {
           const on = chips.has(c.id);
           return (
