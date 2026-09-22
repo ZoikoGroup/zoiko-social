@@ -5,8 +5,10 @@ import { appUrl } from "@/lib/app-links";
 import { EVENTS, REGION } from "./events";
 import { C, PHOTO_TINT } from "./theme";
 
-/** The app has no date or region settings page yet; its /events page is the closest. */
-const CHANGE_URL = appUrl("/events");
+/** Dates are chosen with the filter chips below the hero. */
+const DATES_URL = "#filters";
+/** The app has no region settings page yet; its /events page is the closest. */
+const REGION_URL = appUrl("/events");
 
 function RegionBar() {
   const link = "text-sm font-bold underline decoration-1 underline-offset-4 hover:opacity-80";
@@ -30,10 +32,10 @@ function RegionBar() {
           </span>
         </p>
         <div className="flex gap-5">
-          <a href={CHANGE_URL} className={link} style={{ color: C.brand }}>
+          <a href={DATES_URL} className={link} style={{ color: C.brand }}>
             Change dates
           </a>
-          <a href={CHANGE_URL} className={link} style={{ color: C.brand }}>
+          <a href={REGION_URL} className={link} style={{ color: C.brand }}>
             Change region
           </a>
         </div>
@@ -91,7 +93,7 @@ export default function Hero() {
                 Explore upcoming events
               </a>
               <a
-                href={CHANGE_URL}
+                href={DATES_URL}
                 className="rounded-xl border border-white/50 bg-white/10 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-white/20"
               >
                 Change dates

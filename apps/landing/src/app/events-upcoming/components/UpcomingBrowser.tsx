@@ -218,12 +218,12 @@ export default function UpcomingBrowser() {
 
   return (
     <>
-      <div className="py-10 sm:py-12" style={{ background: C.panel }}>
+      <div id="filters" className="scroll-mt-6 py-10 sm:py-12" style={{ background: C.panel }}>
         <div className={WRAP}>
           <div
             role="group"
             aria-label="Filter upcoming events"
-            className="-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+            className="flex flex-wrap gap-2.5 pb-1"
           >
             {FILTERS.map((f) => {
               const on = f.id === filter;
