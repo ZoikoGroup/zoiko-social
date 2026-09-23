@@ -24,7 +24,8 @@ type Item = {
 /**
  * Menu destinations.
  *
- * Veterinarians and Clinics & Hospitals have their own landing pages. Other
+ * Veterinarians, Clinics & Hospitals, Emergency Vet Care and Nutrition &
+ * Supplies have their own landing pages. Other
  * care providers go to /vet-finder and everything bought or booked goes to
  * /shop. Neither page has filtered views for the individual rows, so each
  * section points at its one real page rather than at a URL that would 404.
@@ -52,7 +53,7 @@ const PROFESSIONAL_CARE: readonly Item[] = [
     label: "Emergency Vet Care",
     description: "Urgent care options near you.",
     icon: `${ICON}alert-triangle.svg`,
-    href: "/vet-finder",
+    href: "/market-emergency-vet-care",
   },
 ];
 
@@ -73,7 +74,7 @@ const SERVICES_AND_SUPPLIES: readonly Item[] = [
     label: "Nutrition & Supplies",
     description: "Everyday care products and food.",
     icon: `${ICON}shopping-bag.svg`,
-    href: "/shop",
+    href: "/market-nutrition-supplies",
   },
   {
     label: "Insurance & Care Plans",
