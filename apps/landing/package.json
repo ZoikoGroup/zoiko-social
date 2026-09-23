@@ -13,6 +13,7 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "^1.30.0",
+        "@swc/helpers": "^0.5.23",
         "@zoiko/ui": "workspace:*",
         "lucide-react": "^1.22.0",
         "next": "^16.2.11",
