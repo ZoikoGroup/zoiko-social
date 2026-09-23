@@ -35,13 +35,13 @@ const FOR_YOU: readonly Item[] = [
     label: "Ad-Free Feed",
     description: "Browse without interruptions.",
     icon: `${ICON}layout.svg`,
-    href: PLANS,
+    href: "/ad-free-feed",
   },
   {
     label: "Advanced Privacy",
     description: "More control over who sees what.",
     icon: `${ICON}lock.svg`,
-    href: PLANS,
+    href: "/advanced-privacy",
   },
   {
     label: "Larger Group Calls",
