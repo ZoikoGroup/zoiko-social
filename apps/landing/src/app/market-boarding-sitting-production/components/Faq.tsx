@@ -50,8 +50,8 @@ function PlusIcon() {
  */
 export default function Faq() {
   return (
-    <section className="w-full bg-[#f7f9fa] px-6 py-16 lg:px-20 lg:py-20">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col items-center gap-8 px-0 lg:gap-12 lg:px-6">
+    <section className="w-full bg-[#f7f9fa] px-6 py-16 lg:px-[105px] lg:py-20">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center gap-8 px-0 lg:gap-12 lg:px-6">
         <h2 className="text-center font-jakarta text-[28px] font-extrabold leading-[36px] text-[#102a32] lg:text-[32px] lg:leading-[51.2px]">
           Frequently asked questions
         </h2>
