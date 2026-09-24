@@ -74,13 +74,13 @@ const FOR_PROS_AND_ORGS: readonly Item[] = [
     label: "Fundraising Toolkit",
     description: "Tools to run and track campaigns.",
     icon: `${ICON}banknote.svg`,
-    href: PLANS,
+    href: "/fundraising-toolkit",
   },
   {
     label: "Advanced Moderation",
     description: "Deeper tools for community teams.",
     icon: `${ICON}gauge.svg`,
-    href: PLANS,
+    href: "/advanced-moderation",
   },
 ];
 
