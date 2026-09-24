@@ -32,10 +32,11 @@ type Item = {
 /**
  * Menu destinations.
  *
- * Everything here is documentation, and /docs/safety-and-trust is the page that
- * covers it — the same page the Safety nav item itself points at. Support
- * Resources goes to the docs index instead, since it is about finding help
- * generally rather than the safety policy.
+ * Animal Welfare Concerns has its own landing page. Everything else is
+ * documentation, and /docs/safety-and-trust is the page that covers it — the
+ * same page the Safety nav item itself points at. Support Resources goes to the
+ * docs index instead, since it is about finding help generally rather than the
+ * safety policy.
  */
 const SAFETY_DOCS = appUrl("/docs/safety-and-trust");
 
@@ -50,7 +51,7 @@ const GET_HELP: readonly Item[] = [
     label: "Animal Welfare Concerns",
     description: "Report suspected mistreatment or neglect.",
     icon: `${ICON}heart.svg`,
-    href: SAFETY_DOCS,
+    href: "/safety-animal-welfare",
   },
   {
     label: "Emergency Guidance",
