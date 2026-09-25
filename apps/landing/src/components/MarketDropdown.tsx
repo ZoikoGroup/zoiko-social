@@ -80,7 +80,7 @@ const SERVICES_AND_SUPPLIES: readonly Item[] = [
     label: "Insurance & Care Plans",
     description: "Compare coverage options.",
     icon: `${ICON}shield-check.svg`,
-    href: "/shop",
+    href: "/market-insurance-care",
   },
 ];
 

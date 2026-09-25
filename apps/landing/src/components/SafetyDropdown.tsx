@@ -57,7 +57,7 @@ const GET_HELP: readonly Item[] = [
     label: "Emergency Guidance",
     description: "Region-aware next steps in urgent situations.",
     icon: `${ICON}globe.svg`,
-    href: SAFETY_DOCS,
+    href: "/emergency-guidance",
   },
   {
     label: "Support Resources",
