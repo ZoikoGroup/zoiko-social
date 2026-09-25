@@ -64,8 +64,8 @@ export default function Prohibited() {
           </h2>
 
           <p className="w-full font-['Plus_Jakarta_Sans'] text-base font-normal leading-7 text-[#46636A]">
-            These are the behaviors we don't allow. We remove content and take
-            action against accounts that violate these standards.
+            These are the behaviors we don&apos;t allow. We remove content and
+            take action against accounts that violate these standards.
           </p>
         </div>
 
@@ -106,7 +106,7 @@ export default function Prohibited() {
                   {content.items.map((item) => (
                     <li
                       key={item}
-                      className="relative pl-6 py-2 font-['Plus_Jakarta_Sans'] text-sm font-normal leading-6 text-[#46636A]"
+                      className="relative py-2 pl-6 font-['Plus_Jakarta_Sans'] text-sm font-normal leading-6 text-[#46636A]"
                     >
                       <span className="absolute left-0 top-2 text-sm">
                         ⚠️

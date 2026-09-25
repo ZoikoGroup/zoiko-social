@@ -75,7 +75,8 @@ export default function Timeline() {
           {/* Description */}
           <div className="flex w-full flex-col items-start">
             <p className="w-full text-base font-normal leading-7 text-[#46636A]">
-              Here's what happens at each stage and how long it typically takes.
+              Here&apos;s what happens at each stage and how long it typically
+              takes.
             </p>
           </div>
 

@@ -17,7 +17,7 @@ export default function Hero() {
             <p className="font-['Plus_Jakarta_Sans'] text-base font-normal leading-7 text-[#46636A] sm:text-lg">
               Everyone on Zoiko has agreed to follow these standards. They
               protect our members and keep our communities healthy, safe, and
-              inclusive. These aren't rules meant to restrict—they're
+              inclusive. These aren&apos;t rules meant to restrict—they&apos;re
               agreements we all make to build something better together.
             </p>
           </div>
