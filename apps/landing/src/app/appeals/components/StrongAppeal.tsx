@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const goodPoints = [
   "Be specific about why you disagree",
   "Provide new context we might have missed",
@@ -29,10 +31,13 @@ export default function StrongAppeal() {
           {/* Visual */}
           <div className="relative w-full overflow-hidden rounded-3xl">
             {/* Background Image */}
-            <img
+            <Image
               src="/appeals/bg.png"
               alt="How to write a strong appeal"
+              width={1440}
+              height={411}
               className="block h-auto min-h-[411px] w-full object-cover"
+              priority
             />
 
             {/* Left - Good Appeals */}
