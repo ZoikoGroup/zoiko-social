@@ -242,7 +242,7 @@ export default function GetHelpInYourRegion() {
     regionsData[selectedRegion] || regionsData["North America"];
 
   return (
-    <div className="w-full min-h-screen bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
+    <div className="w-full min-h-screen bg-[#FFFFFF] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Section Heading & Subtitle */}
         <div className="space-y-2">

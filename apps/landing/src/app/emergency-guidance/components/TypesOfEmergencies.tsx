@@ -13,42 +13,42 @@ const emergencies: EmergencyCard[] = [
     title: "Immediate danger",
     description:
       "Someone is being harmed, attacked, or in physical danger right now. Report immediately.",
-    icon: "/emergency/2.png",
+    icon: "/emergency/22.png",
     buttonText: "Report Now",
   },
   {
     title: "Suicidal thoughts",
     description:
       "Someone is expressing suicidal thoughts, self-harm plans, or severe depression. Get crisis support.",
-    icon: "/emergency/3.png",
+    icon: "/emergency/23.png",
     buttonText: "Get Help",
   },
   {
     title: "Child safety",
     description:
       "A child is being exploited, abused, or endangered. Report to authorities immediately.",
-    icon: "/emergency/4.png",
+    icon: "/emergency/24.png",
     buttonText: "Report to CyberTipline",
   },
   {
     title: "Abuse & harassment",
     description:
       "Someone is experiencing intimate partner violence, stalking, or coordinated harassment.",
-    icon: "/emergency/5.png",
+    icon: "/emergency/25.png",
     buttonText: "Get Resources",
   },
   {
     title: "Overdose & addiction",
     description:
       "Someone is overdosing, experiencing severe withdrawal, or in danger from substance use.",
-    icon: "/emergency/6.png",
+    icon: "/emergency/26.png",
     buttonText: "Call Poison Control",
   },
   {
     title: "Medical emergency",
     description:
       "Someone is experiencing a medical crisis: chest pain, difficulty breathing, severe allergic reaction.",
-    icon: "/emergency/7.png",
+    icon: "/emergency/27.png",
     buttonText: "Call 911",
   },
 ];

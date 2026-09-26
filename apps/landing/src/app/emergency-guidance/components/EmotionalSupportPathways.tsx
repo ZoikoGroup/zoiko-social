@@ -12,37 +12,37 @@ const pathways: PathwayCard[] = [
     title: "Mental health therapy",
     description:
       "Professional counselors can help process trauma, grief, and difficult emotions. Many therapists work with insurance or offer sliding scale fees.",
-    icon: "/emergency/9.png",
+    icon: "/emergency/30.png",
   },
   {
     title: "Support groups",
     description:
       "Connect with others who've been through similar crises. Shared experience heals. Many groups meet online and in-person.",
-    icon: "/emergency/11.png",
+    icon: "/emergency/31.png",
   },
   {
     title: "Wellness practices",
     description:
       "Sleep, exercise, nutrition, and mindfulness help. Small things—a 10-minute walk, meditation app, journaling—make a difference.",
-    icon: "/emergency/12.png",
+    icon: "/emergency/32.png",
   },
   {
     title: "Lean on your people",
     description:
       "Tell trusted friends or family what you're experiencing. You don't have to go through recovery alone.",
-    icon: "/emergency/13.png",
+    icon: "/emergency/33.png",
   },
   {
     title: "Educational resources",
     description:
       "Learning about what happened—mental illness, addiction, trauma—helps you understand and support better.",
-    icon: "/emergency/14.png",
+    icon: "/emergency/34.png",
   },
   {
     title: "Crisis-specific tools",
     description:
       "Apps like Calm, Headspace, or 7 Cups offer meditation, journaling, and peer support when you need it.",
-    icon: "/emergency/15.png",
+    icon: "/emergency/35.png",
   },
 ];
 
@@ -66,7 +66,7 @@ export default function EmotionalSupportPathways() {
           {pathways.map((item, index) => (
             <div
               key={index}
-              className="bg-gradient-to-r from-[#EEF8F9] to-white rounded-3xl p-8 shadow-sm border border-[#DCE5E8] flex flex-col justify-between space-y-6"
+              className="bg-white rounded-3xl p-8 shadow-sm border border-[#DCE5E8] flex flex-col justify-between space-y-6"
             >
               <div className="space-y-4">
                 {/* Icon */}
@@ -81,7 +81,7 @@ export default function EmotionalSupportPathways() {
 
                 {/* Title & Description */}
                 <div className="space-y-2">
-                  <h2 className="text-base md:text-lg font-bold text-[#1a2d37]">
+                  <h2 className="text-base md:text-lg font-bold text-[#066879]">
                     {item.title}
                   </h2>
                   <p className="text-xs md:text-sm text-[#5a6e75] leading-relaxed">
