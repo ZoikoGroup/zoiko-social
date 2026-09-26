@@ -30,11 +30,11 @@ const warningSigns: WarningSign[] = [
 
 export default function PreventionEarlyWarningSigns() {
   return (
-    <div className="w-full min-h-screen bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
+    <div className="w-full min-h-screen bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#066879]">
       <div className="max-w-7xl mx-auto space-y-10">
         {/* Section Heading & Subtitle */}
         <div className="space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#1a2d37] tracking-tight">
+          <h1 className="text-2xl md:text-3xl font-bold text-[#102A32] tracking-tight">
             Prevention: Recognize early warning signs
           </h1>
           <p className="text-[#5a6e75] text-sm md:text-base">
@@ -50,7 +50,7 @@ export default function PreventionEarlyWarningSigns() {
               key={index}
               className="rounded-3xl p-6 md:p-8 shadow-sm border border-[#DCE5E8] space-y-2 flex flex-col justify-between"
             >
-              <h2 className="text-base md:text-lg font-bold text-[#1a2d37]">
+              <h2 className="text-base md:text-lg font-bold text-[#066879]">
                 {item.title}
               </h2>
               <p className="text-xs md:text-sm text-[#5a6e75] leading-relaxed">
@@ -62,7 +62,7 @@ export default function PreventionEarlyWarningSigns() {
 
         {/* Bottom Callout Box for Early Intervention Tip */}
         <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-[#DCE5E8] space-y-2">
-          <h2 className="text-base md:text-lg font-bold text-[#1a2d37]">
+          <h2 className="text-base md:text-lg font-bold text-[#066879]">
             Early intervention tip
           </h2>
           <p className="text-xs md:text-sm text-[#5a6e75] leading-relaxed">
