@@ -72,7 +72,7 @@ const ACCOUNTABILITY: readonly Item[] = [
     label: "Community Standards",
     description: "The rules everyone agrees to follow.",
     icon: `${ICON}file-text.svg`,
-    href: SAFETY_DOCS,
+    href: "/community-standards",
   },
   {
     label: "Transparency Reports",
@@ -84,13 +84,13 @@ const ACCOUNTABILITY: readonly Item[] = [
     label: "Appeals",
     description: "Contest a moderation decision.",
     icon: `${ICON}shield-check.svg`,
-    href: SAFETY_DOCS,
+    href: "/appeals",
   },
   {
     label: "How Moderation Works",
     description: "Our enforcement process, explained.",
     icon: `${ICON}settings.svg`,
-    href: SAFETY_DOCS,
+    href: "/how-moderation-works",
   },
 ];
 
