@@ -2,7 +2,6 @@ import {
   EmergencyGuidance,
   TypesOfEmergencies,
   QuickDecisionGuide,
-  UnderstandingCrisisSupport,
   GetHelpInYourRegion,
   PreventionEarlyWarningSigns,
   RecoveryTimeline,
@@ -18,7 +17,6 @@ export default function EmergencyGuidancePage() {
       <EmergencyGuidance />
       <TypesOfEmergencies />
       <QuickDecisionGuide />
-      <UnderstandingCrisisSupport />
       <GetHelpInYourRegion />
       <PreventionEarlyWarningSigns />
       <RecoveryTimeline />

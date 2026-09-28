@@ -69,11 +69,11 @@ export default function FrequentlyAskedQuestions() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="w-full bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
+      <div className="max-w-5xl mx-auto space-y-8">
         {/* Section Heading */}
         <div className="space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold text-[#1a2d37] tracking-tight">
+          <h1 className="text-2xl md:text-3xl text-center font-bold text-[#1a2d37] tracking-tight">
             Frequently asked questions
           </h1>
         </div>
@@ -89,8 +89,11 @@ export default function FrequentlyAskedQuestions() {
               >
                 <button
                   onClick={() => toggleAccordion(index)}
-                  className="w-full p-6 md:p-8 flex items-center text-left space-x-4 focus:outline-none"
+                  className="w-full p-6 md:p-8 flex items-center justify-between text-left space-x-4 focus:outline-none"
                 >
+                  <span className="text-base md:text-lg font-bold text-[#066879]">
+                    {faq.question}
+                  </span>
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#066879] flex-shrink-0">
                     {isOpen ? (
                       <Minus className="w-4 h-4 stroke-[3]" />
@@ -98,9 +101,6 @@ export default function FrequentlyAskedQuestions() {
                       <Plus className="w-4 h-4 stroke-[3]" />
                     )}
                   </div>
-                  <span className="text-base md:text-lg font-bold text-[#066879]">
-                    {faq.question}
-                  </span>
                 </button>
 
                 {isOpen && (

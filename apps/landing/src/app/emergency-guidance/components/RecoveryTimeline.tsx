@@ -1,12 +1,13 @@
 import React from "react";
+import Image from "next/image";
 
-interface RecoveryStep {
+interface MilestoneItem {
   timeframe: string;
   title: string;
   description: string;
 }
 
-const recoverySteps: RecoveryStep[] = [
+const milestoneData: MilestoneItem[] = [
   {
     timeframe: "Week 1",
     title: "Crisis stabilization",
@@ -41,44 +42,55 @@ const recoverySteps: RecoveryStep[] = [
 
 export default function RecoveryTimeline() {
   return (
-    <div className="w-full min-h-screen bg-[#F7F9FA] py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
-      <div className="max-w-7xl mx-auto space-y-12">
+    <div className="w-full bg-[#FFFFFF] py-16 px-4 md:px-8 font-sans text-[#1a2d37] flex items-center justify-center">
+      <div className="max-w-7xl w-full space-y-12">
         {/* Section Heading & Subtitle */}
         <div className="space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold text-[#1a2d37] tracking-tight">
             Recovery: What it looks like over time
           </h1>
-          <p className="text-[#5a6e75] text-sm md:text-base">
+          <p className="text-xs md:text-sm text-[#5a6e75]">
             Recovery isn&apos;t linear, but here are realistic milestones that
             show progress and healing is happening.
           </p>
         </div>
 
-        {/* Timeline Container Card */}
-        <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-[#DCE5E8] divide-y divide-[#DCE5E8]">
-          {recoverySteps.map((item, index) => (
-            <div
-              key={index}
-              className="py-6 first:pt-0 last:pb-0 grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-8 items-center"
-            >
-              {/* Timeframe Badge */}
-              <div className="md:col-span-3">
-                <span className="inline-block px-4 py-2 rounded-full bg-[#EEF8F9] text-[#066879] text-xs font-bold tracking-wide">
-                  {item.timeframe}
-                </span>
-              </div>
+        {/* Hero Image Card */}
+        <div className="w-full h-[280px] md:h-[340px] relative rounded-3xl overflow-hidden">
+          <Image
+            src="/emergency/paper.png"
+            alt="Person reviewing recovery health insurance document"
+            fill
+            className="object-cover"
+            priority
+          />
+        </div>
 
-              {/* Title & Description */}
-              <div className="md:col-span-9 space-y-1">
-                <h2 className="text-base md:text-lg font-bold text-[#1a2d37]">
-                  {item.title}
-                </h2>
-                <p className="text-xs md:text-sm text-[#5a6e75] leading-relaxed">
-                  {item.description}
-                </p>
+        {/* Milestones Card Container */}
+        <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-[#DCE5E8]">
+          <div className="divide-y divide-[#DCE5E8]">
+            {milestoneData.map((item, index) => (
+              <div
+                key={index}
+                className="py-6 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-8"
+              >
+                {/* Timeframe Badge */}
+                <div className="w-fit bg-gradient-to-r from-[#EEF8F9] to-white text-[#066879] px-4 py-2 rounded-xl text-xs md:text-sm font-bold flex-shrink-0">
+                  {item.timeframe}
+                </div>
+
+                {/* Title & Description */}
+                <div className="flex-1 space-y-1">
+                  <h2 className="text-base md:text-lg font-bold text-[#1a2d37]">
+                    {item.title}
+                  </h2>
+                  <p className="text-xs md:text-sm text-[#5a6e75] leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>

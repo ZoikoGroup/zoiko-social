@@ -1,5 +1,4 @@
 import React from "react";
-import Image from "next/image";
 import { Check } from "lucide-react";
 
 interface HelperCard {
@@ -47,8 +46,7 @@ export default function SupportingTheHelpers() {
           </h1>
           <p className="text-[#5a6e75] text-sm md:text-base">
             If you helped someone in crisis, you may be experiencing secondary
-            trauma, guilt, or burnout. Your wellbeing matters. Get
-            support.
+            trauma, guilt, or burnout. Your wellbeing matters. Get support.
           </p>
         </div>
 
@@ -57,18 +55,10 @@ export default function SupportingTheHelpers() {
           {helperCards.map((item, index) => (
             <div
               key={index}
-              className="bg-white rounded-3xl bg-gradient-to-r from-[#EEF8F9] to-white p-8 shadow-sm border border-[#DCE5E8] flex flex-col justify-between space-y-6"
+              className="bg-white rounded-3xl bg-white p-8 shadow-sm border border-[#DCE5E8] flex flex-col justify-between space-y-6"
             >
               <div className="space-y-4">
                 {/* Icon */}
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center relative overflow-hidden">
-                  <Image
-                    src={item.icon}
-                    alt={item.title}
-                    fill
-                    className="object-contain p-2"
-                  />
-                </div>
 
                 {/* Title & Description */}
                 <div className="space-y-2">
@@ -87,14 +77,6 @@ export default function SupportingTheHelpers() {
         {/* Bottom Resources Card */}
         <div className="bg-white rounded-3xl p-8 md:p-10 shadow-sm border border-[#DCE5E8] space-y-6">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden">
-              <Image
-                src="/emergency/9.png"
-                alt="Brain icon"
-                fill
-                className="object-contain p-2"
-              />
-            </div>
             <h2 className="text-base md:text-lg font-bold text-[#066879]">
               Resources for helpers experiencing stress
             </h2>
