@@ -1,5 +1,3 @@
-import { C } from "./theme";
-
 interface ProcessStep {
   step: number;
   title: string;
