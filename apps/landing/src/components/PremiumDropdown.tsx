@@ -35,13 +35,13 @@ const FOR_YOU: readonly Item[] = [
     label: "Ad-Free Feed",
     description: "Browse without interruptions.",
     icon: `${ICON}layout.svg`,
-    href: "/ad-free-feed",
+    href: "/premium-ad-free-feed",
   },
   {
     label: "Advanced Privacy",
     description: "More control over who sees what.",
     icon: `${ICON}lock.svg`,
-    href: "/advanced-privacy",
+    href: "/premium-advanced-privacy",
   },
   {
     label: "Larger Group Calls",
@@ -74,13 +74,13 @@ const FOR_PROS_AND_ORGS: readonly Item[] = [
     label: "Fundraising Toolkit",
     description: "Tools to run and track campaigns.",
     icon: `${ICON}banknote.svg`,
-    href: "/fundraising-toolkit",
+    href: "/premium-fundraising-toolkit",
   },
   {
     label: "Advanced Moderation",
     description: "Deeper tools for community teams.",
     icon: `${ICON}gauge.svg`,
-    href: "/advanced-moderation",
+    href: "/premium-advanced-moderation",
   },
 ];
 

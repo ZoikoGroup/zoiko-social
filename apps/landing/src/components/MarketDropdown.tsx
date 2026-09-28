@@ -62,7 +62,7 @@ const SERVICES_AND_SUPPLIES: readonly Item[] = [
     label: "Trainers & Groomers",
     description: "Book trusted local professionals.",
     icon: `${ICON}bone.svg`,
-    href: "/shop",
+    href: "/market-trainers-groomers",
   },
   {
     label: "Boarding & Sitting",

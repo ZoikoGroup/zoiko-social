@@ -33,25 +33,25 @@ const TOPICS: readonly Item[] = [
     label: "Latest",
     description: "The newest stories across animal welfare.",
     icon: `${ICON}file-text.svg`,
-    href: "/latest",
+    href: "/news-latest",
   },
   {
     label: "Animal Welfare",
     description: "Coverage of care, rescue, and welfare policy.",
     icon: `${ICON}heart.svg`,
-    href: "/animal-welfare",
+    href: "/news-animal-welfare",
   },
   {
     label: "Conservation",
     description: "Wildlife and habitat protection reporting.",
     icon: `${ICON}globe.svg`,
-    href: "/conservation",
+    href: "/news-conservation",
   },
   {
     label: "Wildlife Crime",
     description: "Trafficking, poaching, and enforcement news.",
     icon: `${ICON}shield-check.svg`,
-    href: appUrl("/news"),
+    href: "/news-wildlife-crime",
   },
 ];
 
@@ -60,25 +60,25 @@ const COVERAGE_AND_TRUST: readonly Item[] = [
     label: "Global Coverage",
     description: "Stories from every region we cover.",
     icon: `${ICON}globe.svg`,
-    href: appUrl("/news"),
+    href: "/news-global-coverage",
   },
   {
     label: "Your Region",
     description: "Coverage local to your set location.",
     icon: `${ICON}map-pin.svg`,
-    href: "/your-region",
+    href: "/news-your-region",
   },
   {
     label: "Source Standards",
     description: "How we rate the publishers we cite.",
     icon: `${ICON}badge-check.svg`,
-    href: "/source-standards",
+    href: "/news-source-standards",
   },
   {
     label: "Report an Inaccuracy",
     description: "Flag something that looks wrong.",
     icon: `${ICON}alert-triangle.svg`,
-    href: appUrl("/docs/safety-and-trust"),
+    href: "/news-report-an-inaccuracy",
   },
 ];
 
