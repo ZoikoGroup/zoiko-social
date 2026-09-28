@@ -2,48 +2,7 @@ import Image from "next/image";
 
 // Figma color tokens
 const INK_COLOR = "#073B47";          // Headings & card titles: Firefly
-const MOSQUE_COLOR = "#066879";       // Brand icons: Mosque
 const NEVADA_COLOR = "#646E73";       // Descriptions: Nevada
-const GEYSER_BORDER = "#DCEAEE";      // Card border: Geyser
-
-/** Ringing Bell Icon matching Figma */
-function BellIcon() {
-  return (
-    <svg
-      className="size-9"
-      viewBox="0 0 36 36"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M18 6C14.134 6 11 9.13401 11 13V18.5858L9.29289 20.2929C8.90237 20.6834 9.17887 21.35 9.73137 21.35H26.2686C26.8211 21.35 27.0976 20.6834 26.7071 20.2929L25 18.5858V13C25 9.13401 21.866 6 18 6Z"
-        stroke={MOSQUE_COLOR}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15.5 24C15.8 25.2 16.8 26 18 26C19.2 26 20.2 25.2 20.5 24"
-        stroke={MOSQUE_COLOR}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      {/* Side vibration waves matching Figma */}
-      <path
-        d="M7 10C5.5 12 5.5 15 7 17"
-        stroke={MOSQUE_COLOR}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <path
-        d="M29 10C30.5 12 30.5 15 29 17"
-        stroke={MOSQUE_COLOR}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
 
 const CARDS = [
   {
@@ -78,7 +37,15 @@ const CARDS = [
         from your network.
       </>
     ),
-    icon: <BellIcon />,
+    icon: (
+      <Image
+        src="/platform-apps-downloads-production/image 143.png"
+        alt="Push Notifications"
+        width={36}
+        height={36}
+        className="size-9 object-contain"
+      />
+    ),
   },
   {
     title: "Offline Access",
@@ -125,7 +92,7 @@ export default function WhyDownload() {
               key={card.title}
               className="flex flex-col items-center rounded-[24px] border border-[#DCEAEE] bg-white p-8 shadow-[0px_1px_3px_0px_rgba(7,59,71,0.06)] transition hover:shadow-md"
             >
-              {/* Icon */}
+              {/* Icon Image */}
               <div className="flex size-9 items-center justify-center">
                 {card.icon}
               </div>

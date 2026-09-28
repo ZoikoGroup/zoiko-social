@@ -2,7 +2,6 @@
 const INK_COLOR = "#073B47";          // Headings & titles: Firefly
 const MOSQUE_COLOR = "#066879";       // Primary CTA & Tag text: Mosque
 const NEVADA_COLOR = "#646E73";       // Descriptions & Publishers: Nevada
-const GEYSER_BORDER = "#DCEAEE";      // Card border: Geyser
 const TAG_BG = "#F0F7F9";             // Tag chips & secondary buttons: Black Squeeze
 
 const APPS: {
