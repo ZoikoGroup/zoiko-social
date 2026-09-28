@@ -18,7 +18,7 @@ const ROUTES: {
     tone: "neutral",
     title: "Careers",
     body: "View open roles and life at Zoiko Social.",
-    href: appUrl("/careers"),
+    href: "/company-careers",
   },
   {
     icon: Flag,
