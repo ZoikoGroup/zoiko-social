@@ -3,8 +3,8 @@ import Link from "next/link";
 import { C } from "./theme";
 
 /** The report form lives on /report-a-concern; standards live on /source-standards. */
-const REPORT_URL = "/report-a-concern";
-const STANDARDS_URL = "/source-standards";
+const REPORT_URL = "/adopt-report-a-concern";
+const STANDARDS_URL = "/news-source-standards";
 
 export default function Hero() {
   return (

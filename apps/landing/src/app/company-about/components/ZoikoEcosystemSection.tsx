@@ -108,7 +108,7 @@ export default function ZoikoEcosystemSection() {
 
             <div className="mt-6 sm:mt-8 pt-2">
               <Link
-                href="/latest"
+                href="/news-latest"
                 className="text-sm sm:text-base font-semibold transition hover:underline"
                 style={{ color: C.mosque }}
               >

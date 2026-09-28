@@ -7,35 +7,35 @@ const PILLARS = [
     description:
       "Automated and human moderation enforcing respectful interaction and family-friendly standards.",
     linkText: "Learn about moderation →",
-    linkHref: "/how-moderation-works",
+    linkHref: "/safety-how-moderation-works",
   },
   {
     title: "Tiered Verification",
     description:
       "Different verification systems for news, professionals, and organizations — clear distinctions for different types of expertise.",
     linkText: "How verification works →",
-    linkHref: "/verified-rescues-shelters",
+    linkHref: "/adopt-verified-rescues-shelters",
   },
   {
     title: "Anti-Trafficking Controls",
     description:
       "Adoption, rescue, and commerce functions use identity-aware and jurisdiction-aware controls to prevent exploitation.",
     linkText: "Animal welfare policy →",
-    linkHref: "/animal-welfare",
+    linkHref: "/news-animal-welfare",
   },
   {
     title: "Ethical Advertising",
     description:
       "Animal-aligned professionals only; labeling and separation from news ensure authentic information.",
     linkText: "Advertising standards →",
-    linkHref: "/community-standards",
+    linkHref: "/safety-community-standards",
   },
   {
     title: "Responsibility Over\nVirality",
     description:
       "Editorial and product principles favoring accuracy, welfare, and responsible community over raw engagement metrics.",
     linkText: "Community standards →",
-    linkHref: "/community-standards",
+    linkHref: "/safety-community-standards",
   },
 ];
 

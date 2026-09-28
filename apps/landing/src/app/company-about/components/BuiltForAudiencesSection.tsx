@@ -32,7 +32,7 @@ const AUDIENCES = [
     buttonText: "Verify Organization",
     buttonHref: "/premium-verified-organization",
     linkText: "Partner With Us →",
-    linkHref: "/fundraising-toolkit",
+    linkHref: "/premium-fundraising-toolkit",
   },
 ];
 

@@ -101,7 +101,7 @@ export default function SafetyResponsibility() {
                 </div>
 
                 <Link
-                  href="/source-standards"
+                  href="/news-source-standards"
                   className="block w-full rounded-xl py-3.5 text-center text-sm font-bold text-white transition hover:opacity-90"
                   style={{ background: C.brand }}
                 >
