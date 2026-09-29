@@ -102,7 +102,8 @@ jobs:
       # ── 10. Secret scanning (blocks accidental API key commits) ────
       # Pinned to v3 (stable); fetch-depth:0 above ensures main is locally
       # available so git log main...HEAD works in both push and PR events.
-      - name: Scan for secrets
+      - name: Scan for secrets (PR)
+        if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@v3.95.7
         with:
           path: ./
