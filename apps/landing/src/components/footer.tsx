@@ -61,9 +61,9 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
   {
     title: "Support & Developers",
     links: [
-      { label: "Help Center", href: PLACEHOLDER },
+      { label: "Help Center", href: "/help-center" },
       { label: "Contact Us", href: PLACEHOLDER },
-      { label: "System Status", href: PLACEHOLDER },
+      { label: "System Status", href: "/system-status" },
       { label: "Accessibility Support", href: PLACEHOLDER },
       { label: "API Documentation", href: PLACEHOLDER },
       { label: "Developer Support", href: PLACEHOLDER },
