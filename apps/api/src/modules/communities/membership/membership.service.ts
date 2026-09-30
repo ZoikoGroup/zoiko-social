@@ -180,7 +180,7 @@ export class MembershipService {
       take: take + 1,
       orderBy: [{ createdAt: 'desc' }, { userId: 'desc' }],
       include: {
-        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       },
     })
     const hasMore = requests.length > take
@@ -191,7 +191,7 @@ export class MembershipService {
         username: r.user.username,
         displayName: r.user.displayName,
         avatarUrl: r.user.avatarUrl,
-        isVerified: r.user.verificationTier === 'professional',
+        isVerified: r.user.identityStatus === 'approved',
         requestedAt: r.createdAt.toISOString(),
       })),
       nextCursor: hasMore ? encodeCursor(items[items.length - 1]!.createdAt, items[items.length - 1]!.userId) : null,
@@ -303,7 +303,7 @@ export class MembershipService {
       // Owners/admins first, then join order
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }, { userId: 'desc' }],
       include: {
-        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       },
     })
     const hasMore = members.length > take
@@ -314,7 +314,7 @@ export class MembershipService {
         username: m.user.username,
         displayName: m.user.displayName,
         avatarUrl: m.user.avatarUrl,
-        isVerified: m.user.verificationTier === 'professional',
+        isVerified: m.user.identityStatus === 'approved',
         role: m.role,
         joinedAt: m.createdAt.toISOString(),
       })),

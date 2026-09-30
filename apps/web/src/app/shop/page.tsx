@@ -63,11 +63,20 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 export default function ShopPage(): React.JSX.Element {
   const ts = useTranslations('shop')
   const { format } = useCurrency()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, profile } = useAuth()
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState('newest')
   const [search, setSearch] = useState('')
   const [sellOpen, setSellOpen] = useState(false)
+
+  const handleSell = () => {
+    if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
+      window.alert('You must be Identity or Organization Verified to sell products in the Marketplace. Please complete verification in your settings.')
+      return
+    }
+    // Subscription check should also happen here in a full flow.
+    setSellOpen(true)
+  }
 
   const filters = useCallback(() => ({
     ...(category !== 'all' ? { category } : {}),
@@ -107,7 +116,7 @@ export default function ShopPage(): React.JSX.Element {
               </div>
               <DocsHelpLink href="/docs/marketplace-and-services#shopping" />
               {isAuthenticated && (
-                <button onClick={() => setSellOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                <button onClick={handleSell} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                   <Plus className="w-4 h-4" /><span className="hidden sm:inline">Sell an Item</span>
                 </button>
               )}
@@ -147,7 +156,7 @@ export default function ShopPage(): React.JSX.Element {
                 <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-4"><Package className="w-7 h-7 text-outline" /></div>
                 <h3 className="text-label-md font-bold text-on-surface mb-1">{ts('noProducts')}</h3>
                 <p className="text-label-sm text-outline mb-4">Be the first to list an item in the marketplace.</p>
-                {isAuthenticated && <button onClick={() => setSellOpen(true)} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Sell an Item</button>}
+                {isAuthenticated && <button onClick={handleSell} className="px-4 py-2 bg-primary text-white rounded-lg text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">Sell an Item</button>}
               </div>
             ) : (
               <>
@@ -226,17 +235,15 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
   const [coverUrl, setCoverUrl] = useState('')
   // Product.currency defaults to USD server-side, and this form never sent one —
   // so a seller typing 999 on an INR platform listed it as $999 and every viewer
-  // saw ~₹83,000. All nine existing rows are stored USD for that reason. The
-  // seller states it now, defaulting to the platform base.
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY)
+  const [externalUrl, setExternalUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState('')
 
   const priceNum = parseFloat(price)
-  // A photo is required, matching CreateProductSchema. Enforced here as well so
-  // the reason is visible before submitting rather than coming back as a 400.
-  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0 && coverUrl !== ''
+  const validUrl = externalUrl.trim().startsWith('http://') || externalUrl.trim().startsWith('https://')
+  const valid = title.trim().length >= 3 && !isNaN(priceNum) && priceNum >= 0 && coverUrl !== '' && validUrl
 
   async function handleCover(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
     const file = e.target.files?.[0]; e.target.value = ''
@@ -255,6 +262,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
         ...(stock && !isNaN(parseInt(stock, 10)) ? { stock: parseInt(stock, 10) } : {}),
         ...(shipping.trim() ? { shipping: shipping.trim() } : {}),
         ...(description.trim() ? { description: description.trim() } : {}),
+        externalUrl: externalUrl.trim(),
         coverUrl,
       }
       onListed(await shopApi.create(input))
@@ -318,6 +326,8 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           </div>
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={4000} rows={4} placeholder="Describe your item…"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
+          <input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} type="url" placeholder="Your Shop URL (required, e.g. https://...)"
+            className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
           {error && <p className="text-label-sm text-red-500">{error}</p>}
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">

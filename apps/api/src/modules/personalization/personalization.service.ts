@@ -56,7 +56,7 @@ export interface ScoreablePost {
   savesCount: number
   sharesCount: number
   createdAt: Date
-  author: { verificationTier: string }
+  author: { identityStatus: string | null }
   hashtags: { hashtag: { tag: string } }[]
 }
 
@@ -99,7 +99,7 @@ export function recencyDecay(ageHours: number): number {
 }
 
 export function authorTrust(post: ScoreablePost): number {
-  return post.author?.verificationTier === 'professional' ? 1.3 : 1
+  return post.author?.identityStatus === 'approved' ? 1.3 : 1
 }
 
 export function scorePost(

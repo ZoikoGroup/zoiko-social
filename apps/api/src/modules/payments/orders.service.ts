@@ -54,17 +54,18 @@ export class OrdersService {
     private readonly notifications: NotificationQueueService,
   ) {}
 
-  /** Creates a pending Order + Stripe Checkout Session, returns the session URL. */
+  /** Creates a pending Order (Reserved) for off-platform payment, returns a success marker. */
   async checkout(
     productId: string,
     buyerId: string,
     quantity: number,
     successUrl: string,
-    cancelUrl: string,
+    _cancelUrl: string,
   ): Promise<{ url: string; orderId: string }> {
-    if (!this.stripe.enabled) {
-      throw new BadRequestException({ code: 'STRIPE_NOT_CONFIGURED', message: 'Checkout is not available right now' })
-    }
+    // STRIPE CODE COMMENTED OUT FOR "PAY AT VISIT" MODEL
+    // if (!this.stripe.enabled) {
+    //   throw new BadRequestException({ code: 'STRIPE_NOT_CONFIGURED', message: 'Checkout is not available right now' })
+    // }
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -82,18 +83,35 @@ export class OrdersService {
 
     const amountCents = product.priceCents * quantity
 
-    const order = await this.prisma.order.create({
-      data: {
-        productId,
-        buyerId,
-        sellerId: product.sellerId,
-        quantity,
-        amountCents,
-        currency: product.currency,
-        status: 'pending',
-      },
+    const order = await this.prisma.$transaction(async (tx) => {
+      // Create the pending order
+      const newOrder = await tx.order.create({
+        data: {
+          productId,
+          buyerId,
+          sellerId: product.sellerId,
+          quantity,
+          amountCents,
+          currency: product.currency,
+          status: 'pending', // Pending off-platform payment (reserved)
+        },
+      })
+      
+      // Immediately decrement stock for offline reservation
+      const updatedProduct = await tx.product.update({
+        where: { id: productId },
+        data: { stock: { decrement: quantity } },
+        select: { stock: true },
+      })
+      
+      if (updatedProduct.stock <= 0) {
+        await tx.product.update({ where: { id: productId }, data: { status: 'sold' } })
+      }
+      return newOrder
     })
 
+    // STRIPE CHECKOUT COMMENTED OUT
+    /*
     const session = await this.stripe.createCheckoutSession({
       productTitle: product.title,
       productImage: product.coverUrl,
@@ -113,7 +131,27 @@ export class OrdersService {
     if (!session.url) {
       throw new Error('Stripe did not return a checkout URL')
     }
-    return { url: session.url, orderId: order.id }
+    */
+
+    // Notify buyer and seller about the reservation
+    void this.notifications.enqueue({
+      userId: order.sellerId,
+      type: 'order_reserved',
+      title: 'Your item was reserved!',
+      body: `An order for ${quantity} item(s) was reserved. Please message the buyer to arrange payment.`,
+      data: { orderId: order.id, productId },
+    })
+    
+    void this.notifications.enqueue({
+      userId: buyerId,
+      type: 'order_reserved',
+      title: 'Item reserved successfully',
+      body: `You reserved ${quantity} item(s). Please message the seller to arrange payment and pickup/delivery.`,
+      data: { orderId: order.id, productId },
+    })
+
+    // Return the successUrl directly since there is no Stripe session URL
+    return { url: successUrl, orderId: order.id }
   }
 
   /** Idempotent — Stripe may retry webhook delivery. */

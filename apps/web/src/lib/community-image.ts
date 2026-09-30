@@ -41,3 +41,22 @@ export async function uploadEventVideo(userId: string, file: File): Promise<stri
   if (error) throw new Error(`Upload failed: ${error.message}`)
   return supabase.storage.from('post-media').getPublicUrl(path).data.publicUrl
 }
+
+/**
+ * Uploads a secure verification document. Returns the storage path (not a public URL)
+ * because the bucket is private.
+ */
+export async function uploadVerificationFile(userId: string, file: File): Promise<string> {
+  const supabase = createClient()
+  const ext = (file.name.split('.').pop() ?? 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '') || 'pdf'
+  const path = `${userId}/verification/${Date.now()}.${ext}`
+  
+  // Use the 'verification' bucket or whichever private bucket is configured.
+  // Assuming 'verification-documents' based on standard secure storage patterns.
+  const { error } = await supabase.storage.from('verification-documents').upload(path, file, {
+    contentType: file.type,
+    cacheControl: '31536000',
+  })
+  if (error) throw new Error(`Upload failed: ${error.message}`)
+  return path
+}

@@ -112,9 +112,9 @@ describe('AiAssistantService', () => {
       expect(upsertArg.create.username).toBe(AI_USERNAME)
       expect(upsertArg.create.displayName).toBe(AI_DISPLAY_NAME)
       // Verified tier drives the badge the existing UI already renders.
-      expect(upsertArg.create.verificationTier).toBe('professional')
+      expect(upsertArg.create.identityStatus).toBe('professional')
       expect(upsertArg.create.isPrivate).toBe(false)
-      expect(upsertArg.update.verificationTier).toBe('professional')
+      expect(upsertArg.update.identityStatus).toBe('professional')
     })
 
     it('recovers the id by email when the auth user already exists', async () => {

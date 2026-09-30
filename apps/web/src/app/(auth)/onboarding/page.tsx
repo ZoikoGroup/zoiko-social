@@ -113,7 +113,11 @@ function OnboardingForm({
 
   // Someone who has already been through this has no business here.
   useEffect(() => {
-    if (alreadyCompleted) router.replace('/')
+    if (alreadyCompleted) {
+      const searchParams = new URLSearchParams(window.location.search)
+      const nextUrl = searchParams.get('next') || '/'
+      router.replace(nextUrl.startsWith('/') ? nextUrl : '/')
+    }
   }, [alreadyCompleted, router])
 
   // ── Suggestions ───────────────────────────────────────────────────────────
@@ -478,7 +482,11 @@ function OnboardingForm({
 
             <button
               type="button"
-              onClick={() => router.replace('/')}
+              onClick={() => {
+                const searchParams = new URLSearchParams(window.location.search)
+                const nextUrl = searchParams.get('next') || '/'
+                router.replace(nextUrl.startsWith('/') ? nextUrl : '/')
+              }}
               className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-primary text-label-md font-semibold text-on-primary transition-colors hover:bg-primary/90"
             >
               {pets.length > 0 ? 'Done' : 'Skip for now'}

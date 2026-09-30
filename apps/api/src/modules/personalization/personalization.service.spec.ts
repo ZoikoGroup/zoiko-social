@@ -14,7 +14,7 @@ function makePost(overrides: Partial<ScoreablePost> = {}): ScoreablePost {
     savesCount: 1,
     sharesCount: 0,
     createdAt: new Date(NOW - 3_600_000), // 1 hour old
-    author: { verificationTier: 'regular' },
+    author: { identityStatus: 'pending' },
     hashtags: [{ hashtag: { tag: 'dogs' } }],
     ...overrides,
   }
@@ -102,8 +102,8 @@ describe('personalization scoring', () => {
     })
 
     it('gives professional authors the existing 1.3× trust boost', () => {
-      const pro = makePost({ author: { verificationTier: 'professional' } })
-      const regular = makePost({ author: { verificationTier: 'regular' } })
+      const pro = makePost({ author: { identityStatus: 'approved' } })
+      const regular = makePost({ author: { identityStatus: 'pending' } })
       const ratio = scorePost(EMPTY_AFFINITY, pro, NOW, 'explore') / scorePost(EMPTY_AFFINITY, regular, NOW, 'explore')
       expect(ratio).toBeCloseTo(1.3, 5)
     })

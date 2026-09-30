@@ -27,11 +27,19 @@ interface ServiceDirectoryProps {
 }
 
 export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes, addLabel }: ServiceDirectoryProps): React.JSX.Element {
-  const { loading: authLoading, isAuthenticated } = useAuth()
+  const { loading: authLoading, isAuthenticated, profile } = useAuth()
   const [query, setQuery] = useState('')
   const [location, setLocation] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  const handleAdd = () => {
+    if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
+      window.alert('You must be Identity or Organization Verified to add a listing. Please complete verification in your settings.')
+      return
+    }
+    setAddOpen(true)
+  }
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
@@ -85,7 +93,7 @@ export function ServiceDirectory({ category, title, subtitle, Icon, serviceTypes
                   <p className="text-label-sm text-outline">{subtitle}</p>
                 </div>
               </div>
-              <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+              <button onClick={handleAdd} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                 <Plus className="w-4 h-4" />{addLabel}
               </button>
             </div>

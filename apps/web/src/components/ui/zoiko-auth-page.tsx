@@ -303,6 +303,10 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
     setError('')
     setIsLoading(true)
 
+    const params = new URLSearchParams(window.location.search)
+    let nextUrl = params.get('next') || params.get('returnTo') || '/'
+    if (!nextUrl.startsWith('/')) nextUrl = '/'
+
     if (mode === 'login') {
       const result = await signIn(email, password)
       if (result.error) {
@@ -317,7 +321,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
           setHidden(state)
           setIsLoading(false)
         } else {
-          router.push('/')
+          router.push(nextUrl)
         }
       }
     } else {
@@ -352,7 +356,7 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
         setError(result.error)
         setIsLoading(false)
       } else if (result.data?.session) {
-        router.push('/')
+        router.push(nextUrl)
       } else {
         router.push('/login?registered=true')
       }

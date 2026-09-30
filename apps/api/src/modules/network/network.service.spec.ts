@@ -19,7 +19,7 @@ function profile(id: string) {
     displayName: `User ${id}`,
     avatarUrl: null,
     bio: null,
-    verificationTier: 'regular',
+    identityStatus: 'pending',
     professionalProfile: null,
   }
 }
@@ -184,8 +184,8 @@ describe('NetworkService.getSuggestions', () => {
 
   it('cold start (no affinity, no mutuals) returns verified professionals', async () => {
     const pros = [
-      { ...profile('pro-1'), verificationTier: 'professional', professionalProfile: { category: 'vet', isVerified: true } },
-      { ...profile('pro-2'), verificationTier: 'professional', professionalProfile: { category: 'groomer', isVerified: true } },
+      { ...profile('pro-1'), identityStatus: 'approved', professionalProfile: { category: 'vet', isVerified: true } },
+      { ...profile('pro-2'), identityStatus: 'approved', professionalProfile: { category: 'groomer', isVerified: true } },
     ]
     const { service, prisma } = build({ profiles: pros })
 

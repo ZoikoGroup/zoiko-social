@@ -236,7 +236,7 @@ const RECORD = {
   websiteUrl: null,
   state: 'active',
   role: 'user',
-  verificationTier: 'none',
+  identityStatus: 'pending',
   isPrivate: false,
   followersCount: 0,
   followingCount: 0,
@@ -405,7 +405,7 @@ describe('ProfileService.getProfileById — the email gate', () => {
     websiteUrl: null,
     state: 'active',
     role: 'user',
-    verificationTier: 'none',
+    identityStatus: 'pending',
     isPrivate: false,
     followersCount: 0,
     followingCount: 0,
@@ -548,7 +548,7 @@ describe('ProfileService.searchTaggable', () => {
   }
 
   const person = (username: string, displayName: string, followersCount = 0) => ({
-    id: username, username, displayName, avatarUrl: null, verificationTier: 'none', followersCount,
+    id: username, username, displayName, avatarUrl: null, identityStatus: 'pending', followersCount,
   })
 
   it('answers an empty query without touching the database', async () => {

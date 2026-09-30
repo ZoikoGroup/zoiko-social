@@ -10,7 +10,7 @@ import { scanForFraud } from '../common/fraud/fraud-scan'
 import type { CreateListingInput, UpdateListingInput, EnquiryInput, EnquiryMessageInput, RespondEnquiryInput } from './adoption.schemas'
 
 type ListingRow = Prisma.AdoptionPostGetPayload<{
-  include: { poster: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: { poster: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } }
 }>
 
 export interface ListingResponse {
@@ -32,9 +32,6 @@ export interface ListingResponse {
   vaccinated: boolean
   neutered: boolean
   goodWith: string[]
-  listingType: string
-  price: number | null
-  negotiable: boolean
   fee: number | null
   status: string
   tags: string[]
@@ -71,7 +68,7 @@ export class AdoptionService {
   ) {}
 
   private posterInclude() {
-    return { poster: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return { poster: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } }
   }
 
   private map(l: ListingRow, viewerEnquiryStatus: string | null, distanceKm: number | null = null): ListingResponse {
@@ -79,13 +76,13 @@ export class AdoptionService {
       id: l.id,
       poster: {
         id: l.poster.id, username: l.poster.username, displayName: l.poster.displayName,
-        avatarUrl: l.poster.avatarUrl, isVerified: l.poster.verificationTier === 'professional',
+        avatarUrl: l.poster.avatarUrl, isVerified: l.poster.identityStatus === 'approved',
       },
       name: l.name, species: l.species, breed: l.breed, age: l.age, sex: l.sex, size: l.size,
       description: l.description, location: l.location, latitude: l.latitude, longitude: l.longitude, distanceKm,
       coverUrl: l.coverUrl, photos: l.photos,
       vaccinated: l.vaccinated, neutered: l.neutered, goodWith: l.goodWith,
-      listingType: l.listingType, price: l.price, negotiable: l.negotiable, fee: l.fee,
+      fee: l.fee,
       status: l.status, tags: l.tags, enquiriesCount: l.enquiriesCount, createdAt: l.createdAt.toISOString(),
       viewerEnquiryStatus,
     }
@@ -110,7 +107,7 @@ export class AdoptionService {
 
   async browse(
     viewerId: string | undefined,
-    filters: { species?: string; status?: string; q?: string; listingType?: string; nearLat?: number; nearLng?: number; tag?: string },
+    filters: { species?: string; status?: string; q?: string; nearLat?: number; nearLng?: number; tag?: string },
     cursor: string | null,
     limit = 15,
   ): Promise<ListingPage> {
@@ -123,7 +120,6 @@ export class AdoptionService {
       isDeleted: false,
       ...(filters.status ? { status: filters.status } : { status: { in: ['available', 'pending'] } }),
       ...(filters.species ? { species: { equals: filters.species, mode: 'insensitive' } } : {}),
-      ...(filters.listingType ? { listingType: filters.listingType } : {}),
         // Exact containment — normalised on write, so an index lookup.
         ...(filters.tag ? { tags: { has: filters.tag } } : {}),
       ...(filters.q
@@ -159,7 +155,7 @@ export class AdoptionService {
   /** Listings with coordinates, sorted by distance from the viewer. */
   private async browseNearby(
     viewerId: string | undefined,
-    filters: { species?: string; status?: string; q?: string; listingType?: string },
+    filters: { species?: string; status?: string; q?: string },
     cursor: string | null,
     take: number,
     lat: number,
@@ -173,7 +169,6 @@ export class AdoptionService {
         longitude: { not: null },
         ...(filters.status ? { status: filters.status } : { status: { in: ['available', 'pending'] } }),
         ...(filters.species ? { species: { equals: filters.species, mode: 'insensitive' } } : {}),
-        ...(filters.listingType ? { listingType: filters.listingType } : {}),
         ...(filters.q ? { OR: [
           { name: { contains: filters.q, mode: 'insensitive' } },
           { breed: { contains: filters.q, mode: 'insensitive' } },
@@ -222,10 +217,6 @@ export class AdoptionService {
         ...(input.photos ? { photos: input.photos } : {}),
         ...(input.vaccinated !== undefined ? { vaccinated: input.vaccinated } : {}),
         ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
-        ...(input.goodWith ? { goodWith: input.goodWith } : {}),
-        ...(input.listingType ? { listingType: input.listingType } : {}),
-        ...(input.price !== undefined ? { price: input.price } : {}),
-        ...(input.negotiable !== undefined ? { negotiable: input.negotiable } : {}),
         ...(input.fee !== undefined ? { fee: input.fee } : {}),
       },
       include: this.posterInclude(),
@@ -255,10 +246,6 @@ export class AdoptionService {
         ...(input.photos !== undefined ? { photos: input.photos } : {}),
         ...(input.vaccinated !== undefined ? { vaccinated: input.vaccinated } : {}),
         ...(input.neutered !== undefined ? { neutered: input.neutered } : {}),
-        ...(input.goodWith !== undefined ? { goodWith: input.goodWith } : {}),
-        ...(input.listingType !== undefined ? { listingType: input.listingType } : {}),
-        ...(input.price !== undefined ? { price: input.price } : {}),
-        ...(input.negotiable !== undefined ? { negotiable: input.negotiable } : {}),
         ...(input.fee !== undefined ? { fee: input.fee } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
       },
@@ -387,13 +374,13 @@ export class AdoptionService {
     const enquiries = await this.prisma.adoptionEnquiry.findMany({
       where: { listingId },
       orderBy: { createdAt: 'desc' },
-      include: { applicant: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { applicant: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     return enquiries.map((e) => ({
       id: e.id, message: e.message, status: e.status, createdAt: e.createdAt.toISOString(),
       applicant: {
         id: e.applicant.id, username: e.applicant.username, displayName: e.applicant.displayName,
-        avatarUrl: e.applicant.avatarUrl, isVerified: e.applicant.verificationTier === 'professional',
+        avatarUrl: e.applicant.avatarUrl, isVerified: e.applicant.identityStatus === 'approved',
       },
     }))
   }

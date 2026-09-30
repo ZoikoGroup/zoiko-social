@@ -80,7 +80,7 @@ type PostWithRelations = Prisma.PostGetPayload<{
     author: {
       select: {
         id: true; username: true; displayName: true; avatarUrl: true
-        verificationTier: true; isPrivate: true; state: true
+        identityStatus: true; isPrivate: true; state: true
         professionalProfile: { select: { category: true } }
       }
     }
@@ -614,7 +614,7 @@ export class PostsService {
           username: true,
           displayName: true,
           avatarUrl: true,
-          verificationTier: true,
+          identityStatus: true,
           isPrivate: true,
           // `state` is not displayed — it is the account-level gate. Without it
           // here, assertCanViewPost had no way to tell a deactivated or banned
@@ -774,7 +774,7 @@ export class PostsService {
         username: post.author.username,
         displayName: post.author.displayName,
         avatarUrl: post.author.avatarUrl,
-        isVerified: post.author.verificationTier === 'professional',
+        isVerified: post.author.identityStatus === 'approved',
         professionalCategory: post.author.professionalProfile?.category ?? null,
       },
       community: post.community ? { name: post.community.name, slug: post.community.slug } : null,

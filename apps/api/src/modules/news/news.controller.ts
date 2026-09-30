@@ -19,6 +19,8 @@ import {
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { VerifiedGuard } from '../auth/guards/verified.guard'
+import { RequireVerified } from '../auth/decorators/verified.decorator'
 
 const TIERS = new Set(['institutional', 'verified', 'community'])
 
@@ -169,13 +171,15 @@ export class NewsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard)
+  @RequireVerified('publisher')
   async create(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateArticleSchema)) body: CreateArticleInput) {
     return { data: await this.newsService.create(user.id, body) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard)
+  @RequireVerified('publisher')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body(new ZodValidationPipe(UpdateArticleSchema)) body: UpdateArticleInput) {
     return { data: await this.newsService.update(id, user.id, body) }
   }

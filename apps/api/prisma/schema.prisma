@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   // Loads relations with a LATERAL JOIN instead of one extra query per relation.
   // Nested includes here were costing a round-trip each — the inbox list alone ran
   // five queries for one page — and the database is far enough away that a
@@ -42,16 +42,6 @@ enum UserRole {
   @@map("user_role")
 }
 
-enum VerificationTier {
-  none
-  email
-  phone
-  identity
-  professional
-
-  @@map("verification_tier")
-}
-
 /// ZSOC-COM-REV-001 §26. Environment does not decide whether an account is
 /// billable — this does. See supabase/migrations/066 for the back-fill policy.
 enum CommercialClassification {
@@ -68,13 +58,15 @@ enum CommercialClassification {
   @@map("commercial_classification")
 }
 
-enum VerificationState {
-  unverified
+enum VerificationStatus {
   pending
-  verified
+  under_review
+  approved
   rejected
+  expired
+  suspended
 
-  @@map("verification_state")
+  @@map("verification_status")
 }
 
 enum PostType {
@@ -340,34 +332,37 @@ enum MusicCategory {
 // ── PROFILES MODULE ─────────────────────────────────────────────────────────
 
 model Profile {
-  id                    String           @id @default(uuid())
-  username              String           @unique
-  displayName           String           @map("display_name")
-  firstName             String?          @map("first_name")
-  lastName              String?          @map("last_name")
-  bio                   String?
-  city                  String?
-  avatarUrl             String?          @map("avatar_url")
-  bannerUrl             String?          @map("banner_url")
-  websiteUrl            String?          @map("website_url")
-  state                 UserState        @default(active)
-  deactivatedAt         DateTime?        @map("deactivated_at")
-  deletionRequestedAt   DateTime?        @map("deletion_requested_at")
-  role                  UserRole         @default(user)
-  verificationTier      VerificationTier @default(none) @map("verification_tier")
+  id                       String                   @id @default(uuid())
+  username                 String                   @unique
+  displayName              String                   @map("display_name")
+  firstName                String?                  @map("first_name")
+  lastName                 String?                  @map("last_name")
+  bio                      String?
+  city                     String?
+  avatarUrl                String?                  @map("avatar_url")
+  bannerUrl                String?                  @map("banner_url")
+  websiteUrl               String?                  @map("website_url")
+  state                    UserState                @default(active)
+  deactivatedAt            DateTime?                @map("deactivated_at")
+  deletionRequestedAt      DateTime?                @map("deletion_requested_at")
+  role                     UserRole                 @default(user)
+  identityStatus           VerificationStatus?      @map("identity_status")
+  organizationStatus       VerificationStatus?      @map("organization_status")
+  credentialStatus         VerificationStatus?      @map("credential_status")
+  publisherStatus          VerificationStatus?      @map("publisher_status")
   /// Commercial standing, deliberately separate from `verificationTier` and
   /// from `role` (§26). Never sufficient on its own to authorize a charge.
   commercialClassification CommercialClassification @default(commercial_free) @map("commercial_classification")
-  isPrivate             Boolean          @default(false) @map("is_private")
-  followersCount        Int              @default(0) @map("followers_count")
-  followingCount        Int              @default(0) @map("following_count")
-  postsCount            Int              @default(0) @map("posts_count")
-  trustScore            Int              @default(100) @map("trust_score")
-  currency              String?
-  usernameChangedAt     DateTime?        @map("username_changed_at")
-  onboardingCompletedAt DateTime?        @map("onboarding_completed_at")
-  createdAt             DateTime         @default(now()) @map("created_at")
-  updatedAt             DateTime         @updatedAt @map("updated_at")
+  isPrivate                Boolean                  @default(false) @map("is_private")
+  followersCount           Int                      @default(0) @map("followers_count")
+  followingCount           Int                      @default(0) @map("following_count")
+  postsCount               Int                      @default(0) @map("posts_count")
+  trustScore               Int                      @default(100) @map("trust_score")
+  currency                 String?
+  usernameChangedAt        DateTime?                @map("username_changed_at")
+  onboardingCompletedAt    DateTime?                @map("onboarding_completed_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
 
   // ── Profile Module Relations ──
   professionalProfile  ProfessionalProfile?
@@ -420,6 +415,7 @@ model Profile {
   pushSubscriptions         PushSubscription[]
   notificationPreferences   NotificationPreference[]
   userRoles                 UserRoleAssignment[]
+  subscriptions             Subscription[]
   auditLogs                 AuditLog[]
 
   // ── Feed Module Relations ──
@@ -472,6 +468,44 @@ model Profile {
   emailDeliveries         EmailDelivery[]
 
   @@map("profiles")
+}
+
+enum SubscriptionEntitlement {
+  seller_professional
+  care_professional
+  breeder_professional
+  care_additional_location
+
+  @@map("subscription_entitlement")
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  unpaid
+  paused
+
+  @@map("subscription_status")
+}
+
+model Subscription {
+  id                String                  @id @default(uuid())
+  userId            String                  @map("user_id")
+  stripeId          String?                 @unique @map("stripe_id")
+  entitlement       SubscriptionEntitlement
+  status            SubscriptionStatus      @default(active)
+  currentPeriodEnd  DateTime                @map("current_period_end")
+  cancelAtPeriodEnd Boolean                 @default(false) @map("cancel_at_period_end")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entitlement, status])
+  @@map("subscriptions")
 }
 
 model Pet {
@@ -645,9 +679,6 @@ model AdoptionPost {
   vaccinated     Boolean  @default(false)
   neutered       Boolean  @default(false)
   goodWith       String[] @default([]) @map("good_with")
-  listingType    String   @default("adopt") @map("listing_type") // adopt | sale
-  price          Int?
-  negotiable     Boolean  @default(false)
   fee            Int?
   status         String   @default("available") // available | pending | adopted | withdrawn
   enquiriesCount Int      @default(0) @map("enquiries_count")
@@ -1728,18 +1759,18 @@ model MessagePoll {
   question  String
   createdAt DateTime @default(now()) @map("created_at")
 
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message Message             @relation(fields: [messageId], references: [id], onDelete: Cascade)
   options MessagePollOption[]
-  
+
   @@map("message_polls")
 }
 
 model MessagePollOption {
-  id          String   @id @default(uuid())
-  pollId      String   @map("poll_id")
-  text        String
-  
-  poll  MessagePoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  pollId String @map("poll_id")
+  text   String
+
+  poll  MessagePoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   votes MessagePollVote[]
 
   @@map("message_poll_options")
@@ -1986,9 +2017,9 @@ model UserSettings {
 
   // §14 categories that previously had a registry key and no column, so they
   // could not be switched off at all.
-  notifMessages         Boolean @default(true) @map("notif_messages")
-  notifAdoption         Boolean @default(true) @map("notif_adoption")
-  notifAccountGuidance  Boolean @default(true) @map("notif_account_guidance")
+  notifMessages        Boolean @default(true) @map("notif_messages")
+  notifAdoption        Boolean @default(true) @map("notif_adoption")
+  notifAccountGuidance Boolean @default(true) @map("notif_account_guidance")
 
   // Quiet hours (§06). Minutes past local midnight; start > end wraps midnight.
   // Essential security ignores the window entirely.
@@ -2150,13 +2181,13 @@ model CommunityMember {
 }
 
 model CommunitySettings {
-  communityId       String  @id @map("community_id")
-  postApproval      Boolean @default(false) @map("post_approval")
-  membersCanInvite  Boolean @default(false) @map("members_can_invite")
-  notificationPrefs Json?   @map("notification_prefs")
-  chatEnabled          Boolean @default(true)  @map("chat_enabled")
+  communityId          String  @id @map("community_id")
+  postApproval         Boolean @default(false) @map("post_approval")
+  membersCanInvite     Boolean @default(false) @map("members_can_invite")
+  notificationPrefs    Json?   @map("notification_prefs")
+  chatEnabled          Boolean @default(true) @map("chat_enabled")
   chatAnnouncementOnly Boolean @default(false) @map("chat_announcement_only")
-  chatSlowModeSeconds  Int     @default(0)     @map("chat_slow_mode_seconds")
+  chatSlowModeSeconds  Int     @default(0) @map("chat_slow_mode_seconds")
 
   community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
 
@@ -2627,6 +2658,7 @@ model Product {
   savesCount     Int       @default(0) @map("saves_count")
   enquiriesCount Int       @default(0) @map("enquiries_count")
   isDeleted      Boolean   @default(false) @map("is_deleted")
+  externalUrl    String?   @map("external_url")
   /**
    * Normalised, lowercase, no leading "#". See supabase/migrations/060.
    */
@@ -2678,18 +2710,18 @@ model ProductEnquiry {
 /// creation — later price changes on the product never retroactively affect
 /// an in-flight or completed order.
 model Order {
-  id                      String   @id @default(uuid())
-  productId               String   @map("product_id")
-  buyerId                 String   @map("buyer_id")
-  sellerId                String   @map("seller_id")
-  quantity                Int      @default(1)
-  amountCents             Int      @map("amount_cents")
-  currency                String   @default("USD")
+  id                      String      @id @default(uuid())
+  productId               String      @map("product_id")
+  buyerId                 String      @map("buyer_id")
+  sellerId                String      @map("seller_id")
+  quantity                Int         @default(1)
+  amountCents             Int         @map("amount_cents")
+  currency                String      @default("USD")
   status                  OrderStatus @default(pending)
-  stripeCheckoutSessionId String?  @unique @map("stripe_checkout_session_id")
-  stripePaymentIntentId   String?  @map("stripe_payment_intent_id")
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
+  stripeCheckoutSessionId String?     @unique @map("stripe_checkout_session_id")
+  stripePaymentIntentId   String?     @map("stripe_payment_intent_id")
+  createdAt               DateTime    @default(now()) @map("created_at")
+  updatedAt               DateTime    @updatedAt @map("updated_at")
 
   paymentEvents OrderPaymentEvent[]
 
@@ -2734,9 +2766,9 @@ model OrderPaymentEvent {
 
   /// Idempotency claim — Stripe retries carry the same event ID, so the unique
   /// index is what makes the webhook handler replay-safe.
-  stripeEventId String @unique @map("stripe_event_id")
+  stripeEventId         String  @unique @map("stripe_event_id")
   /// The charge or dispute this event is about.
-  stripeObjectId String? @map("stripe_object_id")
+  stripeObjectId        String? @map("stripe_object_id")
   /// Retained even once orderId resolves, so unmatched rows stay reconcilable.
   stripePaymentIntentId String? @map("stripe_payment_intent_id")
 
@@ -2749,7 +2781,7 @@ model OrderPaymentEvent {
   /// Whether the charge is now fully refunded; drives the order status change.
   fullyRefunded Boolean @default(false) @map("fully_refunded")
 
-  reason String?
+  reason  String?
   /// Stripe dispute status on close: won | lost | warning_closed | …
   outcome String?
 
