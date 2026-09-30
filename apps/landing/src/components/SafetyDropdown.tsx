@@ -206,7 +206,7 @@ export default function SafetyDropdown() {
               />
             </div>
             <Link
-              href={SAFETY_DOCS}
+              href="/trust-safety-center"
               className="mt-4 flex min-h-9 items-center justify-center rounded-full px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ backgroundColor: ALERT_BUTTON }}
             >

@@ -29,7 +29,7 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
       { label: "Careers", href: "/company-careers" },
       { label: "Press & Media", href: PLACEHOLDER },
       { label: "Partnerships", href: "/company-partnerships" },
-      { label: "Brand Assets", href: PLACEHOLDER },
+      { label: "Brand Assets", href: "/company-brand-assets" },
     ],
   },
   {
@@ -48,7 +48,7 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
   {
     title: "Trust & Safety",
     links: [
-      { label: "Safety Center", href: PLACEHOLDER },
+      { label: "Safety Center", href: "/trust-safety-center" },
       { label: "Community Standards", href: PLACEHOLDER },
       { label: "Animal Welfare Policy", href: PLACEHOLDER },
       { label: "Profanity-Free Policy", href: PLACEHOLDER },
