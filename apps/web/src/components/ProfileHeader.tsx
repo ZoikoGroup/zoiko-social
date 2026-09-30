@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin, Clock, Mail } from 'lucide-react'
-import { SwitchProfessionalModal } from './SwitchProfessionalModal'
+import Link from 'next/link'
 import { EditProfileModal } from './EditProfileModal'
 import { FollowListModal } from './FollowListModal'
 import { MessageButton } from './MessageButton'
@@ -69,7 +69,6 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
   const [loading, setLoading] = useState(!!profileId && !initialProfile)
   const profile: Profile | null = profileId ? fetched : myProfile
 
-  const [professionalModalOpen, setProfessionalModalOpen] = useState(false)
   const [revertOpen, setRevertOpen] = useState(false)
   const [reverting, setReverting] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -253,19 +252,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
   }
 
   const isVerified = profile.verificationTier === 'professional'
+  const isPendingVerification = profile.identityStatus === 'pending'
   const professional = profile.professionalProfile
   const categoryLabel = profLabel(professional?.category)
 
   return (
     <>
-      <SwitchProfessionalModal
-        open={professionalModalOpen}
-        onClose={() => setProfessionalModalOpen(false)}
-        onSwitched={() => {
-          void refreshProfile()
-          setProfessionalModalOpen(false)
-        }}
-      />
       {revertOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !reverting && setRevertOpen(false)} />
@@ -365,10 +357,15 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
             <p className="text-label-sm text-outline mt-0.5">@{profile.username}</p>
 
             {categoryLabel && (
-              <span className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 bg-secondary/10 text-secondary text-[10.5px] font-bold uppercase tracking-wider rounded-full">
+              <span className={`mt-2 inline-flex items-center gap-1 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider rounded-full ${
+                isPendingVerification
+                  ? 'bg-amber-500/10 text-amber-600'
+                  : 'bg-secondary/10 text-secondary'
+              }`}>
                 <Briefcase className="w-3 h-3" />
                 {categoryLabel}
-                {professional?.isVerified && ' · Verified'}
+                {isPendingVerification && <span className="ml-1 flex items-center gap-0.5 text-amber-500"><Clock className="w-2.5 h-2.5" /> Pending</span>}
+                {professional?.isVerified && !isPendingVerification && ' · Verified'}
               </span>
             )}
 
@@ -466,12 +463,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                   {tpr('editProfile')}
                 </button>
                 {!professional ? (
-                  <button
-                    onClick={() => setProfessionalModalOpen(true)}
+                  <Link
+                    href="/verify"
                     className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
                   >
                     {tpr('goProfessional')}
-                  </button>
+                  </Link>
                 ) : (
                   <button
                     onClick={() => setRevertOpen(true)}

@@ -212,7 +212,7 @@ export class GroupService {
               where: { isDeleted: false },
               include: {
                 user: {
-                  select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+                  select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
                 },
               },
             },
@@ -241,7 +241,7 @@ export class GroupService {
         username: m.user.username,
         displayName: m.user.displayName,
         avatarUrl: m.user.avatarUrl,
-        isVerified: m.user.verificationTier === 'professional',
+        isVerified: m.user.identityStatus === 'approved',
         role: m.groupRole,
         joinedAt: m.joinedAt.toISOString(),
       })),

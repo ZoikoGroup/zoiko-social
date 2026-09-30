@@ -5,7 +5,7 @@ import { ConfigService } from '../config/config.service'
 const CHAT_BUCKET = 'chat-media'
 
 /** Private bucket — see supabase/migrations/055. Never served publicly. */
-export const VERIFICATION_BUCKET = 'verification-docs'
+export const VERIFICATION_BUCKET = 'verification-documents'
 
 /**
  * SupabaseStorageService — chat media storage backed by Supabase Storage.

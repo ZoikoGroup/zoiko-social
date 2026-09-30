@@ -10,6 +10,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { VerifiedGuard } from '../auth/guards/verified.guard'
+import { RequireVerified } from '../auth/decorators/verified.decorator'
 
 @Controller('adoption')
 export class AdoptionController {
@@ -60,13 +62,15 @@ export class AdoptionController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard)
+  @RequireVerified('identity', 'organization')
   async create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateListingInput) {
     return { data: await this.adoption.create(user.id, CreateListingSchema.parse(body)) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard)
+  @RequireVerified('identity', 'organization')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: UpdateListingInput) {
     return { data: await this.adoption.update(id, user.id, UpdateListingSchema.parse(body)) }
   }

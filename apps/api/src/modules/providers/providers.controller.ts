@@ -15,6 +15,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { VerifiedGuard } from '../auth/guards/verified.guard'
+import { SubscriptionGuard } from '../auth/guards/subscription.guard'
+import { RequireVerified } from '../auth/decorators/verified.decorator'
+import { RequireSubscription } from '../auth/decorators/subscription.decorator'
 
 @Controller('providers')
 export class ProvidersController {
@@ -67,13 +71,17 @@ export class ProvidersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateProviderInput) {
     return { data: await this.providers.create(user.id, CreateProviderSchema.parse(body)) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: UpdateProviderInput) {
     return { data: await this.providers.update(id, user.id, UpdateProviderSchema.parse(body)) }
   }

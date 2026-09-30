@@ -209,6 +209,7 @@ export interface ProfessionalProfile {
   businessAddress: string | null
   description: string | null
   websiteUrl: string | null
+  licenseNumber?: string | null
   logoUrl: string | null
   serviceAreas: string[]
   businessHours: Record<string, unknown> | null
@@ -245,6 +246,11 @@ export interface Profile {
   state: string
   role: string
   verificationTier: string
+  /** 'none' | 'pending' | 'under_review' | 'approved' | 'rejected' | 'expired' | 'suspended' */
+  identityStatus: string | null
+  organizationStatus: string | null
+  credentialStatus: string | null
+  publisherStatus: string | null
   isPrivate: boolean
   followersCount: number
   followingCount: number
@@ -391,6 +397,13 @@ export const profileApi = {
   switchToProfessional: (input: { category: string; businessName?: string; description?: string }) =>
     mutate<ProfessionalProfile>('/profiles/me/professional', { method: 'POST', body: JSON.stringify(input) }),
   revertToPersonal: () => mutate<{ message: string }>('/profiles/me/professional', { method: 'DELETE' }),
+  updateProfessional: (input: Partial<ProfessionalProfile>) =>
+    mutate<ProfessionalProfile>('/profiles/me/professional', { method: 'PUT', body: JSON.stringify(input) }),
+  submitVerification: (input: { type: VerificationType; categorySlug?: string; notes?: string }) =>
+    mutate<VerificationRequest>('/profiles/me/verification', { method: 'POST', body: JSON.stringify(input) }),
+  uploadVerificationDocument: (requestId: string, documentType: string, documentUrl: string, fileName?: string) =>
+    mutate<unknown>('/profiles/me/verification/documents', { method: 'POST', body: JSON.stringify({ requestId, documentType, documentUrl, fileName }) }),
+  getVerificationStatus: () => cachedGet<VerificationRequest | null>('/profiles/me/verification/status', 0),
   /** Temporarily hides the account. Signing in again restores it. */
   deactivate: () => mutate<{ state: string; message: string }>('/profiles/me/deactivate', { method: 'POST' }),
   /**
@@ -1174,6 +1187,7 @@ export interface Product {
   category: string
   condition: string
   coverUrl: string | null
+  externalUrl?: string | null
   photos: string[]
   stock: number
   inStock: boolean
@@ -1198,7 +1212,7 @@ export interface ProductEnquiryInbox {
 }
 export interface NewProduct {
   title: string; description?: string; price: number; compareAt?: number; currency?: string
-  category?: string; condition?: string; coverUrl?: string; photos?: string[]; stock?: number; shipping?: string; location?: string
+  category?: string; condition?: string; coverUrl?: string; externalUrl?: string | null; photos?: string[]; stock?: number; shipping?: string; location?: string
 }
 
 export const shopApi = {
@@ -1462,6 +1476,7 @@ export interface AdminStats {
   pendingArticles: number
   openReports: number
   newsSources: number
+  pendingVerifications: number
 }
 
 export interface AdminUserItem {
@@ -1970,7 +1985,22 @@ export interface VerificationDocument {
 export interface VerificationRequest {
   id: string
   userId: string
-  user: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+  user: {
+    id: string
+    username: string
+    displayName: string
+    avatarUrl: string | null
+    professionalProfile: {
+      businessName: string | null
+      businessEmail: string | null
+      businessPhone: string | null
+      businessAddress: string | null
+      websiteUrl: string | null
+      licenseNumber: string | null
+      category: string | null
+      description: string | null
+    } | null
+  } | null
   type: string
   status: string
   categorySlug: string | null
@@ -2043,6 +2073,12 @@ export const verificationApi = {
     mutate<VerificationRequest>(`/profiles/admin/verification-requests/${id}/review`, {
       method: 'POST',
       body: JSON.stringify({ approved, rejectionReason }),
+    }),
+
+  revokeVerification: (userId: string, reason?: string) =>
+    mutate<{ success: boolean }>(`/profiles/admin/profiles/${userId}/revoke-verification`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     }),
 }
 

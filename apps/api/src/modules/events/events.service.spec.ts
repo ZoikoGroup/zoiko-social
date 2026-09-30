@@ -44,7 +44,7 @@ function eventRow(overrides: Record<string, unknown> = {}) {
       username: 'hosty',
       displayName: 'Hosty',
       avatarUrl: null,
-      verificationTier: 'none',
+      identityStatus: 'pending',
     },
     ...overrides,
   }
@@ -100,7 +100,7 @@ function build(overrides: {
             username: `user-${i.userId}`,
             displayName: `User ${i.userId}`,
             avatarUrl: null,
-            verificationTier: 'none',
+            identityStatus: 'pending',
           },
         })))
       }),

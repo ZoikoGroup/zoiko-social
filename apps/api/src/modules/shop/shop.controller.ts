@@ -11,6 +11,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { VerifiedGuard } from '../auth/guards/verified.guard'
+import { SubscriptionGuard } from '../auth/guards/subscription.guard'
+import { RequireVerified } from '../auth/decorators/verified.decorator'
+import { RequireSubscription } from '../auth/decorators/subscription.decorator'
 
 @Controller('shop')
 export class ShopController {
@@ -61,13 +65,17 @@ export class ShopController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('seller_professional')
   async create(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateProductSchema)) body: CreateProductInput) {
     return { data: await this.shop.create(user.id, body) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('seller_professional')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body(new ZodValidationPipe(UpdateProductSchema)) body: UpdateProductInput) {
     return { data: await this.shop.update(id, user.id, body) }
   }

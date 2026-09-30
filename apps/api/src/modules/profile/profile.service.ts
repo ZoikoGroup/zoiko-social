@@ -137,6 +137,18 @@ const VERIFICATION_REQUEST_USER_SELECT = {
   username: true,
   displayName: true,
   avatarUrl: true,
+  professionalProfile: {
+    select: {
+      businessName: true,
+      businessEmail: true,
+      businessPhone: true,
+      businessAddress: true,
+      websiteUrl: true,
+      licenseNumber: true,
+      category: true,
+      description: true,
+    },
+  },
 } as const
 
 type VerificationRequestWithDocs = Prisma.VerificationRequestGetPayload<{
@@ -158,7 +170,7 @@ export interface ProfileResponse {
   websiteUrl: string | null
   state: string
   role: string
-  verificationTier: string
+  identityStatus: string | null
   isPrivate: boolean
   followersCount: number
   followingCount: number
@@ -214,7 +226,22 @@ export interface ProfessionalProfileResponse {
 export interface VerificationRequestResponse {
   id: string
   userId: string
-  user: { id: string; username: string; displayName: string; avatarUrl: string | null } | null
+  user: {
+    id: string
+    username: string
+    displayName: string
+    avatarUrl: string | null
+    professionalProfile: {
+      businessName: string | null
+      businessEmail: string | null
+      businessPhone: string | null
+      businessAddress: string | null
+      websiteUrl: string | null
+      licenseNumber: string | null
+      category: string | null
+      description: string | null
+    } | null
+  } | null
   type: string
   status: string
   categorySlug: string | null
@@ -344,7 +371,7 @@ export class ProfileService {
     actorId: string,
     query: string,
     limit = 8,
-  ): Promise<Array<{ id: string; username: string; displayName: string; avatarUrl: string | null; verificationTier: string }>> {
+  ): Promise<Array<{ id: string; username: string; displayName: string; avatarUrl: string | null; identityStatus: string | null }>> {
     const q = query.trim()
     if (!q) return []
 
@@ -379,7 +406,7 @@ export class ProfileService {
         username: true,
         displayName: true,
         avatarUrl: true,
-        verificationTier: true,
+        identityStatus: true,
         followersCount: true,
       },
       // Over-fetched so the prefix ordering below has something to sort.
@@ -402,7 +429,7 @@ export class ProfileService {
         username: p.username,
         displayName: p.displayName,
         avatarUrl: p.avatarUrl,
-        verificationTier: p.verificationTier,
+        identityStatus: p.identityStatus,
       }))
   }
 
@@ -988,9 +1015,6 @@ export class ProfileService {
           },
         }),
         this.prisma.professionalSetting.upsert({ where: { userId }, create: { userId }, update: {} }),
-        this.prisma.verificationRequest.create({
-          data: { userId, type: 'professional', categorySlug: input.category },
-        }),
         // Restore listings hidden when they previously switched to personal.
         this.prisma.product.updateMany({ where: { sellerId: userId, hiddenAt: { not: null } }, data: { hiddenAt: null } }),
         this.prisma.newsArticle.updateMany({ where: { authorId: userId, hiddenAt: { not: null } }, data: { hiddenAt: null } }),
@@ -1018,9 +1042,6 @@ export class ProfileService {
         },
       }),
       this.prisma.professionalSetting.create({ data: { userId } }),
-      this.prisma.verificationRequest.create({
-        data: { userId, type: 'professional', categorySlug: input.category },
-      }),
     ])
 
     await this.redis.invalidateProfile(userId)
@@ -1076,7 +1097,7 @@ export class ProfileService {
       this.prisma.professionalProfile.update({ where: { userId }, data: { deletedAt: now } }),
       this.prisma.professionalSetting.deleteMany({ where: { userId } }),
       // Fully stop professional activity: drop the verified tier + badge.
-      this.prisma.profile.update({ where: { id: userId }, data: { verificationTier: 'none' } }),
+      this.prisma.profile.update({ where: { id: userId }, data: { identityStatus: 'pending' } }),
     ]
     // Hide the pro's public listings for their category (restored on switch-back).
     if (professional.category === 'product_seller') {
@@ -1178,7 +1199,7 @@ export class ProfileService {
 
         await tx.profile.update({
           where: { id: request.userId },
-          data: { verificationTier: 'professional' },
+          data: { identityStatus: 'approved' },
         })
 
         await tx.notification.create({
@@ -1224,6 +1245,65 @@ export class ProfileService {
     })
 
     return this.mapVerificationRequest(updated)
+  }
+
+  /**
+   * Revoke a previously-approved verification.
+   *
+   * Strips the verified badge, resets identityStatus to 'none', and sends the
+   * user a notification. The verification request record is marked 'rejected'
+   * so there is a clear audit trail.
+   */
+  async revokeVerification(
+    userId: string,
+    reviewerId: string,
+    reason?: string,
+  ): Promise<void> {
+    // Find the most-recent approved request for this user
+    const request = await this.prisma.verificationRequest.findFirst({
+      where: { userId, status: VerificationRequestStatus.approved },
+      orderBy: { updatedAt: 'desc' },
+    })
+
+    await this.prisma.$transaction(async (tx) => {
+      // Strip verified flag from the professional profile
+      await tx.professionalProfile.updateMany({
+        where: { userId },
+        data: { isVerified: false, verifiedAt: null },
+      })
+
+      // Reset the profile identity status
+      await tx.profile.update({
+        where: { id: userId },
+        data: { identityStatus: null },
+      })
+
+      // Mark the verification request as rejected so a new one can be submitted
+      if (request) {
+        await tx.verificationRequest.update({
+          where: { id: request.id },
+          data: {
+            status: VerificationRequestStatus.rejected,
+            reviewedBy: reviewerId,
+            reviewedAt: new Date(),
+            rejectionReason: reason ?? 'Verification revoked by admin.',
+          },
+        })
+      }
+
+      // Notify the user
+      await tx.notification.create({
+        data: {
+          userId,
+          type: 'verification_rejected',
+          title: 'Verification Revoked',
+          body: reason
+            ? `Your professional verification has been revoked: ${reason}`
+            : 'Your professional verification has been revoked by the team.',
+          data: { reason },
+        },
+      })
+    })
   }
 
   async uploadVerificationDocument(
@@ -1599,7 +1679,7 @@ export class ProfileService {
       websiteUrl: profile.websiteUrl,
       state: profile.state,
       role: profile.role,
-      verificationTier: profile.verificationTier,
+      identityStatus: profile.identityStatus,
       isPrivate: profile.isPrivate,
       followersCount: profile.followersCount,
       followingCount: profile.followingCount,

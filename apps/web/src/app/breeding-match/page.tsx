@@ -41,6 +41,17 @@ export default function BreedingMatchPage(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('discover')
   const [formOpen, setFormOpen] = useState(false)
   const [edit, setEdit] = useState<BreedingProfile | null>(null)
+  const { profile } = useAuth()
+
+  const handleListPet = () => {
+    if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
+      window.alert('You must be Identity or Organization Verified to list a breeding profile. Please complete verification in your settings.')
+      return
+    }
+    // Note: Subscription check would also happen here in a full UI flow.
+    setEdit(null)
+    setFormOpen(true)
+  }
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
@@ -69,7 +80,7 @@ export default function BreedingMatchPage(): React.JSX.Element {
                 </div>
               </div>
               <DocsHelpLink href="/docs/marketplace-and-services#breeding-match" />
-              <button onClick={() => { setEdit(null); setFormOpen(true) }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+              <button onClick={handleListPet} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                 <Plus className="w-4 h-4" /><span className="hidden sm:inline">List your pet</span>
               </button>
             </div>
@@ -89,7 +100,7 @@ export default function BreedingMatchPage(): React.JSX.Element {
 
             {tab === 'discover' && <DiscoverTab onOpen={open} />}
             {tab === 'matches' && <MatchesTab onOpen={open} />}
-            {tab === 'mine' && <MineTab onOpen={open} onEdit={(p) => { setEdit(p); setFormOpen(true) }} onCreate={() => { setEdit(null); setFormOpen(true) }} />}
+            {tab === 'mine' && <MineTab onOpen={open} onEdit={(p) => { setEdit(p); setFormOpen(true) }} onCreate={handleListPet} />}
             {tab === 'litters' && <LittersTab />}
           </div>
         </div>

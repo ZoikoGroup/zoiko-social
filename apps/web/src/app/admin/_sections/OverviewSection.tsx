@@ -22,6 +22,7 @@ const STATS: { key: keyof AdminStats; label: string; alertWhenZero?: boolean }[]
   { key: 'articles', label: 'Articles' },
   { key: 'newsSources', label: 'News sources', alertWhenZero: true },
   { key: 'pendingArticles', label: 'Awaiting review' },
+  { key: 'pendingVerifications', label: 'Pending Verification' },
 ]
 
 export function OverviewSection({
@@ -109,6 +110,11 @@ export function OverviewSection({
           <Warning onClick={() => onGo('moderation')}>
             {stats.openReports} open {stats.openReports === 1 ? 'report' : 'reports'} in the
             moderation queue.
+          </Warning>
+        )}
+        {stats.pendingVerifications > 0 && (
+          <Warning onClick={() => onGo('verification')}>
+            {stats.pendingVerifications} verification {stats.pendingVerifications === 1 ? 'request is' : 'requests are'} waiting for review.
           </Warning>
         )}
       </div>

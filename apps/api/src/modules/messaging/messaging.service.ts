@@ -158,7 +158,7 @@ export class MessagingService {
           username: mem.user.username,
           displayName: mem.user.displayName,
           avatarUrl: mem.user.avatarUrl,
-          isVerified: mem.user.verificationTier === 'professional',
+          isVerified: mem.user.identityStatus === 'approved',
         })),
         isMuted: setting?.isMuted ?? false,
         isPinned: setting?.isPinned ?? false,
@@ -189,7 +189,7 @@ export class MessagingService {
             where: { isDeleted: false },
             include: {
               user: {
-                select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+                select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
               },
             },
           },
@@ -227,7 +227,7 @@ export class MessagingService {
           where: { isDeleted: false },
           include: {
             user: {
-              select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+              select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
             },
           },
         },
@@ -292,7 +292,7 @@ export class MessagingService {
           where: { isDeleted: false },
           include: {
             user: {
-              select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+              select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
             },
           },
         },
@@ -378,7 +378,7 @@ export class MessagingService {
           where: { isDeleted: false },
           include: {
             user: {
-              select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+              select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
             },
           },
         },
@@ -1522,7 +1522,7 @@ export class MessagingService {
         displayName: true,
         avatarUrl: true,
         bio: true,
-        verificationTier: true,
+        identityStatus: true,
         professionalProfile: { select: { category: true } },
       },
       take: limit,
@@ -1538,7 +1538,7 @@ export class MessagingService {
           avatarUrl: p.avatarUrl,
           bio: p.bio,
           mutualFollowers: 0, // Optimized later
-          isVerified: p.verificationTier === 'professional',
+          isVerified: p.identityStatus === 'approved',
           isProfessional: !!p.professionalProfile,
           professionalCategory: p.professionalProfile?.category ?? null,
           isOnline: pres.isOnline,
@@ -1695,7 +1695,7 @@ export class MessagingService {
       orderBy: { createdAt: 'desc' },
       include: {
         sender: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
         },
       },
     })
@@ -1705,7 +1705,7 @@ export class MessagingService {
       orderBy: { createdAt: 'desc' },
       include: {
         recipient: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
         },
       },
     })
@@ -1718,7 +1718,7 @@ export class MessagingService {
           username: r.sender.username,
           displayName: r.sender.displayName,
           avatarUrl: r.sender.avatarUrl,
-          isVerified: r.sender.verificationTier === 'professional',
+          isVerified: r.sender.identityStatus === 'approved',
         },
         message: r.message,
         status: r.status,
@@ -1731,7 +1731,7 @@ export class MessagingService {
           username: r.recipient.username,
           displayName: r.recipient.displayName,
           avatarUrl: r.recipient.avatarUrl,
-          isVerified: r.recipient.verificationTier === 'professional',
+          isVerified: r.recipient.identityStatus === 'approved',
         },
         message: r.message,
         status: r.status,
@@ -1816,7 +1816,7 @@ export class MessagingService {
         username: true,
         displayName: true,
         avatarUrl: true,
-        verificationTier: true,
+        identityStatus: true,
         professionalProfile: {
           select: { category: true },
         },
@@ -1832,7 +1832,7 @@ export class MessagingService {
         username: p.username,
         displayName: p.displayName,
         avatarUrl: p.avatarUrl,
-        isVerified: p.verificationTier === 'professional',
+        isVerified: p.identityStatus === 'approved',
         isProfessional: !!p.professionalProfile,
         professionalCategory: p.professionalProfile?.category ?? null,
       }))
@@ -1912,7 +1912,7 @@ export class MessagingService {
         username: string
         displayName: string
         avatarUrl: string | null
-        verificationTier: string
+        identityStatus: string | null
       }
     }>,
     lastMsg: { body: string | null; senderId: string; createdAt: Date; type: string } | null,
@@ -1946,7 +1946,7 @@ export class MessagingService {
         username: m.user.username,
         displayName: m.user.displayName,
         avatarUrl: m.user.avatarUrl,
-        isVerified: m.user.verificationTier === 'professional',
+        isVerified: m.user.identityStatus === 'approved',
       })),
       isMuted: setting?.isMuted ?? false,
       isPinned: setting?.isPinned ?? false,

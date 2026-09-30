@@ -71,7 +71,7 @@ describe('the guard itself', () => {
     const documented = `
       // Verification state must never derive from subscription or billing.
       /* Premium unlocks professional tooling; the badge is issued elsewhere. */
-      await this.prisma.profile.update({ data: { verificationTier: tier } })
+      await this.prisma.profile.update({ data: { identityStatus: tier } })
     `
     expect(findCommercialSignals(documented)).toEqual([])
   })

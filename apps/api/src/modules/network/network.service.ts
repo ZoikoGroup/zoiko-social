@@ -837,7 +837,7 @@ export class NetworkService {
         avatarUrl: string | null
         bio: string | null
         isPrivate: boolean
-        verificationTier: string
+        identityStatus: string | null
         professionalProfile: { category: string; isVerified: boolean } | null
       }
       followedAt: Date
@@ -1320,7 +1320,7 @@ export class NetworkService {
       displayName: string
       avatarUrl: string | null
       bio: string | null
-      verificationTier: string
+      identityStatus: string | null
       professionalProfile: { category: string; isVerified: boolean } | null
     },
     followedAt: Date,
@@ -1331,7 +1331,7 @@ export class NetworkService {
       displayName: profile.displayName,
       avatarUrl: profile.avatarUrl,
       bio: profile.bio,
-      isVerified: profile.verificationTier === 'professional',
+      isVerified: profile.identityStatus === 'approved',
       isProfessional: !!profile.professionalProfile,
       followedAt: followedAt.toISOString(),
     }
@@ -1344,7 +1344,7 @@ export class NetworkService {
       displayName: string
       avatarUrl: string | null
       bio: string | null
-      verificationTier: string
+      identityStatus: string | null
       professionalProfile: { category: string; isVerified: boolean } | null
     },
     mutualConnections: number,
@@ -1356,7 +1356,7 @@ export class NetworkService {
       avatarUrl: profile.avatarUrl,
       bio: profile.bio,
       mutualConnections,
-      isVerified: profile.verificationTier === 'professional',
+      isVerified: profile.identityStatus === 'approved',
       isProfessional: !!profile.professionalProfile,
       professionalCategory: profile.professionalProfile?.category ?? null,
     }
