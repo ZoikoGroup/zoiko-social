@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { CommercialService } from '../commercial/commercial.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateProductInput, UpdateProductInput, EnquiryInput, ShopCategory, ShopSort } from './shop.schemas'
 
@@ -59,6 +60,7 @@ export class ShopService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   private sellerInclude() {
@@ -175,6 +177,7 @@ export class ShopService {
   }
 
   async create(sellerId: string, input: CreateProductInput): Promise<ProductResponse> {
+    await this.commercial.checkSellerLimit(sellerId)
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     const created = await this.prisma.product.create({

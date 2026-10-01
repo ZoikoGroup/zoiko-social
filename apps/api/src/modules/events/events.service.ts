@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
@@ -82,6 +83,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
     private readonly affinity: AffinityService,
   ) {}
 
@@ -526,6 +528,8 @@ export class EventsService {
   }
 
   async create(hostId: string, input: CreateEventInput): Promise<EventResponse> {
+    await this.commercial.checkEventsLimit(hostId)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields(
       { title: input.title, description: input.description, venueName: input.venueName, location: input.location },

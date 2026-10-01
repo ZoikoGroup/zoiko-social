@@ -21,6 +21,7 @@ import { MessagingPrivacySettings } from '@/components/settings/MessagingPrivacy
 import { LanguageSwitcher } from '@/components/settings/LanguageSwitcher'
 import { useDateFormat } from '@/hooks/use-date-format'
 import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings'
+import { BillingSettings } from '@/components/settings/BillingSettings'
 
 type SettingsTab =
   | 'account'
@@ -30,6 +31,7 @@ type SettingsTab =
   | 'security'
   | 'notifications'
   | 'preferences'
+  | 'billing'
   | 'help'
 
 // Label and description come from the catalog at render time, keyed by id.
@@ -44,6 +46,7 @@ const SECTIONS: SettingsSection[] = [
   { id: 'blocked',       icon: UserX },
   { id: 'verification',  icon: BadgeCheck },
   { id: 'security',      icon: Shield },
+  { id: 'billing',       icon: CreditCard },
   { id: 'notifications', icon: Bell },
   { id: 'preferences',   icon: Sliders },
   { id: 'help',          icon: HelpCircle },
@@ -1322,6 +1325,8 @@ export default function SettingsPage(): React.JSX.Element {
         return <NotificationSettings {...sharedSettings} />
       case 'preferences':
         return <PreferencesSettings {...sharedSettings} />
+      case 'billing':
+        return <BillingSettings />
       case 'help':
         return <HelpSettings />
     }
