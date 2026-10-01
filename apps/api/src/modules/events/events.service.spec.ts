@@ -143,13 +143,18 @@ function build(overrides: {
     recordAuthor: jest.fn().mockResolvedValue(undefined),
   }
 
+  const commercial = {
+    checkCommercialEventLimit: jest.fn().mockResolvedValue(undefined),
+  }
+
   const service = new EventsService(
-    prisma as unknown as PrismaService,
-    notifications as unknown as NotificationQueueService,
-    profanity as unknown as ProfanityService,
-    affinity as unknown as AffinityService,
+    prisma as unknown as import('../prisma/prisma.service').PrismaService,
+    notifications as unknown as import('../notifications/notification-queue.service').NotificationQueueService,
+    profanity as unknown as import('../safety/profanity.service').ProfanityService,
+    affinity as unknown as import('../personalization/affinity.service').AffinityService,
+    commercial as unknown as import('../commercial/commercial.service').CommercialService,
   )
-  return { service, prisma, notifications, profanity, affinity }
+  return { service, prisma, notifications, profanity, affinity, commercial }
 }
 
 /** The notify* helpers are deliberately not awaited, so let microtasks drain. */
