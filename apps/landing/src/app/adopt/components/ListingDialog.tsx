@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { Shield, X } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import {  appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 import { type Listing } from "./listings";
 

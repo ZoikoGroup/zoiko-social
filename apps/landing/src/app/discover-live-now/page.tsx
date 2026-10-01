@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
+
 import LiveBoard from "./_components/LiveBoard";
 import SafetyBanner from "./_components/SafetyBanner";
 import { C } from "./_components/theme";

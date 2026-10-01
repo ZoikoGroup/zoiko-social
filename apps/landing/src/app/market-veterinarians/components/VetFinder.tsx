@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import {  appUrl } from "@/lib/app-links";
 import { CARE_TYPES, CITY, SPECIES, VETS, type Vet } from "./vets";
 import { C } from "./theme";
 

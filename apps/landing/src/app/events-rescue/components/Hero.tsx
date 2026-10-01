@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 const TEXT_SHADOW = { textShadow: "0px 1px 3px rgba(0,0,0,0.40)" };

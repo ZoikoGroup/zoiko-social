@@ -1,5 +1,5 @@
 import { Shield, Lock, Smile, Eye, FileText, type LucideIcon } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { APP_LINKS, } from "@/lib/app-links";
 import { Band, IconFeature, SectionHeading } from "./primitives";
 
 const PILLARS: {

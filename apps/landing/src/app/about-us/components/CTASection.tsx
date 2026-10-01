@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { APP_LINKS } from "@/lib/app-links";
 import { C } from "./theme";
 
 /** Closing call to action: dark teal panel with a warm glow in one corner. */

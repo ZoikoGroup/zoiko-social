@@ -1,4 +1,4 @@
-import { appUrl } from "@/lib/app-links";
+
 
 export const IMG = "/safety-support-resources/";
 

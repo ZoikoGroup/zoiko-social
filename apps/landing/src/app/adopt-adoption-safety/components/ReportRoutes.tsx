@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 import { REPORT_ROUTES } from "./guidance";
 

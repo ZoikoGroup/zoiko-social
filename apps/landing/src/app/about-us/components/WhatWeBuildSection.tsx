@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { IMAGES } from "./images";
 import { C } from "./theme";
 import { ArrowLink, Eyebrow } from "./primitives";

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Users, Flag, Send, type LucideIcon } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { APP_LINKS, } from "@/lib/app-links";
 import { IMAGES } from "./images";
 import { C } from "./theme";
 import { Eyebrow } from "./primitives";

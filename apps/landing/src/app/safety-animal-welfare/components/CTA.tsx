@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { IMG, REPORT_URL } from "./content";
 
 export default function CTA() {

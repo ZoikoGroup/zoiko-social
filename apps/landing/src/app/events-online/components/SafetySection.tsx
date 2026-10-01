@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { Check } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 const POINTS = [

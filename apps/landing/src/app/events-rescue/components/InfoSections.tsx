@@ -1,5 +1,5 @@
 import { BadgeCheck, DollarSign, Heart, Lock, MessageSquareText, Shield } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 const TRUST = [

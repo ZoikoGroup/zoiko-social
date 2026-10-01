@@ -26,7 +26,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
+
 import Callouts from "./components/Callouts";
 import ClosingBand from "./components/ClosingBand";
 import FullChecklist from "./components/FullChecklist";

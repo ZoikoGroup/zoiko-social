@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { SAFETY_BANNER } from "./images";
 import { C } from "./theme";
 

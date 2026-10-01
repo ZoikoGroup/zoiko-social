@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 export default function Hero() {

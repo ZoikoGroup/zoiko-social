@@ -1,4 +1,4 @@
-import { APP_EVENTS_URL } from "./content";
+
 import { C } from "./theme";
 
 /** The deep-teal closing banner above the global footer. */

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BadgeCheck, ShieldAlert, ShieldCheck } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 const CARDS = [
