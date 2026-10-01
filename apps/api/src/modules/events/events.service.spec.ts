@@ -148,11 +148,11 @@ function build(overrides: {
   }
 
   const service = new EventsService(
-    prisma as unknown as import('../prisma/prisma.service').PrismaService,
-    notifications as unknown as import('../notifications/notification-queue.service').NotificationQueueService,
-    profanity as unknown as import('../safety/profanity.service').ProfanityService,
-    affinity as unknown as import('../personalization/affinity.service').AffinityService,
-    commercial as unknown as import('../commercial/commercial.service').CommercialService,
+    prisma as any,
+    notifications as any,
+    profanity as any,
+    commercial as any,
+    affinity as any,
   )
   return { service, prisma, notifications, profanity, affinity, commercial }
 }
