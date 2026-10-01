@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 // Figma color tokens
 const INK_COLOR = "#073B47";          // Headings & Quote text
@@ -267,13 +268,13 @@ export default function WhyPremium() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
+                <Link
+                  href="#pricing"
                   className="flex w-full items-center justify-center rounded-xl py-3 text-center text-xs font-bold text-white shadow-sm transition hover:opacity-90"
                   style={{ backgroundColor: MOSQUE_COLOR }}
                 >
                   Learn More
-                </button>
+                </Link>
               </div>
             </div>
           ))}

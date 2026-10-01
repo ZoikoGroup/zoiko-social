@@ -43,7 +43,7 @@ const GET_HELP: readonly Item[] = [
     label: "Report a Concern",
     description: "Flag content or behavior that worries you.",
     icon: `${ICON}alert-triangle.svg`,
-    href: SAFETY_DOCS,
+    href: "/safety-report-concern",
   },
   {
     label: "Animal Welfare Concerns",

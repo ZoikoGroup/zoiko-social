@@ -27,7 +27,7 @@ export default function SafetyCta() {
 
           <div className="flex w-full flex-wrap justify-center gap-4 pt-4">
             <Link
-              href="/adopt-report-a-concern"
+              href="/safety-report-concern"
               className="inline-flex items-center justify-center rounded-xl border border-[#D5E7EA] bg-white px-8 py-5 font-['Arial'] text-base font-bold text-[#00AFC7] transition-opacity hover:opacity-90"
             >
               Report a Problem

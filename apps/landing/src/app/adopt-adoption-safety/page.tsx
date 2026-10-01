@@ -82,7 +82,7 @@ export default function AdoptionSafetyPage() {
                 Start the safety checklist
               </a>
               <Link
-                href={APP_LINKS.safety}
+                href="/adopt-verified-rescues-shelters"
                 className={heroButton}
                 style={{ background: "#fff", color: C.ink, border: `1px solid ${C.line}` }}
               >

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { C } from "./theme";
+import Link from "next/link";
 
 const STATS = [
   { value: "2.4K+", label: "Active communities" },
@@ -44,19 +45,19 @@ export default function Hero() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2 sm:gap-4">
-            <button
-              type="button"
+            <Link
+              href="#platform-capabilities"
               className="rounded-xl px-7 py-[18px] font-jakarta text-[15px] font-semibold text-white"
               style={{ backgroundColor: C.brand }}
             >
               Explore Features
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href="/platform-premium-plans-production"
               className="rounded-xl border-2 border-white bg-white/20 px-8 py-4 font-jakarta text-[15px] font-semibold text-white"
             >
               View Premium
-            </button>
+            </Link>
           </div>
         </div>
       </div>

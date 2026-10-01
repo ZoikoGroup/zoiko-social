@@ -52,14 +52,14 @@ export default function DiscoverNearYouPage() {
             </p>
             <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
               <Link
-                href={APP_LINKS.safety}
+                href="/safety-community-standards"
                 className="flex items-center justify-center rounded-xl px-4 pb-3 pt-2.5 text-sm font-semibold leading-5 text-white underline underline-offset-2 transition hover:opacity-90"
                 style={{ background: C.warm }}
               >
                 Community Standards
               </Link>
               <Link
-                href={APP_LINKS.safety}
+                href="/safety-report-concern"
                 className={`${translucentButton} underline underline-offset-2`}
                 style={{ background: inkAt(0.45), border: "1px solid rgba(255,255,255,0.55)" }}
               >

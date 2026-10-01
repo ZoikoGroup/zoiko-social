@@ -29,7 +29,7 @@ export default function Hero() {
               Search veterinarians
             </a>
             <a
-              href={APP_LINKS.safety}
+              href="/trust-safety-center"
               className="flex h-12 items-center justify-center rounded-xl bg-white px-6 text-base font-semibold transition hover:bg-neutral-50"
               style={{ color: C.inkDeep, border: `1px solid ${C.line}` }}
             >
@@ -46,7 +46,7 @@ export default function Hero() {
             <p className="text-sm leading-6" style={{ color: C.ink }}>
               Veterinarians are verified before they&apos;re listed on Zoiko
               Social.{" "}
-              <a href={APP_LINKS.safety} className="underline-offset-2 hover:underline">
+              <a href="/trust-safety-center" className="underline-offset-2 hover:underline">
                 Learn about our verification standard.
               </a>
             </p>

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
 
 export default function Hero() {
   return (
@@ -108,8 +109,8 @@ export default function Hero() {
 
             {/* Buttons */}
             <div className="mt-5 flex w-full flex-wrap items-center gap-2.5">
-              <button
-                type="button"
+              <Link
+                href="#verified-organizations"
                 className="
                   inline-flex
                   min-h-[48px]
@@ -130,10 +131,10 @@ export default function Hero() {
                 }}
               >
                 Find an Organization
-              </button>
+              </Link>
 
-              <button
-                type="button"
+              <Link
+                href="#how-we-verify"
                 className="
                   inline-flex
                   min-h-[48px]
@@ -156,7 +157,7 @@ export default function Hero() {
                 }}
               >
                 How We Verify
-              </button>
+              </Link>
             </div>
 
             {/* Verification Notice */}

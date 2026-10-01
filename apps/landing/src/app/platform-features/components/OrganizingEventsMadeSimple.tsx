@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { C } from "./theme";
+import Link from "next/link";
 
 const STEPS = [
   { label: "Create:", text: "Set event details, date, location, and capacity in minutes" },
@@ -38,13 +39,13 @@ export default function OrganizingEventsMadeSimple() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
+          <Link
+            href="/platform-events"
             className="rounded-xl px-5 py-3 text-sm font-semibold text-white"
             style={{ backgroundColor: C.brand }}
           >
             Learn More About Events
-          </button>
+          </Link>
         </div>
 
         <div className="relative h-[220px] w-full overflow-hidden rounded-[28px] sm:h-[300px] lg:h-[380px]">

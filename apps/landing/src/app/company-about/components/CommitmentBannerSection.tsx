@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { C } from "./theme";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function CommitmentBannerSection() {
   return (
@@ -29,7 +30,7 @@ export default function CommitmentBannerSection() {
           {/* Action Buttons */}
           <div className="mt-6 sm:mt-8 flex w-full flex-col sm:w-auto sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4">
             <Link
-              href="/signup"
+              href={APP_LINKS.signUp}
               className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-bold shadow-sm transition hover:bg-white/90 text-center active:scale-[0.98]"
               style={{ color: C.mosque }}
             >

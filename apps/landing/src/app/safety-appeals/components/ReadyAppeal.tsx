@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function ReadyAppeal() {
   return (
@@ -21,7 +22,7 @@ export default function ReadyAppeal() {
 
         {/* CTA */}
         <Link
-          href="#appeal"
+          href={APP_LINKS.signIn}
           className="inline-flex items-center justify-center rounded-xl border border-[#D5E7EA] bg-white px-8 py-4 font-['Plus_Jakarta_Sans'] text-sm font-bold text-[#00AFC7] transition-opacity duration-200 hover:opacity-90"
         >
           Start Appeal Now

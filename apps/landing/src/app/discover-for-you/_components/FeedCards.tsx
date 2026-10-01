@@ -5,14 +5,17 @@ import {
   ShieldCheck, CheckCircle2, ChevronRight, AlertTriangle
 } from 'lucide-react'
 import Link from 'next/link'
+import { APP_LINKS, appUrl } from '@/lib/app-links'
 
 interface ActionRowProps {
   likes?: string
   comments?: string
   reposts?: string
+  /** Turns the comments slot into a link, for CTA labels like "RSVP". */
+  commentsHref?: string
 }
 
-function ActionRow({ likes, comments, reposts }: ActionRowProps) {
+function ActionRow({ likes, comments, reposts, commentsHref }: ActionRowProps) {
   return (
     <div className="flex items-center justify-between pt-4 mt-2 border-t border-teal-wash">
       <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-teal-muted">
@@ -22,7 +25,13 @@ function ActionRow({ likes, comments, reposts }: ActionRowProps) {
             <span className="text-sm font-medium">{likes}</span>
           </button>
         )}
-        {comments && (
+        {comments && commentsHref && (
+          <Link href={commentsHref} className="flex items-center gap-2 hover:text-teal-light transition-colors">
+            <MessageCircle className="w-[18px] h-[18px]" strokeWidth={1.5} />
+            <span className="text-sm font-medium">{comments}</span>
+          </Link>
+        )}
+        {comments && !commentsHref && (
           <button className="flex items-center gap-2 hover:text-teal-light transition-colors">
             <MessageCircle className="w-[18px] h-[18px]" strokeWidth={1.5} />
             <span className="text-sm font-medium">{comments}</span>
@@ -117,7 +126,7 @@ export function VerifiedNewsCard() {
         <Image src="/discover-for-you/news-elephants.png" alt="Elephants walking together in a wildlife reserve" fill className="object-cover" />
       </div>
 
-      <ActionRow comments="Discuss" />
+      <ActionRow comments="Discuss" commentsHref={APP_LINKS.communities} />
     </article>
   )
 }
@@ -156,7 +165,7 @@ export function AdoptionCard() {
         <span className="px-3 py-1 text-[13px] font-bold bg-teal-wash text-teal-deep rounded-md">Verified Rescue</span>
       </div>
 
-      <ActionRow comments="View Animal" />
+      <ActionRow comments="View Animal" commentsHref="/animals" />
     </article>
   )
 }
@@ -194,7 +203,7 @@ export function EventCard() {
         <span className="px-3 py-1 text-[13px] font-bold bg-green-50 text-green-700 rounded-md">RSVP Open</span>
       </div>
 
-      <ActionRow comments="RSVP" />
+      <ActionRow comments="RSVP" commentsHref={appUrl('/events')} />
     </article>
   )
 }
@@ -277,14 +286,14 @@ export function SensitiveContentCard() {
             <button className="flex-1 sm:flex-none px-4 sm:px-6 py-2 bg-transparent text-white border border-white/70 text-[15px] font-bold rounded-xl hover:bg-white/10 transition-colors">
               Skip
             </button>
-            <button className="flex-1 sm:flex-none px-4 sm:px-6 py-2 bg-transparent text-white border border-white/70 text-[15px] font-bold rounded-xl hover:bg-white/10 transition-colors">
+            <Link href="/safety-report-concern" className="text-center flex-1 sm:flex-none px-4 sm:px-6 py-2 bg-transparent text-white border border-white/70 text-[15px] font-bold rounded-xl hover:bg-white/10 transition-colors">
               Report
-            </button>
+            </Link>
           </div>
         </div>
       </div>
 
-      <ActionRow comments="Discuss" />
+      <ActionRow comments="Discuss" commentsHref={APP_LINKS.communities} />
     </article>
   )
 }
@@ -304,9 +313,9 @@ export function CaughtUpState() {
         <Link href="/discover-communities" className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
           Explore Communities <ChevronRight className="w-4 h-4" />
         </Link>
-        <button className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
+        <Link href="/discover-trending-now" className="w-full sm:w-auto px-6 py-3 border border-teal-wash rounded-full text-[14px] font-bold text-teal-deep hover:bg-teal-wash transition-colors flex items-center justify-center gap-2">
           Trending Now <ChevronRight className="w-4 h-4" />
-        </button>
+        </Link>
       </div>
     </div>
   )

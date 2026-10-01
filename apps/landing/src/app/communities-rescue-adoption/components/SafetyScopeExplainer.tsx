@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 const CAN_TELL_YOU = [
   "The community's purpose — fostering, rescue, or adoption support",
@@ -75,9 +76,9 @@ export default function SafetyScopeExplainer() {
         </div>
         <div className="text-sm font-normal font-['Plus_Jakarta_Sans'] leading-[22px] text-teal-950">
           Looking to browse animals available for adoption? Use the separate{" "}
-          <span className="text-cyan-800 font-semibold underline cursor-pointer">
+          <Link href="/adopt" className="text-cyan-800 font-semibold underline cursor-pointer">
             Go to Adopt
-          </span>{" "}
+          </Link>{" "}
           destination — this Communities page is for discussion and
           coordination, not an animal listing directory.
         </div>

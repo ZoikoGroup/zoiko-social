@@ -48,7 +48,7 @@ export default function PrivacyHero() {
             <div className="flex w-full flex-wrap items-start gap-4 pt-1">
               {/* Compare Plans */}
               <Link
-                href="/pricing"
+                href="/platform-premium-plans-production"
                 className="inline-flex items-center justify-center rounded-xl px-5 py-3 font-['Arial'] text-sm font-bold text-white transition-opacity hover:opacity-90"
                 style={{
                   backgroundColor: "#087A8B",

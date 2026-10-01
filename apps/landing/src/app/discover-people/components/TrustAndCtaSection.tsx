@@ -10,6 +10,8 @@ import {
   MinusCircle,
   UserCheck,
 } from "lucide-react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 interface FeatureItem {
   id: string;
@@ -128,18 +130,18 @@ export default function TrustAndCtaSection() {
 
             {/* CTA Buttons */}
             <div className="flex items-center gap-3">
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="px-6 py-2.5 rounded-lg bg-[#F97316] hover:bg-[#EA580C] text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer shadow-sm"
               >
                 Join Free
-              </button>
-              <button
-                type="button"
+              </Link>
+              <Link
+                href={APP_LINKS.signIn}
                 className="px-6 py-2.5 rounded-lg bg-transparent border border-white/40 hover:bg-white/10 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer"
               >
                 Sign In
-              </button>
+              </Link>
             </div>
           </div>
         </div>

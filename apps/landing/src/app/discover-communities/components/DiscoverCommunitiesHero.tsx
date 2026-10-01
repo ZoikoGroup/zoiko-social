@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { Search } from "lucide-react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function DiscoverCommunitiesHero() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,18 +51,18 @@ export default function DiscoverCommunitiesHero() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto mb-8">
-          <button
-            type="button"
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#0B5C66] hover:bg-[#084850] text-white text-sm font-semibold transition-all cursor-pointer shadow-xs"
+          <Link
+            href="/communities-all"
+            className="w-full sm:w-auto text-center px-6 py-3 rounded-xl bg-[#0B5C66] hover:bg-[#084850] text-white text-sm font-semibold transition-all cursor-pointer shadow-xs"
           >
             Browse all communities
-          </button>
-          <button
-            type="button"
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#0B2E2E] text-sm font-semibold transition-all cursor-pointer shadow-xs"
+          </Link>
+          <Link
+            href={APP_LINKS.communities}
+            className="w-full sm:w-auto text-center px-6 py-3 rounded-xl bg-white border border-[#E2E8F0] hover:bg-[#F8FAFC] text-[#0B2E2E] text-sm font-semibold transition-all cursor-pointer shadow-xs"
           >
             Create a Community
-          </button>
+          </Link>
         </div>
 
         {/* Governance / Safety Note */}

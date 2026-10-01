@@ -2,6 +2,8 @@
 
 import React from "react";
 import { BadgeCheck, Shield, User, MessageSquareWarning } from "lucide-react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 interface FeatureItem {
   id: string;
@@ -20,7 +22,7 @@ const TRUST_FEATURES: FeatureItem[] = [
     description:
       "Confirmed by our team against a verification record — never inferred from popularity.",
     linkText: "Read Standards",
-    linkHref: "#",
+    linkHref: "/safety-community-standards",
   },
   {
     id: "2",
@@ -29,7 +31,7 @@ const TRUST_FEATURES: FeatureItem[] = [
     description:
       "Confirmed moderation coverage keeps discussions respectful and on-purpose.",
     linkText: "Moderation Policy",
-    linkHref: "#",
+    linkHref: "/safety-how-moderation-works",
   },
   {
     id: "3",
@@ -38,7 +40,7 @@ const TRUST_FEATURES: FeatureItem[] = [
     description:
       "Only shown when the community's leadership is explicitly source-backed.",
     linkText: "Learn More",
-    linkHref: "#",
+    linkHref: "/trust-safety-center",
   },
   {
     id: "4",
@@ -47,7 +49,7 @@ const TRUST_FEATURES: FeatureItem[] = [
     description:
       "Every community can be reported. Reports are reviewed against our Community Standards.",
     linkText: "Report a Concern",
-    linkHref: "#",
+    linkHref: "/safety-report-concern",
   },
 ];
 
@@ -116,12 +118,12 @@ export default function TrustAndSafetySection() {
             </p>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.communities}
             className="px-5 py-2.5 rounded-xl bg-[#066879] hover:bg-[#084850] text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
           >
             Create a Community
-          </button>
+          </Link>
         </div>
 
         {/* Join CTA Banner */}
@@ -138,18 +140,18 @@ export default function TrustAndSafetySection() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
-            <button
-              type="button"
+            <Link
+              href={APP_LINKS.signUp}
               className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-[#E88924] hover:bg-[#D97706] text-white text-xs sm:text-sm font-bold transition-all cursor-pointer text-center"
             >
               Join Free
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href={APP_LINKS.signIn}
               className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl border border-white/30 bg-transparent hover:bg-white/10 text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer text-center"
             >
               Sign In
-            </button>
+            </Link>
           </div>
         </div>
       </div>

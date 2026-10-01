@@ -1,4 +1,4 @@
-import { APP_LINKS } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 const SIGNALS: readonly { signal: string; means: string; notMean: string }[] = [
@@ -114,14 +114,17 @@ export function TrustTable() {
 const ROUTES = [
   {
     title: "Report a fundraiser concern",
+    href: "/safety-report-concern",
     body: "Misleading claims, impersonation, or a beneficiary that doesn’t look right.",
   },
   {
     title: "Payment or contribution issue",
+    href: appUrl("/settings"),
     body: "Routes to your own transaction support — never reveals other donors’ data.",
   },
   {
     title: "Animal-welfare concern",
+    href: "/safety-report-concern",
     body: "Routes separately from financial reports to the appropriate review team.",
   },
 ] as const;
@@ -160,7 +163,7 @@ export function SafetySupport() {
           {ROUTES.map((r) => (
             <li key={r.title}>
               <a
-                href={APP_LINKS.safety}
+                href={r.href}
                 className="block rounded-xl bg-white p-4 text-xs leading-5 transition hover:shadow-[0px_8px_24px_0px_rgba(7,59,71,0.08)]"
                 style={{ color: C.muted, border: `1px solid ${C.line}` }}
               >

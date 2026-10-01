@@ -31,7 +31,7 @@ const PLATFORMS = [
  */
 export default function ChoosePlatform() {
   return (
-    <section className="w-full bg-[#f1f4f5] px-6 py-14 lg:px-28">
+    <section id="choose-platform" className="w-full bg-[#f1f4f5] px-6 py-14 lg:px-28">
       <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 rounded-3xl border border-[#dce5e8] bg-white p-8">
         <div className="flex flex-col items-center gap-4">
           <h2 className="text-center font-jakarta text-xl font-bold text-[#0f3d46]">Choose Your Platform</h2>

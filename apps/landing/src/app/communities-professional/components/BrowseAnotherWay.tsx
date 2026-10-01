@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function BrowseAnotherWay() {
   return (
@@ -8,7 +9,7 @@ export default function BrowseAnotherWay() {
       </div>
 
       {/* All Communities */}
-      <div className="w-72 h-48 left-0 top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-all" className="w-72 h-48 left-0 top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="size-3 left-[3px] top-[3px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -23,10 +24,10 @@ export default function BrowseAnotherWay() {
           <br />
           discovery.
         </div>
-      </div>
+      </Link>
 
       {/* Popular */}
-      <div className="w-72 h-48 left-[312px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-popular" className="w-72 h-48 left-[312px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="size-3.5 left-[2.50px] top-[1.50px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -40,10 +41,10 @@ export default function BrowseAnotherWay() {
           <br />
           activity.
         </div>
-      </div>
+      </Link>
 
       {/* By Species */}
-      <div className="w-72 h-48 left-[624px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-by-species" className="w-72 h-48 left-[624px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="size-1.5 left-[6px] top-[3px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -56,10 +57,10 @@ export default function BrowseAnotherWay() {
         <div className="w-56 h-5 left-[19px] top-[133.31px] absolute text-gray-500 text-xs font-normal font-['Plus_Jakarta_Sans'] leading-5">
           Find a community for a specific animal.
         </div>
-      </div>
+      </Link>
 
       {/* Rescue & Adoption */}
-      <div className="w-72 h-48 left-[936px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-rescue-adoption" className="w-72 h-48 left-[936px] top-[69px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="w-3.5 h-3 left-[1.50px] top-[2.55px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -73,10 +74,10 @@ export default function BrowseAnotherWay() {
           <br />
           rescue, and adoption.
         </div>
-      </div>
+      </Link>
 
       {/* Training & Behavior */}
-      <div className="w-72 h-48 left-0 top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-training-behavior" className="w-72 h-48 left-0 top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="size-3.5 left-[2.25px] top-[2.25px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -91,10 +92,10 @@ export default function BrowseAnotherWay() {
           <br />
           animal behavior.
         </div>
-      </div>
+      </Link>
 
       {/* Wildlife & Conservation */}
-      <div className="w-72 h-48 left-[312px] top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="/communities-wildlife-conservation" className="w-72 h-48 left-[312px] top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="size-3 left-[3px] top-[3px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -108,10 +109,10 @@ export default function BrowseAnotherWay() {
           <br />
           conservation work around the world.
         </div>
-      </div>
+      </Link>
 
       {/* Memorial & Support */}
-      <div className="w-72 h-48 left-[624px] top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
+      <Link href="#" className="w-72 h-48 left-[624px] top-[274.81px] absolute bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200">
         <div className="size-9 left-[19px] top-[19px] absolute bg-slate-100 rounded-xl flex items-center justify-center">
           <div className="size-4 relative overflow-hidden">
             <div className="w-3 h-3.5 left-[3px] top-[1.50px] absolute outline outline-[1.50px] outline-offset-[-0.75px] outline-cyan-800" />
@@ -125,7 +126,7 @@ export default function BrowseAnotherWay() {
           <br />
           support.
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

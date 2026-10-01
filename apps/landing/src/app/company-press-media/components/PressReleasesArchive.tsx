@@ -39,7 +39,7 @@ export default function PressReleasesArchive() {
   ];
 
   return (
-    <section className="bg-white w-full py-[80px]">
+    <section id="press-releases" className="scroll-mt-24 bg-white w-full py-[80px]">
       <div className="mx-auto flex flex-col gap-9 px-4 sm:px-6 xl:px-20 max-w-[1440px]">
         {/* Header */}
         <div className="flex flex-col gap-3">

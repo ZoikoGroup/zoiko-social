@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import NewsCard, { NewsItem } from "./NewsCard";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
 
 /* =========================================================
    NEWS DATA
@@ -522,8 +523,8 @@ function PolicyTracker() {
         </div>
       </div>
 
-      <button
-        type="button"
+      <Link
+        href="#"
         className="
           mt-4
           inline-flex
@@ -538,7 +539,7 @@ function PolicyTracker() {
       >
         <MessageBoxIcon />
         <span>View official framework document &gt;</span>
-      </button>
+      </Link>
     </section>
   );
 }
@@ -686,8 +687,8 @@ function CaughtUpCard() {
             gap-2.5
           "
         >
-          <button
-            type="button"
+          <Link
+            href="#"
             className="
               rounded-[10px]
               border
@@ -703,10 +704,10 @@ function CaughtUpCard() {
             }}
           >
             Browse by Topic
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/news-your-region"
             className="
               rounded-[10px]
               border
@@ -722,7 +723,7 @@ function CaughtUpCard() {
             }}
           >
             Set Your Region
-          </button>
+          </Link>
         </div>
       </div>
     </section>
@@ -767,8 +768,8 @@ function SourceStandards() {
         individual claim in a story — always review the original source.
       </p>
 
-      <button
-        type="button"
+      <Link
+        href="/news-source-standards"
         className="
           mt-3
           inline-flex
@@ -783,7 +784,7 @@ function SourceStandards() {
       >
         Read Source Standards
         <ArrowRightIcon />
-      </button>
+      </Link>
     </section>
   );
 }
@@ -926,8 +927,8 @@ function GlobalRegion() {
         expose your exact location.
       </p>
 
-      <button
-        type="button"
+      <Link
+        href="/news-your-region"
         className="
           mt-3
           w-full
@@ -945,7 +946,7 @@ function GlobalRegion() {
         }}
       >
         Set Your Region
-      </button>
+      </Link>
     </section>
   );
 }
@@ -955,6 +956,13 @@ function GlobalRegion() {
 ========================================================= */
 
 function DiscoverMore() {
+  const TOPIC_HREFS: Record<string, string> = {
+    "Animal Welfare": "/news-animal-welfare",
+    Conservation: "/news-conservation",
+    "Wildlife Crime": "/news-wildlife-crime",
+    "Wildlife & Conservation Communities": "/communities-wildlife-conservation",
+  };
+
   const topics = [
     "Animal Welfare",
     "Conservation",
@@ -986,9 +994,9 @@ function DiscoverMore() {
 
       <div className="mt-3">
         {topics.map((topic, index) => (
-          <button
+          <Link
             key={topic}
-            type="button"
+            href={TOPIC_HREFS[topic]}
             className={`
               flex
               min-h-10
@@ -1015,7 +1023,7 @@ function DiscoverMore() {
             >
               ›
             </span>
-          </button>
+          </Link>
         ))}
       </div>
     </section>
@@ -1072,8 +1080,8 @@ function ReportingTrustworthy() {
         handled separately.
       </p>
 
-      <button
-        type="button"
+      <Link
+        href="/news-report-an-inaccuracy"
         className="
           mt-2
           inline-flex
@@ -1088,10 +1096,10 @@ function ReportingTrustworthy() {
       >
         Report an Inaccuracy
         <ArrowRightIcon />
-      </button>
+      </Link>
 
-      <button
-        type="button"
+      <Link
+        href="/safety-report-concern"
         className="
           mt-2
           flex
@@ -1113,7 +1121,7 @@ function ReportingTrustworthy() {
         </span>
 
         <ArrowRightIcon />
-      </button>
+      </Link>
     </section>
   );
 }

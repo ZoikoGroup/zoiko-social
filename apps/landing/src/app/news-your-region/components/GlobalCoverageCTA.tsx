@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link"
+import { APP_LINKS } from "@/lib/app-links"
+
 export default function GlobalCoverageCTA() {
   return (
     <section className="w-full bg-[#F5F8F8]">
@@ -60,8 +63,8 @@ export default function GlobalCoverageCTA() {
           </p>
 
           {/* Join Free Button */}
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signUp}
             className="
               absolute
               right-[40px]
@@ -80,7 +83,7 @@ export default function GlobalCoverageCTA() {
             "
           >
             Join Free
-          </button>
+          </Link>
         </div>
       </div>
     </section>

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { APP_LINKS } from "@/lib/app-links";
 
 // Figma color tokens
 const INK_COLOR = "#073B47";
@@ -37,14 +38,14 @@ export default function TrustSecurityBanner() {
           {/* Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-4 pt-3">
             <a
-              href="/privacy"
+              href={APP_LINKS.privacy}
               className="inline-flex items-center justify-center rounded-xl bg-white px-7 py-3 text-sm font-bold shadow-sm transition hover:bg-white/90"
               style={{ color: INK_COLOR }}
             >
               Privacy Policy
             </a>
             <a
-              href="/security"
+              href="/trust-safety-center"
               className="inline-flex items-center justify-center rounded-xl border border-white/50 bg-white/10 px-7 py-3 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
             >
               Security Policy

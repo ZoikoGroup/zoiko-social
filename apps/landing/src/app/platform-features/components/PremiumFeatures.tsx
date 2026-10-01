@@ -1,4 +1,5 @@
 import { C } from "./theme";
+import Link from "next/link";
 
 const CARDS = [
   {
@@ -48,13 +49,13 @@ export default function PremiumFeatures() {
           ))}
         </div>
         <div className="flex justify-center pt-3">
-          <button
-            type="button"
+          <Link
+            href="/platform-premium-plans-production"
             className="rounded-xl px-5 py-3 text-sm font-bold text-white"
             style={{ backgroundColor: C.orange }}
           >
             Explore Premium Plans
-          </button>
+          </Link>
         </div>
       </div>
     </section>

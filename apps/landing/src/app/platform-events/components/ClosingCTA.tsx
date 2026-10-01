@@ -25,7 +25,7 @@ export default function ClosingCTA() {
           {/* CTA Button */}
           <div className="pt-2">
             <a
-              href={APP_EVENTS_URL}
+              href="/events-upcoming"
               className="inline-flex items-center rounded-xl bg-white px-6 py-3.5 text-center text-sm font-bold shadow-sm transition hover:bg-neutral-50 hover:opacity-95"
               style={{ color: C.brand }}
             >

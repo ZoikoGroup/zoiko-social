@@ -22,18 +22,19 @@ export const metadata: Metadata = {
     "See communities with strong current activity on Zoiko Social. Explore what is active now, then review each community's purpose and moderation information before you join.",
 };
 
-const BROWSE: { icon: LucideIcon; title: string; body: string }[] = [
-  { icon: LayoutGrid, title: "All Communities", body: "Browse every community available for discovery." },
-  { icon: PawPrint, title: "By Species", body: "Find a community for a specific animal." },
+const BROWSE: { icon: LucideIcon; title: string; body: string; href: string }[] = [
+  { icon: LayoutGrid, title: "All Communities", body: "Browse every community available for discovery.", href: "/communities-all" },
+  { icon: PawPrint, title: "By Species", body: "Find a community for a specific animal.", href: "/communities-by-species" },
   {
     icon: ShieldCheck,
     title: "Professional",
     body: "Explore communities run by vets, trainers, and shelters where source classification supports it.",
+    href: "/communities-professional",
   },
-  { icon: HeartHandshake, title: "Rescue & Adoption", body: "Explore communities focused on fostering, rescue, and adoption." },
-  { icon: Clock, title: "Training & Behavior", body: "Explore communities about training and animal behavior." },
-  { icon: Globe, title: "Wildlife & Conservation", body: "Explore communities following conservation work around the world." },
-  { icon: Heart, title: "Memorial & Support", body: "Find spaces for remembrance and mutual support." },
+  { icon: HeartHandshake, title: "Rescue & Adoption", body: "Explore communities focused on fostering, rescue, and adoption.", href: "/communities-rescue-adoption" },
+  { icon: Clock, title: "Training & Behavior", body: "Explore communities about training and animal behavior.", href: "/communities-training-behavior" },
+  { icon: Globe, title: "Wildlife & Conservation", body: "Explore communities following conservation work around the world.", href: "/communities-wildlife-conservation" },
+  { icon: Heart, title: "Memorial & Support", body: "Find spaces for remembrance and mutual support.", href: "#" },
 ];
 
 /*
@@ -102,7 +103,7 @@ export default function PopularCommunitiesPage() {
               Explore Popular
             </a>
             <Link
-              href={APP_LINKS.communities}
+              href="/communities-all"
               className={heroButton}
               style={{ background: "#fff", color: C.inkDeep, border: `1px solid ${C.line}` }}
             >
@@ -143,10 +144,10 @@ export default function PopularCommunitiesPage() {
             Browse another way
           </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {BROWSE.map(({ icon: Icon, title, body }) => (
+            {BROWSE.map(({ icon: Icon, title, body, href }) => (
               <Link
                 key={title}
-                href={APP_LINKS.communities}
+                href={href}
                 className="flex flex-col rounded-[20px] bg-white p-4 transition hover:shadow-[0_8px_24px_rgba(7,59,71,0.08)]"
                 style={{ border: `1px solid ${C.line}` }}
               >
@@ -187,7 +188,7 @@ export default function PopularCommunitiesPage() {
               Join Free
             </Link>
             <Link
-              href={APP_LINKS.communities}
+              href="/communities-all"
               className="flex items-center justify-center rounded-xl border border-white/50 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               Browse All Communities

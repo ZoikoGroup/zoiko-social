@@ -3,10 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, Shield } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
 import { AVATARS } from "./images";
 import { C } from "./theme";
-import { TOP_TREND, type Tab } from "./feed";
+import { TOP_TREND } from "./feed";
 
 const card = "rounded-[20px] bg-white p-5";
 
@@ -47,17 +46,14 @@ function RailLink({ href, children }: { href: string; children: React.ReactNode 
 const rowClass =
   "flex w-full items-center justify-between py-2.5 text-left text-xs font-semibold transition hover:opacity-70";
 
-/**
- * The right-hand rail. Every destination leaves the page except "Live Now",
- * which is a view of this same feed, so it switches the tab instead.
- */
-export default function SideRail({ onSelectTab }: { onSelectTab: (tab: Tab) => void }) {
-  const discover: ({ label: string } & ({ href: string } | { tab: Tab }))[] = [
-    { label: "World Animal News", href: APP_LINKS.news },
-    { label: "Communities", href: APP_LINKS.communities },
-    { label: "Events", href: appUrl("/events") },
-    { label: "Animals", href: "/discover-animals" },
-    { label: "Live Now", tab: "Live" },
+/** The right-hand rail. Every destination is its own page on this site. */
+export default function SideRail() {
+  const discover: { label: string; href: string }[] = [
+    { label: "World Animal News", href: "/news-latest" },
+    { label: "Communities", href: "/communities-all" },
+    { label: "Events", href: "/events-upcoming" },
+    { label: "Animals", href: "/animals" },
+    { label: "Live Now", href: "/discover-live-now" },
   ];
 
   return (
@@ -73,7 +69,7 @@ export default function SideRail({ onSelectTab }: { onSelectTab: (tab: Tab) => v
             information from a verified source, and it&apos;s being discussed
             across multiple communities.
           </p>
-          <RailLink href={APP_LINKS.docs}>How trending works</RailLink>
+          <RailLink href="/support-developers-help-center">How trending works</RailLink>
         </section>
       ) : null}
 
@@ -83,7 +79,7 @@ export default function SideRail({ onSelectTab }: { onSelectTab: (tab: Tab) => v
           {FOLLOWED.map((item) => (
             <li key={item.name}>
               <Link
-                href={APP_LINKS.communities}
+                href="/communities-all"
                 className="flex items-center gap-3 transition hover:opacity-80"
               >
                 <span className="relative size-9 shrink-0 overflow-hidden rounded-full">
@@ -121,20 +117,9 @@ export default function SideRail({ onSelectTab }: { onSelectTab: (tab: Tab) => v
                 key={item.label}
                 style={{ borderTop: i === 0 ? undefined : `1px solid ${C.line}` }}
               >
-                {"tab" in item ? (
-                  <button
-                    type="button"
-                    onClick={() => onSelectTab(item.tab)}
-                    className={rowClass}
-                    style={{ color: C.inkDeep }}
-                  >
-                    {content}
-                  </button>
-                ) : (
-                  <Link href={item.href} className={rowClass} style={{ color: C.inkDeep }}>
-                    {content}
-                  </Link>
-                )}
+                <Link href={item.href} className={rowClass} style={{ color: C.inkDeep }}>
+                  {content}
+                </Link>
               </li>
             );
           })}
@@ -155,7 +140,7 @@ export default function SideRail({ onSelectTab }: { onSelectTab: (tab: Tab) => v
           Content is checked for animal welfare, privacy, and safety before it
           can ever appear here.
         </p>
-        <RailLink href={APP_LINKS.safety}>Visit Safety Center</RailLink>
+        <RailLink href="/trust-safety-center">Visit Safety Center</RailLink>
       </section>
     </aside>
   );

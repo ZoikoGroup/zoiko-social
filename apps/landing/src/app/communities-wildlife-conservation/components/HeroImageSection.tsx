@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function HeroImageSection() {
   return (
@@ -37,16 +38,16 @@ export default function HeroImageSection() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="w-full sm:w-auto h-11 px-5 bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors">
+          <Link href="/communities-wildlife-conservation" className="w-full sm:w-auto h-11 px-5 bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors">
             <span className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
               Explore communities
             </span>
-          </div>
-          <div className="w-full sm:w-auto h-11 px-5 bg-white/[0.12] rounded-xl outline outline-1 outline-offset-[-1px] outline-white/40 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
+          </Link>
+          <Link href="/communities-all" className="w-full sm:w-auto h-11 px-5 bg-white/[0.12] rounded-xl outline outline-1 outline-offset-[-1px] outline-white/40 flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors">
             <span className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
               Browse all communities
             </span>
-          </div>
+          </Link>
         </div>
 
         <div className="flex max-w-[640px] bg-white/[0.14] rounded-xl p-4 gap-3">

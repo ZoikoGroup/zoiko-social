@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function ConversionBand() {
   return (
@@ -18,18 +20,18 @@ export default function ConversionBand() {
       </div>
 
       {/* Join Free Button */}
-      <div className="w-24 h-10 left-[462.03px] top-[209.50px] absolute bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer">
+      <Link href={APP_LINKS.signUp} className="w-24 h-10 left-[462.03px] top-[209.50px] absolute bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer">
         <div className="text-center text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
           Join Free
         </div>
-      </div>
+      </Link>
 
       {/* Browse All Communities Button */}
-      <div className="w-52 h-10 left-[568.72px] top-[209.50px] absolute rounded-xl outline outline-1 outline-offset-[-1px] outline-white/50 flex items-center justify-center cursor-pointer">
+      <Link href="/communities-all" className="w-52 h-10 left-[568.72px] top-[209.50px] absolute rounded-xl outline outline-1 outline-offset-[-1px] outline-white/50 flex items-center justify-center cursor-pointer">
         <div className="text-center text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
           Browse All Communities
         </div>
-      </div>
+      </Link>
     </div>
   );
 }

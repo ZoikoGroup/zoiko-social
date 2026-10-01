@@ -23,7 +23,7 @@ export default function Hero() {
           </div>
 
           <Link
-            href="#report-violation"
+            href="/safety-report-concern"
             className="inline-flex items-center justify-center rounded-xl bg-[#00AFC7] px-5 py-3 font-['Plus_Jakarta_Sans'] text-sm font-semibold text-white transition-opacity duration-200 hover:opacity-90"
           >
             Report a Violation

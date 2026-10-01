@@ -128,7 +128,7 @@ export default function Organizations() {
                 </p>
                 {isReport ? (
                   <Link
-                    href={APP_LINKS.safety}
+                    href="/adopt-report-a-concern"
                     className="text-xs font-bold"
                     style={{ color: C.brand }}
                   >

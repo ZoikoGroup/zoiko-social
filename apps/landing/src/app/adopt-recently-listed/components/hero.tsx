@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
 
 const listings = [
   {
@@ -62,8 +63,8 @@ export default function Hero() {
 
           {/* Buttons */}
           <div className="flex flex-wrap gap-3 pt-4">
-            <button
-              type="button"
+            <Link
+              href="#new-listings"
               className="rounded-xl px-6 py-3.5 text-center text-base font-semibold leading-6"
               style={{
                 backgroundColor: C.cyan25,
@@ -72,10 +73,10 @@ export default function Hero() {
               }}
             >
               Browse New Listings
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href="#how-freshness-works"
               className="rounded-xl px-6 py-3.5 text-center text-base font-semibold leading-6"
               style={{
                 backgroundColor: C.white,
@@ -84,7 +85,7 @@ export default function Hero() {
               }}
             >
               How Recent Listings Work
-            </button>
+            </Link>
           </div>
 
           {/* Disclaimer */}

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link"
+
 export default function RegionalCoverageSections() {
   return (
     <section className="w-full bg-[#F5F8F8]">
@@ -16,12 +18,12 @@ export default function RegionalCoverageSections() {
               Rescue &amp; Shelter near your region
             </h2>
 
-            <button
-              type="button"
+            <Link
+              href="/news-animal-welfare"
               className="text-base font-semibold leading-6 text-[#066879]"
             >
               See all Animal Welfare &gt;
-            </button>
+            </Link>
           </div>
 
           {/* Cards */}
@@ -118,12 +120,12 @@ export default function RegionalCoverageSections() {
               Policy &amp; Law relevant to your region
             </h2>
 
-            <button
-              type="button"
+            <Link
+              href="/news-animal-welfare"
               className="text-base font-semibold leading-6 text-[#066879]"
             >
               See all Animal Welfare &gt;
-            </button>
+            </Link>
           </div>
 
           {/* Cards */}

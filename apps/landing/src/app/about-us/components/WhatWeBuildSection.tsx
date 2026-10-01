@@ -89,7 +89,7 @@ export default function WhatWeBuildSection() {
             </p>
 
             <div className="mt-6">
-              <ArrowLink href={APP_LINKS.home}>Explore the platform</ArrowLink>
+              <ArrowLink href="/platform-features">Explore the platform</ArrowLink>
             </div>
           </div>
         </div>

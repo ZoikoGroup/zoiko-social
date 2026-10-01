@@ -25,14 +25,14 @@ const ROUTES: {
     tone: "warm",
     title: "Press & Media",
     body: "Media inquiries and brand assets.",
-    href: appUrl("/press"),
+    href: "/company-press-media",
   },
   {
     icon: Send,
     tone: "neutral",
     title: "Contact",
     body: "Reach our team for general or business inquiries.",
-    href: APP_LINKS.docs,
+    href: "/support-developers-contact-us",
   },
 ];
 

@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function HeroSection() {
   return (
@@ -26,21 +27,21 @@ export default function HeroSection() {
       </div>
 
       <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4">
-        <div className="w-full sm:w-auto h-11 px-5 bg-cyan-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
+        <Link href="/communities-rescue-adoption" className="w-full sm:w-auto h-11 px-5 bg-cyan-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
           <div className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 text-center">
             Explore rescue &amp; adoption communities
           </div>
-        </div>
+        </Link>
 
-        <div className="w-full sm:w-auto h-11 px-5 bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
+        <Link href="/communities-all" className="w-full sm:w-auto h-11 px-5 bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
           <div className="text-teal-950 text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5">
             Browse all communities
           </div>
-        </div>
+        </Link>
 
-        <div className="text-cyan-800 text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 cursor-pointer">
+        <Link href="/adopt" className="text-cyan-800 text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 cursor-pointer">
           Looking to adopt an animal now? Go to Adopt →
-        </div>
+        </Link>
       </div>
 
       <div className="max-w-[620px] bg-cyan-50 rounded-xl p-4 flex gap-3">

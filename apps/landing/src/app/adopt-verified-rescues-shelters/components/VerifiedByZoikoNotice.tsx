@@ -32,7 +32,7 @@ function ShieldCheckIcon() {
 
 export default function VerifiedByZoikoNotice() {
   return (
-    <section className="w-full px-5 py-6 lg:px-0">
+    <section id="how-we-verify" className="w-full px-5 py-6 lg:px-0">
       <div
         className="
           mx-auto
@@ -82,7 +82,7 @@ export default function VerifiedByZoikoNotice() {
             </span>
 
             <a
-              href="#"
+              href="/adopt-adoption-safety"
               className="text-sm font-semibold leading-5 underline"
               style={{
                 color: C.verifiedIcon,

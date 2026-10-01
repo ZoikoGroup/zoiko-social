@@ -1,5 +1,7 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export interface CommunityCardData {
   id: string;
@@ -115,24 +117,24 @@ export default function CommunityCard({ card }: CommunityCardProps) {
           {status}
         </div>
 
-        <div className="text-cyan-800 text-xs font-semibold font-['Plus_Jakarta_Sans'] underline cursor-pointer">
+        <Link href={APP_LINKS.communities} className="text-cyan-800 text-xs font-semibold font-['Plus_Jakarta_Sans'] underline cursor-pointer">
           What this community can help with
-        </div>
+        </Link>
 
         <div className="flex-1" />
 
         <div className="flex gap-2">
-          <div className="h-8 px-4 bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
+          <Link href={APP_LINKS.communities} className="h-8 px-4 bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
             <span className="text-teal-950 text-xs font-semibold font-['Plus_Jakarta_Sans'] whitespace-nowrap">
               {primaryBtn}
             </span>
-          </div>
+          </Link>
 
-          <div className="h-8 px-4 bg-cyan-800 rounded-[10px] flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
+          <Link href={APP_LINKS.signUp} className="h-8 px-4 bg-cyan-800 rounded-[10px] flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
             <span className="text-white text-xs font-semibold font-['Plus_Jakarta_Sans'] whitespace-nowrap">
               {actionText}
             </span>
-          </div>
+          </Link>
         </div>
       </div>
     </div>

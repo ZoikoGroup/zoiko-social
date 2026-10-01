@@ -22,7 +22,6 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
 import { VERIFIED_BADGE } from "./images";
 import { C } from "./theme";
 import type { Author, Kind, Trend } from "./feed";
@@ -185,7 +184,7 @@ function SensitiveMedia({
           Skip
         </button>
         <Link
-          href={APP_LINKS.safety}
+          href="/safety-report-concern"
           className="rounded-lg border border-white/50 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-white/10"
         >
           Report
@@ -252,7 +251,7 @@ function MoreMenu({ onHide }: { onHide: () => void }) {
             Not interested
           </button>
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-report-concern"
             role="menuitem"
             className="block px-3 py-2 text-xs font-semibold hover:bg-[#F7F9F9]"
             style={{ color: C.inkDeep }}
@@ -273,7 +272,8 @@ function ActionBar({ trend, onHide }: { trend: Trend; onHide: () => void }) {
 
   // Native share sheet where the browser has one; otherwise copy the link.
   const share = async () => {
-    const url = actions.primary.href;
+    // Local routes are relative; resolve them so the shared link works anywhere.
+    const url = new URL(actions.primary.href, window.location.origin).href;
     const title = trend.title ?? trend.body;
     if (typeof navigator.share === "function") {
       try {

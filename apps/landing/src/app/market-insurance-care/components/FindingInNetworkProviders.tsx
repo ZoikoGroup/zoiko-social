@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import { appUrl } from "@/lib/app-links";
 
 interface Provider {
   name: string;
@@ -77,7 +78,7 @@ export default function FindingInNetworkProviders() {
             </div>
             <div className="lg:col-span-2 flex">
               <a
-                href="#"
+                href="/market-veterinarians"
                 className="w-full py-3 rounded-xl bg-[#066879] hover:bg-[#055563] text-white font-medium text-sm transition-colors text-center inline-block"
               >
                 Search
@@ -162,7 +163,7 @@ export default function FindingInNetworkProviders() {
                 {/* Schedule Button */}
                 <div className="pt-2">
                   <a
-                    href="#"
+                    href={appUrl("/vet-finder")}
                     className="w-full py-3 rounded-xl bg-[#066879] hover:bg-[#055563] text-white font-medium text-sm transition-colors text-center block"
                   >
                     Schedule Appointment

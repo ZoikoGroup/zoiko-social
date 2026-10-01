@@ -46,7 +46,7 @@ export default function SafetySection() {
             ))}
           </ul>
           <a
-            href={APP_LINKS.safety}
+            href="/safety-community-standards"
             className="mt-6 inline-block rounded-xl bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-neutral-50"
             style={{ color: C.inkDeep, border: `1px solid ${C.line}` }}
           >

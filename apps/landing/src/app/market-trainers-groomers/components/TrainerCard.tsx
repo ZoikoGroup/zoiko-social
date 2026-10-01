@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 export interface Trainer {
   id: string;
@@ -78,34 +80,34 @@ export default function TrainerCard({ trainer }: { trainer: Trainer }) {
         </div>
 
         <div className="flex w-full items-start gap-2 pt-1 lg:hidden">
-          <button
-            type="button"
+          <Link
+            href="#trainer-detail"
             className="flex min-h-[40px] flex-1 items-center justify-center rounded-xl bg-[#066879] px-3 py-[12px] text-center font-jakarta text-[13px] font-semibold text-white"
           >
             View profile
-          </button>
-          <button
-            type="button"
+          </Link>
+          <Link
+            href={appUrl("/messages")}
             className="flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-[#dce5e8] bg-white px-3 py-[11px] text-center font-jakarta text-[13px] font-semibold text-[#066879]"
           >
             Contact
-          </button>
+          </Link>
         </div>
       </div>
 
       <div className="hidden w-[140px] shrink-0 flex-col items-start gap-2 lg:flex">
-        <button
-          type="button"
+        <Link
+          href="#trainer-detail"
           className="flex min-h-[36px] w-[140px] items-center justify-center rounded-xl bg-[#066879] px-4 py-[10px] text-center font-jakarta text-[13px] font-semibold text-white"
         >
           View profile
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href={appUrl("/messages")}
           className="flex min-h-[37px] w-full items-center justify-center rounded-xl border border-[#dce5e8] bg-[#f7f9fa] px-4 py-[11px] text-center font-jakarta text-[12px] font-semibold text-[#102a32]"
         >
           Contact
-        </button>
+        </Link>
       </div>
     </article>
   );

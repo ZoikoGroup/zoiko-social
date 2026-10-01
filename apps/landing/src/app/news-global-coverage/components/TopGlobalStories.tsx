@@ -1,5 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const stories = [
   {
@@ -114,9 +115,9 @@ export default function TopGlobalStories() {
               
               <div className="mt-auto">
                 <div className="flex gap-2 mb-4">
-                  <button className="bg-[#066879] hover:bg-[#073B47] text-white text-[12px] font-semibold px-4 py-1.5 rounded-full transition">
+                  <Link href="#" className="bg-[#066879] hover:bg-[#073B47] text-white text-[12px] font-semibold px-4 py-1.5 rounded-full transition">
                     Read Story
-                  </button>
+                  </Link>
                   <button className="bg-transparent border border-[#DCE5E8] hover:bg-[#F7F9FA] text-[#102A32] text-[12px] font-semibold px-4 py-1.5 rounded-full transition">
                     Save
                   </button>
@@ -125,7 +126,7 @@ export default function TopGlobalStories() {
                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-[#5E7076] font-medium">
                   <button className="hover:text-[#102A32] transition">Share</button>
                   <button className="hover:text-[#102A32] transition">{story.followLabel}</button>
-                  <button className="hover:text-[#102A32] transition">Report an inaccuracy</button>
+                  <Link href="/news-report-an-inaccuracy" className="hover:text-[#102A32] transition">Report an inaccuracy</Link>
                 </div>
               </div>
             </div>

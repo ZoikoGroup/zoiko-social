@@ -4,6 +4,7 @@ interface DecisionStep {
   question: string;
   examples: string;
   actionText: string;
+  href: string;
 }
 
 const decisionSteps: DecisionStep[] = [
@@ -12,6 +13,7 @@ const decisionSteps: DecisionStep[] = [
     examples:
       "Active violence, overdose, can't breathe, choking, unconscious, severe injury",
     actionText: "CALL 911 (Immediately. Don't wait. This is #1 priority.)",
+    href: "tel:911",
   },
   {
     question:
@@ -20,11 +22,13 @@ const decisionSteps: DecisionStep[] = [
       'Examples: "I\'m going to kill myself tonight", showing fresh cuts, describing a specific plan',
     actionText:
       "CALL 988 (US Suicide & Crisis Lifeline) or text HOME to 741741 (Crisis Text Line).",
+    href: "tel:988",
   },
   {
     question: "Is a child being exploited, abused, or endangered?",
     examples: "CSAM, child abuse, trafficking, predatory behavior",
     actionText: "REPORT to CyberTipline.org AND your local law enforcement.",
+    href: "https://report.cybertip.org/",
   },
   {
     question:
@@ -33,6 +37,7 @@ const decisionSteps: DecisionStep[] = [
       "Threats, coordinated harassment, doxxing, stalking, domestic violence",
     actionText:
       "REPORT to Zoiko. Get them safety resources. Call local hotline if needed.",
+    href: "/safety-report-concern",
   },
   {
     question: "Is someone showing signs of crisis but not immediate danger?",
@@ -40,6 +45,7 @@ const decisionSteps: DecisionStep[] = [
       "Expressing depression, isolation, hopelessness, gradual withdrawal",
     actionText:
       "REACH OUT to them. Encourage professional help. Send resources.",
+    href: "/safety-support-resources",
   },
 ];
 
@@ -73,7 +79,7 @@ export default function QuickDecisionGuide() {
               </p>
               <div className="pt-2">
                 <a
-                  href="#"
+                  href={item.href}
                   className="text-xs md:text-sm font-bold text-[#066879] hover:underline inline-block"
                 >
                   {item.actionText}

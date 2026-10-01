@@ -115,14 +115,14 @@ export default function TrendingBoard() {
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
               <Link
-                href={APP_LINKS.communities}
+                href="/communities-all"
                 className="rounded-xl bg-white px-4 py-2 text-xs font-bold transition hover:opacity-80"
                 style={{ color: C.ink, border: `1px solid ${C.line}` }}
               >
                 Explore Communities
               </Link>
               <Link
-                href="/discover-animals"
+                href="/animals"
                 className="rounded-xl bg-white px-4 py-2 text-xs font-bold transition hover:opacity-80"
                 style={{ color: C.ink, border: `1px solid ${C.line}` }}
               >
@@ -160,7 +160,7 @@ export default function TrendingBoard() {
           </section>
         </div>
 
-        <SideRail onSelectTab={selectTab} />
+        <SideRail />
       </div>
     </div>
   );

@@ -127,7 +127,7 @@ export default function MoreFromCommunitySection() {
                   </button>
 
                   <Link
-                    href={`/animals/${animal.id}`}
+                    href="/animals"
                     className="px-3.5 py-1.5 rounded-lg border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[#0B2E2E] text-xs font-semibold transition-all text-center cursor-pointer"
                   >
                     View

@@ -161,7 +161,7 @@ export default function ProviderProfile() {
                 Emergency Vet Care listings.
               </p>
               <a
-                href={appUrl("/vet-finder")}
+                href="/market-emergency-vet-care"
                 className="mt-2 inline-block text-sm font-semibold hover:underline"
                 style={{ color: C.warm }}
               >

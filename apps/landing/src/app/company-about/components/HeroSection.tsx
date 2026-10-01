@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function HeroSection() {
   return (
@@ -40,7 +41,7 @@ export default function HeroSection() {
           {/* Action Buttons */}
           <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 max-w-[420px] sm:max-w-none">
             <Link
-              href="/signup"
+              href={APP_LINKS.signUp}
               className="inline-flex min-h-[46px] items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95 text-center active:scale-[0.98]"
               style={{ background: C.mosque }}
             >

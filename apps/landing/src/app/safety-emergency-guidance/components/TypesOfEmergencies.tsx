@@ -6,6 +6,7 @@ interface EmergencyCard {
   description: string;
   icon: string;
   buttonText: string;
+  href: string;
 }
 
 const emergencies: EmergencyCard[] = [
@@ -15,6 +16,7 @@ const emergencies: EmergencyCard[] = [
       "Someone is being harmed, attacked, or in physical danger right now. Report immediately.",
     icon: "/emergency/22.png",
     buttonText: "Report Now",
+    href: "tel:911",
   },
   {
     title: "Suicidal thoughts",
@@ -22,6 +24,7 @@ const emergencies: EmergencyCard[] = [
       "Someone is expressing suicidal thoughts, self-harm plans, or severe depression. Get crisis support.",
     icon: "/emergency/23.png",
     buttonText: "Get Help",
+    href: "tel:988",
   },
   {
     title: "Child safety",
@@ -29,6 +32,7 @@ const emergencies: EmergencyCard[] = [
       "A child is being exploited, abused, or endangered. Report to authorities immediately.",
     icon: "/emergency/24.png",
     buttonText: "Report to CyberTipline",
+    href: "https://report.cybertip.org/",
   },
   {
     title: "Abuse & harassment",
@@ -36,6 +40,7 @@ const emergencies: EmergencyCard[] = [
       "Someone is experiencing intimate partner violence, stalking, or coordinated harassment.",
     icon: "/emergency/25.png",
     buttonText: "Get Resources",
+    href: "/safety-support-resources",
   },
   {
     title: "Overdose & addiction",
@@ -43,6 +48,7 @@ const emergencies: EmergencyCard[] = [
       "Someone is overdosing, experiencing severe withdrawal, or in danger from substance use.",
     icon: "/emergency/26.png",
     buttonText: "Call Poison Control",
+    href: "tel:18002221222",
   },
   {
     title: "Medical emergency",
@@ -50,6 +56,7 @@ const emergencies: EmergencyCard[] = [
       "Someone is experiencing a medical crisis: chest pain, difficulty breathing, severe allergic reaction.",
     icon: "/emergency/27.png",
     buttonText: "Call 911",
+    href: "tel:911",
   },
 ];
 
@@ -101,7 +108,7 @@ export default function TypesOfEmergencies() {
               {/* Action Button */}
               <div className="pt-2">
                 <a
-                  href="#"
+                  href={item.href}
                   className="w-full py-3.5 rounded-xl bg-[#066879] hover:bg-[#055563] text-white font-medium text-xs md:text-sm transition-colors text-center block shadow-sm"
                 >
                   {item.buttonText}

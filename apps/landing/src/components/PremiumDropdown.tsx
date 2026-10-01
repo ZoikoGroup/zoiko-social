@@ -28,7 +28,7 @@ type Item = {
  * does the same rather than inventing a path that would 404. Replace `PLANS`
  * once the page exists.
  */
-const PLANS = "#";
+const PLANS = "/platform-premium-plans-production";
 
 const FOR_YOU: readonly Item[] = [
   {
@@ -47,13 +47,13 @@ const FOR_YOU: readonly Item[] = [
     label: "Larger Group Calls",
     description: "Host bigger community calls.",
     icon: `${ICON}users.svg`,
-    href: PLANS,
+    href: "/premium-larger-group-calls-production",
   },
   {
     label: "Enhanced Media",
     description: "Higher-quality photo and video.",
     icon: `${ICON}sparkles.svg`,
-    href: PLANS,
+    href: "/premium-enhanced-media-production",
   },
 ];
 
@@ -68,7 +68,7 @@ const FOR_PROS_AND_ORGS: readonly Item[] = [
     label: "Verified Organization Profile",
     description: "Build trust with your community.",
     icon: `${ICON}shield-check.svg`,
-    href: PLANS,
+    href: "/premium-verified-organization",
   },
   {
     label: "Fundraising Toolkit",

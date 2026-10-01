@@ -33,13 +33,13 @@ export default function TopicByRegion() {
               <tr key={idx} className="bg-white">
                 <td className="py-4 px-4 text-[13.5px] text-[#102A32] border border-[#DCE5E8]">{row.region}</td>
                 <td className="py-4 px-4 text-[13.5px] font-bold border border-[#DCE5E8]">
-                  <a href="#" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
+                  <a href="/news-animal-welfare" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
                 </td>
                 <td className="py-4 px-4 text-[13.5px] font-bold border border-[#DCE5E8]">
-                  <a href="#" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
+                  <a href="/news-conservation" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
                 </td>
                 <td className="py-4 px-4 text-[13.5px] font-bold border border-[#DCE5E8]">
-                  <a href="#" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
+                  <a href="/news-wildlife-crime" className="text-[#066879] underline underline-offset-2 decoration-2 hover:text-[#073B47]">View</a>
                 </td>
               </tr>
             ))}

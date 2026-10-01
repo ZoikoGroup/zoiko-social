@@ -18,13 +18,13 @@ export default function Hero() {
           </p>
           <div className="flex flex-row gap-4 pt-[20px] pb-[12px]">
             <Link
-              href="#"
+              href="/company-brand-assets"
               className="bg-[#e88924] rounded-xl w-[258px] h-[42px] flex items-center justify-center font-jakarta font-bold text-[14px] text-white text-center hover:bg-[#d67b1f] transition-colors"
             >
               Download Media Kit
             </Link>
             <Link
-              href="#"
+              href="/company-brand-assets"
               className="bg-white border border-[#dce5e8] rounded-xl w-[260px] h-[44px] flex items-center justify-center font-jakarta font-semibold text-[14px] text-[#102a32] text-center hover:bg-gray-50 transition-colors"
             >
               View Brand Assets
@@ -64,19 +64,19 @@ export default function Hero() {
           {/* Mobile buttons: teal "Media Inquiry", orange "Download Media Kit", white "View Brand Assets" */}
           <div className="flex flex-col gap-4 pt-[8px] pb-[12px] w-full">
             <Link
-              href="#"
+              href="#media-inquiry"
               className="bg-[#066879] rounded-[12px] w-full py-[12px] flex items-center justify-center font-jakarta font-semibold text-[14px] text-white text-center hover:bg-[#055361] transition-colors"
             >
               Media Inquiry
             </Link>
             <Link
-              href="#"
+              href="/company-brand-assets"
               className="bg-[#e88924] rounded-[12px] w-full py-[12px] flex items-center justify-center font-jakarta font-bold text-[14px] text-white text-center hover:bg-[#d67b1f] transition-colors"
             >
               Download Media Kit
             </Link>
             <Link
-              href="#"
+              href="/company-brand-assets"
               className="bg-white border border-[#dce5e8] rounded-[12px] w-full py-[12px] flex items-center justify-center font-jakarta font-semibold text-[14px] text-[#102a32] text-center hover:bg-gray-50 transition-colors"
             >
               View Brand Assets

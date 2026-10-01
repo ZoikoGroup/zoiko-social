@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -73,9 +75,20 @@ const providers = [
   },
 ];
 
+const MARKET_HREF: Record<string, string> = {
+  Veterinarians: "/market-veterinarians",
+  "Clinics & Hospitals": "/market-clinics-hospitals",
+  Specialists: "/market-specialists-production",
+  "Emergency Vet Care": "/market-emergency-vet-care",
+  "Trainers & Groomers": "/market-trainers-groomers",
+  "Boarding & Sitting": "/market-boarding-sitting-production",
+  "Nutrition & Supplies": "/market-nutrition-supplies",
+  "Insurance & Care Plans": "/market-insurance-care",
+};
+
 export default function ProfessionalCare() {
   return (
-    <section
+    <section id="professional-care"
       className={`
         ${plusJakartaSans.className}
         w-full
@@ -198,8 +211,8 @@ export default function ProfessionalCare() {
               </div>
 
               {/* Button */}
-              <button
-                type="button"
+              <Link
+                href={MARKET_HREF[category.title] ?? "#"}
                 className={`
                   rounded-[20px]
                   px-6
@@ -217,7 +230,7 @@ export default function ProfessionalCare() {
                 `}
               >
                 {category.button}
-              </button>
+              </Link>
             </div>
           ))}
         </div>
@@ -337,8 +350,8 @@ export default function ProfessionalCare() {
                   </div>
 
                   {/* View Profile */}
-                  <button
-                    type="button"
+                  <Link
+                    href={appUrl("/vet-finder")}
                     className="
                       shrink-0
                       rounded-xl
@@ -358,7 +371,7 @@ export default function ProfessionalCare() {
                     "
                   >
                     View Profile
-                  </button>
+                  </Link>
                 </div>
               </div>
             ))}

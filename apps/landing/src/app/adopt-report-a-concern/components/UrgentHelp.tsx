@@ -77,7 +77,7 @@ export default function UrgentHelp() {
           {/* LINK */}
           <div className="shrink-0 lg:pt-0.5">
             <Link
-              href="/urgent-help"
+              href="/safety-emergency-guidance"
               className="text-xs font-bold leading-5 underline transition-opacity hover:opacity-75"
               style={{ color: "#D94A4A" }}
             >

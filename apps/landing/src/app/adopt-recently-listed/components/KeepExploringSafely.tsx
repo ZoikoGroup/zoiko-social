@@ -1,6 +1,7 @@
 "use client";
 
 import { C } from "./theme";
+import Link from "next/link";
 
 export default function KeepExploringSafely() {
   return (
@@ -121,8 +122,8 @@ export default function KeepExploringSafely() {
             "
           >
             {/* Primary CTA */}
-            <button
-              type="button"
+            <Link
+              href="/adopt"
               className="
                 flex
                 h-[48px]
@@ -144,11 +145,11 @@ export default function KeepExploringSafely() {
               }}
             >
               Browse All Adopt Listings
-            </button>
+            </Link>
 
             {/* Secondary CTA */}
-            <button
-              type="button"
+            <Link
+              href="/adopt-near-you"
               className="
                 flex
                 h-[48px]
@@ -171,7 +172,7 @@ export default function KeepExploringSafely() {
               }}
             >
               Find Animals Near Me
-            </button>
+            </Link>
           </div>
         </div>
       </div>

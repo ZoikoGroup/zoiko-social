@@ -196,7 +196,7 @@ export default function ListingDialog({
             >
               How we verify this shelter
             </Link>
-            <Link href={APP_LINKS.safety} className="text-[14px] font-medium" style={{ color: "#B3261E" }}>
+            <Link href="/adopt-report-a-concern" className="text-[14px] font-medium" style={{ color: "#B3261E" }}>
               Report a concern
             </Link>
           </div>

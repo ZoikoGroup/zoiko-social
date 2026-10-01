@@ -1,4 +1,6 @@
 import { C } from "./theme";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function ConnectVerifiedOrganization() {
   return (
@@ -110,8 +112,8 @@ export default function ConnectVerifiedOrganization() {
               "
             >
               {/* Join Free */}
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="
                   inline-flex
                   min-h-[44px]
@@ -132,11 +134,11 @@ export default function ConnectVerifiedOrganization() {
                 }}
               >
                 Join Free
-              </button>
+              </Link>
 
               {/* Browse Animals */}
-              <button
-                type="button"
+              <Link
+                href="/adopt"
                 className="
                   inline-flex
                   min-h-[44px]
@@ -160,7 +162,7 @@ export default function ConnectVerifiedOrganization() {
                 }}
               >
                 Browse Animals for Adoption
-              </button>
+              </Link>
             </div>
           </div>
         </div>

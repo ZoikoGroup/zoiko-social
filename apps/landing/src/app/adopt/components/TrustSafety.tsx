@@ -22,7 +22,7 @@ const CARDS = [
     icon: ShieldAlert,
     title: "Report a Concern",
     body: "Flag a listing, organization, or interaction that doesn't seem right.",
-    href: APP_LINKS.safety,
+    href: "/adopt-report-a-concern",
   },
 ] as const;
 

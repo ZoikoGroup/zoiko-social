@@ -30,7 +30,7 @@ const CARDS = [
  */
 export default function ExplorePlatformCapabilities() {
   return (
-    <section className="w-full bg-white px-4 py-12 sm:px-8 sm:py-16 lg:px-[105px] lg:py-20">
+    <section id="platform-capabilities" className="w-full bg-white px-4 py-12 sm:px-8 sm:py-16 lg:px-[105px] lg:py-20">
       <div className="mx-auto flex w-full max-w-[1280px] flex-col items-start gap-8">
         <div className="flex flex-col gap-3">
           <h2

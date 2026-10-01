@@ -41,7 +41,7 @@ export default function DiscoverLiveNowPage() {
           </div>
 
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-how-moderation-works"
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold transition hover:opacity-80"
             style={{ color: C.brand, border: `1px solid ${C.line}` }}
           >

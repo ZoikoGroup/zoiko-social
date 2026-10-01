@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 /* =========================
    FOLLOW TOPIC — PLUS ICON
@@ -161,12 +162,12 @@ export default function GlobalCoverageFeed() {
             </span>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href="/news-source-standards"
             className="text-xs font-bold leading-4 text-[#066879]"
           >
             Corrections &amp; Source Standards &gt;
-          </button>
+          </Link>
         </div>
 
         {/* =========================================
@@ -284,12 +285,12 @@ export default function GlobalCoverageFeed() {
           <div className="mx-[21px] flex h-12 items-center">
 
             {/* OPEN SOURCE */}
-            <button
-              type="button"
+            <Link
+              href="#"
               className="ml-[12px] whitespace-nowrap text-xs font-bold leading-5 text-[#062F39]"
             >
               Open Source
-            </button>
+            </Link>
 
             {/* FOLLOW TOPIC — PLUS */}
             <button
@@ -408,12 +409,12 @@ export default function GlobalCoverageFeed() {
           <div className="mx-[21px] flex h-12 items-center">
 
             {/* OPEN SOURCE */}
-            <button
-              type="button"
+            <Link
+              href="#"
               className="ml-[12px] whitespace-nowrap text-xs font-bold leading-5 text-[#062F39]"
             >
               Open Source
-            </button>
+            </Link>
 
             {/* SAVE — BOOKMARK */}
             <button

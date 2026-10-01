@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import { APP_LINKS } from "@/lib/app-links";
 
 const AUDIENCES = [
   {
@@ -10,7 +11,7 @@ const AUDIENCES = [
     description:
       "Share your life with animals, find communities, access trustworthy information, adopt responsibly, and connect with care resources.",
     buttonText: "Join Free",
-    buttonHref: "/signup",
+    buttonHref: APP_LINKS.signUp,
     linkText: "Explore Communities →",
     linkHref: "/communities-all",
   },

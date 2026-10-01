@@ -29,7 +29,7 @@ const campaigns = [
 
 export default function ExampleCampaigns() {
   return (
-    <section className="w-full bg-[#F7F9FA]">
+    <section id="example-campaigns" className="w-full bg-[#F7F9FA] scroll-mt-24">
       <div className="mx-auto w-full max-w-[1440px] px-6 py-12 sm:px-10 sm:py-16 lg:px-28 lg:py-20">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-12 lg:gap-20">
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 const plans = [
   {
@@ -140,8 +141,8 @@ export default function PremiumPlans() {
                     </div>
 
                     {/* Button */}
-                    <button
-                      type="button"
+                    <Link
+                      href="/platform-premium-plans-production"
                       className="flex min-h-10 w-full items-center justify-center rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold"
                       style={
                         plan.highlighted || plan.name === "Premium+"
@@ -157,7 +158,7 @@ export default function PremiumPlans() {
                       }
                     >
                       {plan.button}
-                    </button>
+                    </Link>
                   </div>
                 </div>
               ))}

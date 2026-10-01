@@ -4,6 +4,8 @@ import Image from "next/image";
 
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function FollowAnimalWelfare() {
   return (
@@ -41,8 +43,8 @@ export default function FollowAnimalWelfare() {
         </p>
 
         <div className="mt-7 flex flex-wrap gap-2.5">
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signUp}
             className="rounded-xl px-6 py-3 text-sm font-bold"
             style={{
               backgroundColor: C.orange53,
@@ -50,10 +52,10 @@ export default function FollowAnimalWelfare() {
             }}
           >
             Join Free
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signIn}
             className="rounded-xl border px-6 py-3 text-sm font-bold text-white"
             style={{
               borderColor: "rgba(255,255,255,.55)",
@@ -61,7 +63,7 @@ export default function FollowAnimalWelfare() {
             }}
           >
             Sign In
-          </button>
+          </Link>
         </div>
       </div>
     </section>

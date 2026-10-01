@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 const plans = [
   {
@@ -141,8 +142,8 @@ export default function PremiumPlans() {
                   </div>
 
                   {/* Button */}
-                  <button
-                    type="button"
+                  <Link
+                    href="/platform-premium-plans-production"
                     className="min-h-10 w-full rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold transition-opacity hover:opacity-90"
                     style={
                       plan.popular
@@ -158,7 +159,7 @@ export default function PremiumPlans() {
                     }
                   >
                     Compare Plans
-                  </button>
+                  </Link>
                 </div>
 
                 {/* Popular Badge */}

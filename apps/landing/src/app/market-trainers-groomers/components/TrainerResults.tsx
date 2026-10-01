@@ -44,7 +44,7 @@ const TRAINERS: Trainer[] = [
  */
 export default function TrainerResults() {
   return (
-    <div className="flex w-full flex-col items-start gap-6 lg:gap-8">
+    <div id="trainer-results" className="flex w-full flex-col items-start gap-6 lg:gap-8 scroll-mt-24">
       <div className="flex w-full flex-col items-start justify-between gap-3 border-b border-[#dce5e8] pb-4 lg:flex-row lg:items-center lg:gap-0">
         <p className="font-jakarta text-[14px] font-semibold leading-[22.4px] text-[#5e7076]">
           Showing 6 professionals in Portland, OR

@@ -1,10 +1,10 @@
 const RELATED = [
-  { emoji: "🏥", title: "Veterinarians", description: "General practice vets" },
-  { emoji: "🔬", title: "Specialists", description: "Dermatology, cardiology" },
-  { emoji: "🚑", title: "Emergency Care", description: "24-hour facilities" },
-  { emoji: "🏢", title: "Clinics", description: "Full-service facilities" },
-  { emoji: "🛏️", title: "Boarding & Sitting", description: "Pet care services" },
-  { emoji: "🥗", title: "Nutrition", description: "Food & supplies" },
+  { emoji: "🏥", title: "Veterinarians", description: "General practice vets", href: "/market-veterinarians" },
+  { emoji: "🔬", title: "Specialists", description: "Dermatology, cardiology", href: "/market-specialists-production" },
+  { emoji: "🚑", title: "Emergency Care", description: "24-hour facilities", href: "/market-emergency-vet-care" },
+  { emoji: "🏢", title: "Clinics", description: "Full-service facilities", href: "/market-clinics-hospitals" },
+  { emoji: "🛏️", title: "Boarding & Sitting", description: "Pet care services", href: "/market-boarding-sitting-production" },
+  { emoji: "🥗", title: "Nutrition", description: "Food & supplies", href: "/market-nutrition-supplies" },
 ];
 
 /**
@@ -30,7 +30,7 @@ export default function RelatedCare() {
           {RELATED.map((item) => (
             <a
               key={item.title}
-              href="#"
+              href={item.href}
               className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3 rounded-2xl border border-[#dce5e8] bg-white px-6 py-6 text-center"
             >
               <span className="font-jakarta text-[40px] leading-[64px]">{item.emoji}</span>

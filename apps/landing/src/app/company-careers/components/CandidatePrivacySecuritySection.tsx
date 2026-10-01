@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { C } from "./theme";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function CandidatePrivacySecuritySection() {
   return (
@@ -42,7 +43,7 @@ export default function CandidatePrivacySecuritySection() {
             </p>
             <div className="mt-3 sm:mt-4">
               <Link
-                href="/privacy"
+                href={APP_LINKS.privacy}
                 className="inline-block text-sm sm:text-base font-semibold underline transition hover:opacity-80 break-words"
                 style={{ color: C.zest }}
               >

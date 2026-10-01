@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link"
+import { APP_LINKS } from "@/lib/app-links"
+
 export default function ConservationStatusTracker() {
   return (
     <section className="w-full bg-[#F5F8F8] pt-6 pb-8">
@@ -33,12 +36,12 @@ export default function ConservationStatusTracker() {
                 Pacific Northwest wildlife corridor protection
               </h3>
 
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="shrink-0 rounded-[10px] border border-[#DCEAEE] bg-white px-3 py-1.5 text-xs font-semibold leading-4 text-[#3F6972] transition hover:bg-[#F5F8F8]"
               >
                 Track this action
-              </button>
+              </Link>
             </div>
 
             {/* STATUS ROW */}
@@ -75,12 +78,12 @@ export default function ConservationStatusTracker() {
             </div>
 
             {/* DOCUMENT LINK */}
-            <button
-              type="button"
+            <Link
+              href="#"
               className="text-xs font-semibold leading-5 text-[#066879] underline"
             >
               View primary designation document
-            </button>
+            </Link>
           </div>
 
           {/* =====================================================
@@ -94,12 +97,12 @@ export default function ConservationStatusTracker() {
                 Northern coastal marine protected area (proposed)
               </h3>
 
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="shrink-0 rounded-[10px] border border-[#DCEAEE] bg-white px-3 py-1.5 text-xs font-semibold leading-4 text-[#3F6972] transition hover:bg-[#F5F8F8]"
               >
                 Track this action
-              </button>
+              </Link>
             </div>
 
             {/* STATUS ROW */}
@@ -136,12 +139,12 @@ export default function ConservationStatusTracker() {
             </div>
 
             {/* DOCUMENT LINK */}
-            <button
-              type="button"
+            <Link
+              href="#"
               className="text-xs font-semibold leading-5 text-[#066879] underline"
             >
               View official proposal notice
-            </button>
+            </Link>
           </div>
         </div>
       </div>

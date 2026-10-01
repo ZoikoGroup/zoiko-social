@@ -9,7 +9,7 @@ export default function TrustGovernance() {
       title: "Safety Center",
       desc: "Overview of user, animal, and community protections.",
       linkText: "Open Safety Center →",
-      href: "#"
+      href: "/trust-safety-center"
     },
     {
       iconDesktop: "/company-press-media/icon-verification.png",
@@ -17,7 +17,7 @@ export default function TrustGovernance() {
       title: "Verification Systems",
       desc: "How organization, source, and professional verification works.",
       linkText: "Learn About Verification →",
-      href: "#"
+      href: "/adopt-verified-rescues-shelters"
     },
     {
       iconDesktop: "/company-press-media/icon-standards.png",
@@ -25,7 +25,7 @@ export default function TrustGovernance() {
       title: "Community Standards",
       desc: "Rules and enforcement expectations for all users.",
       linkText: "Read Standards →",
-      href: "#"
+      href: "/safety-community-standards"
     },
     {
       iconDesktop: "/company-press-media/icon-transparency.png",

@@ -1,5 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { APP_LINKS } from '@/lib/app-links';
 
 export default function GlobalCoverageHero() {
   return (
@@ -26,12 +28,12 @@ export default function GlobalCoverageHero() {
           Explore verified-source reporting on animal welfare, conservation, rescue, policy, and wildlife crime across Zoiko Social&apos;s active coverage regions.
         </p>
         <div className="flex flex-wrap gap-4">
-          <button className="bg-[#E88924] hover:bg-[#c9701a] text-white px-6 py-2.5 rounded-[10px] font-bold transition text-[14px]">
+          <Link href="/news-your-region" className="bg-[#E88924] hover:bg-[#c9701a] text-white px-6 py-2.5 rounded-[10px] font-bold transition text-[14px]">
             Explore regions
-          </button>
-          <button className="bg-white/10 border border-white/20 hover:bg-white/20 text-white px-6 py-2.5 rounded-[10px] font-bold transition text-[14px]">
+          </Link>
+          <Link href={APP_LINKS.signUp} className="bg-white/10 border border-white/20 hover:bg-white/20 text-white px-6 py-2.5 rounded-[10px] font-bold transition text-[14px]">
             Follow Global Coverage
-          </button>
+          </Link>
         </div>
       </div>
 

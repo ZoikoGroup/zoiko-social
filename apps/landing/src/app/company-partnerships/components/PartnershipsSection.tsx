@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function PartnershipsSection() {
   return (
@@ -23,12 +24,12 @@ export default function PartnershipsSection() {
           </p>
 
           <div className="flex flex-col flex-wrap sm:flex-row gap-4 pt-4 max-w-[400px]">
-            <button className="bg-[#066879] w-full hover:bg-[#055563] text-white font-medium text-sm py-3.5 px-6 rounded-xl shadow-sm transition-all text-center">
+            <Link href="#partnership-inquiry" className="bg-[#066879] w-full hover:bg-[#055563] text-white font-medium text-sm py-3.5 px-6 rounded-xl shadow-sm transition-all text-center">
               Start Partnership Inquiry
-            </button>
-            <button className="bg-white w-full hover:bg-gray-50 text-[#1a2d37] border border-[#DCE5E8] font-medium text-sm py-3.5 px-6 rounded-xl shadow-sm transition-all text-center">
+            </Link>
+            <Link href="#partnership-paths" className="bg-white w-full hover:bg-gray-50 text-[#1a2d37] border border-[#DCE5E8] font-medium text-sm py-3.5 px-6 rounded-xl shadow-sm transition-all text-center">
               Explore Partnership Paths
-            </button>
+            </Link>
           </div>
         </div>
 

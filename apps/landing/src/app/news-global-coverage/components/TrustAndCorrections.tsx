@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 export default function TrustAndCorrections() {
   return (
@@ -12,11 +13,11 @@ export default function TrustAndCorrections() {
             Every source carries a rating against our published standards. A rating is publisher-level context — never a guarantee that a specific article is accurate, complete, or current.
           </p>
           <div className="mt-auto pt-2">
-            <button className="bg-white border border-[#DCE5E8] rounded-md px-4 py-2 hover:bg-[#F7F9FA] transition">
+            <Link href="/news-source-standards" className="bg-white border border-[#DCE5E8] rounded-md px-4 py-2 hover:bg-[#F7F9FA] transition">
               <span className="text-[12px] font-bold text-[#073B47] underline decoration-1 underline-offset-4">
                 View Source Standards
               </span>
-            </button>
+            </Link>
           </div>
         </div>
         
@@ -26,11 +27,11 @@ export default function TrustAndCorrections() {
             Material corrections propagate to region feeds, comparison clusters, saved items, share previews, and alerts — never left stale in just one place.
           </p>
           <div className="mt-auto pt-2">
-            <button className="bg-white border border-[#DCE5E8] rounded-md px-4 py-2 hover:bg-[#F7F9FA] transition">
+            <Link href="/news-report-an-inaccuracy" className="bg-white border border-[#DCE5E8] rounded-md px-4 py-2 hover:bg-[#F7F9FA] transition">
               <span className="text-[12px] font-bold text-[#073B47] underline decoration-1 underline-offset-4">
                 Report an Inaccuracy
               </span>
-            </button>
+            </Link>
           </div>
         </div>
       </div>

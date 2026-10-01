@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 interface FeaturedAnimal {
   id: string;
@@ -134,8 +136,8 @@ export default function FeaturedAnimalsSection() {
                 </div>
 
                 {/* View Profile Button */}
-                <button
-                  type="button"
+                <Link
+                  href={appUrl("/adoption")}
                   className="mt-5 w-full rounded-xl py-3 text-center text-[13.3px] font-bold transition hover:opacity-90 active:scale-[0.99]"
                   style={{
                     backgroundColor: C.blackSqueeze,
@@ -143,7 +145,7 @@ export default function FeaturedAnimalsSection() {
                   }}
                 >
                   View Profile
-                </button>
+                </Link>
               </div>
             </div>
           ))}

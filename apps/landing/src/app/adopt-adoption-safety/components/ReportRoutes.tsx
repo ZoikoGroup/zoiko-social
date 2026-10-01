@@ -55,7 +55,7 @@ export default function ReportRoutes() {
               </span>
             ) : (
               <Link
-                href={route.support ? APP_LINKS.docs : APP_LINKS.safety}
+                href={route.support ? "/support-developers-contact-us" : "/adopt-report-a-concern"}
                 className="shrink-0 self-start rounded-lg px-3.5 py-2 text-xs font-semibold transition hover:opacity-80 sm:self-auto"
                 style={
                   route.support

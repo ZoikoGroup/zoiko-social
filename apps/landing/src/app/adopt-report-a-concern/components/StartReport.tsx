@@ -40,7 +40,7 @@ const REPORT_STEPS: ReportStep[] = [
 
 export default function StartReport() {
   return (
-    <section
+    <section id="report-form"
       className="w-full"
       style={{ backgroundColor: C.page }}
     >

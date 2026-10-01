@@ -35,7 +35,7 @@ export default function WhoWeAreSection() {
           </p>
 
           <div className="mt-6">
-            <ArrowLink href={APP_LINKS.home}>
+            <ArrowLink href="/platform-features">
               See what you can do on Zoiko
             </ArrowLink>
           </div>

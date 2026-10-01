@@ -26,7 +26,7 @@ export default function CTA() {
               Start Report
             </a>
             <a
-              href={APP_LINKS.safety}
+              href="/trust-safety-animal-welfare"
               className="rounded-xl border border-white px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10"
             >
               Learn More

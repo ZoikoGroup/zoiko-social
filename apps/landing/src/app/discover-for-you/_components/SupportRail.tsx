@@ -105,9 +105,9 @@ export function TrendingWidget() {
     <div className="bg-white border border-teal-wash/30 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-[15px] text-teal-deep">Trending Now</h3>
-        <button className="text-[13px] font-medium text-teal-light hover:text-teal-deep transition-colors">
+        <Link href="/discover-trending-now" className="text-[13px] font-medium text-teal-light hover:text-teal-deep transition-colors">
           View all
-        </button>
+        </Link>
       </div>
       <div className="flex flex-col gap-5">
         {trending.map(item => (
@@ -140,7 +140,7 @@ export function SafetyBannerWidget() {
       <p className="text-[13px] text-teal-muted mb-4">
         Learn how Zoiko Social handles safety and animal welfare reports.
       </p>
-      <Link href="/safety" className="text-[14px] font-bold text-teal-light hover:text-teal-light/80 transition-colors flex items-center gap-1.5 w-fit">
+      <Link href="/trust-safety-center" className="text-[14px] font-bold text-teal-light hover:text-teal-light/80 transition-colors flex items-center gap-1.5 w-fit">
         Visit Safety Center <ArrowRight className="w-4 h-4" />
       </Link>
     </div>

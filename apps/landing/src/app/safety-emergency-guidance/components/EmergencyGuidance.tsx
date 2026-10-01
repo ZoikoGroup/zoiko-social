@@ -19,7 +19,7 @@ export default function EmergencyGuidance() {
 
           <div className="pt-2">
             <a
-              href="#"
+              href="/safety-report-concern"
               className="inline-block px-6 py-3.5 rounded-xl bg-[#066879] hover:bg-[#055563] text-white font-medium text-sm transition-colors shadow-sm text-center"
             >
               Report Emergency

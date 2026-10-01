@@ -28,14 +28,14 @@ export default function SafetyBanner() {
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-how-moderation-works"
             className="flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
             style={{ background: C.warmBright }}
           >
             How live safety works
           </Link>
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-report-concern"
             className="flex items-center justify-center rounded-xl border border-white/60 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             Report a concern

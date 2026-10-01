@@ -8,7 +8,7 @@ const supportOptions = [
     description:
       "Step-by-step guides for each type of appeal. Real examples. Common questions. Everything you need to write a strong appeal.",
     button: "Visit Help Center",
-    href: "#",
+    href: "/support-developers-help-center",
   },
   {
     icon: "/safety-appeals/2.png",
@@ -16,7 +16,7 @@ const supportOptions = [
     description:
       "Questions about your case? Confused by our decision? Our support team can help clarify (though they can't change the decision).",
     button: "Contact Support",
-    href: "#",
+    href: "/support-developers-contact-us",
   },
   {
     icon: "/safety-appeals/3.png",
@@ -24,7 +24,7 @@ const supportOptions = [
     description:
       "Other users have been through appeals. Share your experience. Get advice. Learn from real cases. Moderated for fairness.",
     button: "Join Forum",
-    href: "#",
+    href: "/support-developers-community-forums",
   },
   {
     icon: "/safety-appeals/4.png",
@@ -32,7 +32,7 @@ const supportOptions = [
     description:
       "In a rush? Need to know your status? Text your case number. We'll send you real-time updates on your appeal review.",
     button: "Text Status",
-    href: "#",
+    href: "/support-developers-contact-us",
   },
 ];
 

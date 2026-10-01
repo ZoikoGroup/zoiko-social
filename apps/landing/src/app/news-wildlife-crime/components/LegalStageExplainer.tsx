@@ -2,7 +2,7 @@ import React from 'react';
 
 const LegalStageExplainer = () => {
   return (
-    <section className="w-full max-w-[1272px] mx-auto bg-[#EEF8F9] border border-[#DCE5E8] rounded-[28px] mt-10 p-8 lg:p-10">
+    <section id="legal-explainer" className="w-full max-w-[1272px] mx-auto bg-[#EEF8F9] border border-[#DCE5E8] rounded-[28px] mt-10 p-8 lg:p-10">
       <div className="flex flex-col mb-8">
         <h2 className="text-[#073B47] font-extrabold text-[20px] leading-[30px] tracking-[-0.01em]">
           Legal & enforcement stage explainer

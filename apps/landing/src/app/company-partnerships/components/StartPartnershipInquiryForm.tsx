@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from "react";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function StartPartnershipInquiryForm() {
   const [formData, setFormData] = useState({
@@ -32,7 +33,7 @@ export default function StartPartnershipInquiryForm() {
   };
 
   return (
-    <div className="w-full bg-[#FFFFFF] py-16 px-4 md:px-8 font-sans text-[#1a2d37] flex items-center justify-center">
+    <div id="partnership-inquiry" className="scroll-mt-24 w-full bg-[#FFFFFF] py-16 px-4 md:px-8 font-sans text-[#1a2d37] flex items-center justify-center">
       <div className="max-w-7xl w-full space-y-8">
         {/* Section Heading & Subtitle */}
         <div className="space-y-2">
@@ -187,7 +188,7 @@ export default function StartPartnershipInquiryForm() {
                 className="text-xs md:text-sm text-[#5a6e75] leading-relaxed"
               >
                 I agree to the{" "}
-                <a href="#" className="text-[#066879] underline font-medium">
+                <a href={APP_LINKS.privacy} className="text-[#066879] underline font-medium">
                   Privacy Notice
                 </a>{" "}
                 and understand my data will be used to discuss partnership

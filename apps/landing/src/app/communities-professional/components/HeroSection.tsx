@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function HeroSection() {
   return (
@@ -16,17 +17,17 @@ export default function HeroSection() {
         context shown from approved Zoiko Social data.
       </div>
 
-      <div className="w-[260px] h-11 left-0 top-[189.50px] absolute bg-cyan-800 rounded-xl flex items-center justify-center">
+      <Link href="/communities-professional" className="w-[260px] h-11 left-0 top-[189.50px] absolute bg-cyan-800 rounded-xl flex items-center justify-center">
         <div className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5">
           Explore professional communities
         </div>
-      </div>
+      </Link>
 
-      <div className="w-[200px] h-11 left-[274.41px] top-[189.50px] absolute bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center">
+      <Link href="/communities-all" className="w-[200px] h-11 left-[274.41px] top-[189.50px] absolute bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center">
         <div className="text-teal-950 text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5">
           Browse all communities
         </div>
-      </div>
+      </Link>
 
       <div className="w-[620px] h-16 left-0 top-[248.50px] absolute bg-cyan-50 rounded-xl">
         <div className="size-3.5 left-[14px] top-[14px] absolute flex items-center justify-center">

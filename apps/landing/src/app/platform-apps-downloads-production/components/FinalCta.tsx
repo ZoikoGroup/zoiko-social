@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 /**
  * Closing CTA — "Ready to join the Zoiko Social community?" matching Figma.
@@ -33,12 +34,12 @@ export default function FinalCta() {
 
           {/* Download Button */}
           <div className="pt-3">
-            <button
-              type="button"
+            <Link
+              href="#official-apps"
               className="inline-flex items-center justify-center rounded-xl bg-white px-7 py-3 text-sm font-bold text-[#073B47] shadow-sm transition hover:bg-white/90"
             >
               Download Now
-            </button>
+            </Link>
           </div>
         </div>
       </div>

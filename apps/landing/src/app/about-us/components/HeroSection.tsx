@@ -43,7 +43,7 @@ export default function HeroSection() {
 
           <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-4">
             <Link
-              href={APP_LINKS.home}
+              href="/platform-features"
               className="flex w-full items-center justify-center rounded-xl bg-white px-6 py-3.5 text-base font-semibold transition hover:bg-white/90 sm:w-auto"
               style={{ color: C.ink }}
             >

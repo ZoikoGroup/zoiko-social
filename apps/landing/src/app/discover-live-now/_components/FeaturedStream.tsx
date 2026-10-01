@@ -4,7 +4,6 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
 import { C } from "./theme";
 import { FEATURED } from "./streams";
 import { Avatar, LiveBadge, OverlayBadge } from "./StreamCard";
@@ -78,7 +77,7 @@ export default function FeaturedStream() {
 
         <div className="mt-4 flex flex-wrap gap-2.5">
           <Link
-            href={APP_LINKS.communities}
+            href="#"
             className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
             style={{ background: C.brand }}
           >

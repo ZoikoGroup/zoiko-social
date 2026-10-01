@@ -32,7 +32,7 @@ const TRUST = [
     icon: Shield,
     title: "Report an event or safety concern",
     body: "Available on every listing — content, animal-welfare, and organizer concerns route to the right team.",
-    link: { label: "Report a concern >", href: APP_LINKS.safety },
+    link: { label: "Report a concern >", href: "/safety-report-concern" },
   },
 ] as const;
 

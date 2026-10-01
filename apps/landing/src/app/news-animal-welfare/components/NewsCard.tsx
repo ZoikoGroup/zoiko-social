@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { C } from "./theme";
+import Link from "next/link";
 
 export type NewsItem = {
   id: number;
@@ -468,12 +469,12 @@ export default function NewsCard({ item }: Props) {
                 Skip
               </button>
 
-              <button
-                type="button"
+              <Link
+                href="/safety-report-concern"
                 className="rounded-[10px] border border-white/60 px-4 py-2 text-sm font-semibold text-white"
               >
                 Report
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -526,15 +527,15 @@ export default function NewsCard({ item }: Props) {
           borderColor: C.line,
         }}
       >
-        <button
-          type="button"
+        <Link
+          href="#"
           className="rounded-lg px-3 py-1.5 text-xs font-bold"
           style={{
             color: C.cyan15,
           }}
         >
           Open Source
-        </button>
+        </Link>
 
         {item.followTopic && (
           <button
@@ -571,15 +572,15 @@ export default function NewsCard({ item }: Props) {
         </button>
 
         {item.discuss && (
-          <button
-            type="button"
+          <Link
+            href="/communities-all"
             className="rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{
               color: C.azure42,
             }}
           >
             Discuss in Community
-          </button>
+          </Link>
         )}
 
         <button

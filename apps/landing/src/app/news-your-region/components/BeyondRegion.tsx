@@ -160,7 +160,7 @@ export default function BeyondRegion() {
           </p>
 
           <a
-            href="#"
+            href="/news-global-coverage"
             className="mt-0 flex h-6 w-fit items-center text-base font-semibold leading-6 text-cyan-800"
           >
             <span>Browse Global Coverage</span>
@@ -188,7 +188,7 @@ export default function BeyondRegion() {
           </p>
 
           <a
-            href="#"
+            href="/news-source-standards"
             className="flex h-6 w-fit items-center text-base font-semibold leading-6 text-cyan-800"
           >
             <span>Read Source Standards</span>
@@ -216,7 +216,7 @@ export default function BeyondRegion() {
           </p>
 
           <a
-            href="#"
+            href="/news-report-an-inaccuracy"
             className="flex h-6 w-fit items-center text-base font-semibold leading-6 text-cyan-800"
           >
             <span>Report an Inaccuracy</span>

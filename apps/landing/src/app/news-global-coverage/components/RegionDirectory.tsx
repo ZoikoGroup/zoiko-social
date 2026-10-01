@@ -1,5 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const regions = [
   {
@@ -91,9 +92,9 @@ export default function RegionDirectory() {
               
               <div className="mt-auto">
                 <p className="text-[11px] text-[#5E7076] mb-3">{region.time}</p>
-                <button className="bg-transparent border border-[#DCE5E8] hover:bg-[#F7F9FA] text-[#102A32] text-[12px] font-bold px-4 py-1.5 rounded-full transition w-max">
+                <Link href="/news-your-region" className="bg-transparent border border-[#DCE5E8] hover:bg-[#F7F9FA] text-[#102A32] text-[12px] font-bold px-4 py-1.5 rounded-full transition w-max">
                   View region
-                </button>
+                </Link>
               </div>
             </div>
           </div>

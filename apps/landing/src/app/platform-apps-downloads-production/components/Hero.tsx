@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 /**
  * Hero — "Download Zoiko Social Today".
@@ -34,18 +35,18 @@ export default function Hero() {
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-6 pt-4">
-          <button
-            type="button"
+          <Link
+            href="#getting-started"
             className="flex items-center rounded-xl bg-white px-8 py-4 text-center font-jakarta text-base font-bold text-[#0f5a68] shadow-sm transition hover:bg-white/90"
           >
             Get Started
-          </button>
-          <button
-            type="button"
+          </Link>
+          <Link
+            href="#choose-platform"
             className="flex items-center rounded-xl bg-white px-8 py-4 text-center font-jakarta text-base font-bold text-[#0f5a68] shadow-sm transition hover:bg-white/90"
           >
             View All Options
-          </button>
+          </Link>
         </div>
       </div>
     </section>

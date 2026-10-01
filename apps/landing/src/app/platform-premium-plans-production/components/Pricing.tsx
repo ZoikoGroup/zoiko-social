@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 // Figma color tokens
 const INK_COLOR = "#073B47";          // Headings & text: Firefly/Ink
 const MOSQUE_COLOR = "#066879";       // Brand / CTA: Mosque
@@ -11,7 +13,7 @@ const PREMIUM_BG = "#F0F7F9";         // Premium card bg: Black Squeeze
  */
 export default function Pricing() {
   return (
-    <section className="w-full bg-white px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
+    <section id="pricing" className="w-full bg-white px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
       <div className="mx-auto flex w-full max-w-[1040px] flex-col gap-12">
         {/* Section Heading */}
         <h2
@@ -50,8 +52,8 @@ export default function Pricing() {
             </div>
 
             <div className="flex flex-col items-center gap-3 pt-8">
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="w-full rounded-xl py-3.5 text-center text-sm font-bold transition hover:bg-neutral-50"
                 style={{
                   border: `1px solid ${BORDER_COLOR}`,
@@ -60,7 +62,7 @@ export default function Pricing() {
                 }}
               >
                 Start Free
-              </button>
+              </Link>
               <p
                 className="text-center text-xs leading-5"
                 style={{ color: NEVADA_COLOR }}
@@ -107,13 +109,13 @@ export default function Pricing() {
             </div>
 
             <div className="flex flex-col items-center gap-3 pt-6">
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="w-full rounded-xl py-3.5 text-center text-sm font-bold text-white shadow-sm transition hover:opacity-90"
                 style={{ backgroundColor: MOSQUE_COLOR }}
               >
                 Upgrade Now
-              </button>
+              </Link>
               <p
                 className="text-center text-xs leading-5"
                 style={{ color: NEVADA_COLOR }}
