@@ -73,12 +73,12 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
   {
     title: "Legal & Privacy",
     links: [
-      { label: "Terms of Service", href: PLACEHOLDER },
+      { label: "Terms of Service", href: "/legal-privacy-terms-of-service" },
       { label: "Privacy Policy", href: PLACEHOLDER },
       { label: "Cookie Policy", href: PLACEHOLDER },
       { label: "Accessibility Statement", href: PLACEHOLDER },
-      { label: "Data Protection & Privacy Rights", href: PLACEHOLDER },
-      { label: "Legal Notices", href: PLACEHOLDER },
+      { label: "Data Protection & Privacy Rights", href: "/legal-privacy-rights" },
+      { label: "Legal Notices", href: "/legal-privacy-legal-notices" },
     ],
   },
   {
