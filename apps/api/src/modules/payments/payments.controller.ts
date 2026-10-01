@@ -4,6 +4,7 @@ import Stripe from 'stripe'
 import { OrdersService } from './orders.service'
 import { StripeService } from './stripe.service'
 import { ConfigService } from '../config/config.service'
+import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
@@ -25,6 +26,7 @@ export class PaymentsController {
     private readonly orders: OrdersService,
     private readonly stripe: StripeService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
 
@@ -59,7 +61,24 @@ export class PaymentsController {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
+        if (session.mode === 'subscription') {
+          const userId = session.client_reference_id;
+          const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement;
+          if (userId && entitlement) {
+            const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+            await this.prisma.subscription.create({
+              data: {
+                userId,
+                entitlement,
+                stripeId: subscriptionId,
+                status: 'active',
+                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
+              }
+            });
+          }
+        } else {
+          await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
+        }
         break
       }
       case 'checkout.session.expired': {

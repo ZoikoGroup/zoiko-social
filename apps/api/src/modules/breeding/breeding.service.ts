@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -124,6 +125,7 @@ export class BreedingService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   private ownerInclude() {
@@ -366,6 +368,8 @@ export class BreedingService {
   }
 
   async create(ownerId: string, input: CreateBreedingInput): Promise<BreedingResponse> {
+    await this.commercial.checkBreederLimit(ownerId)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, about: input.about, location: input.location }, { actorId: ownerId, entityType: 'breeding_profile' })
     // Pull details from the linked Health Passport pet when provided.

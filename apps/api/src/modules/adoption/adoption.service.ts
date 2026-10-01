@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -64,6 +65,7 @@ export class AdoptionService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
     private readonly affinity: AffinityService,
   ) {}
 
@@ -199,6 +201,11 @@ export class AdoptionService {
   }
 
   async create(posterId: string, input: CreateListingInput): Promise<ListingResponse> {
+    // Note: requires determining if user is organization, defaulting to false for now as we don't have user fetched here
+    const user = await this.prisma.profile.findUnique({ where: { id: posterId }, select: { organizationStatus: true } });
+    const isOrg = user?.organizationStatus === 'approved';
+    await this.commercial.checkAdoptionLimit(posterId, isOrg);
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ name: input.name, breed: input.breed, description: input.description, location: input.location }, { actorId: posterId, entityType: 'adoption_listing' })
     const l = await this.prisma.adoptionPost.create({

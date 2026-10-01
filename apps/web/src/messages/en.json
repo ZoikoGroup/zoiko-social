@@ -148,6 +148,8 @@
       "notificationsDesc": "Push, email, in-app alerts",
       "preferences": "Preferences",
       "preferencesDesc": "Theme, language, accessibility",
+      "billing": "Billing & Plans",
+      "billingDesc": "Manage subscriptions and upgrades",
       "help": "Help & About",
       "helpDesc": "Support, terms, version info"
     },

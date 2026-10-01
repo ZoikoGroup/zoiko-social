@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -189,6 +190,7 @@ export class ProvidersService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -364,6 +366,8 @@ export class ProvidersService {
   }
 
   async create(addedBy: string, input: CreateProviderInput): Promise<ProviderResponse> {
+    await this.commercial.checkCareProviderLimit(addedBy)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ name: input.name, serviceType: input.serviceType, description: input.description, location: input.location, address: input.address }, { actorId: addedBy, entityType: 'provider' })
     const p = await this.prisma.serviceProvider.create({
