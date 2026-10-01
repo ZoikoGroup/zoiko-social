@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 interface SpeciesHub {
   id: string;
@@ -51,12 +52,12 @@ export default function SpeciesHubsSection() {
           <h2 className="text-xl sm:text-2xl font-bold text-[#0B2E2E] tracking-tight">
             Species Hubs
           </h2>
-          <button
-            type="button"
+          <Link
+            href="/communities-by-species"
             className="text-xs sm:text-sm font-semibold text-[#0B5C66] hover:underline cursor-pointer"
           >
             View all species
-          </button>
+          </Link>
         </div>
 
         {/* Grid of Species Cards */}
@@ -64,7 +65,7 @@ export default function SpeciesHubsSection() {
           {SPECIES_HUBS.map((hub) => (
             <a
               key={hub.id}
-              href={`/species/${hub.name.toLowerCase().replace(/\s+/g, "-")}`}
+              href="/communities-by-species"
               className="group relative h-48 sm:h-52 w-full rounded-2xl overflow-hidden shadow-xs hover:shadow-md transition-all cursor-pointer block"
             >
               {/* Background Image */}

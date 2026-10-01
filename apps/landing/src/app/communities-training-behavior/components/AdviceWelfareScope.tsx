@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 const CARDS = [
   {
@@ -37,6 +38,7 @@ const CARDS = [
     description:
       "Content that promotes cruelty, severe fear, pain, deprivation, unsafe restraint, or intentional harm can be reported and is governed by our animal-welfare policy.",
     link: "Report harmful advice",
+    href: "/safety-report-concern",
     warn: false,
     icon: (
       <>
@@ -51,6 +53,7 @@ const CARDS = [
     description:
       "A Training & Behavior community is not automatically professional or credentialed. Professional status is shown separately, only when governed and approved.",
     link: "Find Professional communities",
+    href: "/communities-professional",
     warn: false,
     icon: (
       <>
@@ -113,9 +116,9 @@ export default function AdviceWelfareScope() {
               </div>
             </div>
             {card.link && (
-              <div className="text-cyan-800 text-xs font-bold font-['Plus_Jakarta_Sans'] cursor-pointer">
+              <Link href={card.href ?? "#"} className="text-cyan-800 text-xs font-bold font-['Plus_Jakarta_Sans'] cursor-pointer">
                 {card.link} &gt;
-              </div>
+              </Link>
             )}
           </div>
         ))}

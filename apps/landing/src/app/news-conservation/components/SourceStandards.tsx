@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 /* ============================================================
    SHIELD + CHECK ICON
@@ -103,6 +104,7 @@ function CircleWrongIcon() {
 }
 
 type ReportItemProps = {
+  href: string;
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -110,14 +112,15 @@ type ReportItemProps = {
 };
 
 function ReportItem({
+  href,
   icon,
   title,
   description,
   secondLine,
 }: ReportItemProps) {
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       className="flex w-full items-start gap-3 rounded-xl border border-[#DCEAEE] bg-white px-3.5 py-3 text-left"
     >
       {/* ICON BOX */}
@@ -141,7 +144,7 @@ function ReportItem({
           {secondLine}
         </p>
       </div>
-    </button>
+    </Link>
   );
 }
 
@@ -197,6 +200,7 @@ export default function SourceStandards() {
 
               {/* 1. REPORT AN INACCURACY → SHIELD + CHECK */}
 <ReportItem
+  href="/news-report-an-inaccuracy"
   icon={<ShieldCheckIcon />}
   title="Report an Inaccuracy"
   description="Headline, summary, source, or media problem"
@@ -205,6 +209,7 @@ export default function SourceStandards() {
 
 {/* 2. ANIMAL WELFARE SAFETY CONCERN → TRIANGLE + ! */}
 <ReportItem
+  href="/safety-report-concern"
   icon={<TriangleWarningIcon />}
   title="Animal Welfare Safety Concern"
   description="Active animal abuse or exploitation"
@@ -213,6 +218,7 @@ export default function SourceStandards() {
 
 {/* 3. WILDLIFE CRIME / POACHING CONCERN → CIRCLE + X */}
 <ReportItem
+  href="/safety-report-concern"
   icon={<CircleWrongIcon />}
   title="Wildlife Crime / Poaching Concern"
   description="Suspected trafficking or"

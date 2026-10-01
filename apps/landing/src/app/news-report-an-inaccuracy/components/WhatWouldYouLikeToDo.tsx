@@ -1,4 +1,5 @@
 import { Flag, ShieldAlert, Clock } from "lucide-react";
+import Link from "next/link";
 
 export default function WhatWouldYouLikeToDo() {
   return (
@@ -8,7 +9,7 @@ export default function WhatWouldYouLikeToDo() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Option 1 */}
-        <div className="bg-[#EEF8F9] border border-[#066879] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
+        <Link href="#submit-report" className="bg-[#EEF8F9] border border-[#066879] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
           <div className="w-11 h-11 bg-[#066879] rounded-xl flex items-center justify-center mb-6 text-white">
             <Flag size={20} />
           </div>
@@ -20,10 +21,10 @@ export default function WhatWouldYouLikeToDo() {
           <div className="flex items-center text-[#073B47] font-bold text-sm gap-2">
             Start editorial report &rarr;
           </div>
-        </div>
+        </Link>
 
         {/* Option 2 */}
-        <div className="bg-white border border-[#E5E7EB] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
+        <Link href="/safety-report-concern" className="bg-white border border-[#E5E7EB] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
           <div className="w-11 h-11 bg-white border border-[#E5E7EB] shadow-sm rounded-xl flex items-center justify-center mb-6 text-[#5E7076]">
             <ShieldAlert size={20} />
           </div>
@@ -35,10 +36,10 @@ export default function WhatWouldYouLikeToDo() {
           <div className="flex items-center text-[#073B47] font-bold text-sm gap-2">
             Go to safety reporting &rarr;
           </div>
-        </div>
+        </Link>
 
         {/* Option 3 */}
-        <div className="bg-white border border-[#E5E7EB] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
+        <Link href="/support-developers-contact-us" className="bg-white border border-[#E5E7EB] rounded-[28px] p-8 flex flex-col cursor-pointer hover:shadow-md transition-shadow">
           <div className="w-11 h-11 bg-white border border-[#E5E7EB] shadow-sm rounded-xl flex items-center justify-center mb-6 text-[#5E7076]">
             <Clock size={20} />
           </div>
@@ -51,7 +52,7 @@ export default function WhatWouldYouLikeToDo() {
           <div className="flex items-center text-[#073B47] font-bold text-sm gap-2">
             See other options &rarr;
           </div>
-        </div>
+        </Link>
       </div>
     </section>
   );

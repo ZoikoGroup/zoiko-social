@@ -1,6 +1,8 @@
 "use client";
 
 import { C } from "./theme";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function Hero() {
   return (
@@ -193,8 +195,8 @@ export default function Hero() {
               "
             >
               {/* Primary Button */}
-              <button
-                type="button"
+              <Link
+                href="/news-animal-welfare"
                 className="
                   inline-flex
                   min-h-[44px]
@@ -220,11 +222,11 @@ export default function Hero() {
                 }}
               >
                 Explore current welfare stories
-              </button>
+              </Link>
 
               {/* Secondary Button */}
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="
                   inline-flex
                   min-h-[44px]
@@ -251,7 +253,7 @@ export default function Hero() {
                 }}
               >
                 Follow Animal Welfare
-              </button>
+              </Link>
             </div>
 
             {/* Bottom Information */}
@@ -311,8 +313,8 @@ export default function Hero() {
               </div>
 
               {/* Source Ratings */}
-              <button
-                type="button"
+              <Link
+                href="/news-source-standards"
                 className="
                   inline-flex
                   items-center
@@ -330,11 +332,11 @@ export default function Hero() {
                 }}
               >
                 How source ratings work
-              </button>
+              </Link>
 
               {/* Report Concern */}
-              <button
-                type="button"
+              <Link
+                href="/safety-report-concern"
                 className="
                   inline-flex
                   items-center
@@ -352,7 +354,7 @@ export default function Hero() {
                 }}
               >
                 Report an animal welfare concern
-              </button>
+              </Link>
             </div>
           </div>
         </div>

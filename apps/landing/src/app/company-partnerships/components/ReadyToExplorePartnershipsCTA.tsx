@@ -36,13 +36,13 @@ export default function ReadyToExplorePartnershipsCTA() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
               <a
-                href="#"
+                href="#partnership-inquiry"
                 className="bg-white hover:bg-[#F0F2F3] text-[#1a2d37] font-semibold text-xs md:text-sm py-3.5 px-6 rounded-2xl shadow-sm transition-all text-center"
               >
                 Start Partnership Inquiry
               </a>
               <a
-                href="#"
+                href="/support-developers-contact-us"
                 className="bg-transparent hover:bg-white/10 text-white border border-white/40 font-semibold text-xs md:text-sm py-3.5 px-6 rounded-2xl transition-all text-center"
               >
                 Schedule a Discussion

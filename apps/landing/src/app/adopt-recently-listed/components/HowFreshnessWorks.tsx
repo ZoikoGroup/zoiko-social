@@ -1,4 +1,5 @@
 import { C } from "./theme";
+import Link from "next/link";
 
 /* --------------------------------------------------
    LISTED VS UPDATED ICON
@@ -187,7 +188,7 @@ function ArrowRightIcon() {
 
 export default function HowFreshnessWorks() {
   return (
-    <section
+    <section id="how-freshness-works"
       className="
         w-full
         px-5
@@ -385,8 +386,8 @@ export default function HowFreshnessWorks() {
               </p>
             </div>
 
-            <button
-              type="button"
+            <Link
+              href="/adopt-verified-rescues-shelters"
               className="
                 flex
                 items-center
@@ -408,7 +409,7 @@ export default function HowFreshnessWorks() {
               </span>
 
               <ArrowRightIcon />
-            </button>
+            </Link>
           </div>
 
           {/* ========================================

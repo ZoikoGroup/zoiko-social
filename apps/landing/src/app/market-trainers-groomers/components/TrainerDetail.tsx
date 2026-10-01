@@ -43,7 +43,7 @@ function ChecklistColumn({ title, items }: { title: string; items: string[] }) {
  */
 export default function TrainerDetail() {
   return (
-    <div className="flex w-full flex-col items-start gap-8 rounded-[28px] border border-[#dce5e8] bg-white p-6 lg:gap-12">
+    <div id="trainer-detail" className="scroll-mt-24 flex w-full flex-col items-start gap-8 rounded-[28px] border border-[#dce5e8] bg-white p-6 lg:gap-12">
       <div className="flex w-full flex-col items-start gap-6 border-b border-[#dce5e8] pb-8 lg:flex-row lg:gap-[47px]">
         <div
           className="h-[300px] w-full shrink-0 overflow-hidden rounded-[28px] lg:h-[351px] lg:w-[505px]"

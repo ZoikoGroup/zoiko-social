@@ -17,7 +17,7 @@ const changes = [
 
 export default function AdFreeChanges() {
   return (
-    <section className="w-full bg-white">
+    <section id="what-changes" className="w-full bg-white scroll-mt-24">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col items-center gap-12 px-6 py-12 sm:px-8 sm:py-16 md:px-12 md:py-20 lg:px-28 lg:py-20">
 
         {/* Main Content */}

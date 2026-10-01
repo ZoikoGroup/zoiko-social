@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 
 const feedItems = [
   {
@@ -71,8 +72,8 @@ export default function AdFreeFeed() {
 
                 {/* Buttons */}
                 <div className="flex w-full flex-wrap items-start gap-4 pt-5">
-                  <button
-                    type="button"
+                  <Link
+                    href="/platform-premium-plans-production"
                     className="min-h-10 rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold transition-opacity hover:opacity-90"
                     style={{
                       backgroundColor: "#087A8B",
@@ -80,10 +81,10 @@ export default function AdFreeFeed() {
                     }}
                   >
                     Compare Plans
-                  </button>
+                  </Link>
 
-                  <button
-                    type="button"
+                  <Link
+                    href="#what-changes"
                     className="min-h-10 rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold transition-colors hover:bg-[#F5F7F7]"
                     style={{
                       backgroundColor: "#FFFFFF",
@@ -92,7 +93,7 @@ export default function AdFreeFeed() {
                     }}
                   >
                     What changes
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>

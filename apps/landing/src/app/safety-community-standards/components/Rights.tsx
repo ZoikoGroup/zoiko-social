@@ -38,7 +38,7 @@ export default function Rights() {
             </p>
 
             <Link
-              href="#start-appeal"
+              href="/safety-appeals"
               className="inline-flex w-full items-center justify-center rounded-xl bg-[#00AFC7] px-5 py-3 font-['Plus_Jakarta_Sans'] text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:w-auto"
             >
               Start Appeal
@@ -59,7 +59,7 @@ export default function Rights() {
             </div>
 
             <Link
-              href="#appeal-suspension"
+              href="/safety-appeals"
               className="inline-flex w-full items-center justify-center rounded-xl bg-[#00AFC7] px-5 py-3 font-['Plus_Jakarta_Sans'] text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:w-auto"
             >
               Appeal Suspension

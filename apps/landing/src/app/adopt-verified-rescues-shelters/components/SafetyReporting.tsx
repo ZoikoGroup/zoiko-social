@@ -1,4 +1,5 @@
 import { C } from "./theme";
+import Link from "next/link";
 
 export default function SafetyReporting() {
   return (
@@ -241,8 +242,8 @@ export default function SafetyReporting() {
               "
             >
               {/* Adoption Safety */}
-              <button
-                type="button"
+              <Link
+                href="/adopt-adoption-safety"
                 className="
                   inline-flex
                   min-h-[40px]
@@ -264,11 +265,11 @@ export default function SafetyReporting() {
                 }}
               >
                 Adoption Safety
-              </button>
+              </Link>
 
               {/* Report a Concern */}
-              <button
-                type="button"
+              <Link
+                href="/adopt-report-a-concern"
                 className="
                   inline-flex
                   min-h-[40px]
@@ -292,7 +293,7 @@ export default function SafetyReporting() {
                 }}
               >
                 Report a Concern
-              </button>
+              </Link>
             </div>
           </div>
         </div>

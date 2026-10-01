@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 const images = {
   hero: "/news-conservation/image1.png",
@@ -358,13 +359,13 @@ function FeaturedStory() {
           {/* Buttons */}
           <div className="absolute left-[26px] top-[307px]">
             <div className="flex items-center gap-2.5">
-              <button
-                type="button"
+              <Link
+                href="#"
                 className="inline-flex items-center gap-1.5 rounded-xl bg-[#066879] px-4 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold leading-5 text-white"
               >
                 <span className="underline">Read Story</span>
                 <span>↗</span>
-              </button>
+              </Link>
 
               <button
                 type="button"
@@ -465,12 +466,12 @@ function StoryCard({
 
         {/* Buttons */}
         <div className="mt-[10px] flex items-center gap-2">
-          <button
-            type="button"
+          <Link
+            href="#"
             className="rounded-[10px] bg-[#066879] px-3 py-2 font-['Plus_Jakarta_Sans'] text-xs font-semibold text-white"
           >
             Read Story
-          </button>
+          </Link>
 
           <button
             type="button"
@@ -497,12 +498,12 @@ function StoryCard({
               {story.follow}
             </button>
 
-            <button
-              type="button"
+            <Link
+              href="/news-report-an-inaccuracy"
               className="font-['Plus_Jakarta_Sans'] text-xs font-semibold text-[#6B8790] underline"
             >
               Report an inaccuracy
-            </button>
+            </Link>
           </div>
         )}
       </div>
@@ -567,12 +568,12 @@ export default function ConservationContent() {
 
             {/* CTA */}
             <div className="pt-2">
-              <button
-                type="button"
+              <Link
+                href="/news-conservation"
                 className="inline-flex items-center justify-center rounded-xl bg-[#F59A23] px-4 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold leading-5 text-white transition-colors hover:bg-[#E98D16]"
               >
                 Explore current conservation stories
-              </button>
+              </Link>
             </div>
           </div>
         </div>

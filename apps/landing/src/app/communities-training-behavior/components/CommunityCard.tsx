@@ -1,5 +1,7 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export interface CommunityCardData {
   id: string;
@@ -82,7 +84,8 @@ export default function CommunityCard({ card }: CommunityCardProps) {
         <div className="flex-1" />
 
         <div className="flex gap-2 pt-2">
-          <button
+          <Link
+            href={APP_LINKS.signUp}
             className={`flex-1 h-9 rounded-[9px] flex items-center justify-center text-[12.5px] font-bold font-['Plus_Jakarta_Sans'] cursor-pointer transition-colors ${
               actionLabel === "Join"
                 ? "bg-cyan-800 text-white hover:bg-cyan-900"
@@ -90,7 +93,7 @@ export default function CommunityCard({ card }: CommunityCardProps) {
             }`}
           >
             {actionLabel}
-          </button>
+          </Link>
           <button
             aria-label="More options"
             className="w-8 rounded-md bg-neutral-100 flex items-center justify-center cursor-pointer hover:bg-neutral-200 transition-colors"

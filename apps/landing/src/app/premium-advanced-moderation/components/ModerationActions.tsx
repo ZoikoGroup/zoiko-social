@@ -44,7 +44,7 @@ const actions = [
 
 export default function ModerationActions() {
   return (
-    <section className="w-full bg-[#F7F9FA]">
+    <section id="moderation-actions" className="w-full bg-[#F7F9FA] scroll-mt-24">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col items-start px-6 py-12 sm:px-10 sm:py-16 lg:px-28 lg:py-20">
         <div className="flex w-full max-w-[1280px] flex-col items-start gap-12">
           {/* Heading */}

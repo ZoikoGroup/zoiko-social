@@ -1,1 +1,1 @@
-export { default, metadata } from "../zoiko-social-trust-safety-profanity-free-policy/page";
+export { default, metadata } from "../trust-safety-profanity-free-policy/page";

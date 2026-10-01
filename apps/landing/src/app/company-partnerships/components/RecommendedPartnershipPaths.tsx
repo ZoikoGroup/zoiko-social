@@ -30,7 +30,7 @@ const partnershipPaths: PartnershipPath[] = [
 
 export default function RecommendedPartnershipPaths() {
   return (
-    <div className="w-full bg-white py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
+    <div id="partnership-paths" className="scroll-mt-24 w-full bg-white py-16 px-4 md:px-8 font-sans text-[#1a2d37]">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Section Heading & Subtitle */}
         <div className="space-y-3 max-w-3xl">
@@ -86,7 +86,7 @@ export default function RecommendedPartnershipPaths() {
               {/* Learn More Link */}
               <div className="pt-2">
                 <a
-                  href="#"
+                  href="#partnership-inquiry"
                   className="inline-flex items-center text-xs md:text-sm font-semibold text-[#066879] hover:underline"
                 >
                   Learn more &rarr;

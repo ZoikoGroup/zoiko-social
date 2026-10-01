@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function CheckAccess() {
   return (
@@ -36,8 +38,8 @@ export default function CheckAccess() {
 
           {/* Buttons */}
           <div className="flex w-full flex-wrap items-start gap-4 pt-2">
-            <button
-              type="button"
+            <Link
+              href={APP_LINKS.signIn}
               className="min-h-10 rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold transition-opacity hover:opacity-90"
               style={{
                 backgroundColor: "#087A8B",
@@ -45,10 +47,10 @@ export default function CheckAccess() {
               }}
             >
               Sign In to Check
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href="/platform-premium-plans-production"
               className="min-h-10 rounded-xl px-5 py-2.5 font-['Plus_Jakarta_Sans'] text-sm font-semibold transition-colors hover:bg-[#F5F7F7]"
               style={{
                 backgroundColor: "#FFFFFF",
@@ -57,7 +59,7 @@ export default function CheckAccess() {
               }}
             >
               Learn More
-            </button>
+            </Link>
           </div>
         </div>
       </div>

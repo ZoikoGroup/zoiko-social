@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { C } from "./theme";
+import Link from "next/link";
 
 export type NewsItem = {
   id: number;
@@ -427,9 +428,9 @@ export default function NewsCard({ item }: Props) {
                 Skip
               </button>
 
-              <button className="rounded-[10px] border border-white/60 px-4 py-2 text-sm font-semibold text-white">
+              <Link href="/safety-report-concern" className="rounded-[10px] border border-white/60 px-4 py-2 text-sm font-semibold text-white">
                 Report
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -440,12 +441,12 @@ export default function NewsCard({ item }: Props) {
         className="mt-3 flex flex-wrap items-center gap-1 border-t pt-3"
         style={{ borderColor: C.line }}
       >
-        <button
+        <Link href="#"
           className="rounded-lg px-3 py-1.5 text-xs font-bold"
           style={{ color: C.cyan15 }}
         >
           Open Source
-        </button>
+        </Link>
 
         <button
           className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold"
@@ -464,12 +465,12 @@ export default function NewsCard({ item }: Props) {
         </button>
 
         {item.lead && (
-          <button
+          <Link href="/communities-all"
             className="rounded-lg px-3 py-1.5 text-xs font-semibold"
             style={{ color: C.azure42 }}
           >
             Discuss in Community
-          </button>
+          </Link>
         )}
 
         <button

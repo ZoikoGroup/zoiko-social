@@ -146,7 +146,7 @@ function MoreMenu({ onNotInterested }: { onNotInterested: () => void }) {
             Not interested
           </button>
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-report-concern"
             role="menuitem"
             className="block px-3 py-2 text-xs font-semibold hover:bg-[#F7F9F9]"
             style={{ color: C.inkDeep }}

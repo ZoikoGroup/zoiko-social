@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 type Organization = {
   id: number;
@@ -487,8 +489,8 @@ function OrganizationCard({
         {/* Buttons */}
 
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
+          <Link
+            href={appUrl("/adoption")}
             className="rounded-[10px] px-3 py-2 text-xs font-semibold transition-opacity hover:opacity-90"
             style={{
               backgroundColor: C.brand,
@@ -496,10 +498,10 @@ function OrganizationCard({
             }}
           >
             View Organization
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href={appUrl("/adoption")}
             className="rounded-[10px] px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-[#F5F8F8]"
             style={{
               backgroundColor: C.white,
@@ -508,21 +510,21 @@ function OrganizationCard({
             }}
           >
             {organization.paused ? "Follow" : "View Animals"}
-          </button>
+          </Link>
         </div>
 
         {/* Report concern */}
 
         <div className="pt-1.5">
-          <button
-            type="button"
+          <Link
+            href="/adopt-report-a-concern"
             className="text-xs font-semibold underline underline-offset-2"
             style={{
               color: C.muted,
             }}
           >
             Report a concern
-          </button>
+          </Link>
         </div>
       </div>
     </article>
@@ -626,7 +628,7 @@ export default function VerifiedOrganizations() {
   };
 
   return (
-    <section
+    <section id="verified-organizations"
       className="w-full overflow-hidden"
       style={{
         backgroundColor: C.page,

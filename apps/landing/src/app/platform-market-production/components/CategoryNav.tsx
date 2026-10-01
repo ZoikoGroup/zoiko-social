@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Link from "next/link";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -27,9 +28,16 @@ const categories = [
   },
 ];
 
+const CATEGORY_HREF: Record<string, string> = {
+  "Professional Care": "#professional-care",
+  "Emergency Care": "/market-emergency-vet-care",
+  "Services & Supplies": "#services-supplies",
+  "Insurance & Plans": "/market-insurance-care",
+};
+
 export default function CategoryNav() {
   return (
-    <section
+    <section id="market-categories"
       className={`
         ${plusJakartaSans.className}
         w-full
@@ -82,9 +90,9 @@ export default function CategoryNav() {
           "
         >
           {categories.map((category) => (
-            <button
+            <Link
               key={category.label}
-              type="button"
+              href={CATEGORY_HREF[category.label] ?? "#"}
               className={`
                 rounded-[20px]
                 px-6
@@ -104,7 +112,7 @@ export default function CategoryNav() {
               `}
             >
               {category.label}
-            </button>
+            </Link>
           ))}
         </div>
       </div>

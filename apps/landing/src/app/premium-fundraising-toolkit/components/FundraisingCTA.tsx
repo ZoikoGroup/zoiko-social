@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function FundraisingCTA() {
   return (
@@ -32,12 +34,12 @@ export default function FundraisingCTA() {
 
             {/* CTA Button */}
             <div className="flex w-full flex-wrap justify-center gap-4 pt-8">
-              <button
-                type="button"
+              <Link
+                href={APP_LINKS.signUp}
                 className="min-h-10 rounded-xl bg-[#F59E0B] px-5 py-2.5 text-center text-sm font-semibold leading-5 text-white transition-opacity duration-200 hover:opacity-90"
               >
                 Start a Campaign
-              </button>
+              </Link>
             </div>
           </div>
         </div>

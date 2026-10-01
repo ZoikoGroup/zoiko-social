@@ -30,7 +30,7 @@ export default function Commitment() {
           </p>
 
           <Link
-            href="#feedback"
+            href="/support-developers-contact-us"
             className="inline-flex items-center justify-center rounded-xl border border-[#D5E7EA] bg-white px-8 py-4 font-['Plus_Jakarta_Sans'] text-sm font-bold text-[#00AFC7] transition-opacity hover:opacity-90"
           >
             Share Feedback

@@ -1,3 +1,4 @@
+import Link from "next/link"
 /**
  * Search hero: eyebrow, headline, description, and a location + pet type
  * search card.
@@ -54,12 +55,12 @@ export default function Hero() {
             </select>
           </label>
 
-          <button
-            type="button"
+          <Link
+            href="#trainer-results"
             className="flex min-h-[40px] w-full items-center justify-center rounded-xl bg-[#066879] p-[12px] text-center font-jakarta text-[14px] font-semibold text-white"
           >
             Search Training and Grooming Professionals
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -106,12 +107,12 @@ export default function Hero() {
             </label>
           </div>
 
-          <button
-            type="button"
+          <Link
+            href="#trainer-results"
             className="flex min-h-[40px] w-full items-center justify-center rounded-xl bg-[#066879] px-[12px] py-[12px] text-center font-jakarta text-[14px] font-semibold text-white"
           >
             Search Training and Grooming Professionals
-          </button>
+          </Link>
         </div>
       </div>
     </section>

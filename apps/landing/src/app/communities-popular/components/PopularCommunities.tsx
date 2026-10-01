@@ -1,4 +1,5 @@
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Link from "next/link";
 
 // Optimize font loading in Next.js
 const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
@@ -40,11 +41,11 @@ export default function PopularCommunities() {
           </span>
         </button>
 
-        <button className="px-4 py-2.5 bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-cyan-200 hover:bg-gray-50 transition-colors flex justify-start items-center cursor-pointer">
+        <Link href="/communities-all" className="px-4 py-2.5 bg-white rounded-xl outline outline-1 outline-offset-[-1px] outline-cyan-200 hover:bg-gray-50 transition-colors flex justify-start items-center cursor-pointer">
           <span className="justify-center text-cyan-900 text-sm font-semibold underline leading-5">
             Browse All Communities
           </span>
-        </button>
+        </Link>
       </div>
     </div>
   );

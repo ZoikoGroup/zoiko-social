@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BadgeCheck, Heart, Lock, MessageSquareText, Shield, Users } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 const TRUST = [
@@ -33,7 +33,7 @@ const TRUST = [
     icon: Shield,
     title: "Report this event or a safety concern",
     body: "Available from every meetup, whether you’re attending or just browsing.",
-    link: { label: "Report a concern >", href: APP_LINKS.safety },
+    link: { label: "Report a concern >", href: "/safety-report-concern" },
   },
 ] as const;
 

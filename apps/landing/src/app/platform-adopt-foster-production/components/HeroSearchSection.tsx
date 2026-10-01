@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import Link from "next/link";
 
 export default function HeroSearchSection() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -115,8 +116,8 @@ export default function HeroSearchSection() {
               </div>
 
               {/* Search Button */}
-              <button
-                type="button"
+              <Link
+                href="#adoptable-animals"
                 className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-[16px] px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:brightness-105 active:scale-[0.98] md:w-auto"
                 style={{ backgroundColor: C.zest }}
               >
@@ -136,7 +137,7 @@ export default function HeroSearchSection() {
                 </svg>
 
                 <span>Search</span>
-              </button>
+              </Link>
             </div>
           </div>
 

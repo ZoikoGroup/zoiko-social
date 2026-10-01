@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import Link from "next/link";
 
 export default function ShelterSpotlightSection() {
   return (
@@ -78,13 +79,13 @@ export default function ShelterSpotlightSection() {
 
               {/* Action Button */}
               <div className="mt-6 sm:mt-8">
-                <button
-                  type="button"
+                <Link
+                  href="/adopt-verified-rescues-shelters"
                   className="inline-flex w-full sm:w-auto items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95"
                   style={{ backgroundColor: C.mosque }}
                 >
                   Visit Their Page
-                </button>
+                </Link>
               </div>
             </div>
           </div>

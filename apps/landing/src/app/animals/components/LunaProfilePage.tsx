@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { APP_LINKS } from "@/lib/app-links";
 import {
   Bookmark,
   Share2,
@@ -20,7 +21,7 @@ export default function LunaProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-4">
         {/* Breadcrumb Navigation */}
         <nav className="text-xs text-[#64748B] mb-4 flex items-center gap-1.5 font-medium">
-          <Link href="/discover" className="hover:underline">
+          <Link href="/discover-for-you" className="hover:underline">
             Discover
           </Link>
           <span>/</span>
@@ -121,7 +122,7 @@ export default function LunaProfilePage() {
             <span>
               Managed by{" "}
               <Link
-                href="/communities/golden-retriever-guardians"
+                href={APP_LINKS.communities}
                 className="font-bold text-[#0B2E2E] hover:underline"
               >
                 Golden Retriever Guardians
@@ -203,7 +204,7 @@ export default function LunaProfilePage() {
                 Associated Communities
               </h3>
               <Link
-                href="/communities/golden-retriever-guardians"
+                href={APP_LINKS.communities}
                 className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#F8FAFC] transition-all border border-transparent hover:border-[#E2E8F0] group cursor-pointer"
               >
                 <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-[#F1F5F9] shrink-0">
@@ -239,12 +240,12 @@ export default function LunaProfilePage() {
                 Concerned about this profile? Reports are confidential and
                 reviewed against our Community Standards.
               </p>
-              <a
-                href="#report"
+              <Link
+                href="/safety-report-concern"
                 className="inline-flex items-center text-xs font-bold text-[#0B5C66] hover:underline"
               >
                 Report this profile <span className="ml-1">›</span>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

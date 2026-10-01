@@ -6,6 +6,7 @@ import Image from "next/image";
 import NewsCard, { NewsItem } from "./NewsCard";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
 
 const news: NewsItem[] = [
   {
@@ -382,8 +383,8 @@ function CaughtUpCard() {
       </p>
 
       <div className="mt-5 flex flex-wrap justify-center gap-2">
-        <button
-          type="button"
+        <Link
+          href="#"
           className="rounded-[10px] border bg-white px-4 py-2 text-sm font-semibold"
           style={{
             borderColor: C.line,
@@ -391,10 +392,10 @@ function CaughtUpCard() {
           }}
         >
           Browse by Topic
-        </button>
+        </Link>
 
-        <button
-          type="button"
+        <Link
+          href="/news-your-region"
           className="rounded-[10px] border bg-white px-4 py-2 text-sm font-semibold"
           style={{
             borderColor: C.line,
@@ -402,7 +403,7 @@ function CaughtUpCard() {
           }}
         >
           Set Your Region
-        </button>
+        </Link>
       </div>
     </div>
   );
@@ -531,8 +532,8 @@ function GlobalRegion() {
         expose your exact location.
       </p>
 
-      <button
-        type="button"
+      <Link
+        href="/news-your-region"
         className="mt-4 h-11 w-full rounded-[10px] border bg-white text-sm font-bold"
         style={{
           borderColor: C.line,
@@ -540,7 +541,7 @@ function GlobalRegion() {
         }}
       >
         Set Your Region
-      </button>
+      </Link>
     </section>
   );
 }
@@ -550,6 +551,13 @@ function GlobalRegion() {
 --------------------------------------- */
 
 function DiscoverMore() {
+  const TOPIC_HREFS: Record<string, string> = {
+    "Animal Welfare": "/news-animal-welfare",
+    Conservation: "/news-conservation",
+    "Wildlife Crime": "/news-wildlife-crime",
+    "Wildlife & Conservation Communities": "/communities-wildlife-conservation",
+  };
+
   const topics = [
     "Animal Welfare",
     "Conservation",
@@ -575,9 +583,9 @@ function DiscoverMore() {
 
       <div className="mt-5 flex flex-col">
         {topics.map((topic, index) => (
-          <button
+          <Link
             key={topic}
-            type="button"
+            href={TOPIC_HREFS[topic]}
             className={`flex items-center justify-between py-3 text-left text-sm font-semibold ${
               index !== topics.length - 1 ? "border-b" : ""
             }`}
@@ -603,7 +611,7 @@ function DiscoverMore() {
                 strokeLinejoin="round"
               />
             </svg>
-          </button>
+          </Link>
         ))}
       </div>
     </section>
@@ -647,8 +655,8 @@ function ReportingTrustworthy() {
         protection before they can ever appear here.
       </p>
 
-      <button
-        type="button"
+      <Link
+        href="/news-report-an-inaccuracy"
         className="mt-3 inline-flex items-center gap-1 text-sm font-bold"
         style={{
           color: C.cyan25,
@@ -671,7 +679,7 @@ function ReportingTrustworthy() {
             strokeLinejoin="round"
           />
         </svg>
-      </button>
+      </Link>
     </section>
   );
 }
@@ -817,8 +825,8 @@ export default function NewsFeed() {
                 always verify the original source.
               </p>
 
-              <button
-                type="button"
+              <Link
+                href="/news-source-standards"
                 className="mt-4 inline-flex items-center gap-2 text-sm font-bold"
                 style={{
                   color: C.cyan25,
@@ -826,7 +834,7 @@ export default function NewsFeed() {
               >
                 Read Source Standards
                 <ArrowRightIcon />
-              </button>
+              </Link>
             </section>
 
             {/* -----------------------------------

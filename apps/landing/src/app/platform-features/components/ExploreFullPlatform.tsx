@@ -1,6 +1,13 @@
 import Image from "next/image";
 import { C } from "./theme";
 
+const EXPLORE_HREF: Record<string, string> = {
+  Communities: "/discover-communities",
+  Events: "/platform-events",
+  "World Animal News": "/news-latest",
+  "Adopt & Foster": "/platform-adopt-foster-production",
+};
+
 const LINKS = [
   {
     icon: "/platform-features/icon-communities.webp",
@@ -39,7 +46,7 @@ export default function ExploreFullPlatform() {
           {LINKS.map((link) => (
             <a
               key={link.title}
-              href="#"
+              href={EXPLORE_HREF[link.title] ?? "#"}
               className="flex items-center gap-6 rounded-[20px] border bg-white p-6 transition hover:bg-neutral-50/70 sm:p-8"
               style={{ borderColor: C.line }}
             >

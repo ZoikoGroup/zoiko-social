@@ -23,7 +23,7 @@ export default function CommunityPurposeBanner() {
         </p>
 
         <Link
-          href="/standards"
+          href="/safety-community-standards"
           className="mt-1 text-cyan-700 hover:text-cyan-800 text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 transition-colors"
         >
           Learn about community standards

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import Link from "next/link";
 
 const COLORS = {
   ink: "#073B47",
@@ -207,8 +208,8 @@ function FilterButton({
 
 function ReadStoryButton() {
   return (
-    <button
-      type="button"
+    <Link
+      href="#"
       className="flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-xs font-semibold text-white"
       style={{
         backgroundColor: COLORS.brand,
@@ -231,7 +232,7 @@ function ReadStoryButton() {
           strokeLinejoin="round"
         />
       </svg>
-    </button>
+    </Link>
   );
 }
 
@@ -402,15 +403,15 @@ function StoryCard({
                 Follow {story.category}
               </button>
 
-              <button
-                type="button"
+              <Link
+                href="/news-report-an-inaccuracy"
                 className="text-xs font-semibold underline"
                 style={{
                   color: COLORS.azure,
                 }}
               >
                 Report an inaccuracy
-              </button>
+              </Link>
             </div>
           )}
         </div>
@@ -625,8 +626,8 @@ export default function ConservationFeed() {
 
               {/* FEATURED CTA */}
               <div className="mt-5 flex items-center gap-2.5">
-                <button
-                  type="button"
+                <Link
+                  href="#"
                   className="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
                   style={{
                     backgroundColor: COLORS.brand,
@@ -651,7 +652,7 @@ export default function ConservationFeed() {
                       strokeLinejoin="round"
                     />
                   </svg>
-                </button>
+                </Link>
 
                 <button
                   type="button"

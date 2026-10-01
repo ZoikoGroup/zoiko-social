@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function ConversionBand() {
   return (
@@ -13,17 +15,17 @@ export default function ConversionBand() {
       </div>
 
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-3">
-        <div className="h-10 px-6 bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors">
+        <Link href={APP_LINKS.signUp} className="h-10 px-6 bg-orange-500 rounded-xl flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors">
           <div className="text-center text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
             Join Free
           </div>
-        </div>
+        </Link>
 
-        <div className="h-10 px-6 rounded-xl outline outline-1 outline-offset-[-1px] outline-white/50 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
+        <Link href="/communities-all" className="h-10 px-6 rounded-xl outline outline-1 outline-offset-[-1px] outline-white/50 flex items-center justify-center cursor-pointer hover:bg-white/10 transition-colors">
           <div className="text-center text-white text-sm font-semibold font-['Plus_Jakarta_Sans']">
             Browse All Communities
           </div>
-        </div>
+        </Link>
       </div>
 
       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/20 w-full max-w-[380px] justify-center">
@@ -34,9 +36,9 @@ export default function ConversionBand() {
         <span className="text-white text-sm font-normal font-['Plus_Jakarta_Sans'] leading-5">
           Ready to browse adoptable animals?
         </span>
-        <span className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 cursor-pointer">
+        <Link href="/adopt" className="text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] underline leading-5 cursor-pointer">
           Go to Adopt
-        </span>
+        </Link>
       </div>
     </div>
   );

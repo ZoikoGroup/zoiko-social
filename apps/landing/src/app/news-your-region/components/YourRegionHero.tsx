@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import RegionSelectorModal from "./RegionSelectorModal";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function YourRegionHero() {
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
@@ -138,8 +140,8 @@ export default function YourRegionHero() {
 
           {/* BUTTONS */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <Link
+              href={APP_LINKS.signUp}
               className="
                 flex
                 h-12
@@ -156,10 +158,10 @@ export default function YourRegionHero() {
               "
             >
               Join to follow Global Coverage
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href="/news-global-coverage"
               className="
                 flex
                 h-12
@@ -179,7 +181,7 @@ export default function YourRegionHero() {
               "
             >
               Browse Global Coverage
-            </button>
+            </Link>
           </div>
 
           {/* NOTE */}

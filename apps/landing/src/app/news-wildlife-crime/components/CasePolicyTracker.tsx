@@ -1,4 +1,6 @@
 import React from 'react';
+import Link from 'next/link';
+import { APP_LINKS } from '@/lib/app-links';
 
 const CasePolicyTracker = () => {
   return (
@@ -19,9 +21,9 @@ const CasePolicyTracker = () => {
             <h3 className="text-[#102A32] font-bold text-[15px]">
               Regional ivory smuggling prosecution (previously reported as Prosecution active)
             </h3>
-            <button className="mt-4 md:mt-0 bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
+            <Link href={APP_LINKS.signUp} className="mt-4 md:mt-0 bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
               Track this case
-            </button>
+            </Link>
           </div>
           <div className="flex items-center gap-6 mt-4">
             <div className="flex items-center gap-2">
@@ -48,9 +50,9 @@ const CasePolicyTracker = () => {
             <h3 className="text-[#102A32] font-bold text-[15px]">
               Cross-border wildlife trafficking task force (policy)
             </h3>
-            <button className="mt-4 md:mt-0 bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
+            <Link href={APP_LINKS.signUp} className="mt-4 md:mt-0 bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
               Track this policy
-            </button>
+            </Link>
           </div>
           <div className="flex items-center gap-6 mt-4">
             <div className="flex items-center gap-2">

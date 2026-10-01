@@ -1,5 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 const HeroSection = () => {
   return (
@@ -39,12 +40,12 @@ const HeroSection = () => {
 
           {/* Buttons */}
           <div className="flex flex-wrap items-center gap-[10px] mt-6">
-            <button className="bg-[#073B47] text-white font-semibold text-[14px] rounded-[12px] h-[40px] px-[18px]">
+            <Link href="/news-wildlife-crime" className="bg-[#073B47] text-white font-semibold text-[14px] rounded-[12px] h-[40px] px-[18px]">
               Explore current wildlife-crime stories
-            </button>
-            <button className="bg-white text-[#102A32] font-semibold text-[14px] rounded-[12px] h-[40px] px-[19px] border border-[#DCE5E8]">
+            </Link>
+            <Link href="/news-source-standards" className="bg-white text-[#102A32] font-semibold text-[14px] rounded-[12px] h-[40px] px-[19px] border border-[#DCE5E8]">
               How source ratings work
-            </button>
+            </Link>
           </div>
 
           {/* Disclaimer Banner */}

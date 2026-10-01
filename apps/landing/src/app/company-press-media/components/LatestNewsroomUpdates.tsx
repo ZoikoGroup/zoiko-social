@@ -77,7 +77,7 @@ export default function LatestNewsroomUpdates() {
         {/* Footer Link */}
         <div className="flex justify-center mt-4">
           <Link 
-            href="#"
+            href="#press-releases"
             className="text-[#066879] text-[16px] font-semibold font-jakarta underline hover:text-[#055361] transition-colors"
           >
             Browse all releases →

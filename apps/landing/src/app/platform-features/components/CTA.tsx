@@ -1,5 +1,7 @@
 import Image from "next/image";
 import { C } from "./theme";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 /** "Ready to Make a Difference?" — closing CTA over a full-bleed photo. */
 export default function CTA() {
@@ -24,20 +26,20 @@ export default function CTA() {
             real change.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-            <button
-              type="button"
+            <Link
+              href="/discover-communities"
               className="rounded-xl border bg-white px-8 py-[17px] text-sm font-bold"
               style={{ borderColor: C.line, color: C.brand }}
             >
               Explore Communities
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href={APP_LINKS.signUp}
               className="rounded-xl border bg-white px-8 py-[17px] text-sm font-bold"
               style={{ borderColor: C.line, color: C.brand }}
             >
               Join Free Today
-            </button>
+            </Link>
           </div>
         </div>
       </div>

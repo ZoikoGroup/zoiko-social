@@ -1,4 +1,4 @@
-import { appUrl } from "@/lib/app-links";
+
 
 export const IMG = "/safety-support-resources/";
 
@@ -61,7 +61,7 @@ export const RESOURCES: readonly {
     category: "Community",
     tags: ["Community", "Peer Support"],
     action: "Find",
-    href: appUrl("/communities"),
+    href: "/communities-all",
   },
   {
     icon: "icon-peer",
@@ -289,7 +289,7 @@ export const WELLNESS = [
     lead: "Prompts:",
     body: "Gratitude, processing emotions, goal-setting | Free, private, powerful. Pen and paper or digital journals. Structured or freeform.",
     action: "Journal Now",
-    href: appUrl("/communities"),
+    href: "/communities-all",
   },
   {
     image: "wellness-creative",
@@ -298,7 +298,7 @@ export const WELLNESS = [
     lead: "Options:",
     body: "Art, music, writing, crafting | Expresses what words can’t. No talent needed. Therapeutic process, not product.",
     action: "Get Started",
-    href: appUrl("/communities"),
+    href: "/communities-all",
   },
   {
     image: "wellness-sleep",

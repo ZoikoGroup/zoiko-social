@@ -1,5 +1,7 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { APP_LINKS } from '@/lib/app-links';
 
 interface TagProps {
   label: string;
@@ -107,19 +109,19 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
         )}
 
         <div className="flex flex-wrap items-center gap-3 mt-4">
-          <button className="bg-[#073B47] text-white font-semibold text-[13px] rounded-[10px] h-[32px] px-4 flex items-center gap-2">
+          <Link href="#" className="bg-[#073B47] text-white font-semibold text-[13px] rounded-[10px] h-[32px] px-4 flex items-center gap-2">
             Read Story
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M1 9L9 1M9 1H3M9 1V7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-          </button>
+          </Link>
           <button className="bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
             Save
           </button>
           {isLead && (
-            <button className="bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
+            <Link href={APP_LINKS.signUp} className="bg-white text-[#102A32] font-semibold text-[13px] rounded-[10px] h-[32px] px-4 border border-[#DCE5E8]">
               Track this case
-            </button>
+            </Link>
           )}
         </div>
 
@@ -127,7 +129,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({
           <div className="flex items-center gap-6 mt-4 text-[#5E7076] text-[12px] font-medium">
             <button className="hover:text-[#102A32]">Share</button>
             <button className="hover:text-[#102A32]">Follow Seizures & Interdictions</button>
-            <button className="hover:text-[#102A32]">Report an inaccuracy</button>
+            <Link href="/news-report-an-inaccuracy" className="hover:text-[#102A32]">Report an inaccuracy</Link>
           </div>
         )}
       </div>

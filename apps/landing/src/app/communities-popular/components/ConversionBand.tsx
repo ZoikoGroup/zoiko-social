@@ -1,4 +1,6 @@
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 // Optimize font loading in Next.js
 const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
@@ -22,15 +24,15 @@ export default function ConversionBand() {
 
       {/* Call to Action Buttons */}
       <div className="pt-3 flex flex-wrap justify-center items-center gap-3">
-        <button className="w-36 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl flex justify-center items-center cursor-pointer">
+        <Link href={APP_LINKS.signUp} className="w-36 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 transition-colors rounded-xl flex justify-center items-center cursor-pointer">
           <span className="text-white text-sm font-semibold">Join Free</span>
-        </button>
+        </Link>
 
-        <button className="px-4 py-2.5 rounded-xl border border-white/50 hover:bg-white/10 transition-colors flex justify-center items-center cursor-pointer">
+        <Link href="/communities-all" className="px-4 py-2.5 rounded-xl border border-white/50 hover:bg-white/10 transition-colors flex justify-center items-center cursor-pointer">
           <span className="text-white text-sm font-semibold">
             Browse All Communities
           </span>
-        </button>
+        </Link>
       </div>
     </section>
   );

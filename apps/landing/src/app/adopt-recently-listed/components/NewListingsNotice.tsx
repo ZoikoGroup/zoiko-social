@@ -1,4 +1,6 @@
 import { C } from "./theme";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 export default function NewListingsNotice() {
   return (
@@ -101,8 +103,8 @@ export default function NewListingsNotice() {
         </div>
 
         {/* Save This Search */}
-        <button
-          type="button"
+        <Link
+          href={appUrl("/adoption")}
           className="
             flex
             items-center
@@ -121,7 +123,7 @@ export default function NewListingsNotice() {
           }}
         >
           Save This Search
-        </button>
+        </Link>
       </div>
     </section>
   );

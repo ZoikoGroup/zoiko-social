@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link"
+
 export default function TrustInspectCta() {
   return (
     <section className="w-full bg-[#F5F8F8]">
@@ -86,8 +88,8 @@ export default function TrustInspectCta() {
             "
           >
             {/* Read Animal News */}
-            <button
-              type="button"
+            <Link
+              href="/news-latest"
               className="
                 flex
                 h-10
@@ -106,11 +108,11 @@ export default function TrustInspectCta() {
               "
             >
               Read Animal News
-            </button>
+            </Link>
 
             {/* Report an Inaccuracy */}
-            <button
-              type="button"
+            <Link
+              href="/news-report-an-inaccuracy"
               className="
                 flex
                 h-10
@@ -131,7 +133,7 @@ export default function TrustInspectCta() {
               "
             >
               Report an Inaccuracy
-            </button>
+            </Link>
           </div>
         </div>
       </div>

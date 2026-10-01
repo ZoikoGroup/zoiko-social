@@ -71,7 +71,7 @@ export default function CommunityCard({ community }: { community: Community }) {
         </p>
 
         <Link
-          href={APP_LINKS.safety}
+          href="/safety-community-standards"
           className="mt-2.5 self-start text-xs font-semibold underline underline-offset-2 transition hover:opacity-80"
           style={{ color: C.brand }}
         >

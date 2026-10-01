@@ -1,6 +1,7 @@
 "use client";
 
 import { C } from "./theme";
+import Link from "next/link";
 
 export default function LatestNewsHeader() {
   return (
@@ -172,8 +173,8 @@ export default function LatestNewsHeader() {
         </div>
 
         {/* How source ratings work */}
-        <button
-          type="button"
+        <Link
+          href="/news-source-standards"
           className="
             mt-1
             inline-flex
@@ -210,7 +211,7 @@ export default function LatestNewsHeader() {
               strokeLinejoin="round"
             />
           </svg>
-        </button>
+        </Link>
       </div>
     </section>
   );

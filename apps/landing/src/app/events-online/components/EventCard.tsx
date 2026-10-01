@@ -2,6 +2,8 @@ import Image from "next/image";
 import { Bookmark, BadgeCheck, Clock, Radio } from "lucide-react";
 import type { OnlineEvent, Status } from "./events";
 import { C } from "./theme";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 type Badge = { label: string; bg: string; icon?: "clock" | "live" };
 
@@ -141,8 +143,8 @@ export default function EventCard({
         </p>
 
         <div className="mt-6 flex gap-2">
-          <button
-            type="button"
+          <Link
+            href={appUrl("/events")}
             className="rounded-lg px-3 py-2 text-xs font-semibold transition hover:opacity-90"
             style={
               canceled
@@ -151,7 +153,7 @@ export default function EventCard({
             }
           >
             {ACTIONS[event.status]}
-          </button>
+          </Link>
           <button
             type="button"
             onClick={onToggleSave}

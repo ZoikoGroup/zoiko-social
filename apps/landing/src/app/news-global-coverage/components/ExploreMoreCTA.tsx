@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 export default function ExploreMoreCTA() {
   return (
@@ -11,12 +12,12 @@ export default function ExploreMoreCTA() {
           Publishable coverage is available in regions across the globe. Select a region to dive deeper into local stories and updates.
         </p>
         <div className="flex gap-4">
-          <button className="bg-[#E88924] hover:bg-[#c9701a] text-white px-6 py-3 rounded-xl font-bold transition">
+          <Link href="/news-your-region" className="bg-[#E88924] hover:bg-[#c9701a] text-white px-6 py-3 rounded-xl font-bold transition">
             View Regions
-          </button>
-          <button className="bg-transparent border border-white/20 hover:bg-white/10 text-white px-6 py-3 rounded-xl font-bold transition">
+          </Link>
+          <Link href="/news-latest" className="bg-transparent border border-white/20 hover:bg-white/10 text-white px-6 py-3 rounded-xl font-bold transition">
             View Global Journal
-          </button>
+          </Link>
         </div>
       </div>
     </div>

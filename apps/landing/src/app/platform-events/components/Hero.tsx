@@ -47,7 +47,7 @@ export default function Hero() {
           {/* Buttons: 344px width x 42px height */}
           <div className="flex w-full flex-col gap-4 pt-3 sm:flex-row">
             <a
-              href={APP_EVENTS_URL}
+              href="/events-upcoming"
               className="flex h-[42px] w-full items-center justify-center rounded-xl text-center text-sm font-semibold text-white shadow-sm transition hover:opacity-90 sm:w-[344px]"
               style={{ background: MOSQUE_COLOR }}
             >

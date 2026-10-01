@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import Image from "next/image";
 import { X, Check, Clock } from "lucide-react";
+import Link from "next/link";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -229,12 +230,12 @@ export default function UserProfileModal({
             >
               Hide suggestion
             </button>
-            <button
-              type="button"
+            <Link
+              href="/safety-report-concern"
               className="hover:underline cursor-pointer hover:text-[#0B2E2E]"
             >
               Report
-            </button>
+            </Link>
             <button
               type="button"
               className="text-[#DC2626] font-medium hover:underline cursor-pointer"

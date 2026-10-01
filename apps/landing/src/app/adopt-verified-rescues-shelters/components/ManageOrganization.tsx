@@ -1,4 +1,6 @@
 import { C } from "./theme";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function ManageOrganization() {
   return (
@@ -92,8 +94,8 @@ export default function ManageOrganization() {
           </div>
 
           {/* CTA */}
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signIn}
             className="
               inline-flex
               shrink-0
@@ -118,7 +120,7 @@ export default function ManageOrganization() {
             }}
           >
             Manage or Claim Organization
-          </button>
+          </Link>
         </div>
       </div>
     </section>

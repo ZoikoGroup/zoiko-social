@@ -4,6 +4,7 @@ import Image from "next/image";
 import { BadgeCheck, Bookmark, CalendarClock, Check, Info, MapPin, MoreHorizontal } from "lucide-react";
 import { C } from "./theme";
 import { STATUS_LABEL, type FosterNeed, type Status } from "./fosterNeeds";
+import { appUrl } from "@/lib/app-links";
 
 /** Badge fill and text colour per status. */
 const STATUS_STYLE: Record<Status, { background: string; color: string }> = {
@@ -130,7 +131,7 @@ export default function FosterCard({
             whose copy runs to different lengths. */}
         <div className="mt-auto flex items-center gap-1.5 pt-4">
           <a
-            href="#"
+            href={appUrl("/adoption")}
             aria-disabled={!open}
             tabIndex={open ? undefined : -1}
             className={`flex-1 rounded-lg px-2.5 py-2 text-center text-xs font-bold leading-5 transition ${

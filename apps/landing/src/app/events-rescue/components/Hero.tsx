@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 const TEXT_SHADOW = { textShadow: "0px 1px 3px rgba(0,0,0,0.40)" };
@@ -116,7 +116,7 @@ export default function Hero() {
         <span>
           Rescue/beneficiary relationship shown <b style={{ color: C.ink }}>separately</b>
         </span>
-        <a href={APP_LINKS.safety} className="font-bold hover:underline sm:ml-auto" style={{ color: C.brand }}>
+        <a href="/adopt-verified-rescues-shelters" className="font-bold hover:underline sm:ml-auto" style={{ color: C.brand }}>
           How We Verify &gt;
         </a>
       </div>

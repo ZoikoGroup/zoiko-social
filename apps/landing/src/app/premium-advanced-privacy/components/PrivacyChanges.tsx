@@ -22,7 +22,7 @@ const cannotControl = [
 
 export default function PrivacyChanges() {
   return (
-    <section className="w-full bg-white">
+    <section id="what-changes" className="w-full bg-white scroll-mt-24">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col items-start gap-8 px-6 py-12 sm:px-8 sm:py-16 md:px-12 md:py-20 lg:px-28 lg:py-20">
         {/* Heading + Description */}
         <div className="flex w-full max-w-[1280px] flex-col items-start gap-6">

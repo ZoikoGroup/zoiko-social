@@ -36,13 +36,13 @@ export default function CTABanner() {
             </p>
             <div className="flex flex-wrap gap-6 mt-2">
               <Link
-                href="#"
+                href="#media-inquiry"
                 className="bg-white border border-[#dce5e8] text-[#066879] font-bold font-jakarta text-[14px] px-6 py-3 rounded-[12px] hover:bg-gray-50 transition-colors whitespace-nowrap"
               >
                 Start Media Inquiry
               </Link>
               <Link
-                href="#"
+                href="/company-brand-assets"
                 className="border border-[#dce5e8] text-white font-bold font-jakarta text-[14px] px-6 py-3 rounded-[12px] hover:bg-white/10 transition-colors whitespace-nowrap"
               >
                 Download Media Kit
@@ -71,13 +71,13 @@ export default function CTABanner() {
           </div>
           <div className="flex flex-col gap-[16px] items-center justify-center pt-[8px] w-full">
             <Link
-              href="#"
+              href="#media-inquiry"
               className="w-full bg-white text-[#066879] font-bold font-jakarta text-[14px] py-[12px] rounded-[12px] text-center hover:bg-gray-50 transition-colors"
             >
               Start Media Inquiry
             </Link>
             <Link
-              href="#"
+              href="/company-brand-assets"
               className="w-full bg-white border border-[#dce5e8] text-[#066879] font-bold font-jakarta text-[14px] py-[12px] rounded-[12px] text-center hover:bg-gray-50 transition-colors"
             >
               Download Media Kit

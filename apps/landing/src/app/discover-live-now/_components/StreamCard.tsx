@@ -4,7 +4,6 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Check, Users } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
 import { C } from "./theme";
 import type { Badge, Stream, Topic } from "./streams";
 
@@ -191,7 +190,7 @@ export default function StreamCard({
           ) : (
             <>
               <Link
-                href={APP_LINKS.communities}
+                href="#"
                 className="rounded-[10px] px-3 py-2 text-xs font-semibold text-white transition hover:opacity-90"
                 style={{ background: C.brand }}
               >
@@ -227,7 +226,7 @@ export default function StreamCard({
           <button type="button" onClick={onHide} className={quietLink}>
             Hide
           </button>
-          <Link href={APP_LINKS.safety} className={quietLink}>
+          <Link href="/safety-report-concern" className={quietLink}>
             Report
           </Link>
         </div>

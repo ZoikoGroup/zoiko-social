@@ -21,7 +21,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/popular",
+      href: "/communities-popular",
     },
     {
       title: "By Species",
@@ -41,7 +41,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/species",
+      href: "/communities-by-species",
     },
     {
       title: "Professional",
@@ -61,7 +61,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/professional",
+      href: "/communities-professional",
     },
     {
       title: "Rescue & Adoption",
@@ -81,7 +81,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/rescue",
+      href: "/communities-rescue-adoption",
     },
     {
       title: "Training & Behavior",
@@ -101,7 +101,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/training",
+      href: "/communities-training-behavior",
     },
     {
       title: "Wildlife & Conservation",
@@ -121,7 +121,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/conservation",
+      href: "/communities-wildlife-conservation",
     },
     {
       title: "Memorial & Support",
@@ -141,7 +141,7 @@ export default function BrowseCategories() {
           />
         </svg>
       ),
-      href: "/communities/memorial",
+      href: "#",
     },
   ];
 

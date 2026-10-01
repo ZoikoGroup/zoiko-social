@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function AdvancedModerationHero() {
   return (
@@ -40,19 +41,19 @@ export default function AdvancedModerationHero() {
 
           {/* Buttons */}
           <div className="flex w-full flex-wrap items-start gap-4 pt-8">
-            <button
-              type="button"
+            <Link
+              href="#moderation-actions"
               className="w-full rounded-xl bg-white px-6 py-3.5 text-center text-base font-semibold leading-6 text-[#066879] transition-opacity duration-200 hover:opacity-90 sm:w-auto sm:min-w-[136px]"
             >
               See the tools
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href="#team-permissions"
               className="w-full rounded-xl border border-white/50 px-6 py-3.5 text-center text-base font-semibold leading-6 text-white transition-colors duration-200 hover:bg-white/10 sm:w-auto"
             >
               View permissions
-            </button>
+            </Link>
           </div>
         </div>
 

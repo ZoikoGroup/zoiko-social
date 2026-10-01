@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link"
+
 export default function ConservationNewsHero() {
   return (
     <section className="w-full bg-[#F5F8F8]">
@@ -224,8 +226,8 @@ export default function ConservationNewsHero() {
                 sm:pt-3
               "
             >
-              <button
-                type="button"
+              <Link
+                href="/news-conservation"
                 className="
                   inline-flex
                   min-h-[44px]
@@ -249,7 +251,7 @@ export default function ConservationNewsHero() {
                 "
               >
                 Explore current conservation stories
-              </button>
+              </Link>
             </div>
           </div>
         </div>

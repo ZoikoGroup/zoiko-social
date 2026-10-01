@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 export default function ProfessionalHandoff() {
   return (
@@ -21,11 +22,11 @@ export default function ProfessionalHandoff() {
         </div>
       </div>
 
-      <div className="w-full sm:w-auto h-[41px] px-5 bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors shrink-0">
+      <Link href="/communities-professional" className="w-full sm:w-auto h-[41px] px-5 bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors shrink-0">
         <span className="text-cyan-950 text-sm font-semibold font-['Plus_Jakarta_Sans']">
           Explore Professional Communities
         </span>
-      </div>
+      </Link>
     </div>
   );
 }

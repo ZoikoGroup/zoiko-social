@@ -76,7 +76,7 @@ export default function MediaResources() {
               
               <div className="flex flex-col items-center w-full mt-6 gap-3">
                 <Link 
-                  href="#"
+                  href="/company-brand-assets"
                   className={`w-full py-[12px] px-[20px] rounded-[12px] font-semibold font-jakarta text-[14px] text-center transition-colors flex items-center justify-center ${
                     res.btnPrimary 
                       ? "bg-[#066879] text-white hover:bg-[#055361]" 
@@ -145,7 +145,7 @@ export default function MediaResources() {
               </div>
               <div className="w-full pt-[12px] mt-auto">
                 <Link 
-                  href="#"
+                  href="/company-brand-assets"
                   className={`w-full py-[12px] px-[20px] rounded-[12px] font-semibold font-jakarta text-[14px] text-center transition-colors flex items-center justify-center ${
                     res.btnPrimary 
                       ? "bg-[#066879] text-white hover:bg-[#055361]" 

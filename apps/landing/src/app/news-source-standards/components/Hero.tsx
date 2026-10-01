@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Hero() {
   return (
@@ -159,8 +160,8 @@ export default function Hero() {
               </p>
 
               {/* Button */}
-              <button
-                type="button"
+              <Link
+                href="/news-latest"
                 className="
                   mt-[20px]
                   flex
@@ -180,7 +181,7 @@ export default function Hero() {
                 "
               >
                 Read Animal News
-              </button>
+              </Link>
             </div>
           </div>
 

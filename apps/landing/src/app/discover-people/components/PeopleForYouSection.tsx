@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { Check } from "lucide-react";
 import UserProfileModal from "@/components/UserProfileModal";
+import Link from "next/link";
 
 interface Person {
   id: string;
@@ -317,12 +318,12 @@ export default function PeopleForYouSection() {
                       >
                         Hide
                       </button>
-                      <button
-                        type="button"
+                      <Link
+                        href="/safety-report-concern"
                         className="hover:underline cursor-pointer hover:text-[#64748B]"
                       >
                         Report
-                      </button>
+                      </Link>
                     </div>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function Hero() {
   return (
@@ -23,7 +24,7 @@ export default function Hero() {
             </p>
 
             <Link
-              href="#start-appeal"
+              href={APP_LINKS.signIn}
               className="inline-flex items-center justify-center rounded-xl bg-[#00AFC7] px-5 py-3 text-center text-sm font-semibold text-white"
             >
               Start an Appeal

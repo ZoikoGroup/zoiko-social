@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useState } from "react";
 import { C } from "./theme";
 import { IMAGES } from "./images";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 type Listing = {
   name: string;
@@ -784,9 +786,10 @@ function ListingCard({
         >
           {/* VIEW ADOPTION PROFILE */}
 
-          <button
-            type="button"
-            disabled={!listing.available}
+          <Link
+            href={appUrl("/adoption")}
+            aria-disabled={!listing.available}
+            tabIndex={listing.available ? undefined : -1}
             className="
               flex
               h-[32px]
@@ -802,6 +805,8 @@ function ListingCard({
               whitespace-nowrap
             "
             style={{
+              pointerEvents: listing.available ? undefined : "none",
+
               backgroundColor: listing.available
                 ? C.cyan25
                 : "#F1F3F2",
@@ -818,7 +823,7 @@ function ListingCard({
             }}
           >
             View Adoption Profile
-          </button>
+          </Link>
 
           {/* MORE */}
 
@@ -921,7 +926,7 @@ export default function AdoptionListings() {
   );
 
   return (
-    <section
+    <section id="new-listings"
       className="w-full"
       style={{
         backgroundColor: C.page,

@@ -1,9 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function MediaInquiryForm() {
   return (
-    <section className="bg-[#f7f9fa] w-full">
+    <section id="media-inquiry" className="scroll-mt-24 bg-[#f7f9fa] w-full">
       {/* === DESKTOP LAYOUT === */}
       <div className="hidden md:flex flex-col gap-9 px-6 xl:px-20 py-[80px] mx-auto max-w-[1440px]">
         {/* Header */}
@@ -120,7 +121,7 @@ export default function MediaInquiryForm() {
               />
               <label className="text-[14px] font-jakarta text-[#102a32]">
                 <span className="font-semibold">I agree to the </span>
-                <Link href="#" className="text-[#066879] underline">Privacy Notice</Link>
+                <Link href={APP_LINKS.privacy} className="text-[#066879] underline">Privacy Notice</Link>
                 <span className="font-semibold"> and understand my data will be used to respond to my inquiry. *</span>
               </label>
             </div>
@@ -267,7 +268,7 @@ export default function MediaInquiryForm() {
               <div className="flex flex-col">
                 <div className="text-[14px] font-jakarta">
                   <span className="font-semibold text-[#102a32]">I agree to the </span>
-                  <Link href="#" className="text-[#066879] underline font-semibold">Privacy Notice</Link>
+                  <Link href={APP_LINKS.privacy} className="text-[#066879] underline font-semibold">Privacy Notice</Link>
                   <span className="font-semibold text-[#102a32]"> and</span>
                 </div>
                 <div className="text-[14px] font-semibold font-jakarta text-[#102a32]">

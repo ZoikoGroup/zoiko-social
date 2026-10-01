@@ -1,4 +1,14 @@
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 // Figma color tokens
+// Store listings don't exist yet, so those buttons stay "#".
+const APP_ACTION_HREF: Record<string, string> = {
+  "Open Web App": APP_LINKS.home,
+  "Install PWA": APP_LINKS.home,
+  Requirements: "#system-requirements",
+  "Notify Me": APP_LINKS.signUp,
+};
+
 const INK_COLOR = "#073B47";          // Headings & titles: Firefly
 const MOSQUE_COLOR = "#066879";       // Primary CTA & Tag text: Mosque
 const NEVADA_COLOR = "#646E73";       // Descriptions & Publishers: Nevada
@@ -85,7 +95,7 @@ const APPS: {
  */
 export default function OfficialApps() {
   return (
-    <section className="w-full bg-white px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
+    <section id="official-apps" className="w-full bg-white px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
       <div className="mx-auto flex w-full max-w-[1020px] flex-col items-center gap-10">
         {/* Section Header */}
         <div className="flex flex-col items-center gap-3 text-center">
@@ -162,17 +172,17 @@ export default function OfficialApps() {
                     {app.primary}
                   </span>
                 ) : (
-                  <button
-                    type="button"
+                  <Link
+                    href={APP_ACTION_HREF[app.primary] ?? "#"}
                     className="inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-center text-xs font-bold text-white shadow-sm transition hover:opacity-90"
                     style={{ backgroundColor: MOSQUE_COLOR }}
                   >
                     {app.primary}
-                  </button>
+                  </Link>
                 )}
 
-                <button
-                  type="button"
+                <Link
+                  href={APP_ACTION_HREF[app.secondary] ?? "#"}
                   className="inline-flex items-center justify-center rounded-xl px-6 py-2.5 text-center text-xs font-bold transition hover:bg-neutral-100"
                   style={{
                     backgroundColor: TAG_BG,
@@ -180,7 +190,7 @@ export default function OfficialApps() {
                   }}
                 >
                   {app.secondary}
-                </button>
+                </Link>
               </div>
             </div>
           ))}

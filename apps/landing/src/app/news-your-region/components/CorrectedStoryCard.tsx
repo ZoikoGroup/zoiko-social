@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link"
+
 export default function CorrectedStoryCard() {
   return (
     <section className="w-full bg-[#F5F8F8]">
@@ -220,12 +222,12 @@ export default function CorrectedStoryCard() {
           <div className="mx-[21px] flex h-12 items-center">
 
             {/* Open Source */}
-            <button
-              type="button"
+            <Link
+              href="#"
               className="ml-[12px] whitespace-nowrap text-xs font-bold leading-5 text-[#062F39]"
             >
               Open Source
-            </button>
+            </Link>
 
             {/* Save */}
             <button

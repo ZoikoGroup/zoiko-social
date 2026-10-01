@@ -1,11 +1,11 @@
-import { APP_LINKS } from "@/lib/app-links";
+
 
 /**
  * The app has no dedicated welfare-report form yet, so every "Report" action
  * points at the reporting guide in the Safety & Trust docs, as the other
  * landing pages' "Report a concern" links do.
  */
-export const REPORT_URL = `${APP_LINKS.safety}#reporting`;
+export const REPORT_URL = "/safety-report-concern";
 
 export const IMG = "/safety-animal-welfare/";
 

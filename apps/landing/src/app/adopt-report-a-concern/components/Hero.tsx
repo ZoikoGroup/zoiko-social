@@ -49,7 +49,7 @@ export default function Hero() {
               </Link>
 
               <Link
-                href="/adoption-safety"
+                href="/adopt-adoption-safety"
                 className="inline-flex min-h-[50px] items-center justify-center rounded-xl border bg-white px-6 py-3 text-base font-semibold leading-6 transition-colors"
                 style={{
                   borderColor: C.line,

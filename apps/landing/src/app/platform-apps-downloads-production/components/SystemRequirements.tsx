@@ -36,7 +36,7 @@ const COLUMNS = [
  */
 export default function SystemRequirements() {
   return (
-    <section className="w-full bg-[#f1f4f5] px-6 py-20 lg:px-28">
+    <section id="system-requirements" className="w-full bg-[#f1f4f5] px-6 py-20 lg:px-28">
       <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-12">
         <h2 className="text-center font-jakarta text-4xl font-extrabold leading-10 text-[#0f3d46]">
           System Requirements

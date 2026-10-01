@@ -1,9 +1,11 @@
 import React from "react";
+import Link from "next/link";
 
 const CATEGORIES = [
   {
     id: "all",
     title: "All Communities",
+    href: "/communities-all",
     description: "Browse every community available for discovery.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -15,6 +17,7 @@ const CATEGORIES = [
   {
     id: "popular",
     title: "Popular",
+    href: "/communities-popular",
     description: "See communities with strong current activity.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -26,6 +29,7 @@ const CATEGORIES = [
   {
     id: "by-species",
     title: "By Species",
+    href: "/communities-by-species",
     description: "Find a community for a specific animal.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -36,6 +40,7 @@ const CATEGORIES = [
   {
     id: "professional",
     title: "Professional",
+    href: "/communities-professional",
     description: "Communities associated with vets, trainers, and shelters.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -46,6 +51,7 @@ const CATEGORIES = [
   {
     id: "training-behavior",
     title: "Training & Behavior",
+    href: "/communities-training-behavior",
     description: "Explore communities about training and animal behavior.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -57,6 +63,7 @@ const CATEGORIES = [
   {
     id: "wildlife-conservation",
     title: "Wildlife & Conservation",
+    href: "/communities-wildlife-conservation",
     description: "Explore communities following conservation work around the world.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -67,6 +74,7 @@ const CATEGORIES = [
   {
     id: "memorial-support",
     title: "Memorial & Support",
+    href: "#",
     description: "Find spaces for remembrance and mutual support.",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -85,8 +93,9 @@ export default function BrowseAnotherWay() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {CATEGORIES.map((category) => (
-          <div
+          <Link
             key={category.id}
+            href={category.href}
             className="bg-white rounded-[20px] outline outline-1 outline-offset-[-1px] outline-zinc-200 p-5 flex flex-col gap-4 cursor-pointer hover:shadow-[0_8px_24px_rgba(7,59,71,0.08)] transition-shadow"
           >
             <div className="size-9 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -100,7 +109,7 @@ export default function BrowseAnotherWay() {
                 {category.description}
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

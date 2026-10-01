@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Link from "next/link";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -109,8 +110,8 @@ export default function MarketCta() {
             "
           >
             {/* Browse All Categories */}
-            <button
-              type="button"
+            <Link
+              href="#market-categories"
               className="
                 min-h-14
                 rounded-xl
@@ -128,11 +129,11 @@ export default function MarketCta() {
               "
             >
               Browse All Categories
-            </button>
+            </Link>
 
             {/* Get Support */}
-            <button
-              type="button"
+            <Link
+              href="/support-developers-contact-us"
               className="
                 min-h-14
                 rounded-xl
@@ -150,7 +151,7 @@ export default function MarketCta() {
               "
             >
               Get Support
-            </button>
+            </Link>
           </div>
         </div>
       </div>

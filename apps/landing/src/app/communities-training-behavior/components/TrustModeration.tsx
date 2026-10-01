@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 const ITEMS = [
   {
@@ -7,6 +8,7 @@ const ITEMS = [
     description:
       "Each community publishes its own rules and moderation approach. Review them before you post or join.",
     link: "View rules examples",
+    href: "/safety-community-standards",
     icon: (
       <>
         <path d="M3.33398 4.16602H16.6673V12.4993H6.66732L3.33398 15.8327V4.16602Z" stroke="#073B47" strokeWidth="1.66667" strokeLinejoin="round" />
@@ -20,6 +22,7 @@ const ITEMS = [
     description:
       "Every community and post here can be reported. Reports are reviewed against our Community Standards and welfare policy.",
     link: "Report a concern",
+    href: "/safety-report-concern",
     icon: (
       <path d="M9.99935 2.5L15.8327 5V10C15.8327 14.1667 12.9993 17 9.99935 17.5C6.99935 17 4.16602 14.1667 4.16602 10V5L9.99935 2.5Z" stroke="#073B47" strokeWidth="1.66667" strokeLinejoin="round" />
     ),
@@ -30,6 +33,7 @@ const ITEMS = [
     description:
       "If information here is inaccurate or a community's status has changed, you can flag it for review.",
     link: "Flag a correction",
+    href: "/safety-report-concern",
     icon: (
       <path d="M4.16602 10.834L7.49935 14.1673L15.8327 5.83398" stroke="#073B47" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     ),
@@ -62,12 +66,12 @@ export default function TrustModeration() {
             <div className="text-gray-500 text-[12.5px] font-normal font-['Plus_Jakarta_Sans'] leading-[18.75px]">
               {item.description}
             </div>
-            <div className="flex items-center gap-1.5 text-cyan-800 text-base font-semibold font-['Plus_Jakarta_Sans'] cursor-pointer">
+            <Link href={item.href} className="flex items-center gap-1.5 text-cyan-800 text-base font-semibold font-['Plus_Jakarta_Sans'] cursor-pointer">
               {item.link}
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M4.5 3L7.5 6L4.5 9" stroke="#066879" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </div>
+            </Link>
           </div>
         ))}
       </div>

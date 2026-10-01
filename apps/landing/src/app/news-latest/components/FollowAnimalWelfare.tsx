@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
+
 export default function FollowAnimalWelfare() {
   return (
     <section
@@ -27,8 +30,8 @@ export default function FollowAnimalWelfare() {
         </p>
 
         <div className="mt-5 flex items-center gap-2">
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signUp}
             className="rounded-[10px] px-4 py-2.5 text-sm font-bold"
             style={{
               backgroundColor: "#F59E0B",
@@ -36,10 +39,10 @@ export default function FollowAnimalWelfare() {
             }}
           >
             Join Free
-          </button>
+          </Link>
 
-          <button
-            type="button"
+          <Link
+            href={APP_LINKS.signIn}
             className="rounded-[10px] border px-4 py-2.5 text-sm font-semibold text-white"
             style={{
               borderColor: "rgba(255,255,255,0.45)",
@@ -47,7 +50,7 @@ export default function FollowAnimalWelfare() {
             }}
           >
             Sign In
-          </button>
+          </Link>
         </div>
       </div>
     </section>

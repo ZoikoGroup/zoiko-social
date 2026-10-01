@@ -1,5 +1,5 @@
 import { Shield, Lock, Smile, Eye, FileText, type LucideIcon } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { APP_LINKS, } from "@/lib/app-links";
 import { Band, IconFeature, SectionHeading } from "./primitives";
 
 const PILLARS: {
@@ -12,7 +12,7 @@ const PILLARS: {
     icon: Shield,
     title: "Safety",
     body: "Dedicated reporting channels and clear community standards protect animal welfare and respectful discourse.",
-    link: { label: "Safety Center", href: APP_LINKS.safety },
+    link: { label: "Safety Center", href: "/trust-safety-center"},
   },
   {
     icon: Lock,
@@ -24,13 +24,13 @@ const PILLARS: {
     icon: Smile,
     title: "Community Standards",
     body: "Enforceable rules keep Zoiko Social respectful and profanity-free.",
-    link: { label: "Community Standards", href: APP_LINKS.safety },
+    link: { label: "Community Standards", href: "/safety-community-standards"},
   },
   {
     icon: Eye,
     title: "Accessibility",
     body: "We're committed to an experience that works for everyone, including assistive technology users.",
-    link: { label: "Accessibility Statement", href: appUrl("/accessibility") },
+    link: { label: "Accessibility Statement", href: "/support-developers-accessibility-support"},
   },
   {
     icon: FileText,

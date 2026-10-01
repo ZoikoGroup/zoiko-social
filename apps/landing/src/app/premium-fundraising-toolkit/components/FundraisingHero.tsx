@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function FundraisingHero() {
   return (
@@ -37,20 +38,20 @@ export default function FundraisingHero() {
             <div className="flex w-full flex-wrap items-center gap-4 pt-5">
 
               {/* Primary CTA */}
-              <button
-                type="button"
+              <Link
+                href="#tracking-features"
                 className="rounded-xl bg-[#066879] px-5 py-3 text-center text-sm font-bold leading-5 text-white transition-opacity duration-200 hover:opacity-90"
               >
                 See the tools
-              </button>
+              </Link>
 
               {/* Secondary CTA */}
-              <button
-                type="button"
+              <Link
+                href="#example-campaigns"
                 className="rounded-xl border border-[#DADFE1] bg-white px-5 py-3 text-center text-sm font-bold leading-5 text-[#102A32] transition-colors duration-200 hover:bg-[#F7F9FA]"
               >
                 View examples
-              </button>
+              </Link>
 
             </div>
           </div>

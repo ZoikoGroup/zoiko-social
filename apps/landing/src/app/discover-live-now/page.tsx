@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Lock } from "lucide-react";
-import { APP_LINKS } from "@/lib/app-links";
+
 import LiveBoard from "./_components/LiveBoard";
 import SafetyBanner from "./_components/SafetyBanner";
 import { C } from "./_components/theme";
@@ -41,7 +41,7 @@ export default function DiscoverLiveNowPage() {
           </div>
 
           <Link
-            href={APP_LINKS.safety}
+            href="/safety-how-moderation-works"
             className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold transition hover:opacity-80"
             style={{ color: C.brand, border: `1px solid ${C.line}` }}
           >

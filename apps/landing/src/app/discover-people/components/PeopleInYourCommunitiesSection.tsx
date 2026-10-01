@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import UserProfileModal from "@/components/UserProfileModal";
+import Link from "next/link";
 
 interface CommunityPerson {
   id: string;
@@ -199,12 +200,12 @@ export default function PeopleInYourCommunitiesSection() {
                     >
                       Hide
                     </button>
-                    <button
-                      type="button"
+                    <Link
+                      href="/safety-report-concern"
                       className="hover:underline cursor-pointer hover:text-[#64748B]"
                     >
                       Report
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>
