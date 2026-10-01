@@ -1,0 +1,15 @@
+export { default as LegalNotices } from "./LegalNotices";
+export { default as LegalEntityAtAGlance } from "./LegalEntityAtAGlance";
+export { default as Copyright } from "./Copyright";
+export { default as TrademarksAndBrand } from "./TrademarksAndBrand";
+export { default as ThirdPartyMarksAndContent } from "./ThirdPartyMarksAndContent";
+export { default as IntellectualPropertyComplaints } from "./IntellectualPropertyComplaints";
+export { default as OpenSourceAndSoftwareNotices } from "./OpenSourceAndSoftwareNotices";
+export { default as RegulatoryAndRegionalNotices } from "./RegulatoryAndRegionalNotices";
+export { default as FormalLegalCommunications } from "./FormalLegalCommunications";
+export { default as ServiceOfProcess } from "./ServiceOfProcess";
+export { default as GovernmentAndLawEnforcementRequests } from "./GovernmentAndLawEnforcementRequests";
+export { default as CorporateChanges } from "./CorporateChanges";
+export { default as NoticeVersions } from "./NoticeVersions";
+export { default as MoreFromLegalAndPrivacy } from "./MoreFromLegalAndPrivacy";
+export { default as LegalInformationQuestions } from "./LegalInformationQuestions";
