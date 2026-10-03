@@ -144,18 +144,15 @@ function build(overrides: {
     checkEventsLimit: jest.fn().mockResolvedValue(undefined),
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const service = new EventsService(
     prisma as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     notifications as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     profanity as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     commercial as any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     affinity as any,
   )
+  /* eslint-enable @typescript-eslint/no-explicit-any */
   return { service, prisma, notifications, profanity, affinity, commercial }
 }
 
