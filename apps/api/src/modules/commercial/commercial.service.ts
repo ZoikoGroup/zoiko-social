@@ -20,7 +20,7 @@ export class CommercialService {
     });
 
     if (activeProducts >= COMMERCIAL_PLANS.seller_professional.limits.activeProducts) {
-      throw new ForbiddenException('You have reached your active product listing limit (100).');
+      throw new ForbiddenException('You have reached your active product listing limit (100). Please contact admin for a custom plan.');
     }
   }
 
@@ -38,7 +38,7 @@ export class CommercialService {
     });
 
     if (activeProfiles >= COMMERCIAL_PLANS.breeder_professional.limits.activeProfiles) {
-      throw new ForbiddenException('You have reached your active breeding profile limit (5).');
+      throw new ForbiddenException('You have reached your active breeding profile limit (5). Please contact admin for a custom plan.');
     }
   }
 
@@ -57,7 +57,7 @@ export class CommercialService {
     });
 
     if (activeServices >= COMMERCIAL_PLANS.care_professional.limits.activeServices) {
-      throw new ForbiddenException('You have reached your active services limit (50).');
+      throw new ForbiddenException('You have reached your active services limit (50). Please contact admin for a custom plan.');
     }
     
     // Check team members limit
@@ -66,7 +66,7 @@ export class CommercialService {
     });
 
     if (teamMembers >= COMMERCIAL_PLANS.care_professional.limits.teamMembers) {
-      throw new ForbiddenException('You have reached your team members limit (10).');
+      throw new ForbiddenException('You have reached your team members limit (10). Please contact admin for a custom plan.');
     }
   }
 

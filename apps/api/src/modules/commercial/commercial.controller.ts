@@ -26,8 +26,8 @@ export class CommercialController {
       productTitle: `${body.planId.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())} Subscription`,
       amountCents: Math.round(plan.monthlyPriceUsd * 100),
       currency: 'USD',
-      successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings?tab=billing&success=true`,
-      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings?tab=billing&canceled=true`,
+      successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/subscribed-successfully?plan=${body.planId}`,
+      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings?section=billing&canceled=true`,
     });
 
     return { url: session.url };
