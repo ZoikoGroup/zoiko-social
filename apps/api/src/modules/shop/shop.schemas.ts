@@ -63,6 +63,7 @@ export const CreateProductSchema = z.object({
   stock: z.number().int().min(0).max(100000).optional(),
   shipping: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),
+  externalUrl: httpUrl(600),
 })
 
 export const UpdateProductSchema = z.object({
@@ -79,6 +80,7 @@ export const UpdateProductSchema = z.object({
   stock: z.number().int().min(0).max(100000).optional(),
   shipping: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),
+  externalUrl: httpUrl(600).optional(),
   status: z.enum(['active', 'sold', 'withdrawn']).optional(),
 })
 

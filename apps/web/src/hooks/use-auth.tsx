@@ -126,7 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     if (state.loading || needsOnboarding !== true) return
     // /auth/callback is mid-handshake and picks its own destination.
     if (pathname === '/onboarding' || pathname.startsWith('/auth/')) return
-    router.replace('/onboarding')
+    
+    // Pass original location along so onboarding can return them where they started
+    const returnPath = pathname + window.location.search
+    router.replace(`/onboarding?next=${encodeURIComponent(returnPath)}`)
   }, [state.loading, needsOnboarding, pathname, router])
 
   /*
@@ -302,11 +305,16 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
 
     // Fallback: the API is unreachable or broke on its own account — go direct.
     rememberOAuthProvider(provider)
+    const params = new URLSearchParams(window.location.search)
+    const nextUrl = params.get('next') || params.get('returnTo')
+    const redirectToUrl = new URL(window.location.origin + '/auth/callback')
+    if (nextUrl) redirectToUrl.searchParams.set('next', nextUrl)
+
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: window.location.origin + '/auth/callback',
+        redirectTo: redirectToUrl.toString(),
       },
     })
 

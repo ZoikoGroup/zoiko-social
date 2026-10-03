@@ -1,9 +1,6 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common'
 import { EventsService } from './events.service'
-import type { PrismaService } from '../prisma/prisma.service'
-import type { NotificationQueueService } from '../queue/notification-queue.service'
-import type { ProfanityService } from '../common/moderation/profanity.service'
-import type { AffinityService } from '../personalization/affinity.service'
+
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
@@ -44,7 +41,7 @@ function eventRow(overrides: Record<string, unknown> = {}) {
       username: 'hosty',
       displayName: 'Hosty',
       avatarUrl: null,
-      verificationTier: 'none',
+      identityStatus: 'pending',
     },
     ...overrides,
   }
@@ -100,7 +97,7 @@ function build(overrides: {
             username: `user-${i.userId}`,
             displayName: `User ${i.userId}`,
             avatarUrl: null,
-            verificationTier: 'none',
+            identityStatus: 'pending',
           },
         })))
       }),
@@ -143,13 +140,20 @@ function build(overrides: {
     recordAuthor: jest.fn().mockResolvedValue(undefined),
   }
 
+  const commercial = {
+    checkEventsLimit: jest.fn().mockResolvedValue(undefined),
+  }
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const service = new EventsService(
-    prisma as unknown as PrismaService,
-    notifications as unknown as NotificationQueueService,
-    profanity as unknown as ProfanityService,
-    affinity as unknown as AffinityService,
+    prisma as any,
+    notifications as any,
+    profanity as any,
+    commercial as any,
+    affinity as any,
   )
-  return { service, prisma, notifications, profanity, affinity }
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  return { service, prisma, notifications, profanity, affinity, commercial }
 }
 
 /** The notify* helpers are deliberately not awaited, so let microtasks drain. */

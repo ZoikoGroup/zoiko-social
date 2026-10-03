@@ -62,6 +62,37 @@ export class StripeService {
     })
   }
 
+  async createSubscriptionCheckout(params: {
+    planId: string
+    userId: string
+    productTitle: string
+    amountCents: number
+    currency: string
+    successUrl: string
+    cancelUrl: string
+  }): Promise<Stripe.Checkout.Session> {
+    return this.require().checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [
+        {
+          price_data: {
+            currency: params.currency.toLowerCase(),
+            unit_amount: params.amountCents,
+            recurring: { interval: 'month' },
+            product_data: {
+              name: params.productTitle,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      client_reference_id: params.userId,
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      metadata: { entitlement: params.planId },
+    })
+  }
+
   constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {
     return this.require().webhooks.constructEvent(rawBody, signature, this.config.stripeWebhookSecret!)
   }

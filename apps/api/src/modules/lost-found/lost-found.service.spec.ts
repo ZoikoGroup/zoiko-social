@@ -42,7 +42,7 @@ function build(opts: { pet?: typeof PET | null } = {}) {
           photoUrl: null, photoUrls: [], latitude: null, longitude: null, contact: null,
           reward: null, status: 'active', sightingsCount: 0, isDeleted: false,
           createdAt: new Date('2026-08-03T00:00:00Z'),
-          reporter: { id: OWNER, username: 'owner', displayName: 'Owner', avatarUrl: null, verificationTier: 'none' },
+          reporter: { id: OWNER, username: 'owner', displayName: 'Owner', avatarUrl: null, identityStatus: 'pending' },
           pet: null,
           ...data,
         })

@@ -42,7 +42,7 @@ export class AdminService {
    */
   async stats() {
     const [
-      users, staff, suspended, posts, communities, articles, pendingArticles, openReports, newsSources,
+      users, staff, suspended, posts, communities, articles, pendingArticles, openReports, newsSources, pendingVerifications
     ] = await Promise.all([
       this.prisma.profile.count(),
       this.prisma.profile.count({ where: { role: { in: ['moderator', 'admin', 'super_admin'] } } }),
@@ -53,6 +53,7 @@ export class AdminService {
       this.prisma.newsArticle.count({ where: { reviewStatus: 'pending', isDeleted: false } }),
       this.prisma.report.count({ where: { status: 'open' } }).catch(() => 0),
       this.prisma.newsSource.count(),
+      this.prisma.verificationRequest.count({ where: { status: 'pending' } }).catch(() => 0),
     ])
 
     return {
@@ -65,6 +66,7 @@ export class AdminService {
       pendingArticles,
       openReports,
       newsSources,
+      pendingVerifications,
     }
   }
 
@@ -100,7 +102,7 @@ export class AdminService {
         avatarUrl: true,
         role: true,
         state: true,
-        verificationTier: true,
+        identityStatus: true,
         createdAt: true,
       },
     })

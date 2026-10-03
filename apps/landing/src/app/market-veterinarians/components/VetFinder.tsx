@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import {  appUrl } from "@/lib/app-links";
 import { CARE_TYPES, CITY, SPECIES, VETS, type Vet } from "./vets";
 import { C } from "./theme";
 
@@ -260,7 +260,7 @@ export default function VetFinder() {
 
           <div className="flex justify-center pt-4">
             <a
-              href={APP_LINKS.safety}
+              href="/trust-safety-center"
               className="rounded-xl bg-white px-6 py-3 text-sm font-semibold transition hover:bg-neutral-50"
               style={{ color: C.inkDeep, border: `1px solid ${C.line}` }}
             >

@@ -47,7 +47,7 @@ const PROFESSIONAL_CARE: readonly Item[] = [
     label: "Specialists",
     description: "Dermatology, oncology, and more.",
     icon: `${ICON}sparkles.svg`,
-    href: "/vet-finder",
+    href: "/market-specialists-production",
   },
   {
     label: "Emergency Vet Care",
@@ -62,13 +62,13 @@ const SERVICES_AND_SUPPLIES: readonly Item[] = [
     label: "Trainers & Groomers",
     description: "Book trusted local professionals.",
     icon: `${ICON}bone.svg`,
-    href: "/shop",
+    href: "/market-trainers-groomers",
   },
   {
     label: "Boarding & Sitting",
     description: "Care for while you’re away.",
     icon: `${ICON}map-pin.svg`,
-    href: "/shop",
+    href: "/market-boarding-sitting-production",
   },
   {
     label: "Nutrition & Supplies",

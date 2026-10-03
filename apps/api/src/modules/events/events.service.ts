@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { Prisma } from '@prisma/client'
@@ -60,7 +61,7 @@ export interface EventPage {
 
 type EventRow = Prisma.EventGetPayload<{
   include: {
-    host: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    host: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } }
     community: { select: { id: true; slug: true; name: true } }
   }
 }>
@@ -82,6 +83,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
     private readonly affinity: AffinityService,
   ) {}
 
@@ -165,7 +167,7 @@ export class EventsService {
 
   private hostInclude() {
     return {
-      host: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      host: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       community: { select: { id: true, slug: true, name: true } },
     }
   }
@@ -175,7 +177,7 @@ export class EventsService {
       id: e.id,
       host: {
         id: e.host.id, username: e.host.username, displayName: e.host.displayName,
-        avatarUrl: e.host.avatarUrl, isVerified: e.host.verificationTier === 'professional',
+        avatarUrl: e.host.avatarUrl, isVerified: e.host.identityStatus === 'approved',
       },
       title: e.title, description: e.description, location: e.location, venueName: e.venueName,
       visibility: e.visibility,
@@ -359,7 +361,7 @@ export class EventsService {
         where: { eventId, status },
         orderBy: { createdAt: 'asc' },
         take: ATTENDEES_SHOWN,
-        include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+        include: { user: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
       })
 
     const [goingRows, interestedRows] = await Promise.all([
@@ -369,7 +371,7 @@ export class EventsService {
 
     const toItem = (u: EventRow['host']) => ({
       id: u.id, username: u.username, displayName: u.displayName,
-      avatarUrl: u.avatarUrl, isVerified: u.verificationTier === 'professional',
+      avatarUrl: u.avatarUrl, isVerified: u.identityStatus === 'approved',
     })
     return {
       going: goingRows.map((r) => toItem(r.user)),
@@ -526,6 +528,8 @@ export class EventsService {
   }
 
   async create(hostId: string, input: CreateEventInput): Promise<EventResponse> {
+    await this.commercial.checkEventsLimit(hostId)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields(
       { title: input.title, description: input.description, venueName: input.venueName, location: input.location },
@@ -755,7 +759,7 @@ export class EventsService {
       where: { eventId },
       orderBy: { createdAt: 'asc' },
       include: {
-        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+        user: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       },
     })
     return rows.map((r) => ({
@@ -763,7 +767,7 @@ export class EventsService {
       username: r.user.username,
       displayName: r.user.displayName,
       avatarUrl: r.user.avatarUrl,
-      isVerified: r.user.verificationTier === 'professional',
+      isVerified: r.user.identityStatus === 'approved',
       status: r.status,
       invitedAt: r.createdAt.toISOString(),
     }))

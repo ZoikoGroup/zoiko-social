@@ -28,32 +28,32 @@ type Item = {
  * does the same rather than inventing a path that would 404. Replace `PLANS`
  * once the page exists.
  */
-const PLANS = "#";
+const PLANS = "/platform-premium-plans-production";
 
 const FOR_YOU: readonly Item[] = [
   {
     label: "Ad-Free Feed",
     description: "Browse without interruptions.",
     icon: `${ICON}layout.svg`,
-    href: "/ad-free-feed",
+    href: "/premium-ad-free-feed",
   },
   {
     label: "Advanced Privacy",
     description: "More control over who sees what.",
     icon: `${ICON}lock.svg`,
-    href: "/advanced-privacy",
+    href: "/premium-advanced-privacy",
   },
   {
     label: "Larger Group Calls",
     description: "Host bigger community calls.",
     icon: `${ICON}users.svg`,
-    href: PLANS,
+    href: "/premium-larger-group-calls-production",
   },
   {
     label: "Enhanced Media",
     description: "Higher-quality photo and video.",
     icon: `${ICON}sparkles.svg`,
-    href: PLANS,
+    href: "/premium-enhanced-media-production",
   },
 ];
 
@@ -68,19 +68,19 @@ const FOR_PROS_AND_ORGS: readonly Item[] = [
     label: "Verified Organization Profile",
     description: "Build trust with your community.",
     icon: `${ICON}shield-check.svg`,
-    href: PLANS,
+    href: "/premium-verified-organization",
   },
   {
     label: "Fundraising Toolkit",
     description: "Tools to run and track campaigns.",
     icon: `${ICON}banknote.svg`,
-    href: "/fundraising-toolkit",
+    href: "/premium-fundraising-toolkit",
   },
   {
     label: "Advanced Moderation",
     description: "Deeper tools for community teams.",
     icon: `${ICON}gauge.svg`,
-    href: "/advanced-moderation",
+    href: "/premium-advanced-moderation",
   },
 ];
 

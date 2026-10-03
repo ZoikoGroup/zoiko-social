@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { C } from "./theme";
 
 export default function Hero() {
@@ -42,7 +42,7 @@ export default function Hero() {
               <p className="text-xs font-bold leading-5 text-white">Verified facilities</p>
               <p className="text-xs leading-5 text-white">
                 Clinics and hospitals are verified before listing.{" "}
-                <a href={APP_LINKS.safety} className="underline-offset-2 hover:underline">
+                <a href="/trust-safety-center" className="underline-offset-2 hover:underline">
                   Learn about our verification standard.
                 </a>
               </p>
@@ -56,7 +56,7 @@ export default function Hero() {
           </div>
           <div className="flex flex-col gap-3 pt-6 sm:flex-row sm:flex-wrap">
             <a
-              href={APP_LINKS.communities}
+              href="/communities-all"
               className="flex min-h-10 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold leading-5 text-white transition hover:opacity-90"
               style={{ background: C.brand }}
             >

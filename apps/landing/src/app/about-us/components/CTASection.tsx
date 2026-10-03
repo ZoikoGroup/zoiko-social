@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { APP_LINKS } from "@/lib/app-links";
 import { C } from "./theme";
 
 /** Closing call to action: dark teal panel with a warm glow in one corner. */
@@ -36,13 +36,13 @@ export default function CTASection() {
               Join Free
             </Link>
             <Link
-              href={APP_LINKS.home}
+              href="/platform-features"
               className="flex items-center justify-center rounded-xl border border-white/40 px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10"
             >
               Explore Zoiko Social
             </Link>
             <Link
-              href={appUrl("/careers")}
+              href="/company-careers"
               className="flex items-center justify-center rounded-xl border border-white/40 px-6 py-3 text-base font-semibold text-white transition hover:bg-white/10"
             >
               View Careers

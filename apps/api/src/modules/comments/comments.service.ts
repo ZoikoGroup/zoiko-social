@@ -42,7 +42,7 @@ const EDIT_WINDOW_MS = 15 * 60 * 1000
 const MAX_PINNED = 3
 
 const authorSelect = {
-  select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+  select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
 } as const
 
 @Injectable()
@@ -465,7 +465,7 @@ export class CommentsService {
       isDeleted: boolean
       createdAt: Date
       updatedAt: Date
-      author: { id: string; username: string; displayName: string; avatarUrl: string | null; verificationTier: string }
+      author: { id: string; username: string; displayName: string; avatarUrl: string | null; identityStatus: string | null }
     },
     viewerLiked: boolean,
   ): CommentResponse {
@@ -478,7 +478,7 @@ export class CommentsService {
         username: comment.author.username,
         displayName: comment.author.displayName,
         avatarUrl: comment.author.avatarUrl,
-        isVerified: comment.author.verificationTier === 'professional',
+        isVerified: comment.author.identityStatus === 'approved',
       },
       body: comment.isDeleted ? '' : comment.body,
       likesCount: comment.likesCount,

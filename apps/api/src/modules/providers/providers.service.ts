@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -16,7 +17,7 @@ import type {
 
 type ProviderRow = Prisma.ServiceProviderGetPayload<{
   include: {
-    addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    addedByUser: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } }
     _count: { select: { services: true } }
   }
 }>
@@ -111,7 +112,7 @@ type BookingRow = Prisma.PetCareBookingGetPayload<{
   include: {
     service: { select: { id: true; name: true; category: true; durationMinutes: true } }
     provider: { select: { id: true; name: true; location: true; coverUrl: true } }
-    seeker: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    seeker: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } }
     pet: { select: { id: true; name: true; species: true; breed: true; avatarUrl: true } }
   }
 }>
@@ -166,7 +167,7 @@ export interface AvailabilityResponse {
 // ── Review types ─────────────────────────────────────────────────────────────
 
 type ReviewRow = Prisma.ProviderReviewGetPayload<{
-  include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } }
 }>
 
 export interface ReviewResponse {
@@ -189,6 +190,7 @@ export class ProvidersService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   // ════════════════════════════════════════════════════════════════════════════
@@ -197,7 +199,7 @@ export class ProvidersService {
 
   private providerInclude() {
     return {
-      addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      addedByUser: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       // Counted so availableForBooking can reflect whether anything is actually
       // bookable. The stored column defaults to true, so a listing created with
       // no services still advertised itself as open for bookings.
@@ -263,7 +265,7 @@ export class ProvidersService {
       slotCapacity: p.slotCapacity,
       addedBy: {
         id: p.addedByUser.id, username: p.addedByUser.username, displayName: p.addedByUser.displayName,
-        avatarUrl: p.addedByUser.avatarUrl, isVerified: p.addedByUser.verificationTier === 'professional',
+        avatarUrl: p.addedByUser.avatarUrl, isVerified: p.addedByUser.identityStatus === 'approved',
       },
       createdAt: p.createdAt.toISOString(),
     }
@@ -364,6 +366,8 @@ export class ProvidersService {
   }
 
   async create(addedBy: string, input: CreateProviderInput): Promise<ProviderResponse> {
+    await this.commercial.checkCareProviderLimit(addedBy)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ name: input.name, serviceType: input.serviceType, description: input.description, location: input.location, address: input.address }, { actorId: addedBy, entityType: 'provider' })
     const p = await this.prisma.serviceProvider.create({
@@ -525,7 +529,7 @@ export class ProvidersService {
       provider: { id: b.provider.id, name: b.provider.name, location: b.provider.location, coverUrl: b.provider.coverUrl },
       seeker: {
         id: b.seeker.id, username: b.seeker.username, displayName: b.seeker.displayName,
-        avatarUrl: b.seeker.avatarUrl, isVerified: b.seeker.verificationTier === 'professional',
+        avatarUrl: b.seeker.avatarUrl, isVerified: b.seeker.identityStatus === 'approved',
       },
       petId: b.petId,
       pet: b.pet ? { id: b.pet.id, name: b.pet.name, species: b.pet.species, breed: b.pet.breed, avatarUrl: b.pet.avatarUrl } : null,
@@ -546,7 +550,7 @@ export class ProvidersService {
     return {
       service: { select: { id: true, name: true, category: true, durationMinutes: true } },
       provider: { select: { id: true, name: true, location: true, coverUrl: true } },
-      seeker: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      seeker: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       pet: { select: { id: true, name: true, species: true, breed: true, avatarUrl: true } },
     }
   }
@@ -951,7 +955,7 @@ export class ProvidersService {
       rating: r.rating, body: r.body,
       author: {
         id: r.author.id, username: r.author.username, displayName: r.author.displayName,
-        avatarUrl: r.author.avatarUrl, isVerified: r.author.verificationTier === 'professional',
+        avatarUrl: r.author.avatarUrl, isVerified: r.author.identityStatus === 'approved',
       },
       createdAt: r.createdAt.toISOString(),
     }
@@ -961,7 +965,7 @@ export class ProvidersService {
     const rows = await this.prisma.providerReview.findMany({
       where: { providerId, isDeleted: false },
       orderBy: { createdAt: 'desc' },
-      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     return rows.map((r) => this.mapReview(r))
   }
@@ -990,7 +994,7 @@ export class ProvidersService {
         authorId: userId, targetId: provider.addedBy,
         rating: input.rating, body: input.body ?? null,
       },
-      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
 
     // Recalculate provider rating

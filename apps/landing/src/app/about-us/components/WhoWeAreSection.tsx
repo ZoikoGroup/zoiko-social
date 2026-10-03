@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { APP_LINKS } from "@/lib/app-links";
+
 import { IMAGES } from "./images";
 import { C } from "./theme";
 import { ArrowLink, Eyebrow } from "./primitives";
@@ -35,7 +35,7 @@ export default function WhoWeAreSection() {
           </p>
 
           <div className="mt-6">
-            <ArrowLink href={APP_LINKS.home}>
+            <ArrowLink href="/platform-features">
               See what you can do on Zoiko
             </ArrowLink>
           </div>

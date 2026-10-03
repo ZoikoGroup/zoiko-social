@@ -9,29 +9,36 @@ const STEPS: ProcessStep[] = [
   {
     step: 1,
     title: "Browse & Find",
-    description: "Search and find your perfect match from thousands of available animals.",
+    description:
+      "Search and find your perfect match from thousands of available animals.",
     isHighlight: true,
   },
   {
     step: 2,
     title: "Connect",
-    description: "Contact the shelter or rescue and learn more about your chosen animal.",
+    description:
+      "Contact the shelter or rescue and learn more about your chosen animal.",
   },
   {
     step: 3,
     title: "Meet & Greet",
-    description: "Visit in person and spend time with the animal to ensure compatibility.",
+    description:
+      "Visit in person and spend time with the animal to ensure compatibility.",
   },
   {
     step: 4,
     title: "Welcome Home",
-    description: "Complete the adoption process and bring your new family member home!",
+    description:
+      "Complete the adoption process and bring your new family member home!",
   },
 ];
 
 export default function AdoptionProcessSection() {
   return (
-    <section id="how-adoption-works" className="w-full bg-[#F7F9FA] pb-16 lg:pb-24">
+    <section
+      id="how-adoption-works"
+      className="w-full bg-[#F7F9FA] pb-16 lg:pb-24"
+    >
       <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-12">
         {/* Section Heading */}
         <h2 className="text-center text-2xl font-extrabold tracking-[-0.01em] text-[#102A32] sm:text-3xl lg:text-[36px] lg:leading-[43.2px]">
@@ -52,7 +59,7 @@ export default function AdoptionProcessSection() {
                 className={`flex h-[60px] w-[60px] items-center justify-center rounded-full text-xl font-extrabold shadow-sm ${
                   item.isHighlight
                     ? "bg-[#066879] text-white"
-                    : "bg-[#F7F9FA] text-[#102A32] border border-[#DCE5E8]"
+                    : "border border-[#DCE5E8] bg-[#F7F9FA] text-[#102A32]"
                 }`}
               >
                 {item.step}

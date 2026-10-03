@@ -32,11 +32,9 @@ type Item = {
 /**
  * Menu destinations.
  *
- * Animal Welfare Concerns has its own landing page. Everything else is
- * documentation, and /docs/safety-and-trust is the page that covers it — the
- * same page the Safety nav item itself points at. Support Resources goes to the
- * docs index instead, since it is about finding help generally rather than the
- * safety policy.
+ * Animal Welfare Concerns and Support Resources have their own landing pages.
+ * Everything else is documentation, and /docs/safety-and-trust is the page that
+ * covers it — the same page the Safety nav item itself points at.
  */
 const SAFETY_DOCS = appUrl("/docs/safety-and-trust");
 
@@ -45,7 +43,7 @@ const GET_HELP: readonly Item[] = [
     label: "Report a Concern",
     description: "Flag content or behavior that worries you.",
     icon: `${ICON}alert-triangle.svg`,
-    href: SAFETY_DOCS,
+    href: "/safety-report-concern",
   },
   {
     label: "Animal Welfare Concerns",
@@ -57,13 +55,13 @@ const GET_HELP: readonly Item[] = [
     label: "Emergency Guidance",
     description: "Region-aware next steps in urgent situations.",
     icon: `${ICON}globe.svg`,
-    href: "/emergency-guidance",
+    href: "/safety-emergency-guidance",
   },
   {
     label: "Support Resources",
     description: "Help articles and contact options.",
     icon: `${ICON}users.svg`,
-    href: appUrl("/docs"),
+    href: "/safety-support-resources",
   },
 ];
 
@@ -72,7 +70,7 @@ const ACCOUNTABILITY: readonly Item[] = [
     label: "Community Standards",
     description: "The rules everyone agrees to follow.",
     icon: `${ICON}file-text.svg`,
-    href: "/community-standards",
+    href: "/safety-community-standards",
   },
   {
     label: "Transparency Reports",
@@ -84,13 +82,13 @@ const ACCOUNTABILITY: readonly Item[] = [
     label: "Appeals",
     description: "Contest a moderation decision.",
     icon: `${ICON}shield-check.svg`,
-    href: "/appeals",
+    href: "/safety-appeals",
   },
   {
     label: "How Moderation Works",
     description: "Our enforcement process, explained.",
     icon: `${ICON}settings.svg`,
-    href: "/how-moderation-works",
+    href: "/safety-how-moderation-works",
   },
 ];
 
@@ -208,7 +206,7 @@ export default function SafetyDropdown() {
               />
             </div>
             <Link
-              href={SAFETY_DOCS}
+              href="/trust-safety-center"
               className="mt-4 flex min-h-9 items-center justify-center rounded-full px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
               style={{ backgroundColor: ALERT_BUTTON }}
             >

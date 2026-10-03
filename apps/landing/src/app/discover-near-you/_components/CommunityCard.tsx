@@ -190,7 +190,7 @@ export default function CommunityCard({
           <button type="button" onClick={share} className={quietLink}>
             {copied ? "Link copied" : "Share"}
           </button>
-          <Link href={APP_LINKS.safety} className={quietLink}>
+          <Link href="/safety-report-concern" className={quietLink}>
             Report
           </Link>
         </div>

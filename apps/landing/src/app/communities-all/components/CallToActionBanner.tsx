@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 export default function CallToActionBanner() {
   return (
@@ -18,20 +20,20 @@ export default function CallToActionBanner() {
       {/* Button Group */}
       <div className="pt-2 flex flex-wrap justify-center items-center gap-3">
         {/* Primary Action */}
-        <button
-          type="button"
+        <Link
+          href={APP_LINKS.signUp}
           className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 rounded-xl text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] transition-colors focus:ring-2 focus:ring-orange-300 focus:outline-none"
         >
           Join Free
-        </button>
+        </Link>
 
         {/* Secondary Action */}
-        <button
-          type="button"
+        <Link
+          href="/discover-communities"
           className="px-6 py-2.5 rounded-xl border border-white/50 hover:bg-white/10 text-white text-sm font-semibold font-['Plus_Jakarta_Sans'] transition-colors focus:ring-2 focus:ring-white/50 focus:outline-none"
         >
           Continue browsing
-        </button>
+        </Link>
       </div>
     </section>
   );

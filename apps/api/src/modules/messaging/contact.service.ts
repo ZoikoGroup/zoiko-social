@@ -30,7 +30,7 @@ export class ContactService {
       where: { userId },
       include: {
         contact: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
         },
       },
       orderBy: { createdAt: 'desc' },

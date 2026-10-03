@@ -33,7 +33,7 @@ function StatusChip({ status }: { status: string }): React.JSX.Element {
 }
 
 export default function AdoptionPage(): React.JSX.Element {
-  const { loading: authLoading, isAuthenticated } = useAuth()
+  const { loading: authLoading, isAuthenticated, profile } = useAuth()
   const { format } = useCurrency()
   const [species, setSpecies] = useState('All')
   const [query, setQuery] = useState('')
@@ -41,6 +41,14 @@ export default function AdoptionPage(): React.JSX.Element {
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  const handleListPet = () => {
+    if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
+      window.alert('You must be Identity or Organization Verified to list a pet for adoption. Please complete verification in your settings.')
+      return
+    }
+    setCreateOpen(true)
+  }
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) window.location.replace('/login')
@@ -120,7 +128,7 @@ export default function AdoptionPage(): React.JSX.Element {
               </div>
               <div className="flex items-center gap-3">
                 <DocsHelpLink href="/docs/adoption-and-lost-found" />
-                <button onClick={() => setCreateOpen(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                <button onClick={handleListPet} className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                   <Plus className="w-4 h-4" />List a pet
                 </button>
               </div>

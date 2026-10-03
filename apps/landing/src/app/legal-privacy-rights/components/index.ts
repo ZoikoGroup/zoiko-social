@@ -1,0 +1,16 @@
+export { default as PrivacyChoicesSection } from "./PrivacyChoicesSection";
+export { default as SupportSubNav } from "./SupportSubNav";
+export { default as WhatDoYouWantToDo } from "./WhatDoYouWantToDo";
+export { default as DoItYourself } from "./DoItYourself";
+export { default as YourRightsDependOnWhereYouLive } from "./YourRightsDependOnWhereYouLive";
+export { default as CommonPrivacyRights } from "./CommonPrivacyRights";
+export { default as BeforeYouSubmit } from "./BeforeYouSubmit";
+export { default as StartPrivacyRequest } from "./StartPrivacyRequest";
+export { default as HowWeConfirmItsYou } from "./HowWeConfirmItsYou";
+export { default as TrackYourRequest } from "./TrackYourRequest";
+export { default as DeletingYourData } from "./DeletingYourData";
+export { default as GettingACopyOfYourData } from "./GettingACopyOfYourData";
+export { default as ActingForSomeoneElse } from "./ActingForSomeoneElse";
+export { default as DecisionsAndReviews } from "./DecisionsAndReviews";
+export { default as FrequentlyAskedQuestions } from "./FrequentlyAskedQuestions";
+export { default as ComplexPrivacyQuestion } from "./ComplexPrivacyQuestion";

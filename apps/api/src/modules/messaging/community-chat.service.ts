@@ -568,7 +568,7 @@ export class CommunityChatService {
         role: true,
         mutedUntil: true,
         user: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
         },
       },
       take: Math.min(limit, 100),
@@ -580,7 +580,7 @@ export class CommunityChatService {
         username: m.user.username,
         displayName: m.user.displayName,
         avatarUrl: m.user.avatarUrl,
-        isVerified: m.user.verificationTier !== 'none',
+        isVerified: m.user.identityStatus === 'approved',
         role: m.role,
         isMuted: !!m.mutedUntil && m.mutedUntil.getTime() > Date.now(),
       }))

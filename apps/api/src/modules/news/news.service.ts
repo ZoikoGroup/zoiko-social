@@ -44,7 +44,7 @@ export interface ArticlePage {
 }
 
 type ArticleRow = Prisma.NewsArticleGetPayload<{
-  include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } }
 }>
 
 const MAX = 30
@@ -112,14 +112,14 @@ export class NewsService {
   private authorInclude() {
     return {
       author: {
-        select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+        select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
       },
     }
   }
 
   /** Trust tier derived from the author's verification at publish time. */
-  private tierFor(author: { verificationTier: string; professionalProfile: { category: string } | null }): string {
-    if (author.verificationTier === 'professional') {
+  private tierFor(author: { identityStatus: string | null; professionalProfile: { category: string } | null }): string {
+    if (author.identityStatus === 'approved') {
       return author.professionalProfile?.category === 'verified_news_publisher' ? 'institutional' : 'verified'
     }
     return 'community'
@@ -131,7 +131,7 @@ export class NewsService {
       author: a.author
         ? {
             id: a.author.id, username: a.author.username, displayName: a.author.displayName,
-            avatarUrl: a.author.avatarUrl, isVerified: a.author.verificationTier === 'professional',
+            avatarUrl: a.author.avatarUrl, isVerified: a.author.identityStatus === 'approved',
           }
         : null,
       isExternal: a.isExternal,
@@ -225,7 +225,7 @@ export class NewsService {
     this.profanity.assertCleanFields({ title: input.title, excerpt: input.excerpt, body: input.body, sourceName: input.sourceName }, { actorId: authorId, entityType: 'news_article' })
     const author = await this.prisma.profile.findUnique({
       where: { id: authorId },
-      select: { verificationTier: true, professionalProfile: { select: { category: true } } },
+      select: { identityStatus: true, professionalProfile: { select: { category: true } } },
     })
     if (!author) throw new NotFoundException({ code: 'AUTHOR_NOT_FOUND', message: 'Author not found' })
     const tier = this.tierFor(author)
@@ -324,13 +324,13 @@ export class NewsService {
   // ── Comments ─────────────────────────────────────────────────────────────
 
   private mapComment(c: Prisma.NewsCommentGetPayload<{
-    include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+    include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } }
   }>): CommentResponse {
     return {
       id: c.id, body: c.body, createdAt: c.createdAt.toISOString(),
       author: {
         id: c.author.id, username: c.author.username, displayName: c.author.displayName,
-        avatarUrl: c.author.avatarUrl, isVerified: c.author.verificationTier === 'professional',
+        avatarUrl: c.author.avatarUrl, isVerified: c.author.identityStatus === 'approved',
       },
     }
   }
@@ -347,7 +347,7 @@ export class NewsService {
       },
       take: take + 1,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     const hasMore = rows.length > take
     const items = hasMore ? rows.slice(0, take) : rows
@@ -365,7 +365,7 @@ export class NewsService {
     const created = await this.prisma.$transaction(async (tx) => {
       const c = await tx.newsComment.create({
         data: { articleId, authorId, body: input.body },
-        include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+        include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
       })
       await tx.newsArticle.update({ where: { id: articleId }, data: { commentsCount: { increment: 1 } } })
       return c

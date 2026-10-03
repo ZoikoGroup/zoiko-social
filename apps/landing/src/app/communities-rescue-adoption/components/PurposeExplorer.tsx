@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 
 const PURPOSES = [
   {
@@ -61,9 +62,9 @@ export default function PurposeExplorer() {
                 {purpose.description}
               </div>
             </div>
-            <div className="text-cyan-800 text-xs font-bold font-['Plus_Jakarta_Sans'] cursor-pointer">
+            <Link href="/communities-rescue-adoption" className="text-cyan-800 text-xs font-bold font-['Plus_Jakarta_Sans'] cursor-pointer">
               {purpose.linkText}
-            </div>
+            </Link>
           </div>
         ))}
       </div>

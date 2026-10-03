@@ -1,5 +1,7 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 
 /*
   Shape of one entry in PROFESSIONAL_COMMUNITIES (see ../page.tsx).
@@ -81,23 +83,23 @@ export default function CommunityCard({ card }: CommunityCardProps) {
       </div>
 
       {/* Label Meaning Link */}
-      <div className="w-28 h-3.5 left-[17px] top-[299.25px] absolute text-cyan-800 text-xs font-semibold font-['Plus_Jakarta_Sans'] underline cursor-pointer">
+      <Link href="/trust-safety-center" className="w-28 h-3.5 left-[17px] top-[299.25px] absolute text-cyan-800 text-xs font-semibold font-['Plus_Jakarta_Sans'] underline cursor-pointer">
         What this label means
-      </div>
+      </Link>
 
       {/* View Community Button */}
-      <div className="w-32 h-8 left-[17px] top-[329.25px] absolute bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
+      <Link href={APP_LINKS.communities} className="w-32 h-8 left-[17px] top-[329.25px] absolute bg-white rounded-[10px] outline outline-1 outline-offset-[-1px] outline-zinc-200 flex items-center justify-center cursor-pointer hover:bg-zinc-50 transition-colors">
         <span className="text-teal-950 text-xs font-semibold font-['Plus_Jakarta_Sans']">
           {primaryBtn}
         </span>
-      </div>
+      </Link>
 
       {/* Dynamic Action Button (Join / Request to Join) */}
-      <div className="h-8 px-4 left-[157.86px] top-[329.25px] absolute bg-cyan-800 rounded-[10px] flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
+      <Link href={APP_LINKS.signUp} className="h-8 px-4 left-[157.86px] top-[329.25px] absolute bg-cyan-800 rounded-[10px] flex items-center justify-center cursor-pointer hover:bg-cyan-900 transition-colors">
         <span className="text-white text-xs font-semibold font-['Plus_Jakarta_Sans'] whitespace-nowrap">
           {actionText}
         </span>
-      </div>
+      </Link>
 
       {/* Header Banner Background */}
       <div className="w-96 h-28 left-[1px] top-[1px] absolute relative bg-gradient-to-tr from-cyan-800 to-orange-500 overflow-hidden">

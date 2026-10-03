@@ -9,7 +9,7 @@ import type { CreateReportInput, UpdateReportInput, SightingInput } from './lost
 
 type Row = Prisma.LostFoundPostGetPayload<{
   include: {
-    reporter: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    reporter: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } }
     pet: { select: { id: true; name: true; avatarUrl: true } }
   }
 }>
@@ -61,7 +61,7 @@ export class LostFoundService {
 
   private include() {
     return {
-      reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       pet: { select: { id: true, name: true, avatarUrl: true } },
     }
   }
@@ -77,7 +77,7 @@ export class LostFoundService {
       contact: r.contact, reward: r.reward, status: r.status, tags: r.tags, sightingsCount: r.sightingsCount,
       reporter: {
         id: r.reporter.id, username: r.reporter.username, displayName: r.reporter.displayName,
-        avatarUrl: r.reporter.avatarUrl, isVerified: r.reporter.verificationTier === 'professional',
+        avatarUrl: r.reporter.avatarUrl, isVerified: r.reporter.identityStatus === 'approved',
       },
       pet: r.pet ? { id: r.pet.id, name: r.pet.name, avatarUrl: r.pet.avatarUrl } : null,
       createdAt: r.createdAt.toISOString(),
@@ -410,7 +410,7 @@ export class LostFoundService {
       this.prisma.lostFoundSighting.findMany({
         where: { postId },
         orderBy: { createdAt: 'desc' },
-        include: { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+        include: { reporter: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
       }),
     ])
 
@@ -428,7 +428,7 @@ export class LostFoundService {
         : null,
       reporter: {
         id: s.reporter.id, username: s.reporter.username, displayName: s.reporter.displayName,
-        avatarUrl: s.reporter.avatarUrl, isVerified: s.reporter.verificationTier === 'professional',
+        avatarUrl: s.reporter.avatarUrl, isVerified: s.reporter.identityStatus === 'approved',
       },
     }))
   }

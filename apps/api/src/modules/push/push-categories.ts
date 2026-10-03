@@ -84,6 +84,7 @@ export const PUSH_CATEGORY: Record<string, PreferenceKey> = {
   order_refunded: PREFERENCE_KEYS.shopActivity,
   order_disputed: PREFERENCE_KEYS.shopActivity,
   order_dispute_resolved: PREFERENCE_KEYS.shopActivity,
+  order_reserved: PREFERENCE_KEYS.shopActivity,
   product_enquiry: PREFERENCE_KEYS.shopActivity,
 
   // ── Pet care ───────────────────────────────────────────────────────────────

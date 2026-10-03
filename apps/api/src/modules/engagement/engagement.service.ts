@@ -159,7 +159,7 @@ export class EngagementService {
       orderBy: [{ createdAt: 'desc' }, { userId: 'desc' }],
       include: {
         user: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true },
+          select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true },
         },
       },
     })
@@ -190,7 +190,7 @@ export class EngagementService {
         username: l.user.username,
         displayName: l.user.displayName,
         avatarUrl: l.user.avatarUrl,
-        isVerified: l.user.verificationTier === 'professional',
+        isVerified: l.user.identityStatus === 'approved',
         viewerFollows: followsSet.has(l.userId),
         followsViewer: followedBySet.has(l.userId),
         isMe: l.userId === viewerId,

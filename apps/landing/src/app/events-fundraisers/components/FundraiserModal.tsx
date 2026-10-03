@@ -212,13 +212,13 @@ export default function FundraiserModal({ f, onClose }: { f: Fundraiser; onClose
           )}
 
           <div className="flex flex-wrap gap-4 text-xs font-semibold underline">
-            <a href={APP_LINKS.safety} style={{ color: C.muted }}>
+            <a href="/safety-report-concern" style={{ color: C.muted }}>
               Report a fundraiser concern
             </a>
             <a href={appUrl("/settings")} style={{ color: C.muted }}>
               Payment issue
             </a>
-            <a href={APP_LINKS.safety} style={{ color: "#B42318" }}>
+            <a href="/safety-report-concern" style={{ color: "#B42318" }}>
               Animal-welfare concern
             </a>
           </div>

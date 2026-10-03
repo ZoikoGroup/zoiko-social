@@ -1,4 +1,3 @@
-import { APP_LINKS, appUrl } from "@/lib/app-links";
 import { AVATARS, IMAGES } from "./images";
 
 export const TABS = [
@@ -100,11 +99,11 @@ export const FEED: FeedEntry[] = [
     },
     stats: "4 verified sources · 210 related posts",
     actions: {
-      primary: { label: "Open", href: APP_LINKS.news },
+      primary: { label: "Open", href: "/news-wildlife-crime" },
       followTopic: true,
       save: true,
       share: true,
-      extra: { label: "Discuss in Community", href: APP_LINKS.communities },
+      extra: { label: "Discuss in Community", href: "/communities-wildlife-conservation" },
     },
   },
   {
@@ -129,7 +128,7 @@ export const FEED: FeedEntry[] = [
     },
     stats: "128 reactions across the community · 24 comments",
     actions: {
-      primary: { label: "Open", href: APP_LINKS.communities },
+      primary: { label: "Open", href: "/communities-popular" },
       save: true,
       share: true,
     },
@@ -154,7 +153,7 @@ export const FEED: FeedEntry[] = [
       aspect: "aspect-[678/384]",
     },
     actions: {
-      primary: { label: "Join Live", href: APP_LINKS.communities },
+      primary: { label: "Join Live", href: "/discover-live-now" },
       save: true,
     },
   },
@@ -174,10 +173,10 @@ export const FEED: FeedEntry[] = [
     body: "Record month for foster placements — three more kittens found loving foster homes this week, with more applications coming in daily.",
     stats: "64 related posts",
     actions: {
-      primary: { label: "Open", href: APP_LINKS.communities },
+      primary: { label: "Open", href: "/communities-rescue-adoption" },
       save: true,
       share: true,
-      extra: { label: "Join Community", href: APP_LINKS.communities },
+      extra: { label: "Join Community", href: "/communities-rescue-adoption" },
     },
   },
   {
@@ -190,7 +189,7 @@ export const FEED: FeedEntry[] = [
     title: "New Research on Canine Cognitive Development",
     body: "Veterinary study reveals breakthrough findings on early socialization impacts.",
     actions: {
-      primary: { label: "Open", href: APP_LINKS.news },
+      primary: { label: "Open", href: "/news-latest" },
       save: true,
       share: true,
     },
@@ -217,7 +216,7 @@ export const FEED: FeedEntry[] = [
       aspect: "aspect-[678/384]",
     },
     actions: {
-      primary: { label: "Open", href: APP_LINKS.communities },
+      primary: { label: "Open", href: "/communities-wildlife-conservation" },
       save: true,
       share: true,
     },
@@ -242,7 +241,7 @@ export const FEED: FeedEntry[] = [
       aspect: "aspect-[678/384]",
     },
     actions: {
-      primary: { label: "Open", href: appUrl("/events") },
+      primary: { label: "Open", href: "/events-near-you" },
       save: true,
       share: true,
     },
@@ -267,7 +266,7 @@ export const FEED: FeedEntry[] = [
         "Rescue teams reached the site this morning. Every animal recovered is now receiving veterinary care, and the operation remains under the partner organization's supervision. Further updates will follow as assessments are completed.",
     },
     actions: {
-      primary: { label: "Open", href: APP_LINKS.communities },
+      primary: { label: "Open", href: "/communities-rescue-adoption" },
       share: true,
     },
   },
@@ -283,7 +282,7 @@ export const FEED: FeedEntry[] = [
     body: "National program aims to increase shelter resources and adoption rates.",
     note: "Updated 1 hour ago — funding figures corrected from an earlier version of this story.",
     actions: {
-      primary: { label: "Open", href: APP_LINKS.news },
+      primary: { label: "Open", href: "/news-animal-welfare" },
       save: true,
       share: true,
     },

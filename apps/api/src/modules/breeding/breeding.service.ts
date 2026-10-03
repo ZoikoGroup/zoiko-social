@@ -1,3 +1,4 @@
+import { CommercialService } from '../commercial/commercial.service'
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -83,7 +84,7 @@ export interface BreedingPage {
 
 type BreedingRow = Prisma.BreedingProfileGetPayload<{
   include: {
-    owner: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } }
+    owner: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } }
     verifiedByProvider: { select: { id: true; name: true } }
   }
 }>
@@ -124,11 +125,12 @@ export class BreedingService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   private ownerInclude() {
     return {
-      owner: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+      owner: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       verifiedByProvider: { select: { id: true, name: true } },
     }
   }
@@ -162,7 +164,7 @@ export class BreedingService {
       id: p.id,
       owner: {
         id: p.owner.id, username: p.owner.username, displayName: p.owner.displayName,
-        avatarUrl: p.owner.avatarUrl, isVerified: p.owner.verificationTier === 'professional',
+        avatarUrl: p.owner.avatarUrl, isVerified: p.owner.identityStatus === 'approved',
       },
       petId: p.petId, petName: p.petName, species: p.species, breed: p.breed, sex: p.sex, age: p.age,
       location: p.location, latitude: p.latitude, longitude: p.longitude, distanceKm,
@@ -366,6 +368,8 @@ export class BreedingService {
   }
 
   async create(ownerId: string, input: CreateBreedingInput): Promise<BreedingResponse> {
+    await this.commercial.checkBreederLimit(ownerId)
+
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ petName: input.petName, breed: input.breed, about: input.about, location: input.location }, { actorId: ownerId, entityType: 'breeding_profile' })
     // Pull details from the linked Health Passport pet when provided.
@@ -511,13 +515,13 @@ export class BreedingService {
     const rows = await this.prisma.breedingRequest.findMany({
       where: { profileId: id },
       orderBy: { createdAt: 'desc' },
-      include: { requester: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { requester: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     return rows.map((r) => ({
       id: r.id, message: r.message, status: r.status, createdAt: r.createdAt.toISOString(),
       requester: {
         id: r.requester.id, username: r.requester.username, displayName: r.requester.displayName,
-        avatarUrl: r.requester.avatarUrl, isVerified: r.requester.verificationTier === 'professional',
+        avatarUrl: r.requester.avatarUrl, isVerified: r.requester.identityStatus === 'approved',
       },
     }))
   }
@@ -636,7 +640,7 @@ export class BreedingService {
 
     const review = await this.prisma.breedingReview.create({
       data: { profileId: req.profileId, requestId: input.requestId, authorId: userId, targetId, rating: input.rating, body: input.body ?? null },
-      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     // Recompute the profile's reputation.
     const agg = await this.prisma.breedingReview.aggregate({ where: { profileId: req.profileId, isDeleted: false }, _avg: { rating: true }, _count: true })
@@ -650,15 +654,15 @@ export class BreedingService {
     const rows = await this.prisma.breedingReview.findMany({
       where: { profileId, isDeleted: false },
       orderBy: { createdAt: 'desc' },
-      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { author: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     return rows.map((r) => this.mapReview(r))
   }
 
-  private mapReview(r: Prisma.BreedingReviewGetPayload<{ include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } } }>): BreedingReviewResponse {
+  private mapReview(r: Prisma.BreedingReviewGetPayload<{ include: { author: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } } }>): BreedingReviewResponse {
     return {
       id: r.id, rating: r.rating, body: r.body, createdAt: r.createdAt.toISOString(),
-      author: { id: r.author.id, username: r.author.username, displayName: r.author.displayName, avatarUrl: r.author.avatarUrl, isVerified: r.author.verificationTier === 'professional' },
+      author: { id: r.author.id, username: r.author.username, displayName: r.author.displayName, avatarUrl: r.author.avatarUrl, isVerified: r.author.identityStatus === 'approved' },
     }
   }
 

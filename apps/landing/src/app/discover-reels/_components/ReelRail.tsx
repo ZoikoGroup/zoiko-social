@@ -85,7 +85,7 @@ export default function ReelRail({ reel, onTune }: { reel: Reel; onTune: () => v
           Animal welfare, privacy, and safety checks happen before a reel can
           ever be recommended.
         </p>
-        <Link href={APP_LINKS.safety} className={`${arrowLink} pt-1.5`} style={{ color: C.brand }}>
+        <Link href="/trust-safety-center" className={`${arrowLink} pt-1.5`} style={{ color: C.brand }}>
           Visit Safety Center
           <ChevronRight size={14} strokeWidth={2.4} />
         </Link>

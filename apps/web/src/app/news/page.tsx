@@ -98,12 +98,20 @@ function byline(a: NewsArticle): { name: string; avatar: string | undefined; ver
 
 export default function NewsPage(): React.JSX.Element {
   const { ago } = useDateFormat()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, profile } = useAuth()
   const [category, setCategory] = useState('all')
   const [tier, setTier] = useState<Tier | 'all'>('all')
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [composeOpen, setComposeOpen] = useState(false)
+
+  const handleWrite = () => {
+    if (profile?.publisherStatus !== 'approved') {
+      window.alert('You must be Publisher Verified to write news articles. Please complete verification in your settings.')
+      return
+    }
+    setComposeOpen(true)
+  }
 
   const filters = useCallback(() => ({
     ...(category !== 'all' ? { category } : {}),
@@ -150,7 +158,7 @@ export default function NewsPage(): React.JSX.Element {
               </div>
               <DocsHelpLink href="/docs/news" />
               {isAuthenticated && (
-                <button onClick={() => setComposeOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
+                <button onClick={handleWrite} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
                   <PenSquare className="w-4 h-4" /><span className="hidden sm:inline">Write</span>
                 </button>
               )}

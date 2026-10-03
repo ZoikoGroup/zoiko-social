@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { Shield, X } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import {  appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 import { type Listing } from "./listings";
 
@@ -196,7 +196,7 @@ export default function ListingDialog({
             >
               How we verify this shelter
             </Link>
-            <Link href={APP_LINKS.safety} className="text-[14px] font-medium" style={{ color: "#B3261E" }}>
+            <Link href="/adopt-report-a-concern" className="text-[14px] font-medium" style={{ color: "#B3261E" }}>
               Report a concern
             </Link>
           </div>

@@ -22,9 +22,13 @@ export default function AuthCallbackPage(): React.JSX.Element {
      */
     async function goOnwards(): Promise<void> {
       const profile = await refreshProfile()
+      const searchParams = new URLSearchParams(window.location.search)
+      let nextUrl = searchParams.get('next') || searchParams.get('returnTo') || '/'
+      if (!nextUrl.startsWith('/')) nextUrl = '/'
+
       // A profile we couldn't read is not grounds for trapping anyone on a
       // spinner — send them in and let the in-app gate sort it out.
-      router.replace(profile?.onboardingCompleted === false ? '/onboarding' : '/')
+      router.replace(profile?.onboardingCompleted === false ? '/onboarding' : nextUrl)
     }
 
     async function handleCallback() {

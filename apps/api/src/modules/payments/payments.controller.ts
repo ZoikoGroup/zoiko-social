@@ -1,15 +1,13 @@
-import { BadRequestException, Controller, Get, Post, Param, Body, Req, UseGuards, HttpCode, HttpStatus, Logger } from '@nestjs/common'
+import { BadRequestException, Controller, Get, Post, Req, UseGuards, HttpCode, HttpStatus, Logger } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
-import { z } from 'zod'
 import Stripe from 'stripe'
 import { OrdersService } from './orders.service'
 import { StripeService } from './stripe.service'
 import { ConfigService } from '../config/config.service'
+import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
-
-const CheckoutSchema = z.object({ quantity: z.number().int().positive().max(20).default(1) })
 
 /** Request augmented with the raw request body — see main.ts's content-type parser override. */
 type RequestWithRawBody = FastifyRequest & { rawBody?: Buffer }
@@ -28,22 +26,9 @@ export class PaymentsController {
     private readonly orders: OrdersService,
     private readonly stripe: StripeService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  @Post('shop/:id/checkout')
-  @UseGuards(JwtAuthGuard)
-  async checkout(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() body: unknown) {
-    const input = CheckoutSchema.parse(body ?? {})
-    const webOrigin = this.config.allowedOrigin
-    const result = await this.orders.checkout(
-      id,
-      user.id,
-      input.quantity,
-      `${webOrigin}/shop/checkout/success?orderId={CHECKOUT_SESSION_ID}`,
-      `${webOrigin}/shop/checkout/cancel`,
-    )
-    return { data: result }
-  }
 
   @Get('orders/mine')
   @UseGuards(JwtAuthGuard)
@@ -76,7 +61,24 @@ export class PaymentsController {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
+        if (session.mode === 'subscription') {
+          const userId = session.client_reference_id;
+          const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement;
+          if (userId && entitlement) {
+            const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+            await this.prisma.subscription.create({
+              data: {
+                userId,
+                entitlement,
+                stripeId: subscriptionId,
+                status: 'active',
+                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
+              }
+            });
+          }
+        } else {
+          await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
+        }
         break
       }
       case 'checkout.session.expired': {

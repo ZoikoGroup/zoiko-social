@@ -4,6 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import { IMAGES } from "./images";
 import { C } from "./theme";
+import Link from "next/link";
+import { appUrl } from "@/lib/app-links";
 
 interface GridAnimal {
   id: string;
@@ -208,13 +210,13 @@ export default function AnimalGridSection() {
                   </div>
 
                   <div className="mt-3 sm:mt-4">
-                    <button
-                      type="button"
+                    <Link
+                      href={appUrl("/adoption")}
                       className="inline-flex items-center justify-center rounded-xl px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95"
                       style={{ backgroundColor: C.mosque }}
                     >
                       Learn More
-                    </button>
+                    </Link>
                   </div>
                 </div>
               </div>

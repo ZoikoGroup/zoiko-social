@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BadgeCheck, ShieldAlert, ShieldCheck } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 const CARDS = [
@@ -22,7 +22,7 @@ const CARDS = [
     icon: ShieldAlert,
     title: "Report a Concern",
     body: "Flag a listing, organization, or interaction that doesn't seem right.",
-    href: APP_LINKS.safety,
+    href: "/adopt-report-a-concern",
   },
 ] as const;
 

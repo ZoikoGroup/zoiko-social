@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BadgeCheck, Flag, Gauge, Lock, ShieldCheck } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 import { ORGANIZATIONS, PRIVACY_SAFETY } from "./nearYou";
 
@@ -128,7 +128,7 @@ export default function Organizations() {
                 </p>
                 {isReport ? (
                   <Link
-                    href={APP_LINKS.safety}
+                    href="/adopt-report-a-concern"
                     className="text-xs font-bold"
                     style={{ color: C.brand }}
                   >

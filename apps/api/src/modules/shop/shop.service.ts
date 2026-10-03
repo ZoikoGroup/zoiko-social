@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { CommercialService } from '../commercial/commercial.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateProductInput, UpdateProductInput, EnquiryInput, ShopCategory, ShopSort } from './shop.schemas'
 
@@ -23,6 +24,7 @@ export interface ProductResponse {
   inStock: boolean
   shipping: string | null
   location: string | null
+  externalUrl: string | null
   status: string
   tags: string[]
   savesCount: number
@@ -38,7 +40,7 @@ export interface ProductPage {
 }
 
 type ProductRow = Prisma.ProductGetPayload<{
-  include: { seller: { select: { id: true; username: true; displayName: true; avatarUrl: true; verificationTier: true } } }
+  include: { seller: { select: { id: true; username: true; displayName: true; avatarUrl: true; identityStatus: true } } }
 }>
 
 const MAX = 30
@@ -58,10 +60,11 @@ export class ShopService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
+    private readonly commercial: CommercialService,
   ) {}
 
   private sellerInclude() {
-    return { seller: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } }
+    return { seller: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } }
   }
 
   private map(p: ProductRow, saved: boolean): ProductResponse {
@@ -69,13 +72,13 @@ export class ShopService {
       id: p.id,
       seller: {
         id: p.seller.id, username: p.seller.username, displayName: p.seller.displayName,
-        avatarUrl: p.seller.avatarUrl, isVerified: p.seller.verificationTier === 'professional',
+        avatarUrl: p.seller.avatarUrl, isVerified: p.seller.identityStatus === 'approved',
       },
       title: p.title, description: p.description,
       price: p.priceCents / 100, compareAt: p.compareCents !== null ? p.compareCents / 100 : null,
       currency: p.currency, category: p.category, condition: p.condition,
       coverUrl: p.coverUrl, photos: p.photos, stock: p.stock, inStock: p.stock > 0,
-      shipping: p.shipping, location: p.location, status: p.status, tags: p.tags,
+      shipping: p.shipping, location: p.location, externalUrl: p.externalUrl, status: p.status, tags: p.tags,
       savesCount: p.savesCount, enquiriesCount: p.enquiriesCount,
       createdAt: p.createdAt.toISOString(), viewerSaved: saved,
     }
@@ -160,7 +163,7 @@ export class ShopService {
       take: 50,
       include: {
         product: { select: { id: true, title: true, coverUrl: true } },
-        buyer: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } },
+        buyer: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } },
       },
     })
     return rows.map((e) => ({
@@ -168,12 +171,13 @@ export class ShopService {
       product: { id: e.product.id, title: e.product.title, coverUrl: e.product.coverUrl },
       buyer: {
         id: e.buyer.id, username: e.buyer.username, displayName: e.buyer.displayName,
-        avatarUrl: e.buyer.avatarUrl, isVerified: e.buyer.verificationTier === 'professional',
+        avatarUrl: e.buyer.avatarUrl, isVerified: e.buyer.identityStatus === 'approved',
       },
     }))
   }
 
   async create(sellerId: string, input: CreateProductInput): Promise<ProductResponse> {
+    await this.commercial.checkSellerLimit(sellerId)
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     const created = await this.prisma.product.create({
@@ -189,6 +193,7 @@ export class ShopService {
         ...(input.photos ? { photos: input.photos } : {}),
         ...(input.shipping ? { shipping: input.shipping } : {}),
         ...(input.location ? { location: input.location } : {}),
+        externalUrl: input.externalUrl,
       },
       include: this.sellerInclude(),
     })
@@ -220,6 +225,7 @@ export class ShopService {
         ...(input.stock !== undefined ? { stock: input.stock } : {}),
         ...(input.shipping !== undefined ? { shipping: input.shipping } : {}),
         ...(input.location !== undefined ? { location: input.location } : {}),
+        ...(input.externalUrl !== undefined ? { externalUrl: input.externalUrl } : {}),
         ...(input.status !== undefined ? { status: input.status } : {}),
       },
       include: this.sellerInclude(),
@@ -285,13 +291,13 @@ export class ShopService {
     const rows = await this.prisma.productEnquiry.findMany({
       where: { productId: id },
       orderBy: { createdAt: 'desc' },
-      include: { buyer: { select: { id: true, username: true, displayName: true, avatarUrl: true, verificationTier: true } } },
+      include: { buyer: { select: { id: true, username: true, displayName: true, avatarUrl: true, identityStatus: true } } },
     })
     return rows.map((e) => ({
       id: e.id, message: e.message, status: e.status, createdAt: e.createdAt.toISOString(),
       buyer: {
         id: e.buyer.id, username: e.buyer.username, displayName: e.buyer.displayName,
-        avatarUrl: e.buyer.avatarUrl, isVerified: e.buyer.verificationTier === 'professional',
+        avatarUrl: e.buyer.avatarUrl, isVerified: e.buyer.identityStatus === 'approved',
       },
     }))
   }

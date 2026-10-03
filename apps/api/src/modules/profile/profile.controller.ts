@@ -298,6 +298,19 @@ export class ProfileController {
     return { data: result }
   }
 
+  @Post('admin/profiles/:userId/revoke-verification')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async revokeVerification(
+    @Param('userId') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { reason?: string },
+  ) {
+    await this.profileService.requireAdminOrModerator(user.id)
+    await this.profileService.revokeVerification(userId, user.id, body.reason)
+    return { data: { success: true } }
+  }
+
   // ── USER SETTINGS ───────────────────────────────────────────────────────────
 
   @Get('settings/me')

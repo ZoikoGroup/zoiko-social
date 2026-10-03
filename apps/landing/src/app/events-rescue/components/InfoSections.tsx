@@ -1,5 +1,5 @@
 import { BadgeCheck, DollarSign, Heart, Lock, MessageSquareText, Shield } from "lucide-react";
-import { APP_LINKS, appUrl } from "@/lib/app-links";
+import { appUrl } from "@/lib/app-links";
 import { C } from "./theme";
 
 const TRUST = [
@@ -32,7 +32,7 @@ const TRUST = [
     icon: Shield,
     title: "Report an event or safety concern",
     body: "Available on every listing — content, animal-welfare, and organizer concerns route to the right team.",
-    link: { label: "Report a concern >", href: APP_LINKS.safety },
+    link: { label: "Report a concern >", href: "/safety-report-concern" },
   },
 ] as const;
 

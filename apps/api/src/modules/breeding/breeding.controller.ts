@@ -13,6 +13,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { OptionalAuthGuard } from '../auth/guards/optional-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { VerifiedGuard } from '../auth/guards/verified.guard'
+import { SubscriptionGuard } from '../auth/guards/subscription.guard'
+import { RequireVerified } from '../auth/decorators/verified.decorator'
+import { RequireSubscription } from '../auth/decorators/subscription.decorator'
 
 @Controller('breeding')
 export class BreedingController {
@@ -154,13 +158,17 @@ export class BreedingController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('breeder_professional')
   async create(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateBreedingSchema)) body: CreateBreedingInput) {
     return { data: await this.breeding.create(user.id, body) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('breeder_professional')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body(new ZodValidationPipe(UpdateBreedingSchema)) body: UpdateBreedingInput) {
     return { data: await this.breeding.update(id, user.id, body) }
   }
