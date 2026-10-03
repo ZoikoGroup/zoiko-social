@@ -140,15 +140,15 @@ function build(overrides: {
   }
 
   const commercial = {
-    checkCommercialEventLimit: jest.fn().mockResolvedValue(undefined),
+    checkEventsLimit: jest.fn().mockResolvedValue(undefined),
   }
 
   const service = new EventsService(
-    prisma as any,
-    notifications as any,
-    profanity as any,
-    commercial as any,
-    affinity as any,
+    prisma as unknown as PrismaService,
+    notifications as unknown as NotificationQueueService,
+    profanity as unknown as ProfanityService,
+    commercial as unknown as CommercialService,
+    affinity as unknown as AffinityService,
   )
   return { service, prisma, notifications, profanity, affinity, commercial }
 }
