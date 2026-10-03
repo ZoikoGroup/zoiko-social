@@ -1,5 +1,10 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common'
 import { EventsService } from './events.service'
+import type { PrismaService } from '../prisma/prisma.service'
+import type { NotificationQueueService } from '../queue/notification-queue.service'
+import type { ProfanityService } from '../common/moderation/profanity.service'
+import type { AffinityService } from '../personalization/affinity.service'
+import type { CommercialService } from '../commercial/commercial.service'
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
