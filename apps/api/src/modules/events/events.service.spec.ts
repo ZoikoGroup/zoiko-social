@@ -4,7 +4,6 @@ import type { PrismaService } from '../prisma/prisma.service'
 import type { NotificationQueueService } from '../queue/notification-queue.service'
 import type { ProfanityService } from '../common/moderation/profanity.service'
 import type { AffinityService } from '../personalization/affinity.service'
-import type { CommercialService } from '../commercial/commercial.service'
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
@@ -149,11 +148,11 @@ function build(overrides: {
   }
 
   const service = new EventsService(
-    prisma as unknown as PrismaService,
-    notifications as unknown as NotificationQueueService,
-    profanity as unknown as ProfanityService,
-    commercial as unknown as CommercialService,
-    affinity as unknown as AffinityService,
+    prisma as any,
+    notifications as any,
+    profanity as any,
+    commercial as any,
+    affinity as any,
   )
   return { service, prisma, notifications, profanity, affinity, commercial }
 }
