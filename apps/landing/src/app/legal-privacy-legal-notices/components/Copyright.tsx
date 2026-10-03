@@ -92,7 +92,7 @@ export default function Copyright() {
                 <p className="text-xs md:text-sm text-gray-500 font-normal leading-relaxed">
                   Posts and media you share are covered by the{" "}
                   <a
-                    href="#terms"
+                    href="/legal-privacy-terms-of-service"
                     className="text-[#0A5C6F] font-semibold hover:underline"
                   >
                     Terms of Service

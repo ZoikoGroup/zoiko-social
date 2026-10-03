@@ -123,7 +123,7 @@ function BrandCardView({ card }: { card: BrandCard }) {
         </div>
         {"link" in card && card.link ? (
           <a
-            href="#"
+            href="/company-brand-assets"
             className="mt-[7px] inline-flex items-center gap-1.5 text-sm font-semibold leading-[22px] text-[#0B6474] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6474]"
           >
             {card.link}

@@ -102,7 +102,7 @@ export default function TermsOfServiceHeader() {
                 <span className="font-bold text-[#111827]">
                   All regions, with{" "}
                   <a
-                    href="#"
+                    href="#region-specific-terms"
                     className="underline text-[#0A5C6F] hover:text-[#073B47]"
                   >
                     regional terms

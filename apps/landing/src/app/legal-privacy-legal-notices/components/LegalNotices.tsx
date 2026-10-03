@@ -145,14 +145,14 @@ export default function LegalNotices() {
               View legal information
             </a>
             <a
-              href="#"
+              href="/support-developers-contact-us"
               className="inline-flex h-10 items-center gap-2 rounded-[11px] border border-[#D9DFE3] bg-white px-5 text-sm font-medium text-[#10262D] transition-colors hover:bg-[#F4F8F9] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6474]"
             >
               <Mail className="h-4 w-4" strokeWidth={1.75} />
               Contact Legal
             </a>
             <a
-              href="#"
+              href="/legal-privacy-terms-of-service"
               className="inline-flex h-10 items-center gap-1.5 px-2 text-sm font-medium text-[#0B6474] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B6474]"
             >
               Terms of Service

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from "react";
+import { APP_LINKS, appUrl } from "@/lib/app-links";
 import {
   ShieldCheck,
   Send,
@@ -45,14 +46,14 @@ export default function PrivacyChoicesSection() {
           {/* Action Links */}
           <div className="flex flex-wrap items-center gap-6 pt-2">
             <a
-              href="#"
+              href={appUrl("/settings")}
               className="inline-flex items-center gap-1 text-sm font-bold text-[#0A5C6F] hover:text-[#073B47] transition-colors"
             >
               Review your privacy choices
               <ChevronRight className="w-4 h-4" />
             </a>
             <a
-              href="#"
+              href={APP_LINKS.privacy}
               className="inline-flex items-center gap-1 text-sm font-bold text-[#0A5C6F] hover:text-[#073B47] transition-colors"
             >
               Read the Privacy Policy

@@ -1,4 +1,5 @@
 import React from "react";
+import { APP_LINKS } from "@/lib/app-links";
 import {
   ShieldCheck,
   Cookie,
@@ -23,28 +24,28 @@ const policies: PolicyCard[] = [
     description: "How we use personal data.",
     icon: <ShieldCheck className="w-4 h-4 text-[#0A5C6F]" />,
     linkText: "Read Privacy Policy",
-    linkHref: "#",
+    linkHref: APP_LINKS.privacy,
   },
   {
     title: "Cookie Policy",
     description: "Cookies and your choices.",
     icon: <Cookie className="w-4 h-4 text-[#0A5C6F]" />,
     linkText: "Read Cookie Policy",
-    linkHref: "#",
+    linkHref: APP_LINKS.privacy,
   },
   {
     title: "Community Standards",
     description: "What's allowed on Zoiko Social.",
     icon: <Users className="w-4 h-4 text-[#0A5C6F]" />,
     linkText: "Read Community Standards",
-    linkHref: "#",
+    linkHref: "/safety-community-standards",
   },
   {
     title: "Animal Welfare Policy",
     description: "How we protect animals.",
     icon: <ShieldAlert className="w-4 h-4 text-[#0A5C6F]" />,
     linkText: "Read Animal Welfare Policy",
-    linkHref: "#",
+    linkHref: "/safety-animal-welfare",
   },
   {
     title: "Advertising Standards",
@@ -58,7 +59,7 @@ const policies: PolicyCard[] = [
     description: "Entity, IP and legal contact.",
     icon: <FileText className="w-4 h-4 text-[#0A5C6F]" />,
     linkText: "Read Legal Notices",
-    linkHref: "#",
+    linkHref: "/legal-privacy-legal-notices",
   },
 ];
 

@@ -26,14 +26,14 @@ export default function QuestionsAboutTheseTerms() {
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <a
-              href="#contact-legal"
+              href="/support-developers-contact-us"
               className="inline-flex items-center gap-2 bg-transparent hover:bg-[#05353f] text-white text-xs font-semibold px-5 py-3 rounded-xl transition-colors border border-white/10 shadow-sm"
             >
               <Mail className="w-4 h-4" />
               Contact Legal
             </a>
             <a
-              href="#help-center"
+              href="/support-developers-help-center"
               className="inline-flex items-center gap-2 bg-transparent hover:bg-white/10 text-white text-xs font-semibold px-5 py-3 rounded-xl transition-colors border border-white/20 shadow-sm"
             >
               <BookOpen className="w-4 h-4" />

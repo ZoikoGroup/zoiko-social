@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
 import {
   FileText,
   ShieldCheck,
@@ -13,6 +15,7 @@ import {
 interface LegalLinkCard {
   id: string;
   title: string;
+  href: string;
   icon: React.ReactNode;
   isActive?: boolean;
 }
@@ -21,31 +24,37 @@ const legalLinks: LegalLinkCard[] = [
   {
     id: "terms",
     title: "Terms of Service",
+    href: "/legal-privacy-terms-of-service",
     icon: <FileText className="w-4 h-4 text-[#0A5C6F]" />,
   },
   {
     id: "privacy",
     title: "Privacy Policy",
+    href: APP_LINKS.privacy,
     icon: <ShieldCheck className="w-4 h-4 text-[#0A5C6F]" />,
   },
   {
     id: "cookie",
     title: "Cookie Policy",
+    href: APP_LINKS.privacy,
     icon: <Cookie className="w-4 h-4 text-[#0A5C6F]" />,
   },
   {
     id: "accessibility",
     title: "Accessibility Statement",
+    href: "/support-developers-accessibility-support",
     icon: <Accessibility className="w-4 h-4 text-[#0A5C6F]" />,
   },
   {
     id: "data-protection",
     title: "Data Protection & Privacy Rights",
+    href: "/legal-privacy-rights",
     icon: <Scale className="w-4 h-4 text-[#0A5C6F]" />,
   },
   {
     id: "legal-notices",
     title: "Legal Notices",
+    href: "/legal-privacy-legal-notices",
     icon: <BookOpen className="w-4 h-4 text-[#0A5C6F]" />,
     isActive: true,
   },
@@ -65,8 +74,9 @@ export default function MoreFromLegalAndPrivacy() {
         {/* 3-Column Grid of Link Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {legalLinks.map((link) => (
-            <div
+            <Link
               key={link.id}
+              href={link.href}
               className={`rounded-3xl border p-5 flex items-center justify-between gap-4 transition-all cursor-pointer ${
                 link.isActive
                   ? "bg-[#F0F9FA] border-[#E0F2F4] shadow-2xs"
@@ -95,7 +105,7 @@ export default function MoreFromLegalAndPrivacy() {
                   <ChevronRight className="w-4 h-4 text-gray-400" />
                 )}
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

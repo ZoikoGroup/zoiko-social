@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { Mail, Accessibility } from "lucide-react";
 
 export default function ComplexPrivacyQuestion() {
@@ -25,21 +26,21 @@ export default function ComplexPrivacyQuestion() {
 
           {/* Buttons Container */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <button
-              type="button"
+            <Link
+              href="/support-developers-contact-us"
               className="inline-flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-[#0A5C6F] text-xs md:text-sm font-semibold px-5 py-3 rounded-xl transition-colors shadow-2xs cursor-pointer"
             >
               <Mail className="w-4 h-4" />
               Contact the privacy team
-            </button>
+            </Link>
 
-            <button
-              type="button"
+            <Link
+              href="/support-developers-accessibility-support"
               className="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-white/10 border border-white/20 text-white text-xs md:text-sm font-semibold px-5 py-3 rounded-xl transition-colors shadow-2xs cursor-pointer"
             >
               <Accessibility className="w-4 h-4" />
               Accessibility Support
-            </button>
+            </Link>
           </div>
         </div>
       </div>
