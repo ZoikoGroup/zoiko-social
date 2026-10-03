@@ -89,9 +89,8 @@ export default function HowItWorksSection() {
 
         {/* Mobile View: Vertical Timeline (< md) */}
         <div className="flex flex-col gap-3 md:hidden mb-8">
-          {STEPS.map((step, idx) => {
+          {STEPS.map((step) => {
             const Icon = step.icon;
-            const isLast = idx === STEPS.length - 1;
 
             return (
               <div
