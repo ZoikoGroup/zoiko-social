@@ -1,10 +1,6 @@
 import { ForbiddenException, BadRequestException } from '@nestjs/common'
 import { EventsService } from './events.service'
-import type { PrismaService } from '../prisma/prisma.service'
-import type { NotificationQueueService } from '../queue/notification-queue.service'
-import type { ProfanityService } from '../common/moderation/profanity.service'
-import type { AffinityService } from '../personalization/affinity.service'
-import type { CommercialService } from '../commercial/commercial.service'
+
 
 const HOST = 'host-1'
 const GUEST = 'guest-1'
@@ -148,12 +144,17 @@ function build(overrides: {
     checkEventsLimit: jest.fn().mockResolvedValue(undefined),
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const service = new EventsService(
-    prisma as unknown as PrismaService,
-    notifications as unknown as NotificationQueueService,
-    profanity as unknown as ProfanityService,
-    commercial as unknown as CommercialService,
-    affinity as unknown as AffinityService,
+    prisma as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    notifications as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    profanity as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    commercial as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    affinity as any,
   )
   return { service, prisma, notifications, profanity, affinity, commercial }
 }
