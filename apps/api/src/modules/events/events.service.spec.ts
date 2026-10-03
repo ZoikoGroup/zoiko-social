@@ -144,7 +144,7 @@ function build(overrides: {
   }
 
   const commercial = {
-    checkCommercialEventLimit: jest.fn().mockResolvedValue(undefined),
+    checkEventsLimit: jest.fn().mockResolvedValue(undefined),
   }
 
   const service = new EventsService(
