@@ -16,6 +16,7 @@ import {
   Sparkles,
   Store,
 } from "lucide-react";
+import { APP_LINKS, appUrl } from "@/lib/app-links";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Types                                    */
@@ -23,7 +24,7 @@ import {
 
 type IconType = ComponentType<{ className?: string; strokeWidth?: number }>;
 
-type Segment = string | { readonly link: string };
+type Segment = string | { readonly link: string; readonly href: string };
 
 type Clause = {
   number: string;
@@ -53,6 +54,7 @@ type ServiceTerm = {
   title: string;
   description: string;
   linkLabel: string;
+  href: string;
   icon: IconType;
 };
 
@@ -85,7 +87,7 @@ const SECTIONS = [
         title: "Who can use Zoiko Social",
         body: [
           "You must be at least 13 years old, or the minimum age required in your country if it’s higher. If you’re under 18, you confirm a parent or guardian has reviewed these Terms with you. See ",
-          { link: "Protecting Under-18s" },
+          { link: "Protecting Under-18s", href: "/safety-protecting-under-18s" },
           ".",
         ],
       },
@@ -116,7 +118,7 @@ const SECTIONS = [
         title: "Accurate information",
         body: [
           "Keep your account details accurate and up to date. You can change most details in ",
-          { link: "Account settings" },
+          { link: "Account settings", href: appUrl("/settings") },
           ".",
         ],
       },
@@ -125,7 +127,7 @@ const SECTIONS = [
         title: "Keeping your account secure",
         body: [
           "You’re responsible for activity on your account and for keeping your sign-in details private. Tell us right away through ",
-          { link: "Help Center" },
+          { link: "Help Center", href: "/support-developers-help-center" },
           " if you think someone else has accessed your account.",
         ],
       },
@@ -141,7 +143,7 @@ const SECTIONS = [
         title: "No impersonation",
         body: [
           "Don’t pretend to be another person, rescue, professional or organization. Verified badges are covered by the ",
-          { link: "Verification Policy" },
+          { link: "Verification Policy", href: "/premium-verified-organization" },
           ".",
         ],
       },
@@ -172,7 +174,7 @@ const SECTIONS = [
         title: "Availability",
         body: [
           "We work to keep Zoiko Social available, but we don’t promise it will always be uninterrupted or error-free. Current service health is on ",
-          { link: "System Status" },
+          { link: "System Status", href: "/support-developers-system-status" },
           ".",
         ],
       },
@@ -203,7 +205,7 @@ const SECTIONS = [
         title: "Rights to what you share",
         body: [
           "Only share content you have the rights to, including permission from people who appear in it. Report copyright or trademark issues through ",
-          { link: "Legal Notices" },
+          { link: "Legal Notices", href: "/legal-privacy-legal-notices" },
           ".",
         ],
       },
@@ -232,7 +234,7 @@ const SECTIONS = [
         title: "Community Standards",
         body: [
           "You must follow the ",
-          { link: "Community Standards" },
+          { link: "Community Standards", href: "/safety-community-standards" },
           ", which are part of these Terms.",
         ],
       },
@@ -241,7 +243,7 @@ const SECTIONS = [
         title: "Animal welfare",
         body: [
           "Content or activity that promotes animal cruelty, illegal wildlife trade, animal fighting or unlicensed breeding is not allowed. Report concerns through ",
-          { link: "Report a concern" },
+          { link: "Report a concern", href: "/safety-report-concern" },
           ".",
         ],
       },
@@ -280,9 +282,9 @@ const SECTIONS = [
         title: "How we handle your data",
         body: [
           "Our ",
-          { link: "Privacy Policy" },
+          { link: "Privacy Policy", href: APP_LINKS.privacy },
           " explains how we collect and use personal data. The ",
-          { link: "Cookie Policy" },
+          { link: "Cookie Policy", href: APP_LINKS.privacy },
           " covers cookies and similar technologies.",
         ],
       },
@@ -291,7 +293,7 @@ const SECTIONS = [
         title: "Your privacy rights",
         body: [
           "You can access, correct or delete your data, and use other rights that apply where you live, through ",
-          { link: "Data Protection & Privacy Rights" },
+          { link: "Data Protection & Privacy Rights", href: "/legal-privacy-rights" },
           ".",
         ],
       },
@@ -315,7 +317,7 @@ const SECTIONS = [
         title: "Appeals",
         body: [
           "If we act on your content or account, we’ll tell you why where we can, and you can appeal through the ",
-          { link: "Appeals" },
+          { link: "Appeals", href: "/safety-appeals" },
           " page within 30 days.",
         ],
       },
@@ -332,7 +334,7 @@ const SECTIONS = [
         title: "Closing your account",
         body: [
           "You can delete your account anytime in ",
-          { link: "Account settings" },
+          { link: "Account settings", href: appUrl("/settings") },
           ". Some information may be kept as described in the Privacy Policy.",
         ],
       },
@@ -394,7 +396,7 @@ const SECTIONS = [
         title: "Talk to us first",
         body: [
           "If you have a dispute with us, contact ",
-          { link: "Legal" },
+          { link: "Legal", href: "/support-developers-contact-us" },
           " first. Most concerns can be resolved informally within 60 days.",
         ],
       },
@@ -467,7 +469,7 @@ const SECTIONS = [
         title: "Sending us legal notices",
         body: [
           "Send formal notices to legal@zoikosocial.example or by mail to the address above. See ",
-          { link: "Legal Notices" },
+          { link: "Legal Notices", href: "/legal-privacy-legal-notices" },
           " for service of process.",
         ],
       },
@@ -481,6 +483,7 @@ const SERVICE_TERMS = [
     title: "Premium",
     description: "Billing, renewal and cancellation",
     linkLabel: "Read Premium terms",
+    href: "/platform-premium-plans-production",
     icon: Sparkles,
   },
   {
@@ -488,6 +491,7 @@ const SERVICE_TERMS = [
     title: "Zoiko Market",
     description: "Buying, selling and prohibited items",
     linkLabel: "Read Zoiko Market terms",
+    href: "/platform-market-production",
     icon: Store,
   },
   {
@@ -495,6 +499,7 @@ const SERVICE_TERMS = [
     title: "Adopt and Foster",
     description: "Safety and off-platform meetings",
     linkLabel: "Read Adopt and Foster terms",
+    href: "/platform-adopt-foster-production",
     icon: PawPrint,
   },
   {
@@ -502,6 +507,7 @@ const SERVICE_TERMS = [
     title: "Professionals and Organizations",
     description: "Verification and directory listings",
     linkLabel: "Read Professionals and Organizations terms",
+    href: "/premium-verified-organization",
     icon: BadgeCheck,
   },
   {
@@ -509,6 +515,7 @@ const SERVICE_TERMS = [
     title: "Advertising",
     description: "Advertising Standards and review",
     linkLabel: "Read Advertising terms",
+    href: "#",
     icon: Megaphone,
   },
   {
@@ -516,6 +523,7 @@ const SERVICE_TERMS = [
     title: "Events and fundraising",
     description: "Organizer duties and payments",
     linkLabel: "Read Events and fundraising terms",
+    href: "/platform-events",
     icon: Calendar,
   },
   {
@@ -523,6 +531,7 @@ const SERVICE_TERMS = [
     title: "News",
     description: "Editorial and source rules",
     linkLabel: "Read News terms",
+    href: "/news-source-standards",
     icon: Newspaper,
   },
   {
@@ -530,6 +539,7 @@ const SERVICE_TERMS = [
     title: "Developers and API",
     description: "Developer terms",
     linkLabel: "Read Developers and API terms",
+    href: "/support-developers-api-documentation",
     icon: Code2,
   },
 ] as const satisfies readonly ServiceTerm[];
@@ -615,7 +625,7 @@ function RichText({ segments }: { segments: readonly Segment[] }) {
         typeof segment === "string" ? (
           <span key={`text-${index}`}>{segment}</span>
         ) : (
-          <a key={`link-${index}`} href="#" className={LINK_CLASS}>
+          <a key={`link-${index}`} href={segment.href} className={LINK_CLASS}>
             {segment.link}
           </a>
         ),
@@ -664,7 +674,7 @@ function ServiceCard({ item }: { item: ServiceTerm }) {
       <div className="min-w-0">
         <h4 className="text-[15px] font-semibold leading-5 text-[#0B3A44]">{item.title}</h4>
         <p className="mt-1 text-[12.5px] leading-4 text-[#7A8A90]">{item.description}</p>
-        <a href="#" className="mt-2 inline-block text-[12.5px] font-semibold leading-4 text-[#0B6474] hover:underline">
+        <a href={item.href} className="mt-2 inline-block text-[12.5px] font-semibold leading-4 text-[#0B6474] hover:underline">
           {item.linkLabel}
         </a>
       </div>

@@ -1,4 +1,5 @@
 import React from "react";
+import { appUrl } from "@/lib/app-links";
 import {
   Download,
   Trash2,
@@ -112,7 +113,7 @@ export default function DoItYourself() {
               </div>
 
               <a
-                href="#"
+                href={appUrl("/settings")}
                 className="inline-flex items-center gap-1 bg-white hover:bg-gray-50 text-[#111827] border border-gray-200 text-xs font-semibold px-4 py-2 rounded-xl transition-colors shrink-0 shadow-2xs"
               >
                 Open

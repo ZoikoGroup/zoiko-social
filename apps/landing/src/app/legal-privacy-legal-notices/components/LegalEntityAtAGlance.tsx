@@ -91,7 +91,7 @@ export default function LegalEntityAtAGlance() {
                   </span>
                   <span className="text-gray-300">·</span>
                   <a
-                    href="#contact"
+                    href="/support-developers-contact-us"
                     className="font-semibold text-[#0A5C6F] hover:underline"
                   >
                     Contact Legal
