@@ -1,6 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { CommercialService } from './commercial.service';
-import { COMMERCIAL_PLANS, FREE_ANTI_ABUSE_LIMITS } from './commercial.constants';
+import { SERVICE_LIMITS, FREE_ANTI_ABUSE_LIMITS } from './commercial.constants';
 
 describe('CommercialService Limits', () => {
   let service: CommercialService;
@@ -28,13 +28,13 @@ describe('CommercialService Limits', () => {
 
     it('throws if active products >= limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-      prisma.product.count.mockResolvedValue(COMMERCIAL_PLANS.seller_professional.limits.activeProducts);
+      prisma.product.count.mockResolvedValue(SERVICE_LIMITS.seller.activeProducts);
       await expect(service.checkSellerLimit('user-1')).rejects.toThrow(/listing limit/);
     });
 
     it('passes if under limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-      prisma.product.count.mockResolvedValue(COMMERCIAL_PLANS.seller_professional.limits.activeProducts - 1);
+      prisma.product.count.mockResolvedValue(SERVICE_LIMITS.seller.activeProducts - 1);
       await expect(service.checkSellerLimit('user-1')).resolves.toBeUndefined();
     });
   });
@@ -47,13 +47,13 @@ describe('CommercialService Limits', () => {
 
     it('throws if active profiles >= limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-      prisma.breedingProfile.count.mockResolvedValue(COMMERCIAL_PLANS.breeder_professional.limits.activeProfiles);
+      prisma.breedingProfile.count.mockResolvedValue(SERVICE_LIMITS.breeder.activeProfiles);
       await expect(service.checkBreederLimit('user-1')).rejects.toThrow(/profile limit/);
     });
 
     it('passes if under limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-      prisma.breedingProfile.count.mockResolvedValue(COMMERCIAL_PLANS.breeder_professional.limits.activeProfiles - 1);
+      prisma.breedingProfile.count.mockResolvedValue(SERVICE_LIMITS.breeder.activeProfiles - 1);
       await expect(service.checkBreederLimit('user-1')).resolves.toBeUndefined();
     });
   });
@@ -66,7 +66,7 @@ describe('CommercialService Limits', () => {
 
     it('throws if active services >= limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
-      prisma.petCareService.count.mockResolvedValue(COMMERCIAL_PLANS.care_professional.limits.activeServices);
+      prisma.petCareService.count.mockResolvedValue(SERVICE_LIMITS.care.activeServices);
       prisma.providerTeamMember.count.mockResolvedValue(0);
       await expect(service.checkCareProviderLimit('user-1')).rejects.toThrow(/services limit/);
     });
@@ -74,7 +74,7 @@ describe('CommercialService Limits', () => {
     it('throws if team members >= limit', async () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
       prisma.petCareService.count.mockResolvedValue(0);
-      prisma.providerTeamMember.count.mockResolvedValue(COMMERCIAL_PLANS.care_professional.limits.teamMembers);
+      prisma.providerTeamMember.count.mockResolvedValue(SERVICE_LIMITS.care.teamMembers);
       await expect(service.checkCareProviderLimit('user-1')).rejects.toThrow(/team members limit/);
     });
 

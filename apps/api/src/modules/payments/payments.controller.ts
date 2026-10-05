@@ -75,6 +75,60 @@ export class PaymentsController {
                 currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
               }
             });
+
+            // Automatically sync professional profile and verified status
+            try {
+              const categoryMap: Record<string, import('@prisma/client').ProfessionalCategory> = {
+                starter: 'product_seller',
+                professional: 'product_seller',
+                premium: 'product_seller',
+                seller_professional: 'product_seller',
+                care_professional: 'pet_care_service_provider',
+                breeder_professional: 'product_seller',
+              };
+              const category = categoryMap[entitlement as string] || 'product_seller';
+
+              await this.prisma.profile.update({
+                where: { id: userId },
+                data: {
+                  identityStatus: 'approved',
+                  ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
+                },
+              });
+
+              const existingProf = await this.prisma.professionalProfile.findUnique({
+                where: { userId },
+              });
+
+              if (existingProf) {
+                await this.prisma.professionalProfile.update({
+                  where: { userId },
+                  data: {
+                    deletedAt: null,
+                    category,
+                    isVerified: true,
+                    verifiedAt: existingProf.verifiedAt || new Date(),
+                  },
+                });
+              } else {
+                await this.prisma.professionalProfile.create({
+                  data: {
+                    userId,
+                    category,
+                    isVerified: true,
+                    verifiedAt: new Date(),
+                  },
+                });
+              }
+
+              await this.prisma.professionalSetting.upsert({
+                where: { userId },
+                create: { userId },
+                update: {},
+              });
+            } catch (profErr) {
+              this.logger.warn(`Could not auto-sync professional profile for user ${userId}: ${(profErr as Error).message}`);
+            }
           }
         } else {
           await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))

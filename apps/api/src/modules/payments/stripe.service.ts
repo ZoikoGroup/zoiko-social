@@ -2,6 +2,13 @@ import { Injectable, Logger } from '@nestjs/common'
 import Stripe from 'stripe'
 import { ConfigService } from '../config/config.service'
 
+function getStripeClient(secretKey: string): Stripe {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const StripeModule = require('stripe')
+  const Cls = (StripeModule && StripeModule.default) ? StripeModule.default : StripeModule
+  return new Cls(secretKey)
+}
+
 /**
  * Thin wrapper around the Stripe SDK. The client is only constructed when
  * config.stripeEnabled — callers must check that first (same fail-closed
@@ -14,7 +21,7 @@ export class StripeService {
   private readonly client: Stripe | null
 
   constructor(private readonly config: ConfigService) {
-    this.client = config.stripeEnabled ? new Stripe(config.stripeSecretKey!) : null
+    this.client = config.stripeEnabled ? getStripeClient(config.stripeSecretKey!) : null
     if (!this.client) {
       this.logger.warn('Stripe credentials not configured — Shop checkout is disabled')
     }
@@ -91,6 +98,10 @@ export class StripeService {
       cancel_url: params.cancelUrl,
       metadata: { entitlement: params.planId },
     })
+  }
+
+  async retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    return this.require().checkout.sessions.retrieve(sessionId);
   }
 
   constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useCachedValue } from '@/hooks/use-cache'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
@@ -13,15 +13,18 @@ import { AccountAnalyticsSection } from '@/components/analytics/AccountAnalytics
 import {
   LayoutDashboard, ShoppingBag, Newspaper, Stethoscope, HandHeart, ShieldCheck, BadgeCheck,
   Plus, Heart, Bookmark, MessageCircle, Package, MailOpen, PawPrint, ChevronRight, Pencil, MapPin,
+  Dna, Sparkles, Layers, Sliders,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { useDateFormat } from '@/hooks/use-date-format'
 import { DocsHelpLink } from '@/components/DocsHelpLink'
 import {
-  shopApi, newsApi, providersApi, feedApi,
+  shopApi, newsApi, providersApi, feedApi, breedingApi, request,
   type Product, type ProductEnquiryInbox, type NewsArticle, type Provider, type PostItem,
+  type BreedingProfile, type BreedingLitter,
 } from '@/lib/api'
 import { useProfessionalLabel } from '@/hooks/use-professional-label'
 
@@ -291,6 +294,103 @@ function PetCareDashboard(): React.JSX.Element {
   )
 }
 
+// ── Breeder Professional ─────────────────────────────────────────────────────
+function BreederDashboard(): React.JSX.Element {
+  const { data, isLoading: loading } = useCachedValue<{ profiles: BreedingProfile[]; litters: BreedingLitter[] }>('dash:breeder', async () => {
+    const [p, l] = await Promise.allSettled([breedingApi.mine(), breedingApi.litters()])
+    return {
+      profiles: p.status === 'fulfilled' ? p.value : [],
+      litters: l.status === 'fulfilled' ? l.value : [],
+    }
+  })
+  const profiles = data?.profiles ?? []
+  const litters = data?.litters ?? []
+
+  const activeProfiles = profiles.filter((p) => p.status === 'active' || p.availableNow).length
+  const totalLitters = litters.length
+  const totalRequests = profiles.reduce((acc, p) => acc + (p.requestsCount || 0), 0)
+
+  return (
+    <>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatTile label="Breeding profiles" value={profiles.length} Icon={Dna} tint="bg-primary/10 text-primary" />
+        <StatTile label="Active profiles" value={activeProfiles} Icon={PawPrint} tint="bg-emerald-500/10 text-emerald-600" />
+        <StatTile label="Total Litters" value={totalLitters} Icon={Package} tint="bg-secondary/10 text-secondary" />
+        <StatTile label="Match Requests" value={totalRequests} Icon={Heart} tint="bg-red-500/10 text-red-500" />
+      </div>
+
+      <Card
+        title="My Breeding Profiles"
+        action={
+          <Link href="/breeding" className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-[12px] font-semibold hover:bg-primary/90">
+            <Plus className="w-3.5 h-3.5" />Add Profile
+          </Link>
+        }
+      >
+        {loading ? (
+          <Skeleton rows={3} />
+        ) : profiles.length === 0 ? (
+          <Empty text="No breeding profiles created yet." cta={{ href: '/breeding', label: 'Create breeding profile' }} />
+        ) : (
+          <div className="divide-y divide-outline-variant/10">
+            {profiles.map((p) => (
+              <Link key={p.id} href={`/breeding/${p.id}`} className="flex items-center gap-3 py-2.5 group">
+                <div className="w-11 h-11 rounded-lg bg-surface-container overflow-hidden flex-shrink-0 flex items-center justify-center">
+                  <Thumb url={p.coverUrl} className="w-full h-full object-cover" fallback={<Dna className="w-5 h-5 text-primary" />} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-label-sm font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
+                    {p.petName}
+                  </p>
+                  <p className="text-[11px] text-outline truncate">
+                    {p.breed} · {p.sex ? (p.sex.charAt(0).toUpperCase() + p.sex.slice(1)) : 'Male'} · {p.location || 'Location specified'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="flex items-center gap-0.5 text-[11px] text-outline">
+                    <Heart className="w-3 h-3 text-red-500" />
+                    {p.requestsCount || 0}
+                  </span>
+                  <StatusPill status={p.status || 'active'} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card
+        title="My Litters (Pipeline)"
+        action={
+          <Link href="/breeding" className="text-[12px] font-semibold text-primary hover:underline flex items-center gap-0.5">
+            Breeding Hub<ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        }
+      >
+        {loading ? (
+          <Skeleton rows={2} />
+        ) : litters.length === 0 ? (
+          <Empty text="No litters recorded yet." />
+        ) : (
+          <div className="divide-y divide-outline-variant/10">
+            {litters.map((l) => (
+              <div key={l.id} className="py-2.5 flex items-center justify-between">
+                <div>
+                  <p className="text-label-sm font-semibold text-on-surface">{l.petName} & {l.withName}</p>
+                  <p className="text-[11px] text-outline">
+                    {l.species || 'Pet'} {l.breed ? `(${l.breed})` : ''} · {l.count ? `${l.count} offspring` : 'Litter tracked'}
+                  </p>
+                </div>
+                <StatusPill status={l.status || 'planned'} />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </>
+  )
+}
+
 function Thumb({ url, className, fallback }: { url: string | null; className: string; fallback?: React.ReactNode }): React.JSX.Element {
   if (!url) return <>{fallback ?? null}</>
   return <Img src={url} alt="" className={className} />
@@ -308,30 +408,139 @@ function Empty({ text, cta }: { text: string; cta?: { href: string; label: strin
   )
 }
 
-const ROLE_META: Record<string, { Icon: LucideIcon; render: () => React.JSX.Element }> = {
-  product_seller: { Icon: ShoppingBag, render: () => <SellerDashboard /> },
-  verified_news_publisher: { Icon: Newspaper, render: () => <PublisherDashboard /> },
-  veterinarian: { Icon: Stethoscope, render: () => <VetDashboard /> },
-  pet_care_service_provider: { Icon: HandHeart, render: () => <PetCareDashboard /> },
+const ROLE_META: Record<string, { label: string; Icon: LucideIcon; render: () => React.JSX.Element }> = {
+  product_seller: { label: 'Seller Dashboard', Icon: ShoppingBag, render: () => <SellerDashboard /> },
+  breeder_professional: { label: 'Breeder Dashboard', Icon: Dna, render: () => <BreederDashboard /> },
+  pet_care_service_provider: { label: 'Care Provider Dashboard', Icon: HandHeart, render: () => <PetCareDashboard /> },
+  verified_news_publisher: { label: 'Publisher Dashboard', Icon: Newspaper, render: () => <PublisherDashboard /> },
+  veterinarian: { label: 'Veterinarian Dashboard', Icon: Stethoscope, render: () => <VetDashboard /> },
+}
+
+interface UserSub {
+  id: string
+  entitlement: string
+  status: string
 }
 
 export default function DashboardPage(): React.JSX.Element {
   const profLabel = useProfessionalLabel()
   const { date: formatDate } = useDateFormat()
-  const { loading, isAuthenticated, profile } = useAuth()
+  const { loading, isAuthenticated, profile, refreshProfile } = useAuth()
+  const [activeSubscriptions, setActiveSubscriptions] = useState<UserSub[]>([])
+  const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [userTier, setUserTier] = useState<'starter' | 'professional' | 'premium' | string>('starter')
+  const [maxServicesAllowed, setMaxServicesAllowed] = useState<number>(1)
+  const [allocatedServices, setAllocatedServices] = useState<string[]>([])
+  const [isServiceModalOpen, setIsServiceModalOpen] = useState(false)
+  const [hasPromptedSelection, setHasPromptedSelection] = useState(false)
 
   useEffect(() => {
     if (!loading && !isAuthenticated) window.location.replace('/login')
   }, [loading, isAuthenticated])
 
-  if (loading || !isAuthenticated || !profile) {
-    return <div className="min-h-screen bg-background pt-20"><div className="max-w-container-max mx-auto px-5 py-4"><div className="h-40 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" /></div></div>
+  useEffect(() => {
+    let isMounted = true
+    async function loadData() {
+      try {
+        const [subsRes, servicesRes] = await Promise.allSettled([
+          request<UserSub[] | { data: UserSub[] }>('/commercial/subscriptions'),
+          request<{ data: { tier: string; maxServicesAllowed: number; activeServices: string[] } }>('/commercial/active-services'),
+        ])
+
+        if (isMounted) {
+          if (subsRes.status === 'fulfilled') {
+            const subs = Array.isArray(subsRes.value) ? subsRes.value : Array.isArray(subsRes.value?.data) ? subsRes.value.data : []
+            setActiveSubscriptions(subs)
+          }
+
+          if (servicesRes.status === 'fulfilled' && servicesRes.value?.data) {
+            const sData = servicesRes.value.data
+            setUserTier(sData.tier || 'starter')
+            setMaxServicesAllowed(sData.maxServicesAllowed || 1)
+            setAllocatedServices(sData.activeServices || [])
+
+            // If user has subscription but hasn't configured services yet, automatically open selection wizard once
+            if ((sData.activeServices || []).length === 0 && !hasPromptedSelection) {
+              setIsServiceModalOpen(true)
+              setHasPromptedSelection(true)
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load dashboard data', e)
+      }
+    }
+    if (isAuthenticated) {
+      loadData()
+      refreshProfile().catch((e) => console.warn('Failed to refresh profile', e))
+    }
+    return () => {
+      isMounted = false
+    }
+  }, [isAuthenticated, refreshProfile, hasPromptedSelection])
+
+  // Determine available dashboards for user
+  const availableDashboards: Array<{ id: string; label: string; Icon: LucideIcon; render: () => React.JSX.Element }> = []
+
+  // 1. Add services explicitly selected and allocated by the user
+  if (allocatedServices.includes('seller') && !availableDashboards.some((d) => d.id === 'product_seller')) {
+    const meta = ROLE_META.product_seller
+    if (meta) availableDashboards.push({ id: 'product_seller', ...meta })
+  }
+  if (allocatedServices.includes('breeder') && !availableDashboards.some((d) => d.id === 'breeder_professional')) {
+    const meta = ROLE_META.breeder_professional
+    if (meta) availableDashboards.push({ id: 'breeder_professional', ...meta })
+  }
+  if (allocatedServices.includes('vet') && !availableDashboards.some((d) => d.id === 'veterinarian')) {
+    const meta = ROLE_META.veterinarian
+    if (meta) availableDashboards.push({ id: 'veterinarian', ...meta })
+  }
+  if (allocatedServices.includes('care') && !availableDashboards.some((d) => d.id === 'pet_care_service_provider')) {
+    const meta = ROLE_META.pet_care_service_provider
+    if (meta) availableDashboards.push({ id: 'pet_care_service_provider', ...meta })
   }
 
-  const role = profile.professionalProfile?.category ?? null
-  const meta = role ? ROLE_META[role] : null
+  // 2. Check commercial subscriptions (fallback & backwards compatibility)
+  activeSubscriptions.forEach((sub) => {
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      if (sub.entitlement === 'seller_professional' && !availableDashboards.some((d) => d.id === 'product_seller')) {
+        const meta = ROLE_META.product_seller
+        if (meta) availableDashboards.push({ id: 'product_seller', ...meta })
+      } else if (sub.entitlement === 'breeder_professional' && !availableDashboards.some((d) => d.id === 'breeder_professional')) {
+        const meta = ROLE_META.breeder_professional
+        if (meta) availableDashboards.push({ id: 'breeder_professional', ...meta })
+      } else if (sub.entitlement === 'care_professional' && !availableDashboards.some((d) => d.id === 'pet_care_service_provider')) {
+        const meta = ROLE_META.pet_care_service_provider
+        if (meta) availableDashboards.push({ id: 'pet_care_service_provider', ...meta })
+      }
+    }
+  })
+
+  // 3. Check verified professional profile role as well
+  const role = profile?.professionalProfile?.category ?? null
+  if (role && ROLE_META[role] && !availableDashboards.some((d) => d.id === role)) {
+    const meta = ROLE_META[role]
+    if (meta) availableDashboards.push({ id: role, ...meta })
+  }
+
+  // Active dashboard selection
+  const currentTab = activeTab && availableDashboards.some((d) => d.id === activeTab)
+    ? activeTab
+    : availableDashboards[0]?.id || null
+
+  const activeMeta = currentTab ? availableDashboards.find((d) => d.id === currentTab) : null
   const roleLabel = profLabel(role)
-  const verifiedAt = profile.professionalProfile?.verifiedAt ?? null
+  const verifiedAt = profile?.professionalProfile?.verifiedAt ?? null
+
+  if (loading || !isAuthenticated || !profile) {
+    return (
+      <div className="min-h-screen bg-background pt-20">
+        <div className="max-w-container-max mx-auto px-5 py-4">
+          <div className="h-40 bg-surface-container-lowest rounded-xl border border-outline-variant/30 animate-pulse" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -348,35 +557,132 @@ export default function DashboardPage(): React.JSX.Element {
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl border border-primary/20 p-5">
               <div className="flex items-center gap-3">
                 <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-white flex-shrink-0">
-                  {meta ? <meta.Icon className="w-5 h-5" /> : <LayoutDashboard className="w-5 h-5" />}
+                  {activeMeta ? <activeMeta.Icon className="w-5 h-5" /> : <LayoutDashboard className="w-5 h-5" />}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h1 className="font-headline text-headline-md font-bold text-on-surface leading-tight">Professional Dashboard</h1>
+                  <h1 className="font-headline text-headline-md font-bold text-on-surface leading-tight">
+                    {activeMeta?.label || 'Professional Dashboard'}
+                  </h1>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    {roleLabel && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold"><BadgeCheck className="w-3 h-3" />{roleLabel}</span>}
+                    {activeMeta ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[11px] font-semibold">
+                        <BadgeCheck className="w-3 h-3" />
+                        {activeMeta.label}
+                      </span>
+                    ) : roleLabel ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                        <BadgeCheck className="w-3 h-3" />
+                        {roleLabel}
+                      </span>
+                    ) : null}
                     {verifiedAt && <span className="text-[11px] text-outline">Verified {formatDate(verifiedAt, 'monthYear')}</span>}
                   </div>
                 </div>
-                <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />
+                <div className="flex items-center gap-2">
+                  {(activeSubscriptions.length > 0 || allocatedServices.length > 0) && (
+                    <button
+                      onClick={() => setIsServiceModalOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold border border-outline-variant/30 transition-colors shadow-sm"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-primary" />
+                      Manage Services
+                    </button>
+                  )}
+                  <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />
+                </div>
               </div>
+
+              {/* Multi-Dashboard Switcher Tabs */}
+              {availableDashboards.length > 1 && (
+                <div className="mt-4 pt-4 border-t border-primary/15 flex items-center justify-between gap-2 overflow-x-auto pb-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-outline mr-1 flex items-center gap-1 flex-shrink-0">
+                      <Layers className="w-3.5 h-3.5" />
+                      My Services:
+                    </span>
+                    {availableDashboards.map((dash) => {
+                      const isSelected = currentTab === dash.id
+                      const DashIcon = dash.Icon
+                      return (
+                        <button
+                          key={dash.id}
+                          onClick={() => setActiveTab(dash.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                            isSelected
+                              ? 'bg-primary text-white shadow-sm'
+                              : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                          }`}
+                        >
+                          <DashIcon className="w-3.5 h-3.5" />
+                          {dash.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {meta && <AccountAnalyticsSection />}
+            {activeMeta && <AccountAnalyticsSection />}
 
-            {meta ? (
-              meta.render()
+            {activeMeta ? (
+              activeMeta.render()
             ) : (
               <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4"><ShieldCheck className="w-7 h-7 text-primary" /></div>
-                <h2 className="text-label-md font-bold text-on-surface mb-1">This dashboard is for verified professionals</h2>
-                <p className="text-label-sm text-outline max-w-sm mx-auto mb-4">Get verified as a veterinarian, pet-care provider, product seller, or news publisher to unlock your professional tools and analytics.</p>
-                <Link href="/settings" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"><ShieldCheck className="w-4 h-4" />Get Verified</Link>
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck className="w-7 h-7 text-primary" />
+                </div>
+                <h2 className="text-label-md font-bold text-on-surface mb-1">Professional Dashboard</h2>
+                <p className="text-label-sm text-outline max-w-sm mx-auto mb-4">
+                  Choose a professional plan or get verified to unlock dedicated management tools, analytics, and business limits.
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <Link
+                    href="/settings?section=billing"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    View Professional Plans
+                  </Link>
+                  <Link
+                    href="/settings"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/40 text-on-surface text-label-sm font-semibold hover:bg-surface-container transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Get Verified
+                  </Link>
+                </div>
               </div>
             )}
           </div>
         </div>
       </main>
       <MobileTabs currentPage="home" />
+
+      {/* Post-Payment & Active Services Selection Modal */}
+      <ServiceSelectionModal
+        isOpen={isServiceModalOpen}
+        onClose={() => setIsServiceModalOpen(false)}
+        currentTier={userTier}
+        maxServicesAllowed={maxServicesAllowed}
+        initialSelectedServices={allocatedServices}
+        onSuccess={(updatedServices) => {
+          setAllocatedServices(updatedServices)
+          refreshProfile().catch((e) => console.warn('Failed to refresh profile', e))
+          // Automatically focus the first newly selected service tab
+          if (updatedServices.length > 0 && updatedServices[0]) {
+            const roleMap: Record<string, string> = {
+              seller: 'product_seller',
+              breeder: 'breeder_professional',
+              vet: 'veterinarian',
+              care: 'pet_care_service_provider',
+            }
+            const firstService = updatedServices[0]
+            const targetTab = roleMap[firstService]
+            if (targetTab) setActiveTab(targetTab)
+          }
+        }}
+      />
     </>
   )
 }

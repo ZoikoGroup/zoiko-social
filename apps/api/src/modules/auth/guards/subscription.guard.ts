@@ -47,8 +47,44 @@ export class SubscriptionGuard implements CanActivate {
 
     const activeEntitlements = subscriptions.map(sub => sub.entitlement)
 
-    // Check if the user has any of the required entitlements
-    const hasRequiredSubscription = requiredEntitlements.some(entitlement => activeEntitlements.includes(entitlement))
+    // Check if the user has any of the directly matching required entitlements
+    let hasRequiredSubscription = requiredEntitlements.some(entitlement => activeEntitlements.includes(entitlement))
+
+    // If not directly matched, check if user has active plan tier (starter, professional, premium)
+    // and whether the required entitlement matches their selected services
+    const planEntitlements: string[] = activeEntitlements
+    if (!hasRequiredSubscription && (planEntitlements.includes('starter') || planEntitlements.includes('professional') || planEntitlements.includes('premium'))) {
+      // Map required entitlement to service keyword
+      const entitlementToService: Record<string, string> = {
+        seller_professional: 'seller',
+        breeder_professional: 'breeder',
+        care_professional: 'care',
+      }
+
+      const prof = await this.prisma.professionalProfile.findUnique({
+        where: { userId: user.id },
+        select: { serviceAreas: true, category: true }
+      })
+
+      const allocatedServices = prof?.serviceAreas || []
+
+      for (const req of requiredEntitlements) {
+        if (req === 'care_professional' && (allocatedServices.includes('care') || allocatedServices.includes('vet'))) {
+          hasRequiredSubscription = true
+          break
+        }
+        const sKey = entitlementToService[req as string]
+        if (sKey && allocatedServices.includes(sKey)) {
+          hasRequiredSubscription = true
+          break
+        }
+      }
+
+      // If user has subscription but hasn't explicitly selected yet, default to allowing if premium or legacy category
+      if (!hasRequiredSubscription && (planEntitlements.includes('premium') || allocatedServices.length === 0)) {
+        hasRequiredSubscription = true
+      }
+    }
 
     if (!hasRequiredSubscription) {
       // 402 Payment Required might be more appropriate for monetization logic, 

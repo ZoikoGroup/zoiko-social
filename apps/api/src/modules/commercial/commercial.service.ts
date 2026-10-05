@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { COMMERCIAL_PLANS, FREE_ANTI_ABUSE_LIMITS } from './commercial.constants';
+import { SERVICE_LIMITS, FREE_ANTI_ABUSE_LIMITS } from './commercial.constants';
+import type { SubscriptionEntitlement } from '@prisma/client';
 
 @Injectable()
 export class CommercialService {
@@ -8,7 +9,7 @@ export class CommercialService {
 
   async checkSellerLimit(userId: string) {
     const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: 'seller_professional', status: 'active' },
+      where: { userId, entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
     });
 
     if (!subscription) {
@@ -19,14 +20,14 @@ export class CommercialService {
       where: { sellerId: userId, status: 'active' },
     });
 
-    if (activeProducts >= COMMERCIAL_PLANS.seller_professional.limits.activeProducts) {
+    if (activeProducts >= SERVICE_LIMITS.seller.activeProducts) {
       throw new ForbiddenException('You have reached your active product listing limit (100). Please contact admin for a custom plan.');
     }
   }
 
   async checkBreederLimit(userId: string) {
     const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: 'breeder_professional', status: 'active' },
+      where: { userId, entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
     });
 
     if (!subscription) {
@@ -37,14 +38,14 @@ export class CommercialService {
       where: { ownerId: userId, status: 'active' },
     });
 
-    if (activeProfiles >= COMMERCIAL_PLANS.breeder_professional.limits.activeProfiles) {
+    if (activeProfiles >= SERVICE_LIMITS.breeder.activeProfiles) {
       throw new ForbiddenException('You have reached your active breeding profile limit (5). Please contact admin for a custom plan.');
     }
   }
 
   async checkCareProviderLimit(userId: string) {
     const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: 'care_professional', status: 'active' },
+      where: { userId, entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
     });
 
     if (!subscription) {
@@ -56,7 +57,7 @@ export class CommercialService {
       where: { provider: { addedBy: userId } },
     });
 
-    if (activeServices >= COMMERCIAL_PLANS.care_professional.limits.activeServices) {
+    if (activeServices >= SERVICE_LIMITS.care.activeServices) {
       throw new ForbiddenException('You have reached your active services limit (50). Please contact admin for a custom plan.');
     }
     
@@ -65,7 +66,7 @@ export class CommercialService {
       where: { addedBy: userId, isDeleted: false },
     });
 
-    if (teamMembers >= COMMERCIAL_PLANS.care_professional.limits.teamMembers) {
+    if (teamMembers >= SERVICE_LIMITS.care.teamMembers) {
       throw new ForbiddenException('You have reached your team members limit (10). Please contact admin for a custom plan.');
     }
   }

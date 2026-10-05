@@ -480,6 +480,7 @@ export class ProvidersService {
     })
     if (!provider || provider.isDeleted) throw new NotFoundException({ code: 'PROVIDER_NOT_FOUND' })
     if (provider.addedBy !== userId) throw new ForbiddenException({ code: 'NOT_OWNER' })
+    await this.commercial.checkCareProviderLimit(userId)
     const s = await this.prisma.petCareService.create({
       data: {
         providerId: input.providerId, createdBy: userId,

@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
+
 import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
@@ -1266,26 +1268,33 @@ function HelpSettings(): React.JSX.Element {
 
 export default function SettingsPage(): React.JSX.Element {
   const t = useTranslations('settings')
-  // Kept in the URL so it survives leaving the page. Help & About links out to
-  // real routes (/privacy, /terms, /docs); coming back with the browser's back
-  // button remounts settings, and with the section held only in state it always
-  // came back on Account rather than the tab that was open.
-  const [activeSection, setActiveSection] = useState<SettingsTab>(() => {
+  const searchParams = useSearchParams()
+  const sectionParam = searchParams.get('section')
+
+  const [activeSectionState, setActiveSectionState] = useState<SettingsTab>(() => {
+    if (sectionParam && SECTIONS.some((s) => s.id === sectionParam)) {
+      return sectionParam as SettingsTab
+    }
     if (typeof window === 'undefined') return 'account'
     const requested = new URLSearchParams(window.location.search).get('section')
     return SECTIONS.some((s) => s.id === requested) ? (requested as SettingsTab) : 'account'
   })
 
+  const activeSection: SettingsTab = (sectionParam && SECTIONS.some((s) => s.id === sectionParam))
+    ? (sectionParam as SettingsTab)
+    : activeSectionState
+
   // replaceState rather than push: switching tabs should not make the back
   // button walk through every tab visited before leaving the page.
   const selectSection = useCallback((id: SettingsTab): void => {
-    setActiveSection(id)
+    setActiveSectionState(id)
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href)
       url.searchParams.set('section', id)
       window.history.replaceState(window.history.state, '', url)
     }
   }, [])
+
   // Security's Change button lives in a different section from the modal that
   // does the work, so it switches tabs and asks Account to open it.
   const [openPasswordOnAccount, setOpenPasswordOnAccount] = useState(false)

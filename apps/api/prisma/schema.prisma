@@ -471,6 +471,9 @@ model Profile {
 }
 
 enum SubscriptionEntitlement {
+  starter
+  professional
+  premium
   seller_professional
   care_professional
   breeder_professional
