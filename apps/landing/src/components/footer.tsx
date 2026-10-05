@@ -84,12 +84,12 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
   {
     title: "For Business",
     links: [
-      { label: "Advertise on Zoiko Social", href: PLACEHOLDER },
-      { label: "Advertising Standards", href: PLACEHOLDER },
-      { label: "Campaign Review", href: PLACEHOLDER },
-      { label: "Professional & Organization Verification", href: PLACEHOLDER },
-      { label: "Professional Directory", href: PLACEHOLDER },
-      { label: "Contact Sales", href: PLACEHOLDER },
+      { label: "Advertise on Zoiko Social", href: "/business-advertise" },
+      { label: "Advertising Standards", href: "/advertising-standards" },
+      { label: "Campaign Review", href: "/campaign-review" },
+      { label: "Professional & Organization Verification", href: "/buisness-verification" },
+      { label: "Professional Directory", href: "/professional-directory" },
+      { label: "Contact Sales", href: "/buisness-contact-sales" },
     ],
   },
 ];
