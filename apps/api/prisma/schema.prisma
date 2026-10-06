@@ -1113,6 +1113,31 @@ model VerificationDocument {
   @@map("verification_documents")
 }
 
+// ── PERMANENT IDENTITY REGISTRY ──────────────────────────────────────────────
+// Anchors global government identity verification permanently across account
+// deletions and recreations. Prevents banned or fraudulent members from
+// escaping their history by creating fresh accounts.
+model PermanentIdentityRegistry {
+  id               String    @id @default(uuid())
+  /// Cryptographic SHA-256 hash of doc_type + doc_number + issuing_country
+  idDocumentHash   String    @unique @map("id_document_hash")
+  verifiedFullName String    @map("verified_full_name")
+  birthDate        String?   @map("birth_date")
+  issuingCountry   String    @map("issuing_country")
+  docType          String    @map("doc_type")
+  currentUserId    String?   @map("current_user_id")
+  associatedUserIds String[] @default([]) @map("associated_user_ids")
+  isBanned         Boolean   @default(false) @map("is_banned")
+  banReason        String?   @map("ban_reason")
+  diditSessionId   String?   @map("didit_session_id")
+  firstVerifiedAt  DateTime  @default(now()) @map("first_verified_at")
+  lastVerifiedAt   DateTime  @updatedAt @map("last_verified_at")
+
+  @@index([idDocumentHash])
+  @@index([currentUserId])
+  @@map("permanent_identity_registry")
+}
+
 // ── NETWORK MODULE ─────────────────────────────────────────────────────────
 
 model Follow {

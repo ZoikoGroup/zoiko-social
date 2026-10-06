@@ -61,9 +61,14 @@ import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 import { AccessToken } from '../auth/decorators/access-token.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
 
+import { DiditVerificationService } from './didit-verification.service'
+
 @Controller('profiles')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly diditService: DiditVerificationService,
+  ) {}
 
   // ── USERNAME AVAILABILITY (public — used by the signup form) ───────────────
 
@@ -236,6 +241,34 @@ export class ProfileController {
   @UseGuards(JwtAuthGuard)
   async getVerificationStatus(@CurrentUser() user: AuthenticatedUser) {
     const result = await this.profileService.getVerificationStatus(user.id)
+    return { data: result }
+  }
+
+  // ── DIDIT AUTOMATED GLOBAL VERIFICATION ────────────────────────────────────
+
+  @Post('me/verification/didit/session')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async createDiditSession(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { returnUrl?: string },
+  ) {
+    const session = await this.diditService.createSession(user.id, body?.returnUrl)
+    return { data: session }
+  }
+
+  @Post('me/verification/didit/confirm')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async confirmDiditSession(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { sessionId: string; legalName?: string },
+  ) {
+    const result = await this.diditService.processVerificationDecision(
+      body.sessionId,
+      user.id,
+      body.legalName,
+    )
     return { data: result }
   }
 

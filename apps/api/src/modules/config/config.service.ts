@@ -40,6 +40,10 @@ const envSchema = z.object({
   // Stripe (Shop checkout). When both are set, checkout is enabled.
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Didit Identity Verification
+  DIDIT_API_KEY: z.string().optional(),
+  DIDIT_WORKFLOW_ID: z.string().optional(),
+  DIDIT_WEBHOOK_SECRET: z.string().optional(),
   // Groq (ZoikoSocial AI assistant chat). When the key is set, the assistant replies.
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().optional(),
@@ -185,6 +189,22 @@ export class ConfigService {
   /** True when Stripe credentials are configured — Shop checkout is then enabled. */
   get stripeEnabled(): boolean {
     return !!(this.env.STRIPE_SECRET_KEY && this.env.STRIPE_WEBHOOK_SECRET)
+  }
+
+  get diditApiKey(): string | undefined {
+    return this.env.DIDIT_API_KEY
+  }
+
+  get diditWorkflowId(): string | undefined {
+    return this.env.DIDIT_WORKFLOW_ID
+  }
+
+  get diditWebhookSecret(): string | undefined {
+    return this.env.DIDIT_WEBHOOK_SECRET
+  }
+
+  get diditEnabled(): boolean {
+    return !!(this.env.DIDIT_API_KEY && this.env.DIDIT_WORKFLOW_ID)
   }
 
   get groqApiKey(): string | undefined {
