@@ -53,7 +53,7 @@ export default function VerifyPage(): React.JSX.Element {
         setConfirming(true)
         setError(null)
         try {
-          const res = await mutate<{ data: { success: boolean; status: string; verifiedFullName?: string } }>(
+          const res = await mutate<{ success?: boolean; status?: string; verifiedFullName?: string; data?: { success?: boolean; status?: string; verifiedFullName?: string } }>(
             '/profiles/me/verification/didit/confirm',
             {
               method: 'POST',
@@ -64,7 +64,8 @@ export default function VerifyPage(): React.JSX.Element {
             },
           )
 
-          if (res.data?.success) {
+          const isSuccess = res?.success ?? res?.data?.success
+          if (isSuccess) {
             toast.success('Identity Verified!', 'Your official national identity was verified successfully.')
             await refreshProfile()
             if (typeof window !== 'undefined') {
@@ -119,7 +120,7 @@ export default function VerifyPage(): React.JSX.Element {
 
     try {
       const returnUrl = `${window.location.origin}/verify?session_complete=true`
-      const res = await mutate<{ data: { sessionId: string; sessionUrl: string } }>(
+      const res = await mutate<{ sessionId?: string; sessionUrl?: string; data?: { sessionId?: string; sessionUrl?: string } }>(
         '/profiles/me/verification/didit/session',
         {
           method: 'POST',
@@ -127,11 +128,14 @@ export default function VerifyPage(): React.JSX.Element {
         },
       )
 
-      if (res.data?.sessionId && res.data?.sessionUrl) {
-        sessionStorage.setItem('didit_active_session_id', res.data.sessionId)
+      const sessionId = res?.sessionId ?? res?.data?.sessionId
+      const sessionUrl = res?.sessionUrl ?? res?.data?.sessionUrl
+
+      if (sessionId && sessionUrl) {
+        sessionStorage.setItem('didit_active_session_id', sessionId)
         sessionStorage.setItem('didit_submitted_legal_name', legalName.trim())
         // Redirect directly to Didit secure identity workflow
-        window.location.assign(res.data.sessionUrl)
+        window.location.assign(sessionUrl)
       } else {
         throw new Error('Didit session URL not received.')
       }
