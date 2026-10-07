@@ -113,6 +113,21 @@ export function ConnectedConversationList({
   const filtered = useMemo(() => {
     let list = [...conversations]
 
+    // Deduplicate 1-on-1 DM conversations to ensure the same person never appears multiple times
+    const seenDmUserIds = new Set<string>()
+    list = list.filter((c) => {
+      if (c.type === 'dm') {
+        const other = c.participants?.find((p) => p.id !== user?.id)
+        if (other) {
+          if (seenDmUserIds.has(other.id)) {
+            return false
+          }
+          seenDmUserIds.add(other.id)
+        }
+      }
+      return true
+    })
+
     if (inArchive) {
       // The archive ignores the tabs: it is a place, not another filter.
       list = list.filter((c) => c.isArchived)
@@ -135,7 +150,7 @@ export function ConnectedConversationList({
     }
 
     return list
-  }, [conversations, activeTab, searchQuery, inArchive])
+  }, [conversations, activeTab, searchQuery, inArchive, user?.id])
 
   const TABS: { id: ChatTab; label: string; badge?: number }[] = [
     { id: 'all', label: t('all') },

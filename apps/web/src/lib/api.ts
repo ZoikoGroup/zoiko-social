@@ -258,6 +258,7 @@ export interface Profile {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  nameChangeCount: number
   /** False until the person has been through /onboarding and named themselves. */
   onboardingCompleted: boolean
   createdAt: string

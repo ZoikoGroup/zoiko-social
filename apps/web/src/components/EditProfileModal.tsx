@@ -45,7 +45,7 @@ export function EditProfileModal({ open, profile, onClose, onSaved }: EditProfil
 
 function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalProps, 'open'>): React.JSX.Element {
   const { date: formatDate } = useDateFormat()
-  const [displayName, setDisplayName] = useState(profile.displayName)
+  const displayName = profile.displayName
   const [username, setUsername] = useState(profile.username)
   const [bio, setBio] = useState(profile.bio ?? '')
   const [websiteUrl, setWebsiteUrl] = useState(profile.websiteUrl ?? '')
@@ -309,13 +309,30 @@ function EditProfileForm({ profile, onClose, onSaved }: Omit<EditProfileModalPro
           </div>
 
           <div>
-            <label className="text-label-sm font-semibold text-on-surface block mb-1.5">Display name</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              maxLength={50}
-              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-md focus:border-primary focus:outline-none transition-colors"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-label-sm font-semibold text-on-surface">Display name</label>
+              <a
+                href="/settings"
+                onClick={onClose}
+                className="text-[11px] font-semibold text-primary hover:underline"
+              >
+                Change in Settings →
+              </a>
+            </div>
+            <div className="relative">
+              <input
+                value={displayName}
+                readOnly
+                disabled
+                className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/30 bg-surface-container-high/50 text-label-md cursor-not-allowed text-on-surface opacity-90 select-none"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10.5px] font-semibold text-outline px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30">
+                {Math.max(0, 2 - (profile?.nameChangeCount ?? 0))} / 2 left
+              </span>
+            </div>
+            <p className="text-[10px] text-outline mt-1">
+              To prevent fraudulent impersonation, name changes are limited to 2 times and managed in Settings.
+            </p>
           </div>
 
           <div>

@@ -52,17 +52,25 @@ import { LocationPickerModal } from './LocationPickerModal'
 import { useCall } from '@/hooks/use-call'
 import { CHAT_THEMES, getChatTheme } from '@/lib/chat-themes'
 import type { MessageData, Conversation } from '@/hooks/use-messaging'
+import { ProductCardPreview } from '@/components/messaging/ProductCardPreview'
 import type { Socket } from 'socket.io-client'
 import { formatDateTime } from '@/lib/datetime'
 import { useTranslations } from 'next-intl'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
+export interface TaggedProductContext {
+  id: string
+  title: string
+}
+
 interface MessageConversationProps {
   conversationId: string | null
   onBack?: () => void
   conversation: Conversation | null | undefined
   onNewMessage: (() => void) | undefined
+  taggedProduct?: TaggedProductContext | null
+  onClearTaggedProduct?: () => void
 }
 
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍']
@@ -175,6 +183,8 @@ export function MessageConversation({
   onBack,
   conversation,
   onNewMessage,
+  taggedProduct,
+  onClearTaggedProduct,
 }: MessageConversationProps): React.JSX.Element {
   const tmsg = useTranslations('messaging')
   const { locale } = useDateFormat()
@@ -963,7 +973,12 @@ export function MessageConversation({
   }, [])
 
   // Send message with optimistic update
-  const sendMessage = useCallback(async (body: string, parentId: string | null, tempId: string) => {
+  const sendMessage = useCallback(async (
+    body: string,
+    parentId: string | null,
+    tempId: string,
+    options?: { type?: string; metadata?: Record<string, unknown> },
+  ) => {
     try {
       const token = await getAuthToken()
       const res = await fetch(`${API_URL}/api/v1/messaging/conversations/${conversationId}/messages`, {
@@ -972,7 +987,12 @@ export function MessageConversation({
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ body, ...(parentId ? { parentId } : {}) }),
+        body: JSON.stringify({
+          body,
+          ...(parentId ? { parentId } : {}),
+          ...(options?.type ? { type: options.type } : {}),
+          ...(options?.metadata ? { metadata: options.metadata } : {}),
+        }),
       })
       if (res.ok) {
         const json = await res.json()
@@ -1007,6 +1027,10 @@ export function MessageConversation({
     const parentId = replyingTo?.id ?? null
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
+    const isTagged = !!taggedProduct
+    const msgType = isTagged ? 'product_enquiry' : 'text'
+    const msgMetadata = isTagged ? { productId: taggedProduct.id, productTitle: taggedProduct.title } : null
+
     const optimisticMsg: MessageData = {
       id: tempId,
       conversationId,
@@ -1016,8 +1040,9 @@ export function MessageConversation({
         displayName: profile?.displayName ?? '',
         avatarUrl: profile?.avatarUrl ?? null,
       },
-      type: 'text',
+      type: msgType,
       body,
+      metadata: msgMetadata,
       mediaUrls: [],
       parentId,
       isDeleted: false,
@@ -1032,6 +1057,9 @@ export function MessageConversation({
     setInput('')
     setDisappearMode('none')
     setReplyingTo(null)
+    if (taggedProduct && onClearTaggedProduct) {
+      onClearTaggedProduct()
+    }
 
     if (wasTypingRef.current) {
       wasTypingRef.current = false
@@ -1042,7 +1070,10 @@ export function MessageConversation({
       typingTimeoutRef.current = null
     }
 
-    void sendMessage(body, parentId, tempId)
+    void sendMessage(body, parentId, tempId, {
+      type: msgType,
+      ...(msgMetadata ? { metadata: msgMetadata } : {}),
+    })
 
     // Slow mode restarts with every message. A client-side countdown would
     // drift against the server's clock and then confidently offer a composer
@@ -1051,6 +1082,7 @@ export function MessageConversation({
   }, [
     conversationId, input, replyingTo, user, profile, socket, sendMessage,
     isCommunity, communityAccess?.slowModeSeconds, refreshCommunityAccess,
+    taggedProduct, onClearTaggedProduct,
   ])
 
   const handleRetry = useCallback(async (tempId: string) => {
@@ -2208,6 +2240,17 @@ export function MessageConversation({
                                 {/* Shared post — Instagram-style preview card */}
                                 {msg.type === 'shared_post' ? (
                                   <SharedPostPreview url={msg.body} isMine={isMine} />
+                                ) : (msg.type === 'product_enquiry' || (msg.metadata && typeof msg.metadata === 'object' && 'productId' in (msg.metadata as Record<string, unknown>))) ? (
+                                  <div>
+                                    <ProductCardPreview
+                                      productId={String((msg.metadata as Record<string, unknown>)?.productId ?? '')}
+                                      {...(typeof (msg.metadata as Record<string, unknown>)?.productTitle === 'string'
+                                        ? { productTitle: (msg.metadata as Record<string, unknown>).productTitle as string }
+                                        : {})}
+                                      isMine={isMine}
+                                    />
+                                    {msg.body && <p className="mt-1.5">{msg.body}</p>}
+                                  </div>
                                 ) : msg.poll ? (
                                   <PollBubble
                                     poll={msg.poll}
@@ -2292,6 +2335,22 @@ export function MessageConversation({
 
           {/* Input bar */}
           <div className="px-3 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:px-4 md:py-3 bg-background border-t border-outline-variant/20 flex-shrink-0">
+            {/* Tagged product context banner */}
+            {taggedProduct && (
+              <div className="flex items-center gap-2.5 mb-2 px-3 py-2 bg-primary/10 border border-primary/25 rounded-xl">
+                <div className="w-1 h-8 bg-primary rounded-full flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Inquiring about Product</p>
+                  <p className="text-[12px] font-semibold text-foreground truncate">{taggedProduct.title}</p>
+                </div>
+                {onClearTaggedProduct && (
+                  <button onClick={onClearTaggedProduct} className="flex items-center justify-center size-6 rounded-full text-muted-foreground hover:text-foreground hover:bg-surface-container cursor-pointer flex-shrink-0 transition-colors" title="Remove tag">
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Reply indicator */}
             {replyingTo && (
               <div className="flex items-center gap-2.5 mb-2 px-3 py-2 bg-primary/5 border border-primary/15 rounded-xl">

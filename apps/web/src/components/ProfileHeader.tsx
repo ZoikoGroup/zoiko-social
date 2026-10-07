@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Link2, BadgeCheck, Briefcase, Lock, Pencil, Loader2, MoreHorizontal, VolumeX, Volume2, UserMinus2, UserCheck2, Flag, MapPin, Clock, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { EditProfileModal } from './EditProfileModal'
+import { SwitchProfessionalModal } from './SwitchProfessionalModal'
 import { FollowListModal } from './FollowListModal'
 import { MessageButton } from './MessageButton'
 import { ReportContentModal } from './ReportContentModal'
@@ -71,6 +72,7 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
 
   const [revertOpen, setRevertOpen] = useState(false)
   const [reverting, setReverting] = useState(false)
+  const [switchProfessionalOpen, setSwitchProfessionalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [followListTab, setFollowListTab] = useState<'followers' | 'following' | null>(null)
   const [following, setFollowing] = useState(initialRelationship?.following ?? false)
@@ -251,9 +253,12 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
     )
   }
 
-  const isVerified = profile.verificationTier === 'professional'
-  const isPendingVerification = profile.identityStatus === 'pending'
+  // Verified checkmark is shown only when user is officially identity verified
+  // AND currently has an active professional profile (not personal)
+  const isIdentityVerified = profile.identityStatus === 'approved'
   const professional = profile.professionalProfile
+  const isVerified = isIdentityVerified && !!professional
+  const isPendingVerification = profile.identityStatus === 'pending'
   const categoryLabel = profLabel(professional?.category)
 
   return (
@@ -282,6 +287,15 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
         onSaved={() => {
           void refreshProfile()
           setEditModalOpen(false)
+        }}
+      />
+      <SwitchProfessionalModal
+        open={switchProfessionalOpen}
+        onClose={() => setSwitchProfessionalOpen(false)}
+        onSwitched={async () => {
+          await refreshProfile()
+          setSwitchProfessionalOpen(false)
+          toast.success('Switched to Professional', 'Your professional dashboard and verified badge are now active.')
         }}
       />
       <FollowListModal
@@ -463,12 +477,21 @@ export function ProfileHeader({ profileId, initialProfile, initialRelationship }
                   {tpr('editProfile')}
                 </button>
                 {!professional ? (
-                  <Link
-                    href="/verify"
-                    className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
-                  >
-                    {tpr('goProfessional')}
-                  </Link>
+                  isIdentityVerified ? (
+                    <button
+                      onClick={() => setSwitchProfessionalOpen(true)}
+                      className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      {tpr('goProfessional')}
+                    </button>
+                  ) : (
+                    <Link
+                      href="/verify"
+                      className="flex-1 basis-0 sm:flex-none sm:min-w-[160px] h-10 px-4 sm:px-6 inline-flex items-center justify-center whitespace-nowrap rounded-full border border-primary/50 text-primary text-[13px] font-semibold hover:bg-primary/5 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      {tpr('goProfessional')}
+                    </Link>
+                  )
                 ) : (
                   <button
                     onClick={() => setRevertOpen(true)}

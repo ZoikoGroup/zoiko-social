@@ -81,26 +81,39 @@ export class CommercialController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { sessionId?: string; planId?: string },
   ) {
-    let entitlement: string | undefined = body.planId;
+    let entitlement: string | undefined;
     let stripeSubscriptionId: string | undefined;
 
-    if (body.sessionId && this.stripe.enabled) {
+    if (this.stripe.enabled) {
+      if (!body.sessionId) {
+        throw new BadRequestException('Checkout session ID is required to confirm payment');
+      }
       try {
         const session = await this.stripe.retrieveCheckoutSession(body.sessionId);
-        if (session.payment_status === 'paid' || session.status === 'complete') {
-          if (session.metadata?.entitlement) {
-            entitlement = session.metadata.entitlement;
-          }
-          if (session.subscription) {
-            stripeSubscriptionId =
-              typeof session.subscription === 'string'
-                ? session.subscription
-                : session.subscription.id;
-          }
+        const isPaid = session.payment_status === 'paid' || session.status === 'complete';
+        if (!isPaid) {
+          throw new BadRequestException('Payment has not been completed for this session');
         }
-      } catch (_e) {
-        // If Stripe retrieve fails, fallback to planId if provided
+
+        // Verify session belongs to the current user if client_reference_id is present
+        if (session.client_reference_id && session.client_reference_id !== user.id) {
+          throw new ForbiddenException('Checkout session does not belong to the authenticated user');
+        }
+
+        entitlement = session.metadata?.entitlement || body.planId;
+        if (session.subscription) {
+          stripeSubscriptionId =
+            typeof session.subscription === 'string'
+              ? session.subscription
+              : session.subscription.id;
+        }
+      } catch (err) {
+        if (err instanceof BadRequestException || err instanceof ForbiddenException) throw err;
+        throw new BadRequestException('Could not verify checkout session with payment provider: ' + (err as Error).message);
       }
+    } else {
+      // In local development / mock testing mode when Stripe keys are not configured
+      entitlement = body.planId;
     }
 
     const validEntitlements: string[] = [
@@ -297,6 +310,14 @@ export class CommercialController {
       throw new BadRequestException(`Your current plan allows up to ${maxServices} active service${maxServices > 1 ? 's' : ''}.`);
     }
 
+    // Retrieve currently active services to identify deactivated ones
+    const currentProf = await this.prisma.professionalProfile.findUnique({
+      where: { userId: user.id },
+      select: { serviceAreas: true },
+    });
+    const previousServices = currentProf?.serviceAreas || [];
+    const deactivatedServices = previousServices.filter((s) => !selected.includes(s));
+
     // Determine primary category
     let primaryCategory: import('@prisma/client').ProfessionalCategory = 'product_seller';
     if (selected.includes('vet')) {
@@ -323,6 +344,24 @@ export class CommercialController {
         deletedAt: null,
       },
     });
+
+    // Plug Loophole: Automatically pause / mark inactive any listings for deactivated services
+    if (deactivatedServices.length > 0) {
+      if (deactivatedServices.includes('seller')) {
+        // Deactivate active products so they do not stay publicly listed
+        await this.prisma.product.updateMany({
+          where: { sellerId: user.id, status: 'active', isDeleted: false },
+          data: { status: 'inactive' },
+        });
+      }
+      if (deactivatedServices.includes('breeder')) {
+        // Pause active breeding profiles so they do not show in available listings
+        await this.prisma.breedingProfile.updateMany({
+          where: { ownerId: user.id, isDeleted: false, availableNow: true },
+          data: { availableNow: false },
+        });
+      }
+    }
 
     await this.prisma.profile.update({
       where: { id: user.id },

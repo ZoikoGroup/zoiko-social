@@ -124,7 +124,7 @@ jobs:
       - name: Check dependency licenses
         run: |
           pnpm dlx license-checker --onlyAllow \
-            'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;Unlicense;Python-2.0;BlueOak-1.0.0' \
+            'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;0BSD;CC0-1.0;CC-BY-4.0;Unlicense;Python-2.0;BlueOak-1.0.0;(MIT AND Zlib)' \
             --excludePrivatePackages
 
   test:

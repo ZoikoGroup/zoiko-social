@@ -178,6 +178,7 @@ export interface ProfileResponse {
   trustScore: number
   currency: string | null
   usernameChangedAt: string | null
+  nameChangeCount: number
   /** False until the person has been through /onboarding and named themselves. */
   onboardingCompleted: boolean
   createdAt: string
@@ -793,7 +794,7 @@ export class ProfileService {
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<ProfileResponse> {
     const before = await this.prisma.profile.findUnique({
       where: { id: userId },
-      select: { isPrivate: true, username: true, usernameChangedAt: true },
+      select: { isPrivate: true, username: true, usernameChangedAt: true, displayName: true, nameChangeCount: true },
     })
     if (!before) {
       throw new NotFoundException({ code: 'PROFILE_NOT_FOUND', message: 'Profile not found' })
@@ -805,9 +806,24 @@ export class ProfileService {
     if (input.bio) this.profanity.assertClean(input.bio, { actorId: userId, entityType: 'profile.bio' })
     if (input.username) this.profanity.assertClean(input.username, { actorId: userId, entityType: 'profile.username' })
 
-    // ── Username change: valid format, not reserved, unique, 30-day cooldown ──
-    const { username: requestedUsername, ...rest } = input
+    const { username: requestedUsername, displayName: requestedDisplayName, ...rest } = input
     const data: Record<string, unknown> = { ...rest }
+
+    // ── Display Name change: strictly maximum 2 lifetime changes ─────────────
+    if (requestedDisplayName !== undefined) {
+      const trimmedName = requestedDisplayName.trim()
+      if (trimmedName && trimmedName !== before.displayName) {
+        if (before.nameChangeCount >= 2) {
+          throw new ForbiddenException({
+            code: 'NAME_CHANGE_LIMIT_REACHED',
+            message: 'You have reached the maximum limit of 2 name changes for this account. Your name cannot be changed further.',
+          })
+        }
+        data.displayName = trimmedName
+        data.nameChangeCount = { increment: 1 }
+        this.logger.log(`User ${userId} changed name: "${before.displayName}" → "${trimmedName}" (change ${before.nameChangeCount + 1}/2)`)
+      }
+    }
 
     if (requestedUsername !== undefined) {
       const username = requestedUsername.trim().toLowerCase()
@@ -1096,8 +1112,7 @@ export class ProfileService {
     const ops: Prisma.PrismaPromise<unknown>[] = [
       this.prisma.professionalProfile.update({ where: { userId }, data: { deletedAt: now } }),
       this.prisma.professionalSetting.deleteMany({ where: { userId } }),
-      // Fully stop professional activity: drop the verified tier + badge.
-      this.prisma.profile.update({ where: { id: userId }, data: { identityStatus: 'pending' } }),
+      // Professional status is deactivated, but permanent government identity verification is NEVER lost or revoked.
     ]
     // Hide the pro's public listings for their category (restored on switch-back).
     if (professional.category === 'product_seller') {
@@ -1687,6 +1702,7 @@ export class ProfileService {
       trustScore: profile.trustScore,
       currency: profile.currency ?? null,
       usernameChangedAt: profile.usernameChangedAt?.toISOString() ?? null,
+      nameChangeCount: profile.nameChangeCount ?? 0,
       onboardingCompleted: profile.onboardingCompletedAt !== null,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),

@@ -88,7 +88,7 @@ export function VerificationSettings(): React.JSX.Element {
     return () => clearTimeout(timer)
   }, [load])
 
-  const alreadyVerified = profile?.verificationTier === 'professional'
+  const alreadyVerified = profile?.identityStatus === 'approved' || profile?.verificationTier === 'professional'
   // A rejected request is not a dead end — the member can apply again.
   const canApply = !request || request.status === 'rejected'
   const isOpen = request !== null && (request.status === 'pending' || request.status === 'under_review')

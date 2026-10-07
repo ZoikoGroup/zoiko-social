@@ -80,9 +80,21 @@ export class SubscriptionGuard implements CanActivate {
         }
       }
 
-      // If user has subscription but hasn't explicitly selected yet, default to allowing if premium or legacy category
-      if (!hasRequiredSubscription && (planEntitlements.includes('premium') || allocatedServices.length === 0)) {
-        hasRequiredSubscription = true
+      // If user has subscription but hasn't explicitly selected yet, allow all only for premium
+      // For starter/professional, only fallback if legacy category matches the required entitlement
+      if (!hasRequiredSubscription) {
+        if (planEntitlements.includes('premium')) {
+          hasRequiredSubscription = true
+        } else if (allocatedServices.length === 0 && prof?.category) {
+          const cat = prof.category
+          if (requiredEntitlements.includes('seller_professional') && cat === 'product_seller') {
+            hasRequiredSubscription = true
+          } else if (requiredEntitlements.includes('breeder_professional') && cat === 'product_seller') {
+            hasRequiredSubscription = true
+          } else if (requiredEntitlements.includes('care_professional') && (cat === 'pet_care_service_provider' || cat === 'veterinarian')) {
+            hasRequiredSubscription = true
+          }
+        }
       }
     }
 

@@ -16,23 +16,60 @@ import { useTranslations } from 'next-intl'
 export default function MessagesPage(): React.JSX.Element {
   const t = useTranslations('messaging')
   const { isAuthenticated } = useAuth()
-  const { conversations, unreadCount, setActiveConversationId } = useMessaging()
+  const { conversations, unreadCount, setActiveConversationId, openConversation } = useMessaging()
   const [activeTab, setActiveTab] = useState<ChatTab>('all')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('conversation')
+    }
+    return null
+  })
   const [newMessageOpen, setNewMessageOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [taggedProduct, setTaggedProduct] = useState<{ id: string; title: string } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search)
+      const productId = p.get('productId')
+      const productTitle = p.get('productTitle')
+      if (productId) {
+        return { id: productId, title: productTitle ? decodeURIComponent(productTitle) : 'Product Inquiry' }
+      }
+    }
+    return null
+  })
 
-  // Handle URL query param for deep linking
+  // Handle URL query params for deep linking (conversation ID or user ID)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const convId = params.get('conversation')
-    const timer = setTimeout(() => {
-      if (convId) {
-        setSelectedId(convId)
-      }
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [])
+    const userId = params.get('user')
+    const prodId = params.get('productId')
+    const prodTitle = params.get('productTitle')
+
+    if (prodId && (!taggedProduct || taggedProduct.id !== prodId)) {
+      const timer = setTimeout(() => {
+        setTaggedProduct({ id: prodId, title: prodTitle ? decodeURIComponent(prodTitle) : 'Product Inquiry' })
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+
+    if (convId && convId !== selectedId) {
+      const timer = setTimeout(() => setSelectedId(convId), 0)
+      return () => clearTimeout(timer)
+    } else if (userId) {
+      // Auto-open or create conversation with the specified user
+      openConversation(userId).then((createdConvId) => {
+        if (createdConvId) {
+          setSelectedId(createdConvId)
+          const url = new URL(window.location.href)
+          url.searchParams.delete('user')
+          url.searchParams.set('conversation', createdConvId)
+          window.history.replaceState({}, '', url.toString())
+        }
+      }).catch((e) => console.warn('Failed to open conversation with user', e))
+    }
+    return undefined
+  }, [openConversation, selectedId, taggedProduct])
 
   // Set conversation as read when selected
   useEffect(() => {
@@ -114,6 +151,14 @@ export default function MessagesPage(): React.JSX.Element {
               onBack={handleBack}
               conversation={currentConversation}
               onNewMessage={() => setNewMessageOpen(true)}
+              taggedProduct={taggedProduct}
+              onClearTaggedProduct={() => {
+                setTaggedProduct(null)
+                const url = new URL(window.location.href)
+                url.searchParams.delete('productId')
+                url.searchParams.delete('productTitle')
+                window.history.replaceState({}, '', url.toString())
+              }}
             />
           </div>
         </div>

@@ -3,7 +3,7 @@ import { httpUrl } from '../../common/schemas/http-url'
 
 // ── Enums ───────────────────────────────────────────────────────────────────
 
-export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'voice_note' | 'document' | 'gif' | 'sticker' | 'location' | 'contact' | 'poll'
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'voice_note' | 'document' | 'gif' | 'sticker' | 'location' | 'contact' | 'poll' | 'product_enquiry' | 'shared_post'
 export type MessageRequestStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
 export type PresenceStatus = 'online' | 'offline' | 'away' | 'do_not_disturb'
 export type PrivacySetting = 'everyone' | 'my_connections' | 'my_followers' | 'nobody'
@@ -24,7 +24,7 @@ export const CreateConversationSchema = z.object({
 
 export const SendMessageSchema = z.object({
   body: z.string().max(5000).optional(),
-  type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact', 'poll']).default('text'),
+  type: z.enum(['text', 'image', 'video', 'audio', 'voice_note', 'document', 'gif', 'sticker', 'location', 'contact', 'poll', 'product_enquiry', 'shared_post']).default('text'),
   parentId: z.string().uuid().optional(),
   mediaUrls: z.array(httpUrl()).max(10).optional(),
   metadata: z.record(z.any()).optional(),

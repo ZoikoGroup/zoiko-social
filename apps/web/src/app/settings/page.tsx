@@ -7,7 +7,7 @@ import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 
-import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Shield, Lock, Bell, User, Sliders, HelpCircle, LogOut, Globe, Eye, Smartphone, Key, Fingerprint, Mail, CreditCard, Users, Trash2, EyeOff, ExternalLink, ChevronDown, Loader2, Sun, Moon, Monitor, UserX, VolumeX, BadgeCheck, UserCheck, AlertCircle } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
@@ -73,7 +73,8 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
   onAutoOpenHandled?: () => void
 } = {}): React.JSX.Element {
   const t = useTranslations('settings')
-  const { profile, user, updateEmail, changePassword, signOut } = useAuth()
+  const { profile, user, updateEmail, changePassword, signOut, refreshProfile } = useAuth()
+  const toast = useToast()
   // Deactivation revokes sessions, so this should normally be 'active' whenever
   // settings is reachable. Read anyway: an access token outlives the revoke, and
   // offering "disable" on an already-disabled account is how the loop appeared.
@@ -126,7 +127,46 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordDone, setPasswordDone] = useState(false)
 
+  // ── Display Name change state (Strict 2-times lifetime limit)
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [newDisplayName, setNewDisplayName] = useState('')
+  const [nameSaving, setNameSaving] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
+
   const displayName = profile?.displayName ?? ''
+  const nameChangeCount = profile?.nameChangeCount ?? 0
+  const nameChangesRemaining = Math.max(0, 2 - nameChangeCount)
+  const isNameLocked = nameChangeCount >= 2
+
+  const handleNameChange = async (): Promise<void> => {
+    const trimmed = newDisplayName.trim()
+    if (!trimmed) {
+      setNameError('Please enter a valid display name')
+      return
+    }
+    if (trimmed === displayName) {
+      setNameError('New name must be different from your current name')
+      return
+    }
+    if (isNameLocked) {
+      setNameError('You have reached the maximum limit of 2 name changes for this account.')
+      return
+    }
+    setNameSaving(true)
+    setNameError(null)
+
+    try {
+      await profileApi.update({ displayName: trimmed })
+      toast.success('Name updated', `Your name was updated to "${trimmed}". You have ${nameChangesRemaining - 1} name changes left.`)
+      await refreshProfile()
+      setShowNameModal(false)
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : 'Failed to update name')
+    } finally {
+      setNameSaving(false)
+    }
+  }
+
   const email = user?.email ?? ''
   const initials = displayName
     ? displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -241,6 +281,7 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
     setShowDeactivateConfirm(false)
     setShowEmailModal(false)
     setShowPasswordModal(false)
+    setShowNameModal(false)
   }
 
   return (
@@ -263,10 +304,48 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
 
       {/* Profile info */}
       <div className="space-y-3">
-        <div>
-          <label className="block text-label-sm font-semibold text-on-surface mb-1.5">Display Name</label>
-          <p className="px-3.5 py-2.5 bg-surface-container-low rounded-lg text-label-md">{displayName || 'Not set'}</p>
-        </div>
+        {/* Display Name — clickable to change (Max 2 times) */}
+        <button
+          onClick={() => {
+            if (!isNameLocked) {
+              setShowNameModal(true)
+              setNewDisplayName(displayName)
+              setNameError(null)
+            }
+          }}
+          disabled={isNameLocked}
+          className={`w-full text-left transition-colors ${
+            isNameLocked ? 'cursor-not-allowed opacity-90' : 'cursor-pointer group'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-label-sm font-semibold text-on-surface">Legal / Display Name</label>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                isNameLocked
+                  ? 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'
+                  : 'bg-primary/10 text-primary border border-primary/20'
+              }`}
+            >
+              {isNameLocked ? 'Locked (2/2 changes used)' : `${nameChangesRemaining} / 2 changes left`}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3.5 py-2.5 bg-surface-container-low rounded-lg text-label-md group-hover:bg-surface-container transition-colors">
+            <span className="font-medium text-on-surface">{displayName || 'Not set'}</span>
+            {!isNameLocked ? (
+              <span className="text-[11px] text-primary font-semibold">Change</span>
+            ) : (
+              <span className="text-[11px] text-outline flex items-center gap-1">
+                <Lock className="w-3 h-3" /> Locked
+              </span>
+            )}
+          </div>
+          <p className="text-[10.5px] text-outline mt-1 px-1">
+            {isNameLocked
+              ? 'This account has reached the permanent 2-change limit to prevent fraudulent identity changes.'
+              : 'Can only be changed twice across the whole lifetime of your account.'}
+          </p>
+        </button>
 
         {/* Email — clickable to change */}
         <button
@@ -547,6 +626,64 @@ function AccountSettings({ autoOpenPassword = false, onAutoOpenHandled }: {
               </div>
             </>
           )}
+        </ModalOverlay>
+      )}
+
+      {/* ── MODAL: Change Display Name (Strict 2-times lifetime limit) ── */}
+      {showNameModal && (
+        <ModalOverlay onClose={closeAllModals}>
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <UserCheck className="w-6 h-6 text-primary" />
+          </div>
+          <h3 className="text-label-lg font-bold text-on-surface text-center mb-1">Change Legal / Display Name</h3>
+          <p className="text-label-sm text-outline text-center mb-4">
+            You can change your official name a maximum of <strong className="text-on-surface">2 times</strong> for the whole lifetime of your account.
+          </p>
+
+          <div className="p-3.5 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold mb-0.5">Important Security Notice</p>
+              <p className="opacity-90">
+                You have <strong className="font-bold underline">{nameChangesRemaining} change{nameChangesRemaining === 1 ? '' : 's'} remaining</strong>. This limit is permanently tracked and cannot be reset or bypassed.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 mb-5">
+            <div>
+              <label className="block text-label-sm font-semibold text-on-surface mb-1">Current Name</label>
+              <p className="px-3.5 py-2.5 bg-surface-container-low rounded-lg text-label-md font-medium text-outline">{displayName}</p>
+            </div>
+            <div>
+              <label className="block text-label-sm font-semibold text-on-surface mb-1">
+                New Full Legal Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newDisplayName}
+                onChange={(e) => { setNewDisplayName(e.target.value); setNameError(null) }}
+                maxLength={50}
+                placeholder="Enter your exact real name"
+                autoFocus
+                className="w-full px-3.5 py-2.5 bg-surface-container-low border border-outline-variant/50 focus:border-primary focus:outline-none rounded-lg text-label-md font-medium transition-all"
+              />
+              <p className="text-[11px] text-outline mt-1">Must match your official government identity documents.</p>
+            </div>
+          </div>
+
+          {nameError && <p className="text-[11px] text-red-500 mb-3 text-center">{nameError}</p>}
+
+          <div className="flex gap-3">
+            <button onClick={closeAllModals} className="flex-1 px-4 py-2.5 rounded-xl border border-outline-variant/50 text-label-sm font-semibold text-on-surface hover:bg-surface-container transition-colors cursor-pointer">Cancel</button>
+            <button
+              onClick={() => void handleNameChange()}
+              disabled={nameSaving || !newDisplayName.trim() || newDisplayName.trim() === displayName || isNameLocked}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+            >
+              {nameSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating…</> : `Confirm Change (${nameChangesRemaining - 1} left)`}
+            </button>
+          </div>
         </ModalOverlay>
       )}
     </div>

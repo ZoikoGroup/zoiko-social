@@ -5,6 +5,7 @@ import { normalizeTags } from '../common/utils/tags'
 import { ProfanityService } from '../common/moderation/profanity.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
 import { CommercialService } from '../commercial/commercial.service'
+import { MessagingService } from '../messaging/messaging.service'
 import { encodeCursor, decodeCursor } from '../common/utils/cursor-pagination'
 import type { CreateProductInput, UpdateProductInput, EnquiryInput, ShopCategory, ShopSort } from './shop.schemas'
 
@@ -61,6 +62,7 @@ export class ShopService {
     private readonly notifications: NotificationQueueService,
     private readonly profanity: ProfanityService,
     private readonly commercial: CommercialService,
+    private readonly messagingService: MessagingService,
   ) {}
 
   private sellerInclude() {
@@ -260,7 +262,19 @@ export class ShopService {
   }
 
   async enquire(id: string, buyerId: string, input: EnquiryInput): Promise<{ status: string }> {
-    const product = await this.prisma.product.findUnique({ where: { id }, select: { id: true, isDeleted: true, sellerId: true, title: true } })
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        isDeleted: true,
+        sellerId: true,
+        title: true,
+        priceCents: true,
+        currency: true,
+        coverUrl: true,
+        photos: true,
+      },
+    })
     if (!product || product.isDeleted) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
     if (product.sellerId === buyerId) throw new BadRequestException({ code: 'OWN_PRODUCT', message: 'You cannot enquire on your own listing' })
 
@@ -271,6 +285,27 @@ export class ShopService {
       await tx.productEnquiry.create({ data: { productId: id, buyerId, ...(input.message ? { message: input.message } : {}) } })
       await tx.product.update({ where: { id }, data: { enquiriesCount: { increment: 1 } } })
     })
+
+    // Automatically send message into the 1-on-1 DM conversation between buyer and seller
+    try {
+      const conv = await this.messagingService.getOrCreateConversation(buyerId, product.sellerId)
+      const userMessage = input.message?.trim()
+      const enquiryText = userMessage || `Hi! I'm interested in "${product.title}". Is this still available?`
+      await this.messagingService.sendMessage(buyerId, conv.id, {
+        body: enquiryText,
+        type: 'product_enquiry',
+        metadata: {
+          productId: product.id,
+          productTitle: product.title,
+          productPrice: product.priceCents,
+          productCurrency: product.currency,
+          productCoverUrl: product.coverUrl || product.photos?.[0] || null,
+        },
+      })
+    } catch (dmErr) {
+      // Don't fail the enquiry creation if DM fails
+      console.warn('Failed to send DM message for product enquiry:', dmErr)
+    }
 
     const buyer = await this.prisma.profile.findUnique({ where: { id: buyerId }, select: { displayName: true, username: true } })
     void this.notifications.enqueue({

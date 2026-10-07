@@ -1,12 +1,11 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Header } from '@/components/Header'
 import {
   Check,
-  ChevronRight,
   ShieldCheck,
   Loader2,
   AlertCircle,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { mutate, request } from '@/lib/api'
+import { mutate } from '@/lib/api'
 import { createClient } from '@/lib/supabase/client'
 
 export default function VerifyPage(): React.JSX.Element {
@@ -27,28 +26,23 @@ export default function VerifyPage(): React.JSX.Element {
   const searchParams = useSearchParams()
   const toast = useToast()
 
-  const [legalName, setLegalName] = useState('')
-  const [country, setCountry] = useState('India')
   const [initiating, setInitiating] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const isConfirmingRef = useRef(false)
 
   const isAlreadyApproved = profile?.identityStatus === 'approved'
-
-  // Pre-fill legal name from displayName if empty
-  useEffect(() => {
-    if (profile?.displayName && !legalName) {
-      setLegalName(profile.displayName)
-    }
-  }, [profile, legalName])
 
   // Handle return from Didit hosted session
   useEffect(() => {
     const isReturning = searchParams.get('session_complete') === 'true'
+    const urlSessionId = searchParams.get('verificationSessionId')
     const storedSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('didit_active_session_id') : null
+    const sessionId = urlSessionId || storedSessionId
     const storedLegalName = typeof window !== 'undefined' ? sessionStorage.getItem('didit_submitted_legal_name') : null
 
-    if (isReturning && storedSessionId && !isAlreadyApproved) {
+    if (isReturning && sessionId && !isAlreadyApproved && !isConfirmingRef.current) {
+      isConfirmingRef.current = true
       async function completeDidit() {
         setConfirming(true)
         setError(null)
@@ -58,7 +52,7 @@ export default function VerifyPage(): React.JSX.Element {
             {
               method: 'POST',
               body: JSON.stringify({
-                sessionId: storedSessionId,
+                sessionId,
                 legalName: storedLegalName || undefined,
               }),
             },
@@ -67,22 +61,32 @@ export default function VerifyPage(): React.JSX.Element {
           const isSuccess = res?.success ?? res?.data?.success
           if (isSuccess) {
             toast.success('Identity Verified!', 'Your official national identity was verified successfully.')
-            await refreshProfile()
             if (typeof window !== 'undefined') {
               sessionStorage.removeItem('didit_active_session_id')
               sessionStorage.removeItem('didit_submitted_legal_name')
             }
+            await refreshProfile()
+            window.location.replace('/verify')
+            return
+          } else {
+            setError(res?.status ? `Identity verification status: ${res.status}` : 'Verification could not be confirmed.')
           }
         } catch (err: unknown) {
           const e = err as { message?: string }
-          setError(e.message || 'Identity verification could not be confirmed. Please try again.')
+          setError(e.message || 'Identity verification could not be confirmed. Please check your details and try again.')
         } finally {
           setConfirming(false)
+          isConfirmingRef.current = false
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('didit_active_session_id')
+            sessionStorage.removeItem('didit_submitted_legal_name')
+          }
+          router.replace('/verify')
         }
       }
       completeDidit()
     }
-  }, [searchParams, isAlreadyApproved, refreshProfile, toast])
+  }, [searchParams, isAlreadyApproved, refreshProfile, toast, router])
 
   useEffect(() => {
     if (!loading && profile === null) {
@@ -110,8 +114,9 @@ export default function VerifyPage(): React.JSX.Element {
   if (!profile) return <></>
 
   const handleStartDidit = async () => {
-    if (!legalName.trim()) {
-      setError('Please provide your full legal name matching your government ID.')
+    const verifiedName = profile.displayName?.trim()
+    if (!verifiedName) {
+      setError('Your account must have a valid name to proceed with verification.')
       return
     }
 
@@ -133,7 +138,7 @@ export default function VerifyPage(): React.JSX.Element {
 
       if (sessionId && sessionUrl) {
         sessionStorage.setItem('didit_active_session_id', sessionId)
-        sessionStorage.setItem('didit_submitted_legal_name', legalName.trim())
+        sessionStorage.setItem('didit_submitted_legal_name', verifiedName)
         // Redirect directly to Didit secure identity workflow
         window.location.assign(sessionUrl)
       } else {
@@ -224,37 +229,33 @@ export default function VerifyPage(): React.JSX.Element {
               {/* Input Fields */}
               <div className="space-y-4 pt-2">
                 <div>
-                  <label className="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">
-                    Full Legal Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={legalName}
-                    onChange={(e) => setLegalName(e.target.value)}
-                    placeholder="Enter full name exactly as on Government ID"
-                    className="w-full px-4 py-3 bg-surface-container border border-outline-variant/40 rounded-xl text-sm font-medium focus:border-primary focus:outline-none transition-colors"
-                  />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-on-surface uppercase tracking-wider">
+                      Full Legal Name <span className="text-red-500">*</span>
+                    </label>
+                    <Link
+                      href="/settings"
+                      className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
+                    >
+                      Change in Settings →
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={profile?.displayName || ''}
+                      readOnly
+                      disabled
+                      className="w-full px-4 py-3 bg-surface-container-high/60 border border-outline-variant/30 rounded-xl text-sm font-semibold text-on-surface cursor-not-allowed select-none opacity-90"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[11px] font-semibold text-outline px-2 py-0.5 rounded-md bg-surface-container-low border border-outline-variant/30">
+                      <Lock className="w-3 h-3 text-outline" />
+                      <span>{Math.max(0, 2 - (profile?.nameChangeCount ?? 0))} / 2 changes left</span>
+                    </div>
+                  </div>
                   <p className="text-[11px] text-outline mt-1.5">
-                    Must match your Aadhaar, Passport, or Driver&apos;s License.
+                    Your verification name is securely anchored to your account name. To prevent fraud, names can only be updated twice in <Link href="/settings" className="text-primary hover:underline font-medium">Settings</Link>.
                   </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">
-                    Document Issuing Country
-                  </label>
-                  <select
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full px-4 py-3 bg-surface-container border border-outline-variant/40 rounded-xl text-sm font-medium focus:border-primary focus:outline-none transition-colors"
-                  >
-                    <option value="India">India (Aadhaar, PAN, Passport, DL)</option>
-                    <option value="United States">United States (State ID, Driver&apos;s License, Passport)</option>
-                    <option value="United Kingdom">United Kingdom (Passport, Driving Licence)</option>
-                    <option value="Canada">Canada (Driver&apos;s Licence, Passport)</option>
-                    <option value="Australia">Australia (Driver Licence, Passport)</option>
-                    <option value="Other">Other (220+ Global Jurisdictions)</option>
-                  </select>
                 </div>
               </div>
 
@@ -262,7 +263,7 @@ export default function VerifyPage(): React.JSX.Element {
               <div className="pt-4 border-t border-outline-variant/20">
                 <button
                   onClick={handleStartDidit}
-                  disabled={initiating || !legalName.trim()}
+                  disabled={initiating || !profile?.displayName?.trim()}
                   className="w-full py-3.5 px-6 rounded-2xl bg-primary hover:bg-primary/90 text-white font-bold text-sm shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {initiating ? (

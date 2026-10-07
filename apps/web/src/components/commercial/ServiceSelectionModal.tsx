@@ -81,6 +81,23 @@ export function ServiceSelectionModal({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Keep selected services in sync whenever the modal opens or parent passes loaded services
+  React.useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        if (initialSelectedServices && initialSelectedServices.length > 0) {
+          setSelected(initialSelectedServices)
+        } else {
+          // Fallback default for 1-service plan if none loaded
+          setSelected(maxServicesAllowed === 1 ? ['seller'] : [])
+        }
+        setError(null)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+  }, [isOpen, initialSelectedServices, maxServicesAllowed])
+
   if (!isOpen) return null
 
   const handleToggle = (serviceId: string) => {
@@ -88,14 +105,14 @@ export function ServiceSelectionModal({
     if (selected.includes(serviceId)) {
       // Must have at least 1 selected
       if (selected.length === 1) {
-        setError('At least one service must remain active.')
+        setError('At least one active service must be selected.')
         return
       }
       setSelected(selected.filter((s) => s !== serviceId))
     } else {
       if (selected.length >= maxServicesAllowed) {
         if (maxServicesAllowed === 1) {
-          // If 1 allowed, switch directly
+          // If 1 allowed, switch directly to the newly clicked service
           setSelected([serviceId])
           return
         }
@@ -127,9 +144,11 @@ export function ServiceSelectionModal({
     }
   }
 
+  const isSingleServicePlan = maxServicesAllowed === 1
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl border border-outline-variant/30 overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="relative w-full max-w-2xl bg-surface dark:bg-zinc-900 rounded-3xl shadow-2xl border border-outline-variant/30 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 pb-4 border-b border-outline-variant/20 flex items-start justify-between bg-surface-container-lowest">
           <div className="flex items-center gap-3">
@@ -144,7 +163,7 @@ export function ServiceSelectionModal({
                 </span>
               </div>
               <p className="text-xs text-outline mt-0.5">
-                Select <span className="font-semibold text-on-surface">{maxServicesAllowed === 1 ? '1 service' : maxServicesAllowed === 2 ? 'up to 2 services' : 'any or all services'}</span> to manage in your professional dashboard.
+                Select <span className="font-semibold text-on-surface">{isSingleServicePlan ? '1 service' : maxServicesAllowed === 2 ? 'up to 2 services' : 'any or all services'}</span> to operate on your professional account.
               </p>
             </div>
           </div>
@@ -156,6 +175,16 @@ export function ServiceSelectionModal({
           </button>
         </div>
 
+        {/* Notice for 1-service plan switching policy */}
+        {isSingleServicePlan && (
+          <div className="px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2 text-[12px] text-amber-700 dark:text-amber-300">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>
+              Your plan includes <strong>1 active service</strong>. When you switch to a different service, listings from other services are automatically paused to prevent cross-service misuse.
+            </span>
+          </div>
+        )}
+
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {error && (
@@ -165,7 +194,7 @@ export function ServiceSelectionModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-3.5">
+          <div className="grid grid-cols-1 gap-3">
             {AVAILABLE_SERVICES.map((srv) => {
               const isSelected = selected.includes(srv.id)
               const SrvIcon = srv.icon
@@ -174,25 +203,43 @@ export function ServiceSelectionModal({
                 <div
                   key={srv.id}
                   onClick={() => handleToggle(srv.id)}
-                  className={`cursor-pointer rounded-2xl p-4.5 border transition-all duration-200 flex items-start gap-4 ${
+                  className={`cursor-pointer rounded-2xl p-4 border transition-all duration-200 flex items-start gap-4 ${
                     isSelected
-                      ? 'bg-primary/5 dark:bg-primary/10 border-primary ring-2 ring-primary/20 shadow-sm'
-                      : 'bg-surface-container-lowest border-outline-variant/30 hover:border-outline-variant/60 hover:bg-surface-container-high/30'
+                      ? 'bg-primary/5 dark:bg-primary/15 border-primary ring-2 ring-primary/25 shadow-sm'
+                      : 'bg-surface-container-lowest border-outline-variant/30 hover:border-outline-variant/60 hover:bg-surface-container/50'
                   }`}
                 >
-                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
-                    isSelected ? 'bg-primary text-white' : 'border border-outline-variant/50 text-transparent'
+                  {/* Indicator: Radio circle if 1 allowed, Checkbox if multi */}
+                  <div className={`flex items-center justify-center flex-shrink-0 mt-1 transition-all ${
+                    isSingleServicePlan
+                      ? `w-5 h-5 rounded-full border-2 ${isSelected ? 'border-primary bg-primary text-white' : 'border-outline text-transparent'}`
+                      : `w-5 h-5 rounded-lg border-2 ${isSelected ? 'border-primary bg-primary text-white' : 'border-outline text-transparent'}`
                   }`}>
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    {isSelected && (
+                      isSingleServicePlan ? (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      )
+                    )}
                   </div>
 
-                  <div className="w-11 h-11 rounded-xl bg-surface-container flex items-center justify-center flex-shrink-0 text-primary">
-                    <SrvIcon className="w-6 h-6" />
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? 'bg-primary text-white shadow-sm' : 'bg-surface-container text-primary'
+                  }`}>
+                    <SrvIcon className="w-5 h-5" />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <h4 className="text-sm font-bold text-on-surface truncate">{srv.title}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-on-surface truncate">{srv.title}</h4>
+                        {isSelected && (
+                          <span className="text-[10px] font-bold tracking-wide uppercase px-1.5 py-0.5 rounded bg-primary text-white">
+                            Active
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] font-semibold text-outline px-2 py-0.5 rounded bg-surface-container">
                         {srv.subtitle}
                       </span>

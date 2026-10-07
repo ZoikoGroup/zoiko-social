@@ -60,7 +60,9 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 import { AccessToken } from '../auth/decorators/access-token.decorator'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
+import { RateLimit } from '../common/decorators/rate-limit.decorator'
 
+import { RedisService } from '../redis/redis.service'
 import { DiditVerificationService } from './didit-verification.service'
 
 @Controller('profiles')
@@ -68,6 +70,7 @@ export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly diditService: DiditVerificationService,
+    private readonly redis: RedisService,
   ) {}
 
   // ── USERNAME AVAILABILITY (public — used by the signup form) ───────────────
@@ -248,6 +251,7 @@ export class ProfileController {
 
   @Post('me/verification/didit/session')
   @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 30, windowSeconds: 60 })
   @HttpCode(HttpStatus.OK)
   async createDiditSession(
     @CurrentUser() user: AuthenticatedUser,
@@ -259,6 +263,7 @@ export class ProfileController {
 
   @Post('me/verification/didit/confirm')
   @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 30, windowSeconds: 60 })
   @HttpCode(HttpStatus.OK)
   async confirmDiditSession(
     @CurrentUser() user: AuthenticatedUser,
@@ -269,6 +274,9 @@ export class ProfileController {
       user.id,
       body.legalName,
     )
+    if (result.success) {
+      await this.redis.invalidateProfile(user.id)
+    }
     return { data: result }
   }
 

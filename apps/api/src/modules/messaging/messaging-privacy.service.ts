@@ -20,10 +20,19 @@ export class MessagingPrivacyService {
       return { allowed: false, reason: 'privacy_restricted' }
     }
 
-    const [recipient, blockedByMe, blockedByThem] = await Promise.all([
+    const [recipient, sender, blockedByMe, blockedByThem] = await Promise.all([
       this.prisma.profile.findUnique({
         where: { id: recipientId },
-        select: { state: true },
+        select: {
+          state: true,
+          professionalProfile: { select: { id: true, deletedAt: true } },
+        },
+      }),
+      this.prisma.profile.findUnique({
+        where: { id: senderId },
+        select: {
+          professionalProfile: { select: { id: true, deletedAt: true } },
+        },
       }),
       this.prisma.blockedUser.findUnique({
         where: { blockerId_blockedId: { blockerId: senderId, blockedId: recipientId } },
@@ -39,12 +48,47 @@ export class MessagingPrivacyService {
     if (blockedByMe) return { allowed: false, reason: 'blocked' }
     if (blockedByThem) return { allowed: false, reason: 'blocked_you' }
 
-    // Always require following the recipient to send messages
-    const follows = await this.prisma.follow.findUnique({
-      where: { followerId_followingId: { followerId: senderId, followingId: recipientId } },
-    })
-    if (!follows || follows.status !== 'active') {
-      return { allowed: false, reason: 'not_following' }
+    // If either party is a professional/business account (or responding to enquiries/bookings),
+    // customers and business owners can communicate without needing to follow each other.
+    const isRecipientBusiness = !!(recipient.professionalProfile && !recipient.professionalProfile.deletedAt)
+    const isSenderBusiness = !!(sender?.professionalProfile && !sender?.professionalProfile.deletedAt)
+
+    // Check for existing commercial enquiry or booking between the two parties
+    let hasCommercialInteraction = false
+    if (!isRecipientBusiness && !isSenderBusiness) {
+      const [productEnquiry, petBooking] = await Promise.all([
+        this.prisma.productEnquiry.findFirst({
+          where: {
+            OR: [
+              { buyerId: senderId, product: { sellerId: recipientId } },
+              { buyerId: recipientId, product: { sellerId: senderId } },
+            ],
+          },
+          select: { id: true },
+        }),
+        this.prisma.petCareBooking.findFirst({
+          where: {
+            OR: [
+              { seekerId: senderId, provider: { addedBy: recipientId } },
+              { seekerId: recipientId, provider: { addedBy: senderId } },
+            ],
+          },
+          select: { id: true },
+        }),
+      ])
+      hasCommercialInteraction = !!(productEnquiry || petBooking)
+    }
+
+    const isBusinessOrCommercial = isRecipientBusiness || isSenderBusiness || hasCommercialInteraction
+
+    // Require following only for personal accounts without commercial relationship
+    if (!isBusinessOrCommercial) {
+      const follows = await this.prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: senderId, followingId: recipientId } },
+      })
+      if (!follows || follows.status !== 'active') {
+        return { allowed: false, reason: 'not_following' }
+      }
     }
 
     // Check user privacy settings

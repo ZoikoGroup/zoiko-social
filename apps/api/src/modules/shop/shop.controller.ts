@@ -73,9 +73,7 @@ export class ShopController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
-  @RequireVerified('identity', 'organization')
-  @RequireSubscription('seller_professional')
+  @UseGuards(JwtAuthGuard)
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body(new ZodValidationPipe(UpdateProductSchema)) body: UpdateProductInput) {
     return { data: await this.shop.update(id, user.id, body) }
   }

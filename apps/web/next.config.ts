@@ -128,16 +128,30 @@ const nextConfig: NextConfig = {
   },
 
   async redirects() {
-    return process.env.NODE_ENV === 'production'
+    const prodRedirects = process.env.NODE_ENV === 'production'
       ? [
           {
             source: '/:path*',
-            has: [{ type: 'host', value: 'www.zoikosocial.com' }],
+            has: [{ type: 'host' as const, value: 'www.zoikosocial.com' }],
             destination: 'https://zoikosocial.com/:path*',
             permanent: true,
           },
         ]
       : []
+
+    return [
+      ...prodRedirects,
+      {
+        source: '/breeding',
+        destination: '/breeding-match',
+        permanent: false,
+      },
+      {
+        source: '/breeding/:path*',
+        destination: '/breeding-match/:path*',
+        permanent: false,
+      },
+    ]
   },
 
   serverExternalPackages: ['@supabase/ssr'],

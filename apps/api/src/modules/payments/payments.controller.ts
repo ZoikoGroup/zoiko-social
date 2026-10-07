@@ -174,6 +174,87 @@ export class PaymentsController {
         })
         break
       }
+      case 'customer.subscription.deleted': {
+        // Scenario 4: Immediate cancellation / chargeback / card canceled
+        const sub = event.data.object as Stripe.Subscription
+        this.logger.log(`Handling customer.subscription.deleted for Stripe sub: ${sub.id}`)
+        await this.prisma.subscription.updateMany({
+          where: { stripeId: sub.id },
+          data: { status: 'canceled' },
+        })
+        break
+      }
+      case 'invoice.payment_failed': {
+        // Scenario 4: Payment failure / charge failure
+        const invoice = event.data.object as unknown as Record<string, unknown>
+        const stripeSubId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : (invoice.subscription as { id?: string } | undefined)?.id
+        if (stripeSubId) {
+          this.logger.warn(`Invoice payment failed for Stripe sub ${stripeSubId}, marking past_due`)
+          await this.prisma.subscription.updateMany({
+            where: { stripeId: stripeSubId },
+            data: { status: 'past_due' },
+          })
+        }
+        break
+      }
+      case 'customer.subscription.updated': {
+        // Scenario 3: Plan Downgrade & Quota Orphan Exploitation
+        const sub = event.data.object as Stripe.Subscription
+        const dbSub = await this.prisma.subscription.findFirst({
+          where: { stripeId: sub.id },
+        })
+        if (dbSub) {
+          // Sync status
+          const newStatus = (sub.status === 'active' || sub.status === 'trialing') ? 'active' : sub.status === 'canceled' ? 'canceled' : 'past_due'
+          await this.prisma.subscription.update({
+            where: { id: dbSub.id },
+            data: { status: newStatus as import('@prisma/client').SubscriptionStatus },
+          })
+
+          // Check if quota reduction or downgrade happened
+          const prof = await this.prisma.professionalProfile.findUnique({
+            where: { userId: dbSub.userId },
+            select: { serviceAreas: true },
+          })
+
+          const activeServices = prof?.serviceAreas || []
+          let allowedCount = 1
+          if (dbSub.entitlement === 'premium' || dbSub.entitlement === 'care_professional') {
+            allowedCount = 4
+          } else if (dbSub.entitlement === 'professional' || dbSub.entitlement === 'breeder_professional') {
+            allowedCount = 2
+          }
+
+          if (activeServices.length > allowedCount) {
+            // User has more active services than allowed under new tier
+            // Keep the first allowedCount services and pause the orphan ones
+            const keepServices = activeServices.slice(0, allowedCount)
+            const droppedServices = activeServices.slice(allowedCount)
+
+            await this.prisma.professionalProfile.update({
+              where: { userId: dbSub.userId },
+              data: { serviceAreas: keepServices },
+            })
+
+            if (droppedServices.includes('seller')) {
+              await this.prisma.product.updateMany({
+                where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
+                data: { status: 'inactive' },
+              })
+            }
+            if (droppedServices.includes('breeder')) {
+              await this.prisma.breedingProfile.updateMany({
+                where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
+                data: { availableNow: false },
+              })
+            }
+            this.logger.log(`Auto-adjusted services for user ${dbSub.userId} after subscription update. Retained: ${keepServices.join(', ')}. Suspended: ${droppedServices.join(', ')}`)
+          }
+        }
+        break
+      }
       default:
         break
     }

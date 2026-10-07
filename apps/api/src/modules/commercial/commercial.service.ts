@@ -16,6 +16,18 @@ export class CommercialService {
       throw new ForbiddenException('Seller Professional subscription is required to publish products.');
     }
 
+    // Verify service allocation if tiered subscription (starter / professional)
+    if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const prof = await this.prisma.professionalProfile.findUnique({
+        where: { userId },
+        select: { serviceAreas: true },
+      });
+      const activeServices = prof?.serviceAreas || [];
+      if (!activeServices.includes('seller')) {
+        throw new ForbiddenException('Your current active service does not include Pet Products Seller. Please activate Seller in your dashboard or upgrade your plan.');
+      }
+    }
+
     const activeProducts = await this.prisma.product.count({
       where: { sellerId: userId, status: 'active' },
     });
@@ -34,6 +46,18 @@ export class CommercialService {
       throw new ForbiddenException('Breeder Professional subscription is required to create breeding profiles.');
     }
 
+    // Verify service allocation if tiered subscription (starter / professional)
+    if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const prof = await this.prisma.professionalProfile.findUnique({
+        where: { userId },
+        select: { serviceAreas: true },
+      });
+      const activeServices = prof?.serviceAreas || [];
+      if (!activeServices.includes('breeder')) {
+        throw new ForbiddenException('Your current active service does not include Breeder & Stud Service. Please activate Breeder in your dashboard or upgrade your plan.');
+      }
+    }
+
     const activeProfiles = await this.prisma.breedingProfile.count({
       where: { ownerId: userId, status: 'active' },
     });
@@ -50,6 +74,18 @@ export class CommercialService {
 
     if (!subscription) {
       throw new ForbiddenException('Care Professional subscription is required to add services or team members.');
+    }
+
+    // Verify service allocation if tiered subscription (starter / professional)
+    if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const prof = await this.prisma.professionalProfile.findUnique({
+        where: { userId },
+        select: { serviceAreas: true },
+      });
+      const activeServices = prof?.serviceAreas || [];
+      if (!activeServices.includes('care') && !activeServices.includes('vet')) {
+        throw new ForbiddenException('Your current active service does not include Pet Care or Veterinary Provider. Please activate it in your dashboard or upgrade your plan.');
+      }
     }
 
     // Check services limit

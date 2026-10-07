@@ -72,7 +72,7 @@ export function ProfileCard(): React.JSX.Element {
     )
   }
 
-  const isVerified = profile.verificationTier === 'professional'
+  const isVerified = profile.identityStatus === 'approved' && !!profile.professionalProfile
   const headline =
     profile.bio ||
     (profile.professionalProfile
