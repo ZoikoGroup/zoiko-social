@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 /**
  * Hero — "Build trust with your community."
@@ -33,18 +34,18 @@ export default function Hero() {
           community that you&apos;re a legitimate, authentic organization on Zoiko.
         </p>
         <div className="flex w-full flex-wrap items-start gap-4 pt-[20.7px] lg:pt-5">
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-xl bg-[#066879] px-5 py-[13px] text-center font-jakarta text-[14px] font-bold text-white"
+          <Link
+            href="#plans"
+            className="flex items-center justify-center rounded-xl bg-[#066879] px-5 py-[13px] text-center font-jakarta text-[14px] font-bold text-white transition hover:opacity-90"
           >
             Learn more
-          </button>
-          <button
-            type="button"
-            className="flex items-center justify-center rounded-xl border border-[#dce5e8] bg-white px-5 py-3 text-center font-jakarta text-[14px] font-bold text-[#102a32]"
+          </Link>
+          <Link
+            href="#eligibility"
+            className="flex items-center justify-center rounded-xl border border-[#dce5e8] bg-white px-5 py-3 text-center font-jakarta text-[14px] font-bold text-[#102a32] transition hover:bg-neutral-50"
           >
             See eligibility
-          </button>
+          </Link>
         </div>
       </div>
 

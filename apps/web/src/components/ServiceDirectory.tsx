@@ -313,7 +313,18 @@ export function AddProviderModal({ category, serviceTypes, title, onClose, onAdd
           <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} maxLength={120} placeholder="Location / city" className={input} />
           <input value={form.address ?? ''} onChange={(e) => set('address', e.target.value)} maxLength={300} placeholder="Address (optional)" className={input} />
           <div className="grid grid-cols-2 gap-3">
-            <input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} maxLength={40} placeholder="Phone" className={input} />
+            <input
+              type="tel"
+              inputMode="tel"
+              value={form.phone ?? ''}
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^\d+\-\s().]/g, '')
+                set('phone', val)
+              }}
+              maxLength={20}
+              placeholder="Phone (numbers only)"
+              className={input}
+            />
             <input value={form.website ?? ''} onChange={(e) => set('website', e.target.value)} maxLength={300} placeholder="Website (https://)" className={input} />
           </div>
           {error && <p className="text-label-sm text-red-500">{error}</p>}

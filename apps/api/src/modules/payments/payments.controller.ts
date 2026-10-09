@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
+import { PaymentConfirmationEmailService } from './payment-confirmation-email.service'
+import { COMMERCIAL_PLANS } from '../commercial/commercial.constants'
 
 /** Request augmented with the raw request body — see main.ts's content-type parser override. */
 type RequestWithRawBody = FastifyRequest & { rawBody?: Buffer }
@@ -27,6 +29,7 @@ export class PaymentsController {
     private readonly stripe: StripeService,
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly paymentEmail: PaymentConfirmationEmailService,
   ) {}
 
 
@@ -100,7 +103,11 @@ export class PaymentsController {
                 where: { userId },
               });
 
+              const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
+              const initialServices = [defaultService];
+
               if (existingProf) {
+                const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
                 await this.prisma.professionalProfile.update({
                   where: { userId },
                   data: {
@@ -108,6 +115,7 @@ export class PaymentsController {
                     category,
                     isVerified: true,
                     verifiedAt: existingProf.verifiedAt || new Date(),
+                    serviceAreas: currentServices,
                   },
                 });
               } else {
@@ -117,6 +125,7 @@ export class PaymentsController {
                     category,
                     isVerified: true,
                     verifiedAt: new Date(),
+                    serviceAreas: initialServices,
                   },
                 });
               }
@@ -128,6 +137,36 @@ export class PaymentsController {
               });
             } catch (profErr) {
               this.logger.warn(`Could not auto-sync professional profile for user ${userId}: ${(profErr as Error).message}`);
+            }
+
+            // Send subscription confirmation / invoice email
+            try {
+              const planKey = entitlement as keyof typeof COMMERCIAL_PLANS;
+              const planConfig = COMMERCIAL_PLANS[planKey];
+              const planName = planConfig ? planConfig.name : (entitlement.charAt(0).toUpperCase() + entitlement.slice(1).replace('_', ' ') + ' Plan');
+              const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee';
+
+              const profileObj = await this.prisma.profile.findUnique({
+                where: { id: userId },
+                select: { displayName: true, firstName: true, lastName: true },
+              });
+
+              const recipientEmail = session.customer_details?.email || session.customer_email;
+              const fullName = [profileObj?.firstName, profileObj?.lastName].filter(Boolean).join(' ');
+              const recipientName = profileObj?.displayName || fullName || 'Member';
+
+              if (recipientEmail) {
+                await this.paymentEmail.sendSubscriptionConfirmation({
+                  recipientEmail,
+                  recipientName,
+                  planName,
+                  amountFormatted,
+                  billingInterval: 'Monthly',
+                  invoiceNumber: session.id || subscriptionId,
+                });
+              }
+            } catch (emailErr) {
+              this.logger.error(`Failed to send subscription confirmation email for user ${userId}: ${(emailErr as Error).message}`);
             }
           }
         } else {

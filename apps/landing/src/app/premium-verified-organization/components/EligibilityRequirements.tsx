@@ -21,7 +21,7 @@ const requirements = [
 
 export default function EligibilityRequirements() {
   return (
-    <section className="w-full bg-[#f7f9fa] px-4 pb-32 pt-[47px] lg:px-[105px] lg:py-[80px]">
+    <section id="eligibility" className="w-full bg-[#f7f9fa] px-4 pb-32 pt-[47px] lg:px-[105px] lg:py-[80px]">
       <div className="mx-auto flex w-full max-w-[1280px] flex-col items-start gap-10 lg:gap-12">
         <h2 className="font-jakarta text-[24px] font-extrabold leading-[28.8px] tracking-[-0.24px] text-[#102a32] lg:text-[32px] lg:leading-[38.4px] lg:tracking-[-0.32px]">
           Eligibility requirements

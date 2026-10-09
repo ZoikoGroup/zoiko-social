@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, Loader2, ShieldAlert, AlertTriangle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { X, Send, Loader2, ShieldAlert, AlertTriangle, MessageSquare } from 'lucide-react'
 import { adoptionApi, type AdoptionMessage } from '@/lib/api'
 
 /** Quick client-side heuristic so the composer can warn the user before sending. */
@@ -18,7 +19,18 @@ function quickFraudCheck(text: string): string | null {
  * personal details are exchanged; messages are fraud-scanned server-side and an
  * OLX-style safety banner is always shown.
  */
-export function AdoptionChat({ enquiryId, title, onClose }: { enquiryId: string; title: string; onClose: () => void }): React.JSX.Element {
+export function AdoptionChat({
+  enquiryId,
+  title,
+  targetUserId,
+  onClose,
+}: {
+  enquiryId: string
+  title: string
+  targetUserId?: string | undefined
+  onClose: () => void
+}): React.JSX.Element {
+  const router = useRouter()
   const [messages, setMessages] = useState<AdoptionMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
@@ -59,7 +71,23 @@ export function AdoptionChat({ enquiryId, title, onClose }: { enquiryId: string;
       <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md h-[80vh] max-h-[640px] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-outline-variant/20 flex-shrink-0">
           <h2 className="font-headline text-label-lg font-bold text-on-surface truncate">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1.5">
+            {targetUserId && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose()
+                  router.push(`/messages?user=${targetUserId}`)
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-outline-variant text-[12px] font-semibold text-primary hover:bg-primary/5 flex items-center gap-1 cursor-pointer transition-colors"
+                title="Open in main Messages"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Main Messages</span>
+              </button>
+            )}
+            <button onClick={onClose} className="p-2 rounded-lg text-outline hover:bg-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+          </div>
         </div>
 
         {/* Safety banner (always on) */}

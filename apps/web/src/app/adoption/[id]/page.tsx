@@ -30,7 +30,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
   const [listing, setListing] = useState<AdoptionListing | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [enquiries, setEnquiries] = useState<AdoptionEnquiryItem[]>([])
-  const [chat, setChat] = useState<{ id: string; title: string } | null>(null)
+  const [chat, setChat] = useState<{ id: string; title: string; targetUserId?: string } | null>(null)
   const [starting, setStarting] = useState(false)
 
   const isOwner = !!user && !!listing && user.id === listing.poster.id
@@ -57,7 +57,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
     try {
       const r = await adoptionApi.enquire(id) // creates or resumes the private thread
       if (!listing.viewerEnquiryStatus) setListing({ ...listing, viewerEnquiryStatus: r.status, enquiriesCount: listing.enquiriesCount + 1 })
-      setChat({ id: r.id, title: `Chat · ${listing.name}` })
+      setChat({ id: r.id, title: `Chat · ${listing.name}`, targetUserId: listing.poster.id })
     } catch { /* ignore */ } finally { setStarting(false) }
   }
 
@@ -208,12 +208,20 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Actions */}
             {!isOwner ? (
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
                 {listing.status === 'available' || listing.status === 'pending' ? (
-                  <button onClick={startChat} disabled={starting} className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
-                    {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                    <span>{listing.listingType === 'sale' ? 'Chat with seller' : 'Chat with owner'}</span>
-                  </button>
+                  <>
+                    <button onClick={startChat} disabled={starting} className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2">
+                      {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                      <span>{listing.listingType === 'sale' ? 'Chat with seller' : 'Chat with owner'}</span>
+                    </button>
+                    <Link
+                      href={`/messages?user=${listing.poster.id}`}
+                      className="w-full py-2 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface text-label-sm font-semibold hover:bg-surface-container flex items-center justify-center gap-2 transition-colors text-center"
+                    >
+                      <span>Open in Main Messages</span>
+                    </Link>
+                  </>
                 ) : (
                   <div className="w-full text-center py-2.5 rounded-xl bg-surface-container text-outline text-label-md font-semibold">Not available</div>
                 )}
@@ -246,7 +254,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
                         {e.message && <p className="text-label-sm text-on-surface-variant mt-0.5">{e.message}</p>}
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button onClick={() => setChat({ id: e.id, title: e.applicant.displayName })} className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer" title="Chat"><MessageCircle className="w-4 h-4" /></button>
+                        <button onClick={() => setChat({ id: e.id, title: e.applicant.displayName, targetUserId: e.applicant.id })} className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer" title="Chat"><MessageCircle className="w-4 h-4" /></button>
                         {e.status === 'pending' ? (
                           <>
                             <button onClick={() => respond(e.id, 'accepted')} className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 cursor-pointer" title="Accept"><Check className="w-4 h-4" /></button>
@@ -266,7 +274,7 @@ export default function AdoptionDetailPage({ params }: { params: Promise<{ id: s
       </main>
       <MobileTabs currentPage="home" onNavigate={() => {}} />
 
-      {chat && <AdoptionChat enquiryId={chat.id} title={chat.title} onClose={() => setChat(null)} />}
+      {chat && <AdoptionChat enquiryId={chat.id} title={chat.title} targetUserId={chat.targetUserId} onClose={() => setChat(null)} />}
     </>
   )
 }

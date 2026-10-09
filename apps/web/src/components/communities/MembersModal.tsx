@@ -27,6 +27,90 @@ export function MembersModal({ open, communityId, memberCount, onClose }: Member
   return <MembersList communityId={communityId} memberCount={memberCount} onClose={onClose} />
 }
 
+export function CommunityMembersInline({ communityId, memberCount }: { communityId: string; memberCount: number }): React.JSX.Element {
+  const { n } = useFormat()
+  const [members, setMembers] = useState<CommunityMember[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const timer = setTimeout(() => {
+      communitiesApi.members(communityId)
+        .then((r) => { if (!cancelled) { setMembers(r.data); setNextCursor(r.nextCursor); setHasMore(r.hasMore) } })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setLoading(false) })
+    }, 0)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [communityId])
+
+  async function loadMore(): Promise<void> {
+    if (!nextCursor) return
+    const r = await communitiesApi.members(communityId, nextCursor)
+    setMembers((prev) => {
+      const seen = new Set(prev.map((m) => m.id))
+      return [...prev, ...r.data.filter((m) => !seen.has(m.id))]
+    })
+    setNextCursor(r.nextCursor)
+    setHasMore(r.hasMore)
+  }
+
+  return (
+    <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-outline-variant/20">
+        <h2 className="flex items-center gap-2 font-headline text-headline-md text-on-surface">
+          <Users className="w-5 h-5 text-primary" />
+          {n(memberCount)} members
+        </h2>
+        <DocsHelpLink href="/docs/community-and-events#community-roles" />
+      </div>
+
+      <div className="p-4">
+        {loading ? (
+          <SkeletonRowList count={5} />
+        ) : members.length === 0 ? (
+          <p className="text-label-sm text-outline text-center py-8">No members to show.</p>
+        ) : (
+          <div className="space-y-1">
+            {members.map((m) => {
+              const badge = ROLE_BADGE[m.role]
+              return (
+                <Link
+                  key={m.id}
+                  href={`/profile/${m.username}`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container transition-colors"
+                >
+                  <UserAvatar name={m.displayName} image={m.avatarUrl ?? undefined} size="md" verified={m.isVerified} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-label-sm text-on-surface truncate">{m.username}</p>
+                    <p className="text-[11px] text-outline truncate">{m.displayName}</p>
+                  </div>
+                  {badge && (
+                    <span className={`flex items-center gap-1 text-[11px] font-semibold ${badge.className}`}>
+                      <badge.Icon className="w-3.5 h-3.5" />{badge.label}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+            {hasMore && (
+              <div className="pt-3 text-center">
+                <button
+                  onClick={loadMore}
+                  className="px-5 py-2 text-label-sm font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface cursor-pointer transition-colors"
+                >
+                  Load more members
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function MembersList({ communityId, memberCount, onClose }: Omit<MembersModalProps, 'open'>): React.JSX.Element {
   const { n } = useFormat()
   const [members, setMembers] = useState<CommunityMember[]>([])

@@ -82,7 +82,7 @@ const mobilePlans = [
 
 export default function PlanComparison() {
   return (
-    <section className="w-full bg-white px-4 pb-32 pt-[47px] lg:flex lg:flex-col lg:items-center lg:px-[105px] lg:py-[80px]">
+    <section id="plans" className="w-full bg-white px-4 pb-32 pt-[47px] lg:flex lg:flex-col lg:items-center lg:px-[105px] lg:py-[80px]">
       {/* Desktop */}
       <div className="mx-auto hidden w-full max-w-[1280px] flex-col items-start gap-12 lg:flex lg:w-[1182px]">
         <h2 className="font-jakarta text-[32px] font-extrabold leading-[44.8px] text-[#102a32]">

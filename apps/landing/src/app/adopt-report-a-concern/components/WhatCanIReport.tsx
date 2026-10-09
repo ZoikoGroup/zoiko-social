@@ -1,6 +1,7 @@
 "use client";
 
 import { C } from "./theme";
+import { useReportForm } from "./ReportFormContext";
 
 type ReportCategory = {
   title: string;
@@ -78,6 +79,17 @@ const REPORT_CATEGORIES: ReportCategory[] = [
 ];
 
 export default function WhatCanIReport() {
+  const { formData, selectCategory, setCurrentStep } = useReportForm();
+
+  const handleSelect = (title: string) => {
+    selectCategory(title);
+    setCurrentStep(1);
+    const formEl = document.getElementById("report-form");
+    if (formEl) {
+      formEl.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   return (
     <section
       className="w-full"
@@ -101,7 +113,7 @@ export default function WhatCanIReport() {
             style={{ color: C.muted }}
           >
             Choose the option that&apos;s closest — you don&apos;t need to know
-            the exact policy term.
+            the exact policy term. Click a category to select it directly.
           </p>
         </div>
 
@@ -115,6 +127,8 @@ export default function WhatCanIReport() {
               title={category.title}
               description={category.description}
               icon={category.icon}
+              selected={formData.category === category.title}
+              onSelect={() => handleSelect(category.title)}
             />
           ))}
         </div>
@@ -131,10 +145,14 @@ function ReportCategoryCard({
   title,
   description,
   icon,
-}: ReportCategory) {
+  selected,
+  onSelect,
+}: ReportCategory & { selected: boolean; onSelect: () => void }) {
   return (
-    <div
-      className="
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`
         flex
         min-h-[96px]
         w-full
@@ -142,11 +160,15 @@ function ReportCategoryCard({
         gap-3
         rounded-[20px]
         border
-        bg-white
+        text-left
+        transition-all
         p-5
-      "
+        cursor-pointer
+        hover:shadow-md
+        ${selected ? "ring-2 ring-emerald-600 bg-emerald-50/30" : "bg-white"}
+      `}
       style={{
-        borderColor: C.line,
+        borderColor: selected ? C.brand : C.line,
       }}
     >
       {/* ICON */}
@@ -177,7 +199,7 @@ function ReportCategoryCard({
           {description}
         </p>
       </div>
-    </div>
+    </button>
   );
 }
 

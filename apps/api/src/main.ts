@@ -35,6 +35,15 @@ async function bootstrap(): Promise<void> {
     })
   })
 
+  process.on('uncaughtException', (err) => {
+    new Logger('UncaughtException').error(err.stack ?? err.message)
+    captureServerError(err, {
+      requestId: 'uncaught-exception',
+      method: '-',
+      url: 'process',
+    })
+  })
+
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: true }),

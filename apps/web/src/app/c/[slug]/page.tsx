@@ -6,7 +6,7 @@ import { ChevronLeft, Users, Lock, BadgeCheck, Globe, Mail, ScrollText, UsersRou
 import { Header } from '@/components/Header'
 import { MobileTabs } from '@/components/MobileTabs'
 import { JoinButton } from '@/components/communities/JoinButton'
-import { MembersModal } from '@/components/communities/MembersModal'
+import { MembersModal, CommunityMembersInline } from '@/components/communities/MembersModal'
 import { ModerationModal } from '@/components/communities/ModerationModal'
 import { CommunitySettingsModal } from '@/components/communities/CommunitySettingsModal'
 import { InviteModal } from '@/components/communities/InviteModal'
@@ -261,11 +261,10 @@ export default function CommunityPage({ params }: { params: Promise<{ slug: stri
                     <p className="text-label-sm text-outline mt-1">Join to see who&apos;s here.</p>
                   </section>
                 ) : (
-                  <section className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 shadow-sm p-6 text-center">
-                    <button onClick={() => setMembersOpen(true)} className="px-5 py-2 rounded-lg bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors cursor-pointer">
-                      View all {n(community.membersCount)} members
-                    </button>
-                  </section>
+                  <CommunityMembersInline
+                    communityId={community.id}
+                    memberCount={community.membersCount}
+                  />
                 )
               )}
 

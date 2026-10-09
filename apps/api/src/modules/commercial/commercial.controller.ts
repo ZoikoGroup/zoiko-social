@@ -1,10 +1,13 @@
-import { Controller, Post, Get, Body, UseGuards, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { JwtAuthGuard, AuthenticatedUser } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { StripeService } from '../payments/stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { COMMERCIAL_PLANS } from './commercial.constants';
 import type { SubscriptionEntitlement } from '@prisma/client';
+
+import { PaymentConfirmationEmailService } from '../payments/payment-confirmation-email.service';
 
 @Controller('commercial')
 export class CommercialController {
@@ -13,6 +16,7 @@ export class CommercialController {
   constructor(
     private readonly stripe: StripeService,
     private readonly prisma: PrismaService,
+    private readonly paymentEmail: PaymentConfirmationEmailService,
   ) {}
 
   @Get('subscriptions')
@@ -39,11 +43,11 @@ export class CommercialController {
 
   @Post('subscribe')
   @UseGuards(JwtAuthGuard)
-  async subscribe(@CurrentUser() user: AuthenticatedUser, @Body() body: { planId: string }) {
-    if (!this.stripe.enabled) {
-      throw new BadRequestException('Stripe is not configured on this environment.');
-    }
-
+  async subscribe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: { planId: string; origin?: string },
+    @Req() req: FastifyRequest,
+  ) {
     // Gating check: User MUST be identity verified to purchase commercial plans
     const profile = await this.prisma.profile.findUnique({
       where: { id: user.id },
@@ -62,14 +66,42 @@ export class CommercialController {
       throw new BadRequestException('Invalid plan ID.');
     }
 
+    // Determine the base client application URL dynamically:
+    // 1. Explicit body.origin sent from the client
+    // 2. HTTP Origin header from browser request
+    // 3. HTTP Referer header origin
+    // 4. NEXT_PUBLIC_APP_URL or APP_BASE_URL or ALLOWED_ORIGIN env vars
+    // 5. Fallback http://localhost:3000
+    const rawOrigin =
+      body.origin ||
+      (req.headers.origin as string) ||
+      (req.headers.referer ? new URL(req.headers.referer as string).origin : '') ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_BASE_URL ||
+      process.env.ALLOWED_ORIGIN ||
+      'http://localhost:3000';
+    const appUrl = rawOrigin.replace(/\/+$/, '');
+
+    if (!this.stripe.enabled) {
+      const isDev = process.env.NODE_ENV !== 'production';
+      if (isDev) {
+        this.logger.warn(`Stripe not configured — using dev fallback mock checkout session for user ${user.id} and plan ${body.planId}`);
+        return {
+          url: `${appUrl}/subscribed-successfully?plan=${body.planId}&session_id=mock_dev_session_${Date.now()}`,
+        };
+      }
+      throw new BadRequestException('Stripe is not configured on this environment.');
+    }
+
     const session = await this.stripe.createSubscriptionCheckout({
       planId: body.planId,
       userId: user.id,
       productTitle: `${body.planId.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())} Subscription`,
       amountCents: Math.round(plan.monthlyPriceUsd * 100),
       currency: 'USD',
-      successUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/subscribed-successfully?plan=${body.planId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/settings?section=billing&canceled=true`,
+      successUrl: `${appUrl}/subscribed-successfully?plan=${body.planId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${appUrl}/settings?section=billing&canceled=true`,
+      customerEmail: user.email,
     });
 
     return { url: session.url };
@@ -180,7 +212,11 @@ export class CommercialController {
         where: { userId: user.id },
       });
 
+      const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
+      const initialServices = [defaultService];
+
       if (existingProf) {
+        const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
         await this.prisma.professionalProfile.update({
           where: { userId: user.id },
           data: {
@@ -188,6 +224,7 @@ export class CommercialController {
             category,
             isVerified: true,
             verifiedAt: existingProf.verifiedAt || new Date(),
+            serviceAreas: currentServices,
           },
         });
       } else {
@@ -197,6 +234,7 @@ export class CommercialController {
             category,
             isVerified: true,
             verifiedAt: new Date(),
+            serviceAreas: initialServices,
           },
         });
       }
@@ -208,6 +246,35 @@ export class CommercialController {
       });
     } catch (profErr) {
       this.logger.warn(`Could not auto-sync professional profile for user ${user.id}: ${(profErr as Error).message}`);
+    }
+
+    // Send confirmation and invoice email to subscriber
+    try {
+      const planKey = (subEntitlement as unknown) as keyof typeof COMMERCIAL_PLANS;
+      const planConfig = COMMERCIAL_PLANS[planKey];
+      const planName = planConfig ? planConfig.name : (subEntitlement.charAt(0).toUpperCase() + subEntitlement.slice(1).replace('_', ' ') + ' Plan');
+      const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee';
+
+      // Find user name / profile
+      const userProfile = await this.prisma.profile.findUnique({
+        where: { id: user.id },
+        select: { displayName: true, firstName: true, lastName: true },
+      });
+      const fullName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ');
+      const recipientName = userProfile?.displayName || fullName || 'Member';
+
+      if (user.email) {
+        await this.paymentEmail.sendSubscriptionConfirmation({
+          recipientEmail: user.email,
+          recipientName,
+          planName,
+          amountFormatted,
+          billingInterval: 'Monthly',
+          invoiceNumber: body.sessionId || stripeSubscriptionId,
+        });
+      }
+    } catch (emailErr) {
+      this.logger.error(`Failed to send subscription confirmation email to ${user.email}: ${(emailErr as Error).message}`);
     }
 
     return { data: createdSub };

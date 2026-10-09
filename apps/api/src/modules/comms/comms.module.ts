@@ -36,6 +36,6 @@ import { ProviderWebhookController } from './delivery/provider-webhook.controlle
       inject: [ConfigService, ResendEmailProvider, ConsoleEmailProvider],
     },
   ],
-  exports: [CommsService, CommsDecisionService, CommsLedgerService, CommsSuppressionService],
+  exports: [CommsService, CommsDecisionService, CommsLedgerService, CommsSuppressionService, EmailProvider],
 })
 export class CommsModule {}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { X, Loader2, Calendar, PawPrint, ShieldCheck } from 'lucide-react'
+import { X, Loader2, Calendar, PawPrint, ShieldCheck, Phone } from 'lucide-react'
 import { petsApi, type Pet, type Provider } from '@/lib/api'
 import { petCareApi, type PetCareService } from '@/lib/pet-care-api'
 import { CONSULT_MODE_LABELS, todayHoursLabel } from '@/lib/vet'
@@ -41,10 +41,20 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
 
   const selected = bookable.find((s) => s.id === serviceId)
   const input = 'w-full px-3 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none'
-  const minDate = new Date().toISOString().slice(0, 10)
+  const minDate = (() => {
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  })()
 
   async function submit(): Promise<void> {
     if (!serviceId || !date || !time || saving) return
+    if (date < minDate) {
+      setError('Please select today or a future date for your appointment.')
+      return
+    }
     setSaving(true); setError('')
     try {
       const scheduledAt = new Date(`${date}T${time}:00`).toISOString()
@@ -79,9 +89,20 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
             <button onClick={onClose} className="mt-2 px-5 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 cursor-pointer">Done</button>
           </div>
         ) : bookable.length === 0 ? (
-          <div className="p-8 text-center space-y-2">
+          <div className="p-8 text-center space-y-3">
             <p className="text-label-md font-semibold text-on-surface">No bookable services</p>
             <p className="text-label-sm text-outline">This clinic hasn&apos;t published services yet. Try calling them directly.</p>
+            {provider.phone ? (
+              <a
+                href={`tel:${provider.phone.replace(/[^\d+]/g, '')}`}
+                className="mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 transition-colors"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Call {provider.phone}</span>
+              </a>
+            ) : (
+              <p className="text-label-xs text-outline italic">No phone number listed for this provider.</p>
+            )}
           </div>
         ) : (
           <>
@@ -109,7 +130,17 @@ export function AppointmentModal({ provider, services, onClose, onBooked }: {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[12px] font-semibold text-outline">Date</label>
-                  <input type="date" min={minDate} value={date} onChange={(e) => setDate(e.target.value)} className={input} />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker?.()
+                      } catch {}
+                    }}
+                    className={input}
+                  />
                 </div>
                 <div>
                   <label className="text-[12px] font-semibold text-outline">Time</label>

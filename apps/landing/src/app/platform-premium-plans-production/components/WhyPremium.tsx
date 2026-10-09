@@ -15,6 +15,7 @@ const CARDS: {
   author: string;
   image: string;
   emoji: string | null;
+  href: string;
 }[] = [
   // ─── ROW 1 ───
   {
@@ -36,6 +37,7 @@ const CARDS: {
     author: "— Jamie C.",
     image: "/platform-premium-plans-production/Background (1).png",
     emoji: null,
+    href: "/premium-ad-free-feed",
   },
   {
     title: "Advanced Privacy",
@@ -56,6 +58,7 @@ const CARDS: {
     author: "— Alex R.",
     image: "/platform-premium-plans-production/Background (2).png",
     emoji: null,
+    href: "/premium-advanced-privacy",
   },
   {
     title: "Larger Group Calls",
@@ -76,6 +79,7 @@ const CARDS: {
     author: "— Sarah M.",
     image: "/platform-premium-plans-production/Background (3).png",
     emoji: null,
+    href: "/premium-larger-group-calls-production",
   },
   {
     title: "Enhanced Media",
@@ -96,6 +100,7 @@ const CARDS: {
     author: "— Marcus J.",
     image: "/platform-premium-plans-production/Background (4).png",
     emoji: null,
+    href: "/premium-enhanced-media-production",
   },
 
   // ─── ROW 2 ───
@@ -118,6 +123,7 @@ const CARDS: {
     author: "— Lisa T.",
     image: "/platform-premium-plans-production/Background (5).png",
     emoji: null,
+    href: "/premium-advanced-moderation",
   },
   {
     title: "Verified Professional",
@@ -138,6 +144,7 @@ const CARDS: {
     author: "— Dr. Elena L.",
     image: "/platform-premium-plans-production/Background (6).png",
     emoji: null,
+    href: "/professional-directory",
   },
   {
     title: "Verified Organization",
@@ -158,6 +165,7 @@ const CARDS: {
     author: "— Hope Rescue Team",
     image: "/platform-premium-plans-production/Background (7).png",
     emoji: null,
+    href: "/premium-verified-organization",
   },
   {
     title: "Fundraising Toolkit",
@@ -178,6 +186,7 @@ const CARDS: {
     author: "— David P.",
     image: "/platform-premium-plans-production/Background (8).png",
     emoji: null,
+    href: "/premium-fundraising-toolkit",
   },
 ];
 
@@ -269,7 +278,7 @@ export default function WhyPremium() {
                 </div>
 
                 <Link
-                  href="#pricing"
+                  href={card.href}
                   className="flex w-full items-center justify-center rounded-xl py-3 text-center text-xs font-bold text-white shadow-sm transition hover:opacity-90"
                   style={{ backgroundColor: MOSQUE_COLOR }}
                 >

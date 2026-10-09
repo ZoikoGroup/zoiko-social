@@ -20,10 +20,11 @@ export class CommercialService {
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
-        select: { serviceAreas: true },
+        select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      if (!activeServices.includes('seller')) {
+      const hasSeller = activeServices.includes('seller') || (activeServices.length === 0 && prof?.category === 'product_seller');
+      if (!hasSeller) {
         throw new ForbiddenException('Your current active service does not include Pet Products Seller. Please activate Seller in your dashboard or upgrade your plan.');
       }
     }
@@ -50,10 +51,11 @@ export class CommercialService {
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
-        select: { serviceAreas: true },
+        select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      if (!activeServices.includes('breeder')) {
+      const hasBreeder = activeServices.includes('breeder') || (activeServices.length === 0 && prof?.category === 'product_seller');
+      if (!hasBreeder) {
         throw new ForbiddenException('Your current active service does not include Breeder & Stud Service. Please activate Breeder in your dashboard or upgrade your plan.');
       }
     }
@@ -80,10 +82,11 @@ export class CommercialService {
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
-        select: { serviceAreas: true },
+        select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      if (!activeServices.includes('care') && !activeServices.includes('vet')) {
+      const hasCare = activeServices.includes('care') || activeServices.includes('vet') || (activeServices.length === 0 && (prof?.category === 'pet_care_service_provider' || prof?.category === 'veterinarian'));
+      if (!hasCare) {
         throw new ForbiddenException('Your current active service does not include Pet Care or Veterinary Provider. Please activate it in your dashboard or upgrade your plan.');
       }
     }

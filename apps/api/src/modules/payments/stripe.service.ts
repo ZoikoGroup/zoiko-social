@@ -47,9 +47,12 @@ export class StripeService {
     orderId: string
     successUrl: string
     cancelUrl: string
+    customerEmail?: string
   }): Promise<Stripe.Checkout.Session> {
     return this.require().checkout.sessions.create({
       mode: 'payment',
+      ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
+      invoice_creation: { enabled: true },
       line_items: [
         {
           price_data: {
@@ -77,9 +80,11 @@ export class StripeService {
     currency: string
     successUrl: string
     cancelUrl: string
+    customerEmail?: string
   }): Promise<Stripe.Checkout.Session> {
     return this.require().checkout.sessions.create({
       mode: 'subscription',
+      ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
       line_items: [
         {
           price_data: {

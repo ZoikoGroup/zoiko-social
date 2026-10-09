@@ -4,10 +4,14 @@ import { OrdersService } from './orders.service'
 import { StripeService } from './stripe.service'
 import { AuthModule } from '../auth/auth.module'
 
+import { CommsModule } from '../comms/comms.module'
+
+import { PaymentConfirmationEmailService } from './payment-confirmation-email.service'
+
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, CommsModule],
   controllers: [PaymentsController],
-  providers: [OrdersService, StripeService],
-  exports: [OrdersService, StripeService],
+  providers: [OrdersService, StripeService, PaymentConfirmationEmailService],
+  exports: [OrdersService, StripeService, PaymentConfirmationEmailService],
 })
 export class PaymentsModule {}

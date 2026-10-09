@@ -150,16 +150,38 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const supabase = createClient()
   const { data: { session } } = await supabase.auth.getSession()
 
-  const res = await fetch(`${API_URL}/api/v1${path}`, {
-    ...options,
-    headers: {
-      // Fastify rejects an empty body when content-type is application/json,
-      // so only declare it on requests that actually carry one
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      ...options.headers,
-    },
-  })
+  let res: Response
+  let attempt = 0
+  const maxAttempts = options.method && options.method !== 'GET' ? 1 : 2
+
+  while (true) {
+    try {
+      res = await fetch(`${API_URL}/api/v1${path}`, {
+        ...options,
+        headers: {
+          // Fastify rejects an empty body when content-type is application/json,
+          // so only declare it on requests that actually carry one
+          ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          ...options.headers,
+        },
+      })
+      // If 502 Bad Gateway, 503 Service Unavailable, or 504 Gateway Timeout on a GET request, retry once after a short delay
+      if ([502, 503, 504].includes(res.status) && attempt < maxAttempts - 1) {
+        attempt++
+        await new Promise((r) => setTimeout(r, 600))
+        continue
+      }
+      break
+    } catch {
+      if (attempt < maxAttempts - 1) {
+        attempt++
+        await new Promise((r) => setTimeout(r, 600))
+        continue
+      }
+      throw new ApiError('NETWORK_ERROR', 'Service is temporarily unreachable. Please check your connection and try again.', 0)
+    }
+  }
 
   const json = await res.json().catch(() => null)
 
@@ -176,6 +198,15 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       sessionExpiredHandler?.()
       throw new ApiError('SESSION_EXPIRED', 'Your session has expired. Please sign in again.', 401)
     }
+
+    if ([502, 503, 504].includes(res.status)) {
+      throw new ApiError(
+        'SERVICE_UNAVAILABLE',
+        'The server is momentarily restarting or unavailable. Please try again in a few moments.',
+        res.status,
+      )
+    }
+
     throw new ApiError(err.code ?? 'UNKNOWN', err.message ?? 'Request failed', res.status)
   }
 

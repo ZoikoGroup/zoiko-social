@@ -876,8 +876,20 @@ function BookingModal({ provider, services, selectedService, onClose }: {
   // real pet carries its records with it.
   const petId = petChoice ?? myPets[0]?.id ?? ''
 
+  const minDate = (() => {
+    const d = new Date()
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  })()
+
   async function submit(): Promise<void> {
     if (!serviceId || !date || !time || saving) return
+    if (date < minDate) {
+      setError('Please select today or a future date for your booking.')
+      return
+    }
     setSaving(true); setError('')
     try {
       const scheduledAt = new Date(`${date}T${time}:00`).toISOString()
@@ -996,8 +1008,17 @@ function BookingModal({ provider, services, selectedService, onClose }: {
                 <p className="text-label-sm text-outline">When would you like the service?</p>
                 <div>
                   <label className="text-label-sm font-medium text-on-surface block mb-1.5">Date</label>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]} className={input} />
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker?.()
+                      } catch {}
+                    }}
+                    className={input}
+                  />
                 </div>
                 {/* A free time input let anyone book 03:00 against 09:00–17:00
                     hours, and two people book the same minute. These are the
@@ -1300,8 +1321,15 @@ function EditProfileModal({ provider, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-label-sm font-medium text-on-surface block mb-1.5">Phone</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)}
-                type="tel" placeholder="+1 (555) 123-4567" className={input} />
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+\-\s().]/g, ''))}
+                type="tel"
+                inputMode="tel"
+                maxLength={20}
+                placeholder="+1 (555) 123-4567"
+                className={input}
+              />
             </div>
             <div>
               <label className="text-label-sm font-medium text-on-surface block mb-1.5">Website</label>

@@ -328,7 +328,19 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none resize-none" />
           <input value={externalUrl} onChange={(e) => setExternalUrl(e.target.value)} type="url" placeholder="Your Shop URL (required, e.g. https://...)"
             className="w-full px-4 py-2.5 bg-surface-container-low rounded-xl text-label-sm border border-outline-variant/30 focus:border-primary focus:outline-none" />
-          {error && <p className="text-label-sm text-red-500">{error}</p>}
+          {error && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-label-sm text-red-500 flex flex-col gap-1.5">
+              <span>{error}</span>
+              {(error.toLowerCase().includes('subscription') || error.toLowerCase().includes('active service')) && (
+                <Link
+                  href="/settings?section=billing"
+                  className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                >
+                  Manage Subscription &amp; Active Services &rarr;
+                </Link>
+              )}
+            </div>
+          )}
           <button onClick={submit} disabled={!valid || posting || uploading}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-label-md font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
             {posting && <Loader2 className="w-4 h-4 animate-spin" />}<span>{posting ? 'Listing…' : 'List Item'}</span>

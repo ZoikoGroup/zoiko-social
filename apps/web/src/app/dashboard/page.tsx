@@ -1768,8 +1768,10 @@ function EditProviderListingModal({
               <label className="block text-[12px] font-semibold text-on-surface mb-1">Phone Number</label>
               <input
                 type="tel"
+                inputMode="tel"
+                maxLength={20}
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(e.target.value.replace(/[^\d+\-\s().]/g, ''))}
                 placeholder="+44 ..."
                 className="w-full px-3 py-2 rounded-xl bg-surface-container border border-outline-variant/30 text-on-surface text-label-sm focus:outline-none focus:border-primary"
               />

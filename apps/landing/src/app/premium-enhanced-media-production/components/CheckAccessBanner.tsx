@@ -5,6 +5,9 @@
  * mobile per Figma) and button layout (row on desktop, stacked full-width
  * on mobile) differ.
  */
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
+
 export default function CheckAccessBanner() {
   return (
     <section className="w-full bg-[#f7f9fa] py-12 lg:py-20">
@@ -17,18 +20,18 @@ export default function CheckAccessBanner() {
             Sign in to see which Enhanced Media capabilities are available for your account and plan.
           </p>
           <div className="flex w-full flex-col items-start gap-4 pt-2 lg:w-auto lg:flex-row lg:flex-wrap">
-            <button
-              type="button"
+            <Link
+              href={APP_LINKS.signIn}
               className="flex min-h-[40px] w-full items-center justify-center rounded-xl bg-[#066879] px-5 py-[11px] text-center font-jakarta text-[14px] font-semibold text-white lg:w-auto"
             >
               Sign In
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href="/platform-premium-plans-production"
               className="flex min-h-[40px] w-full items-center justify-center rounded-xl border border-[#dce5e8] bg-white px-5 py-[10px] text-center font-jakarta text-[14px] font-semibold text-[#066879] lg:w-auto"
             >
               Learn More
-            </button>
+            </Link>
           </div>
         </div>
       </div>

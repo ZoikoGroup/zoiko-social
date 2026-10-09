@@ -221,7 +221,10 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
             {/* CTAs for non-owners */}
             {!isOwner && report.status !== 'reunited' && (
               <div className="flex gap-2 mt-4">
-                <a href="#sighting" className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold text-center cursor-pointer flex items-center justify-center gap-1.5"><Eye className="w-4 h-4" />I&apos;ve seen this pet</a>
+                <a href="#sighting" className="flex-1 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold text-center cursor-pointer flex items-center justify-center gap-1.5">
+                  <Eye className="w-4 h-4" />
+                  {report.kind === 'lost' ? "I've seen this pet" : "I know this pet / Claim"}
+                </a>
                 {report.contact && (
                   <a href={report.contact.includes('@') ? `mailto:${report.contact}` : `tel:${report.contact.replace(/[^\d+]/g, '')}`}
                     className="flex-1 py-2.5 rounded-xl border border-outline-variant text-on-surface text-label-sm font-semibold text-center flex items-center justify-center gap-1.5 no-underline"><Phone className="w-4 h-4" />Contact</a>
@@ -269,17 +272,35 @@ export default function LostFoundDetailPage({ params }: { params: Promise<{ id: 
 
           {/* Sightings */}
           <div id="sighting" className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-5 scroll-mt-20">
-            <h2 className="flex items-center gap-1.5 text-label-md font-bold text-on-surface mb-3"><Eye className="w-4 h-4 text-primary" />Sightings ({report.sightingsCount})</h2>
+            <h2 className="flex items-center gap-1.5 text-label-md font-bold text-on-surface mb-3">
+              <Eye className="w-4 h-4 text-primary" />
+              {report.kind === 'lost' ? `Sightings (${report.sightingsCount})` : `Notes & Sightings (${report.sightingsCount})`}
+            </h2>
 
             {!isOwner && (
               <div className="mb-4 space-y-2 pb-4 border-b border-outline-variant/10">
-                <LocationInput value={location} onChange={setLocation} maxLength={200} placeholder="Where did you see this pet?"
-                  className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none" />
-                <textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={1000} rows={2} placeholder="Add a note (condition, direction, time)…"
-                  className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none resize-none" />
-                <button onClick={submitSighting} disabled={posting || (!message.trim() && !location.trim())}
-                  className="w-full py-2 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2">
-                  {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}<span>Report a sighting</span>
+                <LocationInput
+                  value={location}
+                  onChange={setLocation}
+                  maxLength={200}
+                  placeholder={report.kind === 'lost' ? "Where did you see this pet?" : "Your location or where pet was seen…"}
+                  className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none"
+                />
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  maxLength={1000}
+                  rows={2}
+                  placeholder={report.kind === 'lost' ? "Add a note (condition, direction, time)…" : "Provide details to claim or identify this pet…"}
+                  className="w-full px-4 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-label-sm focus:border-primary focus:outline-none resize-none"
+                />
+                <button
+                  onClick={submitSighting}
+                  disabled={posting || (!message.trim() && !location.trim())}
+                  className="w-full py-2 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span>{report.kind === 'lost' ? 'Report a sighting' : 'Submit note / Claim pet'}</span>
                 </button>
               </div>
             )}

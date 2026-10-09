@@ -65,9 +65,13 @@ export function BillingSettings() {
   const handleStripeCheckout = async (plan: string) => {
     try {
       setSubscribingPlan(plan)
+      const origin = typeof window !== 'undefined' ? window.location.origin : undefined
       const { url } = await mutate<{ url: string }>('/commercial/subscribe', {
         method: 'POST',
-        body: JSON.stringify({ planId: plan }),
+        body: JSON.stringify({
+          planId: plan,
+          origin,
+        }),
       })
       window.location.assign(url)
     } catch (error: unknown) {

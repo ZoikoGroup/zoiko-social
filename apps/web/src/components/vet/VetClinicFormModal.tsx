@@ -127,7 +127,18 @@ export function VetClinicFormModal({ provider, onClose, onSaved }: {
           <div className="space-y-2">
             <p className={label}>Contact & location</p>
             <div className="grid grid-cols-2 gap-2">
-              <input value={form.phone ?? ''} onChange={(e) => set('phone', e.target.value)} maxLength={40} placeholder="Phone" className={input} />
+              <input
+                type="tel"
+                inputMode="tel"
+                value={form.phone ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^\d+\-\s().]/g, '')
+                  set('phone', val)
+                }}
+                maxLength={20}
+                placeholder="Phone (numbers only)"
+                className={input}
+              />
               <input value={form.website ?? ''} onChange={(e) => set('website', e.target.value)} maxLength={300} placeholder="Website (https://)" className={input} />
             </div>
             <LocationInput value={form.location ?? ''} onChange={(v) => set('location', v)} onSelectCoords={(c) => { set('latitude', c?.lat); set('longitude', c?.lng) }} maxLength={120} placeholder="Area / city (for near-me & map)" className={input} />

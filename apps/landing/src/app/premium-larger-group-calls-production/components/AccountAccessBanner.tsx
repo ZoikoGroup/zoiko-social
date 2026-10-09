@@ -7,6 +7,9 @@
  * 28px corner radius, matching the sibling "Check your media access"
  * banner pattern but restricted to mobile per this frame's actual content.
  */
+import Link from "next/link";
+import { APP_LINKS } from "@/lib/app-links";
+
 export default function AccountAccessBanner() {
   return (
     <section className="w-full bg-white px-6 py-12 lg:hidden">
@@ -19,18 +22,18 @@ export default function AccountAccessBanner() {
             Sign in to see your current group call capacity and available Premium host controls.
           </p>
           <div className="flex w-full flex-col items-start gap-4 pt-2">
-            <button
-              type="button"
+            <Link
+              href={APP_LINKS.signIn}
               className="flex min-h-[40px] w-full items-center justify-center rounded-xl bg-[#066879] px-5 py-[11px] text-center font-jakarta text-[14px] font-semibold text-white"
             >
               Sign In
-            </button>
-            <button
-              type="button"
+            </Link>
+            <Link
+              href="/platform-premium-plans-production"
               className="flex min-h-[40px] w-full items-center justify-center rounded-xl border border-[#dce5e8] bg-white px-5 py-[10px] text-center font-jakarta text-[14px] font-semibold text-[#066879]"
             >
               Learn More
-            </button>
+            </Link>
           </div>
         </div>
       </div>
