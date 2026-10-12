@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { mutate, request } from '@/lib/api'
-import { CheckCircle, Calendar, Sparkles, Loader2, Layers, Sliders } from 'lucide-react'
+import { CheckCircle, Calendar, Sparkles, Loader2, Layers, Sliders, AlertCircle } from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
 
 interface UserSubscription {
@@ -22,6 +22,13 @@ export function BillingSettings() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
+  const [canceledNotice] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      return params.get('canceled') === 'true'
+    }
+    return false
+  })
 
   useEffect(() => {
     let isMounted = true
@@ -171,6 +178,13 @@ export function BillingSettings() {
           Choose the right tools to grow your pet business. Each plan unlocks unique professional tools and service limitations for your account.
         </p>
       </div>
+
+      {canceledNotice && (
+        <div className="flex items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-in fade-in">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span>Checkout was canceled. If you need any assistance or want to choose another plan, you can select one below.</span>
+        </div>
+      )}
 
       {/* Active Services Allocation Management Card */}
       {subscriptions.length > 0 && (

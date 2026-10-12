@@ -64,119 +64,192 @@ export class PaymentsController {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
+        const paymentStatusStr = String(session.payment_status)
+        const sessionStatusStr = String(session.status)
+        const isPaid = paymentStatusStr === 'paid' || sessionStatusStr === 'complete'
+        const isPending = paymentStatusStr === 'unpaid' && sessionStatusStr === 'open'
+        const status = isPaid ? 'success' : isPending ? 'pending' : 'failed'
+
         if (session.mode === 'subscription') {
           const userId = session.client_reference_id;
           const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement;
           if (userId && entitlement) {
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
-            await this.prisma.subscription.create({
-              data: {
-                userId,
-                entitlement,
-                stripeId: subscriptionId,
-                status: 'active',
-                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
-              }
-            });
-
-            // Automatically sync professional profile and verified status
-            try {
-              const categoryMap: Record<string, import('@prisma/client').ProfessionalCategory> = {
-                starter: 'product_seller',
-                professional: 'product_seller',
-                premium: 'product_seller',
-                seller_professional: 'product_seller',
-                care_professional: 'pet_care_service_provider',
-                breeder_professional: 'product_seller',
-              };
-              const category = categoryMap[entitlement as string] || 'product_seller';
-
-              await this.prisma.profile.update({
-                where: { id: userId },
+            
+            if (isPaid) {
+              await this.prisma.subscription.create({
                 data: {
-                  identityStatus: 'approved',
-                  ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
-                },
+                  userId,
+                  entitlement,
+                  stripeId: subscriptionId,
+                  status: 'active',
+                  currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
+                }
               });
 
-              const existingProf = await this.prisma.professionalProfile.findUnique({
-                where: { userId },
-              });
+              // Automatically sync professional profile and verified status
+              try {
+                const categoryMap: Record<string, import('@prisma/client').ProfessionalCategory> = {
+                  starter: 'product_seller',
+                  professional: 'product_seller',
+                  premium: 'product_seller',
+                  seller_professional: 'product_seller',
+                  care_professional: 'pet_care_service_provider',
+                  breeder_professional: 'product_seller',
+                };
+                const category = categoryMap[entitlement as string] || 'product_seller';
 
-              const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
-              const initialServices = [defaultService];
+                await this.prisma.profile.update({
+                  where: { id: userId },
+                  data: {
+                    identityStatus: 'approved',
+                    ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
+                  },
+                });
 
-              if (existingProf) {
-                const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
-                await this.prisma.professionalProfile.update({
+                const existingProf = await this.prisma.professionalProfile.findUnique({
                   where: { userId },
-                  data: {
-                    deletedAt: null,
-                    category,
-                    isVerified: true,
-                    verifiedAt: existingProf.verifiedAt || new Date(),
-                    serviceAreas: currentServices,
-                  },
                 });
-              } else {
-                await this.prisma.professionalProfile.create({
-                  data: {
-                    userId,
-                    category,
-                    isVerified: true,
-                    verifiedAt: new Date(),
-                    serviceAreas: initialServices,
-                  },
-                });
-              }
 
-              await this.prisma.professionalSetting.upsert({
-                where: { userId },
-                create: { userId },
-                update: {},
-              });
-            } catch (profErr) {
-              this.logger.warn(`Could not auto-sync professional profile for user ${userId}: ${(profErr as Error).message}`);
+                const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
+                const initialServices = [defaultService];
+
+                if (existingProf) {
+                  const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
+                  await this.prisma.professionalProfile.update({
+                    where: { userId },
+                    data: {
+                      deletedAt: null,
+                      category,
+                      isVerified: true,
+                      verifiedAt: existingProf.verifiedAt || new Date(),
+                      serviceAreas: currentServices,
+                    },
+                  });
+                } else {
+                  await this.prisma.professionalProfile.create({
+                    data: {
+                      userId,
+                      category,
+                      isVerified: true,
+                      verifiedAt: new Date(),
+                      serviceAreas: initialServices,
+                    },
+                  });
+                }
+
+                await this.prisma.professionalSetting.upsert({
+                  where: { userId },
+                  create: { userId },
+                  update: {},
+                });
+              } catch (profErr) {
+                this.logger.warn(`Could not auto-sync professional profile for user ${userId}: ${(profErr as Error).message}`);
+              }
             }
 
-            // Send subscription confirmation / invoice email
+            // Send subscription confirmation / invoice email (for success, pending, or failed)
             try {
               const planKey = entitlement as keyof typeof COMMERCIAL_PLANS;
               const planConfig = COMMERCIAL_PLANS[planKey];
               const planName = planConfig ? planConfig.name : (entitlement.charAt(0).toUpperCase() + entitlement.slice(1).replace('_', ' ') + ' Plan');
               const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee';
 
-              const profileObj = await this.prisma.profile.findUnique({
-                where: { id: userId },
-                select: { displayName: true, firstName: true, lastName: true },
+              const recipientEmail = session.customer_details?.email || session.customer_email || undefined;
+
+              await this.paymentEmail.sendPaymentConfirmation({
+                userId,
+                recipientEmail,
+                planName,
+                amountFormatted,
+                status,
+                billingInterval: 'Monthly',
+                invoiceNumber: session.id || subscriptionId,
               });
-
-              const recipientEmail = session.customer_details?.email || session.customer_email;
-              const fullName = [profileObj?.firstName, profileObj?.lastName].filter(Boolean).join(' ');
-              const recipientName = profileObj?.displayName || fullName || 'Member';
-
-              if (recipientEmail) {
-                await this.paymentEmail.sendSubscriptionConfirmation({
-                  recipientEmail,
-                  recipientName,
-                  planName,
-                  amountFormatted,
-                  billingInterval: 'Monthly',
-                  invoiceNumber: session.id || subscriptionId,
-                });
-              }
             } catch (emailErr) {
               this.logger.error(`Failed to send subscription confirmation email for user ${userId}: ${(emailErr as Error).message}`);
             }
+          }
+        } else {
+          // One-time order checkout
+          if (isPaid) {
+            await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
+          }
+        }
+        break
+      }
+      case 'checkout.session.async_payment_succeeded': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.mode === 'subscription') {
+          const userId = session.client_reference_id
+          const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement
+          if (userId && entitlement) {
+            const planKey = entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${entitlement} Plan`
+            const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee'
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId,
+              recipientEmail: session.customer_details?.email || session.customer_email || undefined,
+              planName,
+              amountFormatted,
+              status: 'success',
+              invoiceNumber: session.id,
+            })
           }
         } else {
           await this.orders.markPaidBySessionId(session.id, stripeId(session.payment_intent))
         }
         break
       }
+      case 'checkout.session.async_payment_failed': {
+        const session = event.data.object as Stripe.Checkout.Session
+        if (session.mode === 'subscription') {
+          const userId = session.client_reference_id
+          const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement
+          if (userId && entitlement) {
+            const planKey = entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${entitlement} Plan`
+            const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee'
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId,
+              recipientEmail: session.customer_details?.email || session.customer_email || undefined,
+              planName,
+              amountFormatted,
+              status: 'failed',
+              invoiceNumber: session.id,
+              failureReason: 'Asynchronous payment method failed to clear.',
+            })
+          }
+        } else {
+          await this.orders.markCancelledBySessionId(session.id)
+        }
+        break
+      }
       case 'checkout.session.expired': {
         const session = event.data.object as Stripe.Checkout.Session
-        await this.orders.markCancelledBySessionId(session.id)
+        if (session.mode === 'subscription') {
+          const userId = session.client_reference_id
+          const entitlement = session.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement
+          if (userId && entitlement) {
+            const planKey = entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${entitlement} Plan`
+            const amountFormatted = planConfig ? `$${planConfig.monthlyPriceUsd.toFixed(2)}/mo` : 'Subscription Fee'
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId,
+              recipientEmail: session.customer_details?.email || session.customer_email || undefined,
+              planName,
+              amountFormatted,
+              status: 'failed',
+              invoiceNumber: session.id,
+              failureReason: 'The checkout session timed out before payment was completed.',
+            })
+          }
+        } else {
+          await this.orders.markCancelledBySessionId(session.id)
+        }
         break
       }
       // Reversals arrive keyed by payment intent, not checkout session, and can
@@ -223,6 +296,64 @@ export class PaymentsController {
         })
         break
       }
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as unknown as Record<string, unknown>
+        const stripeSubId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : (invoice.subscription as { id?: string } | undefined)?.id
+        if (stripeSubId) {
+          const sub = await this.prisma.subscription.findFirst({
+            where: { stripeId: stripeSubId },
+          })
+          if (sub) {
+            const planKey = sub.entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${sub.entitlement} Plan`
+            const amountCents = (invoice.amount_paid as number) || (planConfig ? Math.round(planConfig.monthlyPriceUsd * 100) : 0)
+            const amountFormatted = `$${(amountCents / 100).toFixed(2)}/mo`
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId: sub.userId,
+              recipientEmail: (invoice.customer_email as string) || undefined,
+              planName,
+              amountFormatted,
+              status: 'success',
+              invoiceNumber: (invoice.id as string) || stripeSubId,
+            }).catch((err) => {
+              this.logger.warn(`Could not send invoice payment success email: ${(err as Error).message}`)
+            })
+          }
+        }
+        break
+      }
+      case 'invoice.payment_action_required': {
+        const invoice = event.data.object as unknown as Record<string, unknown>
+        const stripeSubId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : (invoice.subscription as { id?: string } | undefined)?.id
+        if (stripeSubId) {
+          const sub = await this.prisma.subscription.findFirst({
+            where: { stripeId: stripeSubId },
+          })
+          if (sub) {
+            const planKey = sub.entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${sub.entitlement} Plan`
+            const amountCents = (invoice.amount_due as number) || (planConfig ? Math.round(planConfig.monthlyPriceUsd * 100) : 0)
+            const amountFormatted = `$${(amountCents / 100).toFixed(2)}/mo`
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId: sub.userId,
+              recipientEmail: (invoice.customer_email as string) || undefined,
+              planName,
+              amountFormatted,
+              status: 'pending',
+              invoiceNumber: (invoice.id as string) || stripeSubId,
+            }).catch((err) => {
+              this.logger.warn(`Could not send invoice action required email: ${(err as Error).message}`)
+            })
+          }
+        }
+        break
+      }
       case 'invoice.payment_failed': {
         // Scenario 4: Payment failure / charge failure
         const invoice = event.data.object as unknown as Record<string, unknown>
@@ -235,6 +366,28 @@ export class PaymentsController {
             where: { stripeId: stripeSubId },
             data: { status: 'past_due' },
           })
+
+          const sub = await this.prisma.subscription.findFirst({
+            where: { stripeId: stripeSubId },
+          })
+          if (sub) {
+            const planKey = sub.entitlement as keyof typeof COMMERCIAL_PLANS
+            const planConfig = COMMERCIAL_PLANS[planKey]
+            const planName = planConfig ? planConfig.name : `${sub.entitlement} Plan`
+            const amountCents = (invoice.amount_due as number) || (planConfig ? Math.round(planConfig.monthlyPriceUsd * 100) : 0)
+            const amountFormatted = `$${(amountCents / 100).toFixed(2)}/mo`
+            await this.paymentEmail.sendPaymentConfirmation({
+              userId: sub.userId,
+              recipientEmail: (invoice.customer_email as string) || undefined,
+              planName,
+              amountFormatted,
+              status: 'failed',
+              invoiceNumber: (invoice.id as string) || stripeSubId,
+              failureReason: 'Recurring invoice payment could not be processed by your card issuer.',
+            }).catch((err) => {
+              this.logger.warn(`Could not send invoice payment failure email: ${(err as Error).message}`)
+            })
+          }
         }
         break
       }

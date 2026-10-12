@@ -66,3 +66,10 @@ figma_node.json
 download_images.mjs
 compress_images.py
 img_fetcher/
+scratch/
+*.log
+replace-verification-tier.js
+/*.docx
+/*.pdf
+/*.doc
+/*_files/

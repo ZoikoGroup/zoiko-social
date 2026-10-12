@@ -1,16 +1,125 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Optional, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { StripeService } from '../payments/stripe.service';
 import { SERVICE_LIMITS, FREE_ANTI_ABUSE_LIMITS } from './commercial.constants';
 import type { SubscriptionEntitlement } from '@prisma/client';
 
 @Injectable()
 export class CommercialService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(CommercialService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private stripe?: StripeService,
+  ) {}
+
+  async syncUserSubscriptionsFromStripe(userId: string, email?: string): Promise<number> {
+    if (!this.stripe?.enabled) return 0;
+    try {
+      const userSessions = await this.stripe.listPaidSubscriptionSessionsForUser(userId, email);
+      if (userSessions.length === 0) return 0;
+
+      let syncedCount = 0;
+      for (const session of userSessions) {
+        const stripeSubId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+        if (!stripeSubId) continue;
+
+        const stripeSub = await this.stripe.retrieveSubscription(stripeSubId);
+        if (!stripeSub || (stripeSub.status !== 'active' && stripeSub.status !== 'trialing')) continue;
+
+        const entitlement = (session.metadata?.entitlement || stripeSub.metadata?.entitlement || 'starter') as SubscriptionEntitlement;
+        const rawPeriodEnd = (stripeSub as unknown as Record<string, unknown>).current_period_end;
+        const periodEnd =
+          typeof rawPeriodEnd === 'number' && !isNaN(rawPeriodEnd)
+            ? new Date(rawPeriodEnd * 1000)
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        const existing = await this.prisma.subscription.findFirst({
+          where: { userId, stripeId: stripeSubId },
+        });
+
+        if (!existing) {
+          await this.prisma.subscription.create({
+            data: {
+              userId,
+              stripeId: stripeSubId,
+              entitlement,
+              status: stripeSub.status as import('@prisma/client').SubscriptionStatus,
+              currentPeriodEnd: periodEnd,
+            },
+          });
+        } else {
+          await this.prisma.subscription.update({
+            where: { id: existing.id },
+            data: {
+              status: stripeSub.status as import('@prisma/client').SubscriptionStatus,
+              currentPeriodEnd: periodEnd,
+            },
+          });
+        }
+
+        // Sync verification & professional profile
+        await this.prisma.profile.update({
+          where: { id: userId },
+          data: { identityStatus: 'approved' },
+        });
+
+        const prof = await this.prisma.professionalProfile.findUnique({ where: { userId } });
+        const defaultService = entitlement === 'care_professional' ? 'care' : entitlement === 'breeder_professional' ? 'breeder' : 'seller';
+        const category = entitlement === 'care_professional' ? 'pet_care_service_provider' : 'product_seller';
+
+        if (prof) {
+          const currentServices = prof.serviceAreas && prof.serviceAreas.length > 0 ? prof.serviceAreas : [defaultService];
+          await this.prisma.professionalProfile.update({
+            where: { userId },
+            data: {
+              deletedAt: null,
+              category: prof.category || category,
+              serviceAreas: currentServices,
+              isVerified: true,
+              verifiedAt: prof.verifiedAt || new Date(),
+            },
+          });
+        } else {
+          await this.prisma.professionalProfile.create({
+            data: {
+              userId,
+              category,
+              serviceAreas: [defaultService],
+              isVerified: true,
+              verifiedAt: new Date(),
+            },
+          });
+        }
+
+        syncedCount++;
+      }
+      return syncedCount;
+    } catch (err) {
+      this.logger.warn(`Stripe sync failed for user ${userId}: ${(err as Error).message}`);
+      return 0;
+    }
+  }
 
   async checkSellerLimit(userId: string) {
-    const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
+    let subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+        status: { in: ['active', 'trialing'] },
+      },
     });
+
+    if (!subscription && this.stripe?.enabled) {
+      await this.syncUserSubscriptionsFromStripe(userId);
+      subscription = await this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+          status: { in: ['active', 'trialing'] },
+        },
+      });
+    }
 
     if (!subscription) {
       throw new ForbiddenException('Seller Professional subscription is required to publish products.');
@@ -23,9 +132,25 @@ export class CommercialService {
         select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      const hasSeller = activeServices.includes('seller') || (activeServices.length === 0 && prof?.category === 'product_seller');
+      const hasSeller = activeServices.includes('seller') || activeServices.length === 0 || prof?.category === 'product_seller';
       if (!hasSeller) {
         throw new ForbiddenException('Your current active service does not include Pet Products Seller. Please activate Seller in your dashboard or upgrade your plan.');
+      }
+      if (activeServices.length === 0) {
+        await this.prisma.professionalProfile.upsert({
+          where: { userId },
+          create: {
+            userId,
+            category: 'product_seller',
+            serviceAreas: ['seller'],
+            isVerified: true,
+            verifiedAt: new Date(),
+          },
+          update: {
+            serviceAreas: ['seller'],
+            deletedAt: null,
+          },
+        }).catch(() => {});
       }
     }
 
@@ -39,9 +164,24 @@ export class CommercialService {
   }
 
   async checkBreederLimit(userId: string) {
-    const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
+    let subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+        status: { in: ['active', 'trialing'] },
+      },
     });
+
+    if (!subscription && this.stripe?.enabled) {
+      await this.syncUserSubscriptionsFromStripe(userId);
+      subscription = await this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+          status: { in: ['active', 'trialing'] },
+        },
+      });
+    }
 
     if (!subscription) {
       throw new ForbiddenException('Breeder Professional subscription is required to create breeding profiles.');
@@ -54,7 +194,7 @@ export class CommercialService {
         select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      const hasBreeder = activeServices.includes('breeder') || (activeServices.length === 0 && prof?.category === 'product_seller');
+      const hasBreeder = activeServices.includes('breeder') || activeServices.length === 0 || prof?.category === 'product_seller';
       if (!hasBreeder) {
         throw new ForbiddenException('Your current active service does not include Breeder & Stud Service. Please activate Breeder in your dashboard or upgrade your plan.');
       }
@@ -70,9 +210,24 @@ export class CommercialService {
   }
 
   async checkCareProviderLimit(userId: string) {
-    const subscription = await this.prisma.subscription.findFirst({
-      where: { userId, entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] }, status: 'active' },
+    let subscription = await this.prisma.subscription.findFirst({
+      where: {
+        userId,
+        entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+        status: { in: ['active', 'trialing'] },
+      },
     });
+
+    if (!subscription && this.stripe?.enabled) {
+      await this.syncUserSubscriptionsFromStripe(userId);
+      subscription = await this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
+          status: { in: ['active', 'trialing'] },
+        },
+      });
+    }
 
     if (!subscription) {
       throw new ForbiddenException('Care Professional subscription is required to add services or team members.');
@@ -85,7 +240,11 @@ export class CommercialService {
         select: { serviceAreas: true, category: true },
       });
       const activeServices = prof?.serviceAreas || [];
-      const hasCare = activeServices.includes('care') || activeServices.includes('vet') || (activeServices.length === 0 && (prof?.category === 'pet_care_service_provider' || prof?.category === 'veterinarian'));
+      const hasCare =
+        activeServices.includes('care') ||
+        activeServices.includes('vet') ||
+        activeServices.length === 0 ||
+        (prof?.category === 'pet_care_service_provider' || prof?.category === 'veterinarian');
       if (!hasCare) {
         throw new ForbiddenException('Your current active service does not include Pet Care or Veterinary Provider. Please activate it in your dashboard or upgrade your plan.');
       }

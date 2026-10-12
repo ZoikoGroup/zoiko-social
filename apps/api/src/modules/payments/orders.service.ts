@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import type { OrderStatus } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
@@ -6,6 +6,7 @@ import { canTransition } from './order-status'
 import { StripeService } from './stripe.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
 import { NotificationQueueService } from '../queue/notification-queue.service'
+import { PaymentConfirmationEmailService } from './payment-confirmation-email.service'
 
 export interface OrderResponse {
   id: string
@@ -52,6 +53,7 @@ export class OrdersService {
     private readonly stripe: StripeService,
     private readonly auditLog: AuditLogService,
     private readonly notifications: NotificationQueueService,
+    @Optional() private readonly paymentEmail?: PaymentConfirmationEmailService,
   ) {}
 
   /** Creates a pending Order (Reserved) for off-platform payment, returns a success marker. */
@@ -150,6 +152,21 @@ export class OrdersService {
       data: { orderId: order.id, productId },
     })
 
+    if (this.paymentEmail) {
+      void this.paymentEmail.sendOrderPaymentConfirmation({
+        orderId: order.id,
+        buyerId,
+        sellerId: order.sellerId,
+        productTitle: product.title,
+        quantity,
+        amountCents,
+        currency: product.currency,
+        status: 'pending',
+      }).catch((err) => {
+        this.logger.warn(`Could not send order reservation email: ${(err as Error).message}`)
+      })
+    }
+
     // Return the successUrl directly since there is no Stripe session URL
     return { url: successUrl, orderId: order.id }
   }
@@ -202,6 +219,22 @@ export class OrdersService {
       body: `An order for ${order.quantity} item(s) was just paid.`,
       data: { orderId: order.id, productId: order.productId },
     })
+
+    if (this.paymentEmail) {
+      void this.paymentEmail.sendOrderPaymentConfirmation({
+        orderId: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        quantity: order.quantity,
+        amountCents: order.amountCents,
+        currency: order.currency,
+        status: 'success',
+        sessionId,
+        invoiceNumber: paymentIntentId || sessionId,
+      }).catch((err) => {
+        this.logger.warn(`Could not send order paid confirmation email: ${(err as Error).message}`)
+      })
+    }
   }
 
   async markCancelledBySessionId(sessionId: string): Promise<void> {
@@ -213,6 +246,23 @@ export class OrdersService {
       where: { id: order.id, status: 'pending' },
       data: { status: 'cancelled' },
     })
+
+    if (this.paymentEmail) {
+      void this.paymentEmail.sendOrderPaymentConfirmation({
+        orderId: order.id,
+        buyerId: order.buyerId,
+        sellerId: order.sellerId,
+        quantity: order.quantity,
+        amountCents: order.amountCents,
+        currency: order.currency,
+        status: 'failed',
+        sessionId,
+        invoiceNumber: sessionId,
+        failureReason: 'The checkout session expired or was canceled before payment was completed',
+      }).catch((err) => {
+        this.logger.warn(`Could not send order cancellation email: ${(err as Error).message}`)
+      })
+    }
   }
 
   /**

@@ -67,7 +67,7 @@ export class ShopController {
   @Post()
   @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
   @RequireVerified('identity', 'organization')
-  @RequireSubscription('seller_professional')
+  @RequireSubscription('seller_professional', 'starter', 'professional', 'premium')
   async create(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateProductSchema)) body: CreateProductInput) {
     return { data: await this.shop.create(user.id, body) }
   }

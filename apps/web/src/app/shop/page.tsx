@@ -13,7 +13,7 @@ import Link from 'next/link'
 import {
   ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus, ImageOff,
 } from 'lucide-react'
-import { shopApi, type Product, type NewProduct } from '@/lib/api'
+import { shopApi, mutate, type Product, type NewProduct } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { uploadCommunityImage } from '@/lib/community-image'
@@ -332,12 +332,32 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-label-sm text-red-500 flex flex-col gap-1.5">
               <span>{error}</span>
               {(error.toLowerCase().includes('subscription') || error.toLowerCase().includes('active service')) && (
-                <Link
-                  href="/settings?section=billing"
-                  className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs"
-                >
-                  Manage Subscription &amp; Active Services &rarr;
-                </Link>
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setPosting(true)
+                      try {
+                        await mutate('/commercial/sync', { method: 'POST' })
+                        setError('')
+                        await submit()
+                      } catch {
+                        setError('Sync completed. Please click List Item to retry.')
+                      } finally {
+                        setPosting(false)
+                      }
+                    }}
+                    className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs cursor-pointer"
+                  >
+                    Sync Subscription &amp; Retry &rarr;
+                  </button>
+                  <Link
+                    href="/settings?section=billing"
+                    className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                  >
+                    Manage Subscription &amp; Active Services &rarr;
+                  </Link>
+                </div>
               )}
             </div>
           )}

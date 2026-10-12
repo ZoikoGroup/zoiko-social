@@ -1,16 +1,18 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common'
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Optional } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import { FastifyRequest } from 'fastify'
 import { PrismaService } from '../../prisma/prisma.service'
 import { REQUIRED_SUBSCRIPTIONS_KEY } from '../decorators/subscription.decorator'
 import { AUTH_USER_KEY, type AuthenticatedUser } from './jwt-auth.guard'
 import { SubscriptionEntitlement, SubscriptionStatus } from '@prisma/client'
+import { CommercialService } from '../../commercial/commercial.service'
 
 @Injectable()
 export class SubscriptionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
+    @Optional() private readonly commercial?: CommercialService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -35,7 +37,7 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     // Fetch the user's subscriptions
-    const subscriptions = await this.prisma.subscription.findMany({
+    let subscriptions = await this.prisma.subscription.findMany({
       where: { 
         userId: user.id,
         status: {
@@ -44,6 +46,20 @@ export class SubscriptionGuard implements CanActivate {
       },
       select: { entitlement: true }
     })
+
+    // If no subscriptions found in DB, check Stripe to reconcile any paid sessions
+    if (subscriptions.length === 0 && this.commercial) {
+      await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email)
+      subscriptions = await this.prisma.subscription.findMany({
+        where: { 
+          userId: user.id,
+          status: {
+            in: [SubscriptionStatus.active, SubscriptionStatus.trialing]
+          }
+        },
+        select: { entitlement: true }
+      })
+    }
 
     const activeEntitlements = subscriptions.map(sub => sub.entitlement)
 
@@ -80,12 +96,41 @@ export class SubscriptionGuard implements CanActivate {
         }
       }
 
-      // If user has subscription but hasn't explicitly selected yet, allow all only for premium
-      // For starter/professional, only fallback if legacy category matches the required entitlement
+      // If user has subscription but hasn't explicitly selected yet, allow all for premium
+      // or auto-allocate the required service if none are chosen yet
       if (!hasRequiredSubscription) {
         if (planEntitlements.includes('premium')) {
           hasRequiredSubscription = true
-        } else if (allocatedServices.length === 0 && prof?.category) {
+        } else if (allocatedServices.length === 0) {
+          hasRequiredSubscription = true
+          const req = requiredEntitlements[0]
+          const defaultService = req === 'care_professional' ? 'care' : req === 'breeder_professional' ? 'breeder' : 'seller'
+          const defaultCategory = req === 'care_professional' ? 'pet_care_service_provider' : 'product_seller'
+          try {
+            if (prof) {
+              await this.prisma.professionalProfile.update({
+                where: { userId: user.id },
+                data: {
+                  serviceAreas: [defaultService],
+                  category: prof.category || defaultCategory,
+                  deletedAt: null,
+                },
+              })
+            } else {
+              await this.prisma.professionalProfile.create({
+                data: {
+                  userId: user.id,
+                  category: defaultCategory,
+                  serviceAreas: [defaultService],
+                  isVerified: true,
+                  verifiedAt: new Date(),
+                },
+              })
+            }
+          } catch {
+            // Non-blocking catch
+          }
+        } else if (prof?.category) {
           const cat = prof.category
           if (requiredEntitlements.includes('seller_professional') && cat === 'product_seller') {
             hasRequiredSubscription = true

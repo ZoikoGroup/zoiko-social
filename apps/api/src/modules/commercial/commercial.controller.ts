@@ -9,6 +9,8 @@ import type { SubscriptionEntitlement } from '@prisma/client';
 
 import { PaymentConfirmationEmailService } from '../payments/payment-confirmation-email.service';
 
+import { CommercialService } from './commercial.service';
+
 @Controller('commercial')
 export class CommercialController {
   private readonly logger = new Logger(CommercialController.name);
@@ -17,6 +19,7 @@ export class CommercialController {
     private readonly stripe: StripeService,
     private readonly prisma: PrismaService,
     private readonly paymentEmail: PaymentConfirmationEmailService,
+    private readonly commercial: CommercialService,
   ) {}
 
   @Get('subscriptions')
@@ -24,13 +27,25 @@ export class CommercialController {
   async getSubscriptions(@CurrentUser() user: AuthenticatedUser) {
     try {
       this.logger.log(`Fetching subscriptions for userId: ${user.id}`);
-      const subscriptions = await this.prisma.subscription.findMany({
+      let subscriptions = await this.prisma.subscription.findMany({
         where: {
           userId: user.id,
           status: { in: ['active', 'trialing'] },
         },
         orderBy: { createdAt: 'desc' },
       });
+
+      if (subscriptions.length === 0 && this.stripe.enabled) {
+        await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email);
+        subscriptions = await this.prisma.subscription.findMany({
+          where: {
+            userId: user.id,
+            status: { in: ['active', 'trialing'] },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+
       this.logger.log(`Found ${subscriptions.length} subscriptions for userId: ${user.id}`);
 
       return { data: subscriptions };
@@ -38,6 +53,20 @@ export class CommercialController {
       this.logger.error(`Error fetching subscriptions for userId ${user.id}: ${(err as Error).message}`, (err as Error).stack);
       return { data: [] };
     }
+  }
+
+  @Post('sync')
+  @UseGuards(JwtAuthGuard)
+  async sync(@CurrentUser() user: AuthenticatedUser) {
+    const syncedCount = await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email);
+    const subscriptions = await this.prisma.subscription.findMany({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'trialing'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { data: { synced: syncedCount, subscriptions } };
   }
 
 
@@ -115,21 +144,38 @@ export class CommercialController {
   ) {
     let entitlement: string | undefined;
     let stripeSubscriptionId: string | undefined;
+    let paymentStatus: 'success' | 'pending' | 'failed' = 'success';
+    let customerEmailFromStripe: string | undefined;
 
-    if (this.stripe.enabled) {
+    const isMockSession = body.sessionId?.startsWith('mock_');
+
+    if (this.stripe.enabled && !isMockSession) {
       if (!body.sessionId) {
         throw new BadRequestException('Checkout session ID is required to confirm payment');
       }
       try {
         const session = await this.stripe.retrieveCheckoutSession(body.sessionId);
-        const isPaid = session.payment_status === 'paid' || session.status === 'complete';
-        if (!isPaid) {
-          throw new BadRequestException('Payment has not been completed for this session');
-        }
+        customerEmailFromStripe = session.customer_details?.email || session.customer_email || undefined;
 
         // Verify session belongs to the current user if client_reference_id is present
         if (session.client_reference_id && session.client_reference_id !== user.id) {
           throw new ForbiddenException('Checkout session does not belong to the authenticated user');
+        }
+
+        const paymentStatusStr = String(session.payment_status);
+        const sessionStatusStr = String(session.status);
+        const isPaid = paymentStatusStr === 'paid' || sessionStatusStr === 'complete';
+        const isPending = paymentStatusStr === 'unpaid' && sessionStatusStr === 'open';
+        const isFailed = sessionStatusStr === 'expired';
+
+        if (isPaid) {
+          paymentStatus = 'success';
+        } else if (isPending) {
+          paymentStatus = 'pending';
+        } else if (isFailed) {
+          paymentStatus = 'failed';
+        } else {
+          paymentStatus = 'pending';
         }
 
         entitlement = session.metadata?.entitlement || body.planId;
@@ -144,8 +190,9 @@ export class CommercialController {
         throw new BadRequestException('Could not verify checkout session with payment provider: ' + (err as Error).message);
       }
     } else {
-      // In local development / mock testing mode when Stripe keys are not configured
+      // In local development / mock testing mode when Stripe keys are not configured or mock session is provided
       entitlement = body.planId;
+      paymentStatus = 'success';
     }
 
     const validEntitlements: string[] = [
@@ -163,92 +210,96 @@ export class CommercialController {
 
     const subEntitlement = entitlement as SubscriptionEntitlement;
 
-    // Upsert subscription for user
-    const existing = await this.prisma.subscription.findFirst({
-      where: {
-        userId: user.id,
-        entitlement: subEntitlement,
-        status: { in: ['active', 'trialing'] },
-      },
-    });
+    let createdSub: import('@prisma/client').Subscription | null = null;
 
-    let createdSub = existing;
-    if (!existing) {
-      createdSub = await this.prisma.subscription.create({
-        data: {
+    if (paymentStatus === 'success') {
+      // Upsert subscription for user
+      const existing = await this.prisma.subscription.findFirst({
+        where: {
           userId: user.id,
           entitlement: subEntitlement,
-          stripeId: stripeSubscriptionId || null,
-          status: 'active',
-          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        },
-      });
-    }
-
-    // Automatically sync professional profile and verified status
-    try {
-      const categoryMap: Record<string, import('@prisma/client').ProfessionalCategory> = {
-        starter: 'product_seller',
-        professional: 'product_seller',
-        premium: 'product_seller',
-        seller_professional: 'product_seller',
-        care_professional: 'pet_care_service_provider',
-        breeder_professional: 'product_seller',
-      };
-
-      const category = categoryMap[entitlement as string] || 'product_seller';
-
-      // 1. Ensure Profile has identityStatus: approved
-      await this.prisma.profile.update({
-        where: { id: user.id },
-        data: {
-          identityStatus: 'approved',
-          ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
+          status: { in: ['active', 'trialing'] },
         },
       });
 
-      // 2. Upsert ProfessionalProfile
-      const existingProf = await this.prisma.professionalProfile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
-      const initialServices = [defaultService];
-
-      if (existingProf) {
-        const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
-        await this.prisma.professionalProfile.update({
-          where: { userId: user.id },
-          data: {
-            deletedAt: null,
-            category,
-            isVerified: true,
-            verifiedAt: existingProf.verifiedAt || new Date(),
-            serviceAreas: currentServices,
-          },
-        });
-      } else {
-        await this.prisma.professionalProfile.create({
+      createdSub = existing;
+      if (!existing) {
+        createdSub = await this.prisma.subscription.create({
           data: {
             userId: user.id,
-            category,
-            isVerified: true,
-            verifiedAt: new Date(),
-            serviceAreas: initialServices,
+            entitlement: subEntitlement,
+            stripeId: stripeSubscriptionId || null,
+            status: 'active',
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
         });
       }
 
-      await this.prisma.professionalSetting.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id },
-        update: {},
-      });
-    } catch (profErr) {
-      this.logger.warn(`Could not auto-sync professional profile for user ${user.id}: ${(profErr as Error).message}`);
+      // Automatically sync professional profile and verified status
+      try {
+        const categoryMap: Record<string, import('@prisma/client').ProfessionalCategory> = {
+          starter: 'product_seller',
+          professional: 'product_seller',
+          premium: 'product_seller',
+          seller_professional: 'product_seller',
+          care_professional: 'pet_care_service_provider',
+          breeder_professional: 'product_seller',
+        };
+
+        const category = categoryMap[entitlement as string] || 'product_seller';
+
+        // 1. Ensure Profile has identityStatus: approved
+        await this.prisma.profile.update({
+          where: { id: user.id },
+          data: {
+            identityStatus: 'approved',
+            ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
+          },
+        });
+
+        // 2. Upsert ProfessionalProfile
+        const existingProf = await this.prisma.professionalProfile.findUnique({
+          where: { userId: user.id },
+        });
+
+        const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
+        const initialServices = [defaultService];
+
+        if (existingProf) {
+          const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
+          await this.prisma.professionalProfile.update({
+            where: { userId: user.id },
+            data: {
+              deletedAt: null,
+              category,
+              isVerified: true,
+              verifiedAt: existingProf.verifiedAt || new Date(),
+              serviceAreas: currentServices,
+            },
+          });
+        } else {
+          await this.prisma.professionalProfile.create({
+            data: {
+              userId: user.id,
+              category,
+              isVerified: true,
+              verifiedAt: new Date(),
+              serviceAreas: initialServices,
+            },
+          });
+        }
+
+        await this.prisma.professionalSetting.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id },
+          update: {},
+        });
+      } catch (profErr) {
+        this.logger.warn(`Could not auto-sync professional profile for user ${user.id}: ${(profErr as Error).message}`);
+      }
     }
 
-    // Send confirmation and invoice email to subscriber
+    // Send confirmation email to subscriber (success, pending, or failed)
     try {
       const planKey = (subEntitlement as unknown) as keyof typeof COMMERCIAL_PLANS;
       const planConfig = COMMERCIAL_PLANS[planKey];
@@ -262,34 +313,52 @@ export class CommercialController {
       });
       const fullName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ');
       const recipientName = userProfile?.displayName || fullName || 'Member';
+      const recipientEmail = customerEmailFromStripe || user.email || undefined;
 
-      if (user.email) {
-        await this.paymentEmail.sendSubscriptionConfirmation({
-          recipientEmail: user.email,
-          recipientName,
-          planName,
-          amountFormatted,
-          billingInterval: 'Monthly',
-          invoiceNumber: body.sessionId || stripeSubscriptionId,
-        });
-      }
+      await this.paymentEmail.sendPaymentConfirmation({
+        userId: user.id,
+        recipientEmail,
+        recipientName,
+        planName,
+        amountFormatted,
+        status: paymentStatus,
+        billingInterval: 'Monthly',
+        invoiceNumber: body.sessionId || stripeSubscriptionId,
+      });
     } catch (emailErr) {
-      this.logger.error(`Failed to send subscription confirmation email to ${user.email}: ${(emailErr as Error).message}`);
+      this.logger.error(`Failed to send subscription confirmation email for user ${user.id}: ${(emailErr as Error).message}`);
     }
 
-    return { data: createdSub };
+    return {
+      data: {
+        status: paymentStatus,
+        subscription: createdSub,
+        success: paymentStatus === 'success',
+      },
+    };
   }
 
   @Get('active-services')
   @UseGuards(JwtAuthGuard)
   async getActiveServices(@CurrentUser() user: AuthenticatedUser) {
-    const subscriptions = await this.prisma.subscription.findMany({
+    let subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId: user.id,
         status: { in: ['active', 'trialing'] },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (subscriptions.length === 0 && this.stripe.enabled) {
+      await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email);
+      subscriptions = await this.prisma.subscription.findMany({
+        where: {
+          userId: user.id,
+          status: { in: ['active', 'trialing'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     // Check highest active tier
     let tier: 'starter' | 'professional' | 'premium' | 'legacy' = 'starter';
