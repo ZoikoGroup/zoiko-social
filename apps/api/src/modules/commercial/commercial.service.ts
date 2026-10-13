@@ -19,13 +19,21 @@ export class CommercialService {
       const userSessions = await this.stripe.listPaidSubscriptionSessionsForUser(userId, email);
       if (userSessions.length === 0) return 0;
 
+      // Sort newest first to ensure single active subscription rule
+      userSessions.sort((a, b) => (b.created || 0) - (a.created || 0));
+
       let syncedCount = 0;
+      let primaryActiveFound = false;
+
       for (const session of userSessions) {
         const stripeSubId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
         if (!stripeSubId) continue;
 
         const stripeSub = await this.stripe.retrieveSubscription(stripeSubId);
-        if (!stripeSub || (stripeSub.status !== 'active' && stripeSub.status !== 'trialing')) continue;
+        if (!stripeSub) continue;
+
+        const isStripeActive = stripeSub.status === 'active' || stripeSub.status === 'trialing';
+        const shouldBeActive = isStripeActive && !primaryActiveFound;
 
         const entitlement = (session.metadata?.entitlement || stripeSub.metadata?.entitlement || 'starter') as SubscriptionEntitlement;
         const rawPeriodEnd = (stripeSub as unknown as Record<string, unknown>).current_period_end;
@@ -33,6 +41,10 @@ export class CommercialService {
           typeof rawPeriodEnd === 'number' && !isNaN(rawPeriodEnd)
             ? new Date(rawPeriodEnd * 1000)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+        const targetStatus: import('@prisma/client').SubscriptionStatus = shouldBeActive
+          ? (stripeSub.status as import('@prisma/client').SubscriptionStatus)
+          : 'canceled';
 
         const existing = await this.prisma.subscription.findFirst({
           where: { userId, stripeId: stripeSubId },
@@ -44,7 +56,7 @@ export class CommercialService {
               userId,
               stripeId: stripeSubId,
               entitlement,
-              status: stripeSub.status as import('@prisma/client').SubscriptionStatus,
+              status: targetStatus,
               currentPeriodEnd: periodEnd,
             },
           });
@@ -52,10 +64,14 @@ export class CommercialService {
           await this.prisma.subscription.update({
             where: { id: existing.id },
             data: {
-              status: stripeSub.status as import('@prisma/client').SubscriptionStatus,
+              status: targetStatus,
               currentPeriodEnd: periodEnd,
             },
           });
+        }
+
+        if (shouldBeActive) {
+          primaryActiveFound = true;
         }
 
         // Sync verification & professional profile

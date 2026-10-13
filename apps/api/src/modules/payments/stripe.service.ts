@@ -119,6 +119,16 @@ export class StripeService {
     }
   }
 
+  async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().subscriptions.cancel(subscriptionId);
+    } catch (err) {
+      this.logger.warn(`Failed to cancel subscription ${subscriptionId} in Stripe: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   async listPaidSubscriptionSessionsForUser(userId: string, email?: string): Promise<Stripe.Checkout.Session[]> {
     if (!this.client) return [];
     try {

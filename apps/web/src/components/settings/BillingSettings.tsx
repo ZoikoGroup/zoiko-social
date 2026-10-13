@@ -1,8 +1,24 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { mutate, request } from '@/lib/api'
-import { CheckCircle, Calendar, Sparkles, Loader2, Layers, Sliders, AlertCircle } from 'lucide-react'
+import { useAuth } from '@/hooks/use-auth'
+import {
+  CheckCircle,
+  Calendar,
+  Sparkles,
+  Loader2,
+  Layers,
+  Sliders,
+  AlertCircle,
+  ShieldAlert,
+  AlertTriangle,
+  ArrowUpRight,
+  Lock,
+  X,
+} from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
 
 interface UserSubscription {
@@ -15,6 +31,8 @@ interface UserSubscription {
 }
 
 export function BillingSettings() {
+  const router = useRouter()
+  const { profile } = useAuth()
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([])
   const [activeServices, setActiveServices] = useState<string[]>([])
   const [activeTier, setActiveTier] = useState<string>('starter')
@@ -22,6 +40,15 @@ export function BillingSettings() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
+  const [upgradeTargetPlan, setUpgradeTargetPlan] = useState<{
+    id: string
+    name: string
+    price: string
+    badge: string
+    features: string[]
+    popular: boolean
+  } | null>(null)
+
   const [canceledNotice] = useState(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
@@ -29,6 +56,12 @@ export function BillingSettings() {
     }
     return false
   })
+
+  // Verification status check
+  const isVerified =
+    profile?.identityStatus === 'approved' ||
+    profile?.organizationStatus === 'approved' ||
+    profile?.professionalProfile?.isVerified === true
 
   useEffect(() => {
     let isMounted = true
@@ -70,6 +103,12 @@ export function BillingSettings() {
   }, [])
 
   const handleStripeCheckout = async (plan: string) => {
+    if (!isVerified) {
+      alert('You must complete identity verification before purchasing a commercial plan.')
+      router.push('/verify')
+      return
+    }
+
     try {
       setSubscribingPlan(plan)
       const origin = typeof window !== 'undefined' ? window.location.origin : undefined
@@ -85,7 +124,7 @@ export function BillingSettings() {
       const err = error as { message?: string; code?: string }
       if (err?.message?.includes('verification') || err?.code === 'VERIFICATION_REQUIRED') {
         alert('You must complete identity verification before purchasing a commercial plan.')
-        window.location.assign('/verify')
+        router.push('/verify')
       } else {
         alert(err?.message || 'Failed to initiate checkout. Please try again later.')
       }
@@ -94,18 +133,17 @@ export function BillingSettings() {
     }
   }
 
-  const getSubForPlan = (planKey: string) => {
-    return subscriptions.find(
-      (s) => {
-        if (s.status !== 'active' && s.status !== 'trialing') return false
-        if (s.entitlement === planKey) return true
-        if (planKey === 'starter' && s.entitlement === 'seller_professional') return true
-        if (planKey === 'professional' && s.entitlement === 'breeder_professional') return true
-        if (planKey === 'premium' && s.entitlement === 'care_professional') return true
-        return false
-      },
-    )
-  }
+  // Find the single currently active subscription (only 1 plan active at any time)
+  const activeSubscription = subscriptions.find((s) => s.status === 'active' || s.status === 'trialing')
+  const activePlanId = activeSubscription
+    ? activeSubscription.entitlement === 'seller_professional'
+      ? 'starter'
+      : activeSubscription.entitlement === 'breeder_professional'
+        ? 'professional'
+        : activeSubscription.entitlement === 'care_professional'
+          ? 'premium'
+          : activeSubscription.entitlement
+    : null
 
   const formatDate = (isoString?: string) => {
     if (!isoString) return null
@@ -163,6 +201,28 @@ export function BillingSettings() {
     },
   ]
 
+  const currentActivePlan = plans.find((p) => p.id === activePlanId) || null
+
+  const handlePlanClick = (plan: typeof plans[0]) => {
+    if (!isVerified) {
+      alert('You must complete identity verification before subscribing to any plan.')
+      router.push('/verify')
+      return
+    }
+
+    if (activePlanId) {
+      if (plan.id === activePlanId) {
+        return // Already on this plan
+      }
+      // Forceful upgrade / shift: prompt user with confirmation
+      setUpgradeTargetPlan(plan)
+      return
+    }
+
+    // No active subscription: direct subscribe
+    handleStripeCheckout(plan.id)
+  }
+
   const serviceNameMap: Record<string, string> = {
     seller: 'Pet Products Seller',
     breeder: 'Breeder & Stud Service',
@@ -179,6 +239,27 @@ export function BillingSettings() {
         </p>
       </div>
 
+      {/* Identity Verification Warning Banner (before verification user cannot purchase) */}
+      {!isVerified && !loading && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-on-surface text-sm">Identity Verification Required</h4>
+              <p className="text-xs text-outline mt-0.5">
+                You must complete identity verification before you can purchase or subscribe to any commercial plan.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/verify"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm"
+          >
+            Get Verified Now
+          </Link>
+        </div>
+      )}
+
       {canceledNotice && (
         <div className="flex items-center gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm animate-in fade-in">
           <AlertCircle className="w-5 h-5 shrink-0" />
@@ -187,7 +268,7 @@ export function BillingSettings() {
       )}
 
       {/* Active Services Allocation Management Card */}
-      {subscriptions.length > 0 && (
+      {activeSubscription && (
         <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container to-surface-container border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -231,29 +312,29 @@ export function BillingSettings() {
         </div>
       )}
 
+      {/* Plans Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {plans.map((plan) => {
-          const activeSub = getSubForPlan(plan.id)
-          const isSubscribed = Boolean(activeSub)
-          const lastBilledDate = formatDate(activeSub?.createdAt)
-          const nextBillingDate = formatDate(activeSub?.currentPeriodEnd)
+          const isCurrentActive = activePlanId === plan.id
+          const lastBilledDate = isCurrentActive ? formatDate(activeSubscription?.createdAt) : null
+          const nextBillingDate = isCurrentActive ? formatDate(activeSubscription?.currentPeriodEnd) : null
 
           return (
             <div
               key={plan.id}
               className={`bg-surface-container rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col relative ${
-                isSubscribed
+                isCurrentActive
                   ? 'border-emerald-500 shadow-md ring-1 ring-emerald-500/20'
                   : plan.popular
                     ? 'border-primary shadow-sm'
                     : 'border-outline-variant/30 shadow-sm'
               }`}
             >
-              {isSubscribed ? (
+              {isCurrentActive ? (
                 <div className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    SUBSCRIBED SERVICE
+                    CURRENT ACTIVE PLAN
                   </span>
                   <span className="text-[11px] font-medium opacity-90">Active</span>
                 </div>
@@ -276,11 +357,11 @@ export function BillingSettings() {
                   <span className="ml-1 text-sm font-medium text-outline">/mo</span>
                 </div>
 
-                {isSubscribed && (
+                {isCurrentActive && (
                   <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-1.5">
                     <div className="flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      Plan Status: Subscribed
+                      Plan Status: Subscribed (Active)
                     </div>
                     {lastBilledDate && (
                       <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
@@ -307,17 +388,34 @@ export function BillingSettings() {
               </div>
 
               <div className="p-4 border-t border-outline-variant/20 bg-surface-container-high/30">
-                {isSubscribed ? (
+                {isCurrentActive ? (
                   <button
                     disabled
                     className="w-full py-2.5 px-4 rounded-lg bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-semibold text-sm cursor-default flex items-center justify-center gap-2 border border-emerald-500/30"
                   >
                     <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Current Active Service
+                    Current Active Plan
+                  </button>
+                ) : !isVerified ? (
+                  <button
+                    onClick={() => router.push('/verify')}
+                    className="w-full py-2.5 px-4 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-semibold text-sm border border-amber-500/30 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Lock className="w-4 h-4 text-amber-500" />
+                    Verify Identity to Subscribe
+                  </button>
+                ) : activePlanId ? (
+                  <button
+                    onClick={() => handlePlanClick(plan)}
+                    disabled={subscribingPlan === plan.id || loading}
+                    className="w-full py-2.5 px-4 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-sm border border-primary/30 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <ArrowUpRight className="w-4 h-4 text-primary" />
+                    Upgrade to {plan.name}
                   </button>
                 ) : (
                   <button
-                    onClick={() => handleStripeCheckout(plan.id)}
+                    onClick={() => handlePlanClick(plan)}
                     disabled={subscribingPlan === plan.id || loading}
                     className="w-full py-2.5 px-4 rounded-lg bg-primary text-on-primary font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
                   >
@@ -336,6 +434,85 @@ export function BillingSettings() {
           )
         })}
       </div>
+
+      {/* Forceful Upgrade Confirmation Modal */}
+      {upgradeTargetPlan && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-surface-container-high border border-outline-variant/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
+            <button
+              onClick={() => setUpgradeTargetPlan(null)}
+              className="absolute top-4 right-4 text-outline hover:text-on-surface p-1 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-on-surface">Switch to {upgradeTargetPlan.name} Plan?</h3>
+                <p className="text-xs text-outline">Plan change & upgrade confirmation</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/20 space-y-2.5 text-xs text-on-surface">
+              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20">
+                <span className="text-outline">Current Plan:</span>
+                <span className="font-semibold">{currentActivePlan?.name || 'Active Plan'}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20">
+                <span className="text-outline">New Plan:</span>
+                <span className="font-bold text-primary">{upgradeTargetPlan.name} ({upgradeTargetPlan.price}/mo)</span>
+              </div>
+
+              <div className="pt-1 text-[11px] leading-relaxed space-y-1">
+                <p className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  Upgrade Terms:
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-outline">
+                  <li>Your old plan will be <strong>cancelled immediately</strong> and replaced by the new plan.</li>
+                  <li><strong>No refund</strong> will be issued for the remaining time of your current plan.</li>
+                  <li>Your business services and listings will continue seamlessly under the new plan limits.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setUpgradeTargetPlan(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors"
+              >
+                Keep Current Plan
+              </button>
+              <button
+                type="button"
+                disabled={subscribingPlan === upgradeTargetPlan.id}
+                onClick={() => {
+                  const planId = upgradeTargetPlan.id
+                  setUpgradeTargetPlan(null)
+                  handleStripeCheckout(planId)
+                }}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+              >
+                {subscribingPlan === upgradeTargetPlan.id ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Redirecting...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    Confirm & Upgrade
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Service Selection / Allocation Modal */}
       <ServiceSelectionModal

@@ -80,10 +80,19 @@ export class CommercialController {
     // Gating check: User MUST be identity verified to purchase commercial plans
     const profile = await this.prisma.profile.findUnique({
       where: { id: user.id },
-      select: { identityStatus: true, organizationStatus: true },
+      select: {
+        identityStatus: true,
+        organizationStatus: true,
+        professionalProfile: { select: { isVerified: true } },
+      },
     });
 
-    if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
+    const isVerified =
+      profile?.identityStatus === 'approved' ||
+      profile?.organizationStatus === 'approved' ||
+      profile?.professionalProfile?.isVerified === true;
+
+    if (!isVerified) {
       throw new ForbiddenException({
         code: 'VERIFICATION_REQUIRED',
         message: 'You must complete identity verification before purchasing a commercial plan.',
@@ -93,6 +102,27 @@ export class CommercialController {
     const plan = COMMERCIAL_PLANS[body.planId as keyof typeof COMMERCIAL_PLANS];
     if (!plan) {
       throw new BadRequestException('Invalid plan ID.');
+    }
+
+    // Single Active Plan Check: User cannot purchase the exact same plan they already hold actively
+    const activeSub = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'trialing'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (activeSub) {
+      const activeNormalized =
+        activeSub.entitlement === 'seller_professional' ? 'starter'
+        : activeSub.entitlement === 'breeder_professional' ? 'professional'
+        : activeSub.entitlement === 'care_professional' ? 'premium'
+        : (activeSub.entitlement as string);
+
+      if (activeNormalized === body.planId) {
+        throw new BadRequestException('You are already subscribed to this plan. You cannot subscribe to the same plan multiple times.');
+      }
     }
 
     // Determine the base client application URL dynamically:
@@ -213,7 +243,42 @@ export class CommercialController {
     let createdSub: import('@prisma/client').Subscription | null = null;
 
     if (paymentStatus === 'success') {
-      // Upsert subscription for user
+      // 1. Enforce single active plan rule: Cancel any previous active subscriptions for this user
+      const otherActiveSubs = await this.prisma.subscription.findMany({
+        where: {
+          userId: user.id,
+          status: { in: ['active', 'trialing'] },
+          entitlement: { not: subEntitlement },
+        },
+      });
+
+      if (otherActiveSubs.length > 0) {
+        this.logger.log(`Cancelling ${otherActiveSubs.length} previous subscription(s) for user ${user.id} upon upgrade to ${subEntitlement}`);
+        await this.prisma.subscription.updateMany({
+          where: {
+            userId: user.id,
+            status: { in: ['active', 'trialing'] },
+            entitlement: { not: subEntitlement },
+          },
+          data: {
+            status: 'canceled',
+            cancelAtPeriodEnd: false,
+            updatedAt: new Date(),
+          },
+        });
+
+        if (this.stripe?.enabled) {
+          for (const oldSub of otherActiveSubs) {
+            if (oldSub.stripeId) {
+              await this.stripe.cancelSubscription(oldSub.stripeId).catch((err: Error) => {
+                this.logger.warn(`Could not cancel previous Stripe subscription ${oldSub.stripeId}: ${err.message}`);
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Upsert subscription for user
       const existing = await this.prisma.subscription.findFirst({
         where: {
           userId: user.id,
@@ -231,6 +296,16 @@ export class CommercialController {
             stripeId: stripeSubscriptionId || null,
             status: 'active',
             currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          },
+        });
+      } else if (stripeSubscriptionId && existing.stripeId !== stripeSubscriptionId) {
+        createdSub = await this.prisma.subscription.update({
+          where: { id: existing.id },
+          data: {
+            stripeId: stripeSubscriptionId,
+            status: 'active',
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            updatedAt: new Date(),
           },
         });
       }
