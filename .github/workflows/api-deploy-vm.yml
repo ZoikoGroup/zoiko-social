@@ -32,6 +32,9 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           DATABASE_URL_OVERRIDE: ${{ secrets.DATABASE_URL_OVERRIDE }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_PROVIDER: ${{ secrets.EMAIL_PROVIDER || 'resend' }}
+          EMAIL_FROM_TRANSACTIONAL: ${{ secrets.EMAIL_FROM_TRANSACTIONAL || 'Zoiko Social <no-reply@mail.zoikosocial.com>' }}
         with:
           # appleboy/ssh-action kills the remote command after 10 minutes by
           # default, and nothing here set it. The build runs BEFORE the
@@ -44,7 +47,7 @@ jobs:
           host: ${{ secrets.GCP_SSH_HOST }}
           username: ${{ secrets.GCP_SSH_USER }}
           key: ${{ secrets.GCP_SSH_KEY }}
-          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY,VAPID_SUBJECT,DATABASE_URL_OVERRIDE
+          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY,VAPID_SUBJECT,DATABASE_URL_OVERRIDE,RESEND_API_KEY,EMAIL_PROVIDER,EMAIL_FROM_TRANSACTIONAL
           script: |
             set -e
             cd ~/zoiko-social
@@ -58,7 +61,7 @@ jobs:
             # mangled on the way in.
             OVERRIDES=$(mktemp)
             chmod 600 "$OVERRIDES"
-            for name in VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT; do
+            for name in VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY VAPID_SUBJECT RESEND_API_KEY EMAIL_PROVIDER EMAIL_FROM_TRANSACTIONAL; do
               value=$(printenv "$name" || true)
               if [ -n "$value" ]; then echo "$name=$value" >> "$OVERRIDES"; fi
             done

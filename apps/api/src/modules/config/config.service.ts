@@ -48,7 +48,7 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().optional(),
   // Email (ZS-COMMS-EMAIL-001). Sending stays off until a provider key is set.
-  EMAIL_PROVIDER: z.enum(['resend', 'console']).default('console'),
+  EMAIL_PROVIDER: z.enum(['resend', 'console']).optional(),
   RESEND_API_KEY: z.string().optional(),
 
   // Web Push. All three are optional so the API still boots without them —
@@ -59,6 +59,7 @@ const envSchema = z.object({
   VAPID_SUBJECT: z.string().optional(),
   // §05 requires a distinct sender per reputation stream. Separate variables so
   // a stream can move to its own domain without a code change.
+  EMAIL_FROM: z.string().optional(),
   EMAIL_FROM_TRANSACTIONAL: z.string().optional(),
   EMAIL_FROM_NOTIFICATION: z.string().optional(),
   EMAIL_FROM_MARKETING: z.string().optional(),
@@ -232,7 +233,10 @@ export class ConfigService {
   // ── Email ─────────────────────────────────────────────────────────────────
 
   get emailProvider(): 'resend' | 'console' {
-    return this.env.EMAIL_PROVIDER
+    if (this.env.EMAIL_PROVIDER) {
+      return this.env.EMAIL_PROVIDER
+    }
+    return this.resendApiKey ? 'resend' : 'console'
   }
 
   get resendApiKey(): string | undefined {
@@ -262,26 +266,33 @@ export class ConfigService {
   }
 
   /**
-   * True only when a real provider is selected AND its key is present.
-   * Anything else falls back to the console provider, which renders and logs
-   * but never sends — a missing key degrades to silence, not a crash.
+   * True when real email sending is enabled (Resend API key available and not in console mode).
+   * Falls back to console provider if explicitly configured or key missing.
    */
   get emailSendingEnabled(): boolean {
-    return this.env.EMAIL_PROVIDER === 'resend' && !!this.env.RESEND_API_KEY
+    if (this.env.EMAIL_PROVIDER === 'console') {
+      return false
+    }
+    return !!this.resendApiKey
   }
 
-  /** Sender for a §05 stream, falling back to the transactional sender. */
-  emailFrom(stream: 'transactional' | 'notification' | 'marketing'): string | undefined {
+  /** Sender for a §05 stream, falling back to the transactional sender or default Zoiko verified address. */
+  emailFrom(stream: 'transactional' | 'notification' | 'marketing'): string {
     const perStream = {
       transactional: this.env.EMAIL_FROM_TRANSACTIONAL,
       notification: this.env.EMAIL_FROM_NOTIFICATION,
       marketing: this.env.EMAIL_FROM_MARKETING,
     }[stream]
-    return perStream || this.env.EMAIL_FROM_TRANSACTIONAL
+    return (
+      perStream ||
+      this.env.EMAIL_FROM_TRANSACTIONAL ||
+      this.env.EMAIL_FROM ||
+      'Zoiko Social <no-reply@mail.zoikosocial.com>'
+    )
   }
 
-  get emailReplyTo(): string | undefined {
-    return this.env.EMAIL_REPLY_TO
+  get emailReplyTo(): string {
+    return this.env.EMAIL_REPLY_TO || 'info@zoikosocial.com'
   }
 
   get legalEntityName(): string {

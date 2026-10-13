@@ -49,7 +49,7 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 
 **Sentry** is wired in `apps/api` and off by default: set `SENTRY_DSN` and the API reports 5xx and unhandled rejections, each tagged with the request id that also appears in the access log and in the error response body. Leave it unset and nothing initialises. There is no error reporting at all without it.
 
-**Planned but not yet wired in code** (env placeholders exist in `.env.example`, no SDK in `apps/api` yet — safe to ignore for first deploy): **Mux** (video), **Resend** (email), **OneSignal** (push).
+**Planned but not yet wired in code** (safe to ignore for first deploy): **Mux** (video), **OneSignal** (push). **Resend** (email, ZS-COMMS-EMAIL-001) is active in `apps/api` with automatic fallback.
 
 ---
 
@@ -140,7 +140,8 @@ a deployment with no keys should not look broken.
 | `SENTRY_DSN` | Error reporting. Unset = no reporting; the API logs to stdout only. |
 | `GROQ_API_KEY`, optionally `GROQ_MODEL` | **The AI assistant.** Unset = the assistant still exists, has a profile and a DM thread, and answers every message with the fixed "I'm not quite switched on yet" text. It does not fail, error, or hide — it degrades silently, which is how production ran without a key long enough to be reported as "the AI gives the same answer to every question". `GROQ_MODEL` has a default; the key does not. |
 | `NEWS_INGEST_DISABLED` | Set to `true` to stop the 3-hourly news ingest (local development). Unset in production. |
-| *(planned)* `MUX_*`, `RESEND_API_KEY` + `EMAIL_FROM`, `ONESIGNAL_*` | video / email / push |
+| `RESEND_API_KEY`, `EMAIL_PROVIDER=resend`, `EMAIL_FROM_TRANSACTIONAL` | **Email delivery (receipts, billing, and transactional notifications).** Defaults to Resend if key is provided. |
+| *(planned)* `MUX_*`, `ONESIGNAL_*` | video / push |
 
 ### `apps/web` (and `apps/landing`)
 | Var | Purpose |
