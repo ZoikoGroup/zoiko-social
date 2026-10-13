@@ -58,6 +58,7 @@ export class CommercialService {
               entitlement,
               status: targetStatus,
               currentPeriodEnd: periodEnd,
+              cancelAtPeriodEnd: Boolean(stripeSub.cancel_at_period_end),
             },
           });
         } else {
@@ -66,6 +67,7 @@ export class CommercialService {
             data: {
               status: targetStatus,
               currentPeriodEnd: periodEnd,
+              cancelAtPeriodEnd: Boolean(stripeSub.cancel_at_period_end),
             },
           });
         }
@@ -122,7 +124,7 @@ export class CommercialService {
       where: {
         userId,
         entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
     });
 
@@ -132,7 +134,7 @@ export class CommercialService {
         where: {
           userId,
           entitlement: { in: ['seller_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
       });
     }
@@ -184,7 +186,7 @@ export class CommercialService {
       where: {
         userId,
         entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
     });
 
@@ -194,7 +196,7 @@ export class CommercialService {
         where: {
           userId,
           entitlement: { in: ['breeder_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
       });
     }
@@ -230,7 +232,7 @@ export class CommercialService {
       where: {
         userId,
         entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
     });
 
@@ -240,7 +242,7 @@ export class CommercialService {
         where: {
           userId,
           entitlement: { in: ['care_professional', 'starter', 'professional', 'premium'] as SubscriptionEntitlement[] },
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
       });
     }

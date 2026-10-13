@@ -14,7 +14,7 @@ import {
   LayoutDashboard, ShoppingBag, Newspaper, Stethoscope, HandHeart, ShieldCheck, BadgeCheck,
   Plus, Heart, Bookmark, MessageCircle, Package, MailOpen, PawPrint, ChevronRight, Pencil, MapPin,
   Dna, Sparkles, Layers, Sliders, MessageSquare, ExternalLink, Calendar, TrendingUp,
-  BarChart2, CheckCircle, RotateCcw, Trash2, Edit3, Loader2, X,
+  BarChart2, CheckCircle, RotateCcw, Trash2, Edit3, Loader2, X, AlertTriangle, CreditCard,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
@@ -2124,6 +2124,28 @@ export default function DashboardPage(): React.JSX.Element {
           </div>
 
           <div className="lg:col-span-9 space-y-4 pb-20">
+            {/* Payment Pending / 7-Day Grace Period Alert Banner */}
+            {activeSubscriptions.some((s) => s.status === 'past_due') && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-in fade-in">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-on-surface text-sm">Payment Pending — 7-Day Grace Period Active</h4>
+                    <p className="text-xs text-outline mt-0.5 leading-relaxed">
+                      Your latest subscription payment was unsuccessful. We are retrying, and your commercial services remain active during your 7-day grace period. Please update your card to avoid service interruption.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/settings?section=billing"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Update Payment Method
+                </Link>
+              </div>
+            )}
+
             {/* Header */}
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl border border-primary/20 p-5">
               <div className="flex items-center gap-3">

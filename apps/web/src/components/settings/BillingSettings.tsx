@@ -18,6 +18,9 @@ import {
   ArrowUpRight,
   Lock,
   X,
+  CreditCard,
+  RotateCcw,
+  Clock,
 } from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
 
@@ -25,6 +28,7 @@ interface UserSubscription {
   id: string
   entitlement: 'starter' | 'professional' | 'premium' | 'seller_professional' | 'breeder_professional' | 'care_professional' | string
   status: string
+  cancelAtPeriodEnd?: boolean
   currentPeriodEnd: string
   createdAt: string
   updatedAt: string
@@ -48,6 +52,11 @@ export function BillingSettings() {
     features: string[]
     popular: boolean
   } | null>(null)
+  const [cancelingAutopay, setCancelingAutopay] = useState(false)
+  const [resumingAutopay, setResumingAutopay] = useState(false)
+  const [showCancelAutopayModal, setShowCancelAutopayModal] = useState(false)
+  const [autopayFeedback, setAutopayFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [openingPortal, setOpeningPortal] = useState(false)
 
   const [canceledNotice] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -133,8 +142,92 @@ export function BillingSettings() {
     }
   }
 
-  // Find the single currently active subscription (only 1 plan active at any time)
-  const activeSubscription = subscriptions.find((s) => s.status === 'active' || s.status === 'trialing')
+  const handleCancelAutopay = async () => {
+    try {
+      setCancelingAutopay(true)
+      setAutopayFeedback(null)
+      const res = await mutate<{ success: boolean; message: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string }>(
+        '/commercial/cancel-autopay',
+        { method: 'POST' }
+      )
+      if (res?.success) {
+        setSubscriptions((prev) =>
+          prev.map((sub) =>
+            sub.id === activeSubscription?.id ? { ...sub, cancelAtPeriodEnd: true } : sub
+          )
+        )
+        setShowCancelAutopayModal(false)
+        setAutopayFeedback({
+          type: 'success',
+          message: 'Auto-renewal has been cancelled. Your plan and services stay 100% active until your 30-day period completes. No future charges will be made.',
+        })
+      }
+    } catch (error: unknown) {
+      const err = error as { message?: string }
+      setAutopayFeedback({
+        type: 'error',
+        message: err?.message || 'Failed to cancel auto-renewal. Please try again.',
+      })
+    } finally {
+      setCancelingAutopay(false)
+    }
+  }
+
+  const handleResumeAutopay = async () => {
+    try {
+      setResumingAutopay(true)
+      setAutopayFeedback(null)
+      const res = await mutate<{ success: boolean; message: string; cancelAtPeriodEnd: boolean; currentPeriodEnd: string }>(
+        '/commercial/resume-autopay',
+        { method: 'POST' }
+      )
+      if (res?.success) {
+        setSubscriptions((prev) =>
+          prev.map((sub) =>
+            sub.id === activeSubscription?.id ? { ...sub, cancelAtPeriodEnd: false } : sub
+          )
+        )
+        setAutopayFeedback({
+          type: 'success',
+          message: 'Auto-renewal has been resumed. Your subscription will renew automatically at the end of the billing period.',
+        })
+      }
+    } catch (error: unknown) {
+      const err = error as { message?: string }
+      setAutopayFeedback({
+        type: 'error',
+        message: err?.message || 'Failed to resume auto-renewal. Please try again.',
+      })
+    } finally {
+      setResumingAutopay(false)
+    }
+  }
+
+  const handleOpenBillingPortal = async () => {
+    try {
+      setOpeningPortal(true)
+      const res = await mutate<{ url?: string }>('/commercial/create-portal-session', {
+        method: 'POST',
+        body: JSON.stringify({
+          returnUrl: typeof window !== 'undefined' ? window.location.href : undefined,
+        }),
+      })
+      if (res?.url) {
+        window.location.assign(res.url)
+      } else {
+        alert('Unable to load billing portal. Please contact support.')
+      }
+    } catch (err: unknown) {
+      console.error('Failed to open billing portal', err)
+      alert('Failed to launch billing portal. Please try again.')
+    } finally {
+      setOpeningPortal(false)
+    }
+  }
+
+  // Find the single currently active subscription (or in grace period past_due)
+  const activeSubscription = subscriptions.find((s) => s.status === 'active' || s.status === 'trialing' || s.status === 'past_due')
+  const isPastDue = activeSubscription?.status === 'past_due'
   const activePlanId = activeSubscription
     ? activeSubscription.entitlement === 'seller_professional'
       ? 'starter'
@@ -267,6 +360,166 @@ export function BillingSettings() {
         </div>
       )}
 
+      {/* 7-Day Grace Period & Payment Failed Alert Banner */}
+      {isPastDue && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-on-surface text-sm">Payment Pending — 7-Day Grace Period Active</h4>
+              <p className="text-xs text-outline mt-0.5 leading-relaxed">
+                Your latest recurring plan payment was unsuccessful. Your commercial services, listings, and verification remain <strong>100% active during your 7-day grace period</strong> while Stripe retries charging your card. Please update your payment method now to ensure uninterrupted service.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleOpenBillingPortal}
+            disabled={openingPortal}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm disabled:opacity-60"
+          >
+            {openingPortal ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Opening...
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-3.5 h-3.5" />
+                Update Payment Method
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Autopay Feedback Message */}
+      {autopayFeedback && (
+        <div
+          className={`flex items-start justify-between gap-3 p-4 rounded-2xl border text-sm animate-in fade-in ${
+            autopayFeedback.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-800 dark:text-emerald-300'
+              : 'bg-red-500/10 border-red-500/25 text-red-800 dark:text-red-300'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {autopayFeedback.type === 'success' ? (
+              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400" />
+            )}
+            <span className="text-xs font-medium">{autopayFeedback.message}</span>
+          </div>
+          <button
+            onClick={() => setAutopayFeedback(null)}
+            className="text-outline hover:text-on-surface p-0.5 rounded transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Active Subscription & Autopay Status Card */}
+      {activeSubscription && (
+        <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-600/15 text-emerald-600 dark:text-emerald-400">
+                <CreditCard className="w-4 h-4" />
+              </span>
+              <h4 className="font-bold text-on-surface text-base">
+                Billing & Membership Status
+              </h4>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 capitalize">
+                {activeSubscription.entitlement.replace('_professional', '').replace('_', ' ')} Plan
+              </span>
+              {isPastDue ? (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Payment Pending (Grace Period Active)
+                </span>
+              ) : activeSubscription.cancelAtPeriodEnd ? (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Auto-Renewal OFF
+                </span>
+              ) : (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" />
+                  Auto-Renewal ON
+                </span>
+              )}
+            </div>
+
+            <div className="text-xs text-outline space-y-1">
+              {isPastDue ? (
+                <p className="text-amber-600 dark:text-amber-400 font-medium">
+                  Your recurring payment failed and is currently in a <strong>7-day grace period</strong>. Smart retries are scheduled. Your business services and listings stay online so your business is not interrupted.
+                </p>
+              ) : activeSubscription.cancelAtPeriodEnd ? (
+                <p className="text-amber-600 dark:text-amber-400 font-medium">
+                  Auto-renewal has been cancelled. Your membership and commercial tools stay <strong>fully active until {formatDate(activeSubscription.currentPeriodEnd)}</strong>. You will not be charged again.
+                </p>
+              ) : (
+                <p>
+                  Your membership automatically renews on <strong className="text-on-surface">{formatDate(activeSubscription.currentPeriodEnd)}</strong>. Next billing cycle amount: {currentActivePlan?.price || '$49.99'}/mo.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+            {isPastDue ? (
+              <button
+                type="button"
+                onClick={handleOpenBillingPortal}
+                disabled={openingPortal}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
+              >
+                {openingPortal ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Opening...
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Update Payment Method
+                  </>
+                )}
+              </button>
+            ) : activeSubscription.cancelAtPeriodEnd ? (
+              <button
+                type="button"
+                onClick={handleResumeAutopay}
+                disabled={resumingAutopay}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
+              >
+                {resumingAutopay ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Resuming...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Resume Auto-Renewal
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowCancelAutopayModal(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/40 text-xs font-semibold text-on-surface hover:text-amber-600 dark:hover:text-amber-400 transition-colors whitespace-nowrap"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancel Autopay
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Active Services Allocation Management Card */}
       {activeSubscription && (
         <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container to-surface-container border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -358,22 +611,57 @@ export function BillingSettings() {
                 </div>
 
                 {isCurrentActive && (
-                  <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-semibold">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      Plan Status: Subscribed (Active)
+                  <div
+                    className={`mt-4 p-3 rounded-xl border space-y-1.5 ${
+                      isPastDue
+                        ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
+                        : activeSubscription?.cancelAtPeriodEnd
+                          ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300'
+                          : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {isPastDue ? 'Plan Status: Grace Period' : 'Plan Status: Active'}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                          isPastDue
+                            ? 'bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/30'
+                            : activeSubscription?.cancelAtPeriodEnd
+                              ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                              : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                        }`}
+                      >
+                        {isPastDue ? 'Payment Pending' : activeSubscription?.cancelAtPeriodEnd ? 'Autopay OFF' : 'Autopay ON'}
+                      </span>
                     </div>
                     {lastBilledDate && (
-                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+                      <div className="flex items-center gap-1.5 text-[11px] opacity-90">
                         <Calendar className="w-3 h-3" />
                         Last billing date: <span className="font-medium">{lastBilledDate}</span>
                       </div>
                     )}
-                    {nextBillingDate && (
-                      <div className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 pl-4.5">
-                        Renews on: <span className="font-medium">{nextBillingDate}</span>
+                    {isPastDue ? (
+                      <div className="flex items-center gap-1.5 text-[11px] opacity-90">
+                        <Clock className="w-3 h-3" />
+                        <span>Smart retries in progress (7-day grace period)</span>
                       </div>
-                    )}
+                    ) : nextBillingDate ? (
+                      <div className="flex items-center gap-1.5 text-[11px] opacity-90">
+                        <Clock className="w-3 h-3" />
+                        {activeSubscription?.cancelAtPeriodEnd ? (
+                          <span>
+                            Expires on: <span className="font-medium">{nextBillingDate}</span> (No renewal)
+                          </span>
+                        ) : (
+                          <span>
+                            Renews on: <span className="font-medium">{nextBillingDate}</span>
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -389,13 +677,61 @@ export function BillingSettings() {
 
               <div className="p-4 border-t border-outline-variant/20 bg-surface-container-high/30">
                 {isCurrentActive ? (
-                  <button
-                    disabled
-                    className="w-full py-2.5 px-4 rounded-lg bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-semibold text-sm cursor-default flex items-center justify-center gap-2 border border-emerald-500/30"
-                  >
-                    <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Current Active Plan
-                  </button>
+                  <div className="space-y-2">
+                    {isPastDue ? (
+                      <button
+                        type="button"
+                        onClick={handleOpenBillingPortal}
+                        disabled={openingPortal}
+                        className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+                      >
+                        {openingPortal ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Opening Portal...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="w-3.5 h-3.5" />
+                            Update Payment Method
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full py-2 px-3 rounded-lg bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-semibold text-xs cursor-default flex items-center justify-center gap-2 border border-emerald-500/30"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        Current Active Plan
+                      </button>
+                    )}
+                    {!isPastDue && (
+                      activeSubscription?.cancelAtPeriodEnd ? (
+                        <button
+                          type="button"
+                          onClick={handleResumeAutopay}
+                          disabled={resumingAutopay}
+                          className="w-full py-1.5 px-3 rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant/40 text-xs font-semibold text-emerald-600 dark:text-emerald-400 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          {resumingAutopay ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-3 h-3" />
+                          )}
+                          Resume Auto-Renewal
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowCancelAutopayModal(true)}
+                          className="w-full py-1.5 px-3 rounded-lg hover:bg-amber-500/10 text-xs font-medium text-outline hover:text-amber-600 dark:hover:text-amber-400 transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          Turn off auto-renewal
+                        </button>
+                      )
+                    )}
+                  </div>
                 ) : !isVerified ? (
                   <button
                     onClick={() => router.push('/verify')}
@@ -507,6 +843,87 @@ export function BillingSettings() {
                     <ArrowUpRight className="w-3.5 h-3.5" />
                     Confirm & Upgrade
                   </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Autopay Confirmation Modal */}
+      {showCancelAutopayModal && activeSubscription && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-surface-container-high border border-outline-variant/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
+            <button
+              onClick={() => setShowCancelAutopayModal(false)}
+              className="absolute top-4 right-4 text-outline hover:text-on-surface p-1 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-on-surface">Turn Off Auto-Renewal?</h3>
+                <p className="text-xs text-outline">Cancel next month&apos;s automatic recurring payment</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/20 space-y-3 text-xs text-on-surface">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-on-surface font-semibold">You Keep Your Plan & Benefits:</strong>
+                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                    Because you have already paid for the current month, your <strong>{activeTier.toUpperCase()}</strong> plan, verified badge, and all business tools stay 100% active until <strong>{formatDate(activeSubscription.currentPeriodEnd)}</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-on-surface font-semibold">No Future Charges:</strong>
+                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                    When your 30-day period completes on <strong>{formatDate(activeSubscription.currentPeriodEnd)}</strong>, Stripe will NOT charge your card again and the plan simply expires.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5">
+                <RotateCcw className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-on-surface font-semibold">You Can Resume Anytime:</strong>
+                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                    If you change your mind before {formatDate(activeSubscription.currentPeriodEnd)}, you can resume auto-renewal with a single click.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCancelAutopayModal(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors"
+              >
+                Keep Auto-Renewal ON
+              </button>
+              <button
+                type="button"
+                disabled={cancelingAutopay}
+                onClick={handleCancelAutopay}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+              >
+                {cancelingAutopay ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Turning off...
+                  </>
+                ) : (
+                  'Turn Off Auto-Renewal'
                 )}
               </button>
             </div>

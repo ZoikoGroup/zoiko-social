@@ -209,29 +209,30 @@ export class PaymentConfirmationEmailService {
         // failed
         const failureReasonText = details.failureReason
           ? `Reason: ${details.failureReason}`
-          : 'Your payment could not be authorized by your card issuer or the checkout session timed out.'
+          : 'Your payment could not be processed by your card issuer.'
 
         layoutInput = {
-          subject: `Payment Failed: Action required for your ${itemOrPlan}`,
-          preheader: `Your payment of ${details.amountFormatted} could not be processed. Please update your payment method.`,
-          heading: 'Payment Unsuccessful',
+          subject: 'Payment Unsuccessful: Please update your payment method to keep your services active',
+          preheader: `We were unable to process your recurring payment of ${details.amountFormatted} for your ${itemOrPlan}. Your 7-day grace period is active.`,
+          heading: 'Payment Unsuccessful — 7-Day Grace Period Active',
           body: [
             `Hello ${name},`,
-            `We were unable to process your payment of ${details.amountFormatted} for the ${itemOrPlan}.`,
+            `We were unable to process your recurring payment of ${details.amountFormatted} for your ${itemOrPlan}.`,
             failureReasonText,
-            'Please review your payment information or use an alternative payment method to ensure uninterrupted service.',
+            'Good news: Your 7-day grace period is active. Your commercial listings and services stay online so your business is not hurt by a temporary bank delay.',
+            'Stripe will automatically retry your payment in the coming days. However, we recommend updating your payment method now to ensure your services remain uninterrupted.',
           ],
           contextPanel: [
             { label: 'Plan', value: itemOrPlan },
-            { label: 'Amount', value: details.amountFormatted },
+            { label: 'Amount Due', value: details.amountFormatted },
             ...(details.billingInterval ? [{ label: 'Billing Period', value: details.billingInterval }] : []),
             { label: 'Date', value: dateStr },
             ...(details.invoiceNumber ? [{ label: 'Reference', value: details.invoiceNumber }] : []),
-            ...(details.failureReason ? [{ label: 'Failure Reason', value: details.failureReason }] : []),
-            { label: 'Status', value: 'Failed / Declined' },
+            { label: 'Grace Period', value: '7 Days Active (Services Online)' },
+            { label: 'Status', value: 'Payment Pending (Past Due)' },
           ],
           cta: {
-            label: 'Update Payment Details',
+            label: 'Update Payment Method',
             url: dashboardUrl,
           },
           messageClass: 'essential_transactional',

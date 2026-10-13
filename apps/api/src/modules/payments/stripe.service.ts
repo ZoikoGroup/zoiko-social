@@ -129,6 +129,32 @@ export class StripeService {
     }
   }
 
+  async updateSubscription(
+    subscriptionId: string,
+    params: Stripe.SubscriptionUpdateParams,
+  ): Promise<Stripe.Subscription | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().subscriptions.update(subscriptionId, params);
+    } catch (err) {
+      this.logger.warn(`Failed to update subscription ${subscriptionId} in Stripe: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async createBillingPortalSession(customerId: string, returnUrl: string): Promise<Stripe.BillingPortal.Session | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().billingPortal.sessions.create({
+        customer: customerId,
+        return_url: returnUrl,
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to create Billing Portal session for customer ${customerId}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   async listPaidSubscriptionSessionsForUser(userId: string, email?: string): Promise<Stripe.Checkout.Session[]> {
     if (!this.client) return [];
     try {

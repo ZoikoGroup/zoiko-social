@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Req, UseGuards, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards, BadRequestException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { JwtAuthGuard, AuthenticatedUser } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -30,7 +30,7 @@ export class CommercialController {
       let subscriptions = await this.prisma.subscription.findMany({
         where: {
           userId: user.id,
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -40,7 +40,7 @@ export class CommercialController {
         subscriptions = await this.prisma.subscription.findMany({
           where: {
             userId: user.id,
-            status: { in: ['active', 'trialing'] },
+            status: { in: ['active', 'trialing', 'past_due'] },
           },
           orderBy: { createdAt: 'desc' },
         });
@@ -62,11 +62,148 @@ export class CommercialController {
     const subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId: user.id,
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
       orderBy: { createdAt: 'desc' },
     });
     return { data: { synced: syncedCount, subscriptions } };
+  }
+
+  @Post('create-portal-session')
+  @UseGuards(JwtAuthGuard)
+  async createPortalSession(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: FastifyRequest,
+    @Body() body: { returnUrl?: string },
+  ) {
+    const rawOrigin =
+      (req.headers.origin as string) ||
+      (req.headers.referer ? new URL(req.headers.referer as string).origin : '') ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.APP_BASE_URL ||
+      process.env.ALLOWED_ORIGIN ||
+      'http://localhost:3000';
+    const appUrl = rawOrigin.replace(/\/+$/, '');
+    const returnUrl = body?.returnUrl || `${appUrl}/settings?section=billing`;
+
+    const sub = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'trialing', 'past_due'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!sub || !sub.stripeId || !this.stripe?.enabled) {
+      return { url: returnUrl };
+    }
+
+    try {
+      const stripeSub = await this.stripe.retrieveSubscription(sub.stripeId);
+      const customerId = typeof stripeSub?.customer === 'string'
+        ? stripeSub.customer
+        : (stripeSub?.customer as { id?: string } | undefined)?.id;
+
+      if (!customerId) {
+        return { url: returnUrl };
+      }
+
+      const portal = await this.stripe.createBillingPortalSession(customerId, returnUrl);
+      return { url: portal?.url || returnUrl };
+    } catch (err) {
+      this.logger.warn(`Could not create billing portal session for user ${user.id}: ${(err as Error).message}`);
+      return { url: returnUrl };
+    }
+  }
+
+  @Post('cancel-autopay')
+  @UseGuards(JwtAuthGuard)
+  async cancelAutopay(@CurrentUser() user: AuthenticatedUser) {
+    const activeSub = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'trialing', 'past_due'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!activeSub) {
+      throw new NotFoundException('No active subscription found to cancel auto-renewal.');
+    }
+
+    if (activeSub.cancelAtPeriodEnd) {
+      return {
+        success: true,
+        message: 'Auto-renewal is already turned off for this subscription.',
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: activeSub.currentPeriodEnd,
+      };
+    }
+
+    if (activeSub.stripeId && this.stripe?.enabled) {
+      await this.stripe.updateSubscription(activeSub.stripeId, {
+        cancel_at_period_end: true,
+      });
+    }
+
+    const updated = await this.prisma.subscription.update({
+      where: { id: activeSub.id },
+      data: { cancelAtPeriodEnd: true, updatedAt: new Date() },
+    });
+
+    this.logger.log(`Autopay turned off for user ${user.id}, subscription ${activeSub.id}. Remains active until ${activeSub.currentPeriodEnd.toISOString()}`);
+
+    return {
+      success: true,
+      message: 'Auto-renewal has been turned off. Your subscription and benefits remain active until the end of your billing cycle.',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: updated.currentPeriodEnd,
+    };
+  }
+
+  @Post('resume-autopay')
+  @UseGuards(JwtAuthGuard)
+  async resumeAutopay(@CurrentUser() user: AuthenticatedUser) {
+    const activeSub = await this.prisma.subscription.findFirst({
+      where: {
+        userId: user.id,
+        status: { in: ['active', 'trialing', 'past_due'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!activeSub) {
+      throw new NotFoundException('No active subscription found to resume auto-renewal.');
+    }
+
+    if (!activeSub.cancelAtPeriodEnd) {
+      return {
+        success: true,
+        message: 'Auto-renewal is already active for this subscription.',
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: activeSub.currentPeriodEnd,
+      };
+    }
+
+    if (activeSub.stripeId && this.stripe?.enabled) {
+      await this.stripe.updateSubscription(activeSub.stripeId, {
+        cancel_at_period_end: false,
+      });
+    }
+
+    const updated = await this.prisma.subscription.update({
+      where: { id: activeSub.id },
+      data: { cancelAtPeriodEnd: false, updatedAt: new Date() },
+    });
+
+    this.logger.log(`Autopay resumed for user ${user.id}, subscription ${activeSub.id}`);
+
+    return {
+      success: true,
+      message: 'Auto-renewal has been resumed. Your subscription will renew automatically.',
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: updated.currentPeriodEnd,
+    };
   }
 
 
@@ -419,7 +556,7 @@ export class CommercialController {
     let subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId: user.id,
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -429,7 +566,7 @@ export class CommercialController {
       subscriptions = await this.prisma.subscription.findMany({
         where: {
           userId: user.id,
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -500,7 +637,7 @@ export class CommercialController {
     const subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId: user.id,
-        status: { in: ['active', 'trialing'] },
+        status: { in: ['active', 'trialing', 'past_due'] },
       },
     });
 

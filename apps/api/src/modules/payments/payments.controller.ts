@@ -287,13 +287,40 @@ export class PaymentsController {
         break
       }
       case 'customer.subscription.deleted': {
-        // Scenario 4: Immediate cancellation / chargeback / card canceled
+        // Scenario 4: Retries exhausted / plan canceled
         const sub = event.data.object as Stripe.Subscription
         this.logger.log(`Handling customer.subscription.deleted for Stripe sub: ${sub.id}`)
         await this.prisma.subscription.updateMany({
           where: { stripeId: sub.id },
-          data: { status: 'canceled' },
+          data: { status: 'canceled', cancelAtPeriodEnd: false },
         })
+
+        const dbSub = await this.prisma.subscription.findFirst({
+          where: { stripeId: sub.id },
+        })
+        if (dbSub) {
+          // Pause commercial products and breeding profiles without deleting data
+          await this.prisma.product.updateMany({
+            where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
+            data: { status: 'inactive', hiddenAt: new Date() },
+          })
+          await this.prisma.breedingProfile.updateMany({
+            where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
+            data: { status: 'paused', availableNow: false },
+          })
+
+          // In-app notification
+          await this.prisma.notification.create({
+            data: {
+              userId: dbSub.userId,
+              type: 'billing_subscription_canceled',
+              title: 'Commercial Selling Paused',
+              body: 'Your subscription has ended and commercial listings have been paused. Your data is safely stored and will be restored immediately when you renew.',
+            },
+          }).catch((err) => {
+            this.logger.warn(`Could not create cancellation in-app notification: ${(err as Error).message}`)
+          })
+        }
         break
       }
       case 'invoice.payment_succeeded': {
@@ -306,11 +333,41 @@ export class PaymentsController {
             where: { stripeId: stripeSubId },
           })
           if (sub) {
+            // Restore active status
+            await this.prisma.subscription.update({
+              where: { id: sub.id },
+              data: {
+                status: 'active',
+                currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              },
+            })
+
+            // Unhide any listings that were paused during unpaid/canceled periods
+            await this.prisma.product.updateMany({
+              where: { sellerId: sub.userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
+              data: { status: 'active', hiddenAt: null },
+            })
+            await this.prisma.breedingProfile.updateMany({
+              where: { ownerId: sub.userId, status: 'paused', isDeleted: false },
+              data: { status: 'available', availableNow: true },
+            })
+
             const planKey = sub.entitlement as keyof typeof COMMERCIAL_PLANS
             const planConfig = COMMERCIAL_PLANS[planKey]
             const planName = planConfig ? planConfig.name : `${sub.entitlement} Plan`
             const amountCents = (invoice.amount_paid as number) || (planConfig ? Math.round(planConfig.monthlyPriceUsd * 100) : 0)
             const amountFormatted = `$${(amountCents / 100).toFixed(2)}/mo`
+
+            // Create in-app notification
+            await this.prisma.notification.create({
+              data: {
+                userId: sub.userId,
+                type: 'billing_payment_succeeded',
+                title: 'Subscription Payment Confirmed',
+                body: `Your payment of ${amountFormatted} for ${planName} succeeded. All services and listings are fully active.`,
+              },
+            }).catch(() => {})
+
             await this.paymentEmail.sendPaymentConfirmation({
               userId: sub.userId,
               recipientEmail: (invoice.customer_email as string) || undefined,
@@ -355,13 +412,13 @@ export class PaymentsController {
         break
       }
       case 'invoice.payment_failed': {
-        // Scenario 4: Payment failure / charge failure
+        // Scenario 4: Recurring payment failed (Smart Retries & 7-Day Grace Period)
         const invoice = event.data.object as unknown as Record<string, unknown>
         const stripeSubId = typeof invoice.subscription === 'string'
           ? invoice.subscription
           : (invoice.subscription as { id?: string } | undefined)?.id
         if (stripeSubId) {
-          this.logger.warn(`Invoice payment failed for Stripe sub ${stripeSubId}, marking past_due`)
+          this.logger.warn(`Invoice payment failed for Stripe sub ${stripeSubId}, marking past_due with 7-day grace period`)
           await this.prisma.subscription.updateMany({
             where: { stripeId: stripeSubId },
             data: { status: 'past_due' },
@@ -376,6 +433,25 @@ export class PaymentsController {
             const planName = planConfig ? planConfig.name : `${sub.entitlement} Plan`
             const amountCents = (invoice.amount_due as number) || (planConfig ? Math.round(planConfig.monthlyPriceUsd * 100) : 0)
             const amountFormatted = `$${(amountCents / 100).toFixed(2)}/mo`
+
+            // Create in-app notification immediately
+            await this.prisma.notification.create({
+              data: {
+                userId: sub.userId,
+                type: 'billing_payment_failed',
+                title: 'Payment Pending: 7-Day Grace Period Active',
+                body: `Your recurring payment for ${planName} was unsuccessful. Your commercial services remain active during your 7-day grace period while retries are in progress. Please update your payment method to avoid service interruption.`,
+                data: {
+                  planName,
+                  amountFormatted,
+                  invoiceNumber: (invoice.id as string) || stripeSubId,
+                },
+              },
+            }).catch((err) => {
+              this.logger.warn(`Could not create payment failed notification: ${(err as Error).message}`)
+            })
+
+            // Send transactional email
             await this.paymentEmail.sendPaymentConfirmation({
               userId: sub.userId,
               recipientEmail: (invoice.customer_email as string) || undefined,
@@ -383,7 +459,7 @@ export class PaymentsController {
               amountFormatted,
               status: 'failed',
               invoiceNumber: (invoice.id as string) || stripeSubId,
-              failureReason: 'Recurring invoice payment could not be processed by your card issuer.',
+              failureReason: 'Recurring invoice payment could not be processed by your card issuer. Smart retries are scheduled.',
             }).catch((err) => {
               this.logger.warn(`Could not send invoice payment failure email: ${(err as Error).message}`)
             })
@@ -400,10 +476,37 @@ export class PaymentsController {
         if (dbSub) {
           // Sync status
           const newStatus = (sub.status === 'active' || sub.status === 'trialing') ? 'active' : sub.status === 'canceled' ? 'canceled' : 'past_due'
+          const rawPeriodEnd = (sub as unknown as Record<string, unknown>).current_period_end
+          const periodEndDate = typeof rawPeriodEnd === 'number' && !isNaN(rawPeriodEnd) ? new Date(rawPeriodEnd * 1000) : undefined
+
           await this.prisma.subscription.update({
             where: { id: dbSub.id },
-            data: { status: newStatus as import('@prisma/client').SubscriptionStatus },
+            data: {
+              status: newStatus as import('@prisma/client').SubscriptionStatus,
+              cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
+              ...(periodEndDate ? { currentPeriodEnd: periodEndDate } : {}),
+            },
           })
+
+          if (newStatus === 'active') {
+            await this.prisma.product.updateMany({
+              where: { sellerId: dbSub.userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
+              data: { status: 'active', hiddenAt: null },
+            })
+            await this.prisma.breedingProfile.updateMany({
+              where: { ownerId: dbSub.userId, status: 'paused', isDeleted: false },
+              data: { status: 'available', availableNow: true },
+            })
+          } else if (newStatus === 'canceled') {
+            await this.prisma.product.updateMany({
+              where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
+              data: { status: 'inactive', hiddenAt: new Date() },
+            })
+            await this.prisma.breedingProfile.updateMany({
+              where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
+              data: { status: 'paused', availableNow: false },
+            })
+          }
 
           // Check if quota reduction or downgrade happened
           const prof = await this.prisma.professionalProfile.findUnique({
