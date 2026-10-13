@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { usePagedList } from '@/hooks/use-cache'
 import { Img } from '@/components/Img'
@@ -12,8 +12,9 @@ import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
 import {
   ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus, ImageOff,
+  AlertTriangle, CreditCard,
 } from 'lucide-react'
-import { shopApi, mutate, type Product, type NewProduct } from '@/lib/api'
+import { shopApi, mutate, request, type Product, type NewProduct } from '@/lib/api'
 import { useAuth } from '@/hooks/use-auth'
 import { useCurrency } from '@/hooks/use-currency'
 import { uploadCommunityImage } from '@/lib/community-image'
@@ -68,6 +69,24 @@ export default function ShopPage(): React.JSX.Element {
   const [sort, setSort] = useState('newest')
   const [search, setSearch] = useState('')
   const [sellOpen, setSellOpen] = useState(false)
+  const [isPastDue, setIsPastDue] = useState(false)
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let isMounted = true
+    request<{ data: Array<{ status: string }> } | Array<{ status: string }>>('/commercial/subscriptions')
+      .then((res) => {
+        if (!isMounted) return
+        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : []
+        setIsPastDue(list.some((s) => s.status === 'past_due'))
+      })
+      .catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [isAuthenticated])
+
+  const showGracePeriodBanner = isAuthenticated && isPastDue
 
   const handleSell = () => {
     if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
@@ -121,6 +140,28 @@ export default function ShopPage(): React.JSX.Element {
                 </button>
               )}
             </div>
+
+            {/* 7-Day Grace Period Alert Banner for past_due sellers */}
+            {showGracePeriodBanner && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-in fade-in">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-on-surface text-sm">Monthly payment failed. You have 7 days to update your card before services are paused.</h4>
+                    <p className="text-xs text-outline mt-0.5 leading-relaxed">
+                      Your listings and marketplace selling privileges remain active during your 7-day grace period while payment retries are underway. Please update your payment method to ensure uninterrupted service.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/settings?section=billing"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  Update Card
+                </Link>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
@@ -216,12 +257,12 @@ export default function ShopPage(): React.JSX.Element {
 
       <MobileTabs currentPage="shop" />
 
-      {sellOpen && <SellModal onClose={() => setSellOpen(false)} onListed={(p) => { setSellOpen(false); patchProducts((prev) => [p, ...prev]) }} />}
+      {sellOpen && <SellModal onClose={() => setSellOpen(false)} onListed={(p) => { setSellOpen(false); patchProducts((prev) => [p, ...prev]) }} isPastDue={showGracePeriodBanner} />}
     </>
   )
 }
 
-function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: Product) => void }): React.JSX.Element {
+function SellModal({ onClose, onListed, isPastDue }: { onClose: () => void; onListed: (p: Product) => void; isPastDue?: boolean }): React.JSX.Element {
   const ts = useTranslations('shop')
   const { profile } = useAuth()
   const [title, setTitle] = useState('')
@@ -280,6 +321,15 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           </div>
         </div>
         <div className="p-5 space-y-3">
+          {isPastDue && (
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500 mt-0.5" />
+              <div>
+                <span className="font-semibold block text-on-surface">Monthly payment failed. You have 7 days to update your card before services are paused.</span>
+                <span className="text-outline mt-0.5 block">You can still list items during the grace period. Please update your payment method in Billing Settings.</span>
+              </div>
+            </div>
+          )}
           <label className="block">
             <div className="relative h-36 rounded-xl border border-dashed border-outline-variant/60 bg-surface-container overflow-hidden flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors">
               {coverUrl ? (
@@ -331,7 +381,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
           {error && (
             <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-label-sm text-red-500 flex flex-col gap-1.5">
               <span>{error}</span>
-              {(error.toLowerCase().includes('subscription') || error.toLowerCase().includes('active service')) && (
+              {(error.toLowerCase().includes('subscription') || error.toLowerCase().includes('active service') || error.toLowerCase().includes('grace period')) && (
                 <div className="flex flex-wrap items-center gap-3 pt-1">
                   <button
                     type="button"
@@ -355,7 +405,7 @@ function SellModal({ onClose, onListed }: { onClose: () => void; onListed: (p: P
                     href="/settings?section=billing"
                     className="font-semibold text-primary hover:underline inline-flex items-center gap-1 text-xs"
                   >
-                    Manage Subscription &amp; Active Services &rarr;
+                    {error.toLowerCase().includes('grace period') ? 'Update Card in Billing Settings \u2192' : 'Manage Subscription & Active Services \u2192'}
                   </Link>
                 </div>
               )}

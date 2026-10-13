@@ -36,32 +36,43 @@ export class SubscriptionGuard implements CanActivate {
       return true
     }
 
-    // Fetch the user's subscriptions
-    let subscriptions = await this.prisma.subscription.findMany({
-      where: { 
-        userId: user.id,
-        status: {
-          in: [SubscriptionStatus.active, SubscriptionStatus.trialing]
+    // 7-day grace period (in ms) for past_due recurring payments
+    const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000
+
+    const fetchValidSubscriptions = async () => {
+      const records = await this.prisma.subscription.findMany({
+        where: { 
+          userId: user.id,
+          status: {
+            in: [SubscriptionStatus.active, SubscriptionStatus.trialing, SubscriptionStatus.past_due],
+          },
+        },
+        select: { entitlement: true, status: true, updatedAt: true },
+      })
+
+      // Keep active/trialing directly; keep past_due only if within the 7-day grace period
+      return records.filter((sub) => {
+        if (sub.status === SubscriptionStatus.active || sub.status === SubscriptionStatus.trialing) {
+          return true
         }
-      },
-      select: { entitlement: true }
-    })
+        if (sub.status === SubscriptionStatus.past_due) {
+          const elapsed = Date.now() - sub.updatedAt.getTime()
+          return elapsed <= GRACE_PERIOD_MS
+        }
+        return false
+      })
+    }
+
+    // Fetch the user's subscriptions
+    let subscriptions = await fetchValidSubscriptions()
 
     // If no subscriptions found in DB, check Stripe to reconcile any paid sessions
     if (subscriptions.length === 0 && this.commercial) {
       await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email)
-      subscriptions = await this.prisma.subscription.findMany({
-        where: { 
-          userId: user.id,
-          status: {
-            in: [SubscriptionStatus.active, SubscriptionStatus.trialing]
-          }
-        },
-        select: { entitlement: true }
-      })
+      subscriptions = await fetchValidSubscriptions()
     }
 
-    const activeEntitlements = subscriptions.map(sub => sub.entitlement)
+    const activeEntitlements = subscriptions.map((sub) => sub.entitlement)
 
     // Check if the user has any of the directly matching required entitlements
     let hasRequiredSubscription = requiredEntitlements.some(entitlement => activeEntitlements.includes(entitlement))
@@ -144,6 +155,18 @@ export class SubscriptionGuard implements CanActivate {
     }
 
     if (!hasRequiredSubscription) {
+      const expiredPastDueSub = await this.prisma.subscription.findFirst({
+        where: { userId: user.id, status: SubscriptionStatus.past_due },
+        orderBy: { updatedAt: 'desc' },
+      })
+
+      if (expiredPastDueSub) {
+        throw new ForbiddenException({
+          code: 'GRACE_PERIOD_EXPIRED',
+          message: 'Monthly payment failed and your 7-day grace period has expired. Please update your card in Billing Settings to restore services.',
+        })
+      }
+
       // 402 Payment Required might be more appropriate for monetization logic, 
       // but in NestJS standard exceptions, 403 Forbidden is used for access control.
       // The client can interpret the custom 'SUBSCRIPTION_REQUIRED' code.

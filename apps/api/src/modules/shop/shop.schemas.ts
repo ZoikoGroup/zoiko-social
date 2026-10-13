@@ -81,7 +81,7 @@ export const UpdateProductSchema = z.object({
   shipping: z.string().trim().max(120).optional(),
   location: z.string().trim().max(160).optional(),
   externalUrl: httpUrl(600).optional(),
-  status: z.enum(['active', 'sold', 'withdrawn']).optional(),
+  status: z.enum(['active', 'sold', 'withdrawn', 'inactive']).optional(),
 })
 
 export const EnquirySchema = z.object({

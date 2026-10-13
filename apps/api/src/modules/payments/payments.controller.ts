@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Req, UseGuards, HttpCode, HttpStatus, Logger } from '@nestjs/common'
+import { BadRequestException, Controller, Get, Post, Req, UseGuards, HttpCode, HttpStatus, Logger, Optional } from '@nestjs/common'
 import type { FastifyRequest } from 'fastify'
 import Stripe from 'stripe'
 import { OrdersService } from './orders.service'
@@ -10,6 +10,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator'
 import type { AuthenticatedUser } from '../auth/guards/jwt-auth.guard'
 import { PaymentConfirmationEmailService } from './payment-confirmation-email.service'
 import { COMMERCIAL_PLANS } from '../commercial/commercial.constants'
+import { NotificationQueueService } from '../queue/notification-queue.service'
 
 /** Request augmented with the raw request body — see main.ts's content-type parser override. */
 type RequestWithRawBody = FastifyRequest & { rawBody?: Buffer }
@@ -30,6 +31,7 @@ export class PaymentsController {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly paymentEmail: PaymentConfirmationEmailService,
+    @Optional() private readonly notifications?: NotificationQueueService,
   ) {}
 
 
@@ -273,6 +275,9 @@ export class PaymentsController {
       case 'charge.dispute.created':
       case 'charge.dispute.closed': {
         const dispute = event.data.object as Stripe.Dispute
+        const isClosed = event.type === 'charge.dispute.closed'
+
+        // 1. Record dispute for shop marketplace orders
         await this.orders.recordDispute({
           eventId: event.id,
           paymentIntentId: stripeId(dispute.payment_intent),
@@ -281,9 +286,12 @@ export class PaymentsController {
           currency: dispute.currency.toUpperCase(),
           reason: dispute.reason ?? null,
           status: dispute.status,
-          closed: event.type === 'charge.dispute.closed',
+          closed: isClosed,
           occurredAt: new Date(event.created * 1000),
         })
+
+        // 2. Revoke/suspend commercial plan if dispute is against a subscription
+        await this.handleSubscriptionDispute(event, dispute, isClosed)
         break
       }
       case 'customer.subscription.deleted': {
@@ -524,9 +532,26 @@ export class PaymentsController {
 
           if (activeServices.length > allowedCount) {
             // User has more active services than allowed under new tier
-            // Keep the first allowedCount services and pause the orphan ones
-            const keepServices = activeServices.slice(0, allowedCount)
-            const droppedServices = activeServices.slice(allowedCount)
+            // Respect user-selected keepServices if stored in metadata; otherwise fallback to allowedCount
+            let keepServices: string[] = []
+            const metaServices = (sub.metadata as Record<string, string> | undefined)?.keepServices || (sub.metadata as Record<string, string> | undefined)?.selectedServices
+            if (metaServices) {
+              try {
+                const parsed = JSON.parse(metaServices)
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  keepServices = parsed.filter((s: string) => activeServices.includes(s)).slice(0, allowedCount)
+                }
+              } catch {
+                if (typeof metaServices === 'string' && activeServices.includes(metaServices)) {
+                  keepServices = [metaServices]
+                }
+              }
+            }
+
+            if (keepServices.length === 0) {
+              keepServices = activeServices.slice(0, allowedCount)
+            }
+            const droppedServices = activeServices.filter((s) => !keepServices.includes(s))
 
             await this.prisma.professionalProfile.update({
               where: { userId: dbSub.userId },
@@ -536,16 +561,16 @@ export class PaymentsController {
             if (droppedServices.includes('seller')) {
               await this.prisma.product.updateMany({
                 where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
-                data: { status: 'inactive' },
+                data: { status: 'inactive', hiddenAt: new Date() },
               })
             }
             if (droppedServices.includes('breeder')) {
               await this.prisma.breedingProfile.updateMany({
                 where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
-                data: { availableNow: false },
+                data: { status: 'paused', availableNow: false },
               })
             }
-            this.logger.log(`Auto-adjusted services for user ${dbSub.userId} after subscription update. Retained: ${keepServices.join(', ')}. Suspended: ${droppedServices.join(', ')}`)
+            this.logger.log(`Downgrade services adjusted for user ${dbSub.userId}. Retained: ${keepServices.join(', ')}. Suspended: ${droppedServices.join(', ')}`)
           }
         }
         break
@@ -555,5 +580,196 @@ export class PaymentsController {
     }
 
     return { received: true }
+  }
+
+  private async pauseUserListings(userId: string) {
+    const products = await this.prisma.product.updateMany({
+      where: { sellerId: userId, status: 'active', isDeleted: false },
+      data: { status: 'inactive', hiddenAt: new Date() },
+    })
+    const breeding = await this.prisma.breedingProfile.updateMany({
+      where: { ownerId: userId, availableNow: true, isDeleted: false },
+      data: { status: 'paused', availableNow: false },
+    })
+    if (products.count > 0 || breeding.count > 0) {
+      this.logger.log(`Paused ${products.count} product(s) and ${breeding.count} breeding profile(s) for user ${userId}.`)
+    }
+  }
+
+  private async restoreUserListings(userId: string) {
+    const products = await this.prisma.product.updateMany({
+      where: { sellerId: userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
+      data: { status: 'active', hiddenAt: null },
+    })
+    const breeding = await this.prisma.breedingProfile.updateMany({
+      where: { ownerId: userId, status: 'paused', isDeleted: false },
+      data: { status: 'available', availableNow: true },
+    })
+    if (products.count > 0 || breeding.count > 0) {
+      this.logger.log(`Restored ${products.count} product(s) and ${breeding.count} breeding profile(s) for user ${userId}.`)
+    }
+  }
+
+  private async handleSubscriptionDispute(
+    event: Stripe.Event,
+    dispute: Stripe.Dispute,
+    isClosed: boolean,
+  ): Promise<void> {
+    const chargeId = stripeId(dispute.charge)
+    const paymentIntentId = stripeId(dispute.payment_intent)
+
+    let stripeSubscriptionId: string | null = null
+    let customerId: string | null = null
+    let userId: string | null = (dispute.metadata as Record<string, string> | undefined)?.userId ?? null
+
+    if ((dispute.metadata as Record<string, string> | undefined)?.subscriptionId) {
+      stripeSubscriptionId = (dispute.metadata as Record<string, string>).subscriptionId
+    }
+
+    if (this.stripe.enabled && (chargeId || paymentIntentId)) {
+      try {
+        if (chargeId) {
+          const charge = await this.stripe.retrieveCharge(chargeId)
+          if (charge) {
+            const rawCharge = charge as unknown as Record<string, unknown>
+            customerId = typeof rawCharge.customer === 'string' ? rawCharge.customer : (rawCharge.customer as { id?: string } | undefined)?.id ?? null
+            const invoiceId = typeof rawCharge.invoice === 'string' ? rawCharge.invoice : (rawCharge.invoice as { id?: string } | undefined)?.id ?? null
+            if (invoiceId) {
+              const invoice = await this.stripe.retrieveInvoice(invoiceId)
+              const rawInvoice = invoice as unknown as Record<string, unknown> | null
+              if (rawInvoice?.subscription) {
+                const subRef = rawInvoice.subscription
+                stripeSubscriptionId = typeof subRef === 'string' ? subRef : (subRef as { id?: string } | undefined)?.id ?? null
+              }
+            }
+          }
+        }
+        if (!stripeSubscriptionId && paymentIntentId) {
+          const pi = await this.stripe.retrievePaymentIntent(paymentIntentId)
+          if (pi) {
+            const rawPi = pi as unknown as Record<string, unknown>
+            if (!customerId) customerId = typeof rawPi.customer === 'string' ? rawPi.customer : (rawPi.customer as { id?: string } | undefined)?.id ?? null
+            const invoiceId = typeof rawPi.invoice === 'string' ? rawPi.invoice : (rawPi.invoice as { id?: string } | undefined)?.id ?? null
+            if (invoiceId) {
+              const invoice = await this.stripe.retrieveInvoice(invoiceId)
+              const rawInvoice = invoice as unknown as Record<string, unknown> | null
+              if (rawInvoice?.subscription) {
+                const subRef = rawInvoice.subscription
+                stripeSubscriptionId = typeof subRef === 'string' ? subRef : (subRef as { id?: string } | undefined)?.id ?? null
+              }
+            }
+            if (pi.metadata?.userId) userId = pi.metadata.userId
+            if (pi.metadata?.subscriptionId) stripeSubscriptionId = pi.metadata.subscriptionId
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`Could not inspect Stripe charge for dispute ${dispute.id}: ${(err as Error).message}`)
+      }
+    }
+
+    // Locate subscription in database
+    let dbSub = null
+    if (stripeSubscriptionId) {
+      dbSub = await this.prisma.subscription.findFirst({
+        where: { stripeId: stripeSubscriptionId },
+      })
+    }
+    if (!dbSub && paymentIntentId) {
+      dbSub = await this.prisma.subscription.findFirst({
+        where: { stripeId: paymentIntentId },
+      })
+    }
+    if (!dbSub && userId) {
+      dbSub = await this.prisma.subscription.findFirst({
+        where: {
+          userId,
+          status: { in: ['active', 'trialing', 'past_due', 'paused'] },
+        },
+      })
+    }
+
+    if (!dbSub) {
+      // Not a plan subscription dispute
+      return
+    }
+
+    if (!isClosed) {
+      // Dispute opened: immediately suspend commercial subscription and pause seller's active listings
+      this.logger.warn(
+        `Dispute created (${dispute.id}) for subscription ${dbSub.id} (user: ${dbSub.userId}). Immediately suspending commercial plan and pausing listings.`,
+      )
+
+      await this.prisma.subscription.update({
+        where: { id: dbSub.id },
+        data: {
+          status: 'paused',
+          updatedAt: new Date(),
+        },
+      })
+
+      // Immediately hide/pause product listings and breeding profiles
+      await this.pauseUserListings(dbSub.userId)
+
+      if (this.notifications) {
+        void this.notifications.enqueue({
+          userId: dbSub.userId,
+          type: 'order_disputed',
+          title: 'Commercial Plan Suspended (Payment Disputed)',
+          body: 'Your commercial subscription and shop listings have been temporarily paused due to an open bank dispute. Contact support to resolve.',
+        })
+      }
+    } else {
+      // Dispute closed
+      if (dispute.status === 'won') {
+        this.logger.log(
+          `Dispute (${dispute.id}) resolved in our favor for subscription ${dbSub.id}. Reactivating commercial plan and listings.`,
+        )
+
+        await this.prisma.subscription.update({
+          where: { id: dbSub.id },
+          data: {
+            status: 'active',
+            updatedAt: new Date(),
+          },
+        })
+
+        // Restore listings
+        await this.restoreUserListings(dbSub.userId)
+
+        if (this.notifications) {
+          void this.notifications.enqueue({
+            userId: dbSub.userId,
+            type: 'order_dispute_resolved',
+            title: 'Commercial Plan Reactivated',
+            body: 'Your payment dispute was resolved and your commercial subscription and shop listings have been restored.',
+          })
+        }
+      } else {
+        // Dispute lost or refund reversed: permanently cancel subscription
+        this.logger.warn(
+          `Dispute (${dispute.id}) decided against charge for subscription ${dbSub.id}. Revoking commercial subscription.`,
+        )
+
+        await this.prisma.subscription.update({
+          where: { id: dbSub.id },
+          data: {
+            status: 'canceled',
+            cancelAtPeriodEnd: false,
+            updatedAt: new Date(),
+          },
+        })
+
+        await this.pauseUserListings(dbSub.userId)
+
+        if (this.notifications) {
+          void this.notifications.enqueue({
+            userId: dbSub.userId,
+            type: 'order_dispute_resolved',
+            title: 'Commercial Plan Cancelled',
+            body: 'The bank dispute was resolved with payment reversed. Your commercial subscription has been cancelled.',
+          })
+        }
+      }
+    }
   }
 }

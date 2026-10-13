@@ -19,15 +19,23 @@ function SubscribedContent() {
   const searchParams = useSearchParams()
   const plan = searchParams.get('plan') || 'seller_professional'
   const sessionId = searchParams.get('session_id') || undefined
+  const rawKeepServices = searchParams.get('keepServices')
   const [status, setStatus] = useState<'loading' | 'success' | 'pending' | 'failed'>('loading')
 
   useEffect(() => {
     let isMounted = true
+    let keepServices: string[] | undefined
+    if (rawKeepServices) {
+      try {
+        const parsed = JSON.parse(rawKeepServices)
+        if (Array.isArray(parsed)) keepServices = parsed
+      } catch {}
+    }
 
     // Confirm and activate subscription directly upon checkout return
     mutate<ConfirmResponse>('/commercial/confirm-session', {
       method: 'POST',
-      body: JSON.stringify({ planId: plan, sessionId }),
+      body: JSON.stringify({ planId: plan, sessionId, keepServices }),
     })
       .then((res) => {
         if (!isMounted) return
@@ -51,7 +59,7 @@ function SubscribedContent() {
     return () => {
       isMounted = false
     }
-  }, [plan, sessionId])
+  }, [plan, sessionId, rawKeepServices])
 
   let serviceName = 'Starter Plan'
   if (plan === 'starter') serviceName = 'Starter Plan ($19.99/mo)'

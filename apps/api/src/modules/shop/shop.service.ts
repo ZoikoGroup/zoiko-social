@@ -138,7 +138,10 @@ export class ShopService {
 
   async get(id: string, viewerId?: string): Promise<ProductResponse> {
     const p = await this.prisma.product.findUnique({ where: { id }, include: this.sellerInclude() })
-    if (!p || p.isDeleted || p.hiddenAt) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
+    if (!p || p.isDeleted) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
+    if ((p.hiddenAt || p.status !== 'active') && p.sellerId !== viewerId) {
+      throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product is currently paused or unavailable' })
+    }
     const saved = await this.savedFlags([p.id], viewerId)
     return this.map(p, saved.has(p.id))
   }
@@ -212,6 +215,9 @@ export class ShopService {
     // Free-text screening, same gate posts and comments go through.
     this.profanity.assertCleanFields({ title: input.title, description: input.description, shipping: input.shipping, location: input.location }, { actorId: sellerId, entityType: 'product' })
     await this.assertSeller(id, sellerId)
+    if (input.status === 'active') {
+      await this.commercial.checkSellerLimit(sellerId)
+    }
     const updated = await this.prisma.product.update({
       where: { id },
       data: {
@@ -228,7 +234,10 @@ export class ShopService {
         ...(input.shipping !== undefined ? { shipping: input.shipping } : {}),
         ...(input.location !== undefined ? { location: input.location } : {}),
         ...(input.externalUrl !== undefined ? { externalUrl: input.externalUrl } : {}),
-        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.status !== undefined ? {
+          status: input.status,
+          hiddenAt: input.status === 'active' ? null : input.status === 'inactive' ? new Date() : undefined,
+        } : {}),
       },
       include: this.sellerInclude(),
     })
@@ -267,6 +276,8 @@ export class ShopService {
       select: {
         id: true,
         isDeleted: true,
+        hiddenAt: true,
+        status: true,
         sellerId: true,
         title: true,
         priceCents: true,
@@ -275,7 +286,9 @@ export class ShopService {
         photos: true,
       },
     })
-    if (!product || product.isDeleted) throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found' })
+    if (!product || product.isDeleted || product.hiddenAt || product.status !== 'active') {
+      throw new NotFoundException({ code: 'PRODUCT_NOT_FOUND', message: 'Product not found or unavailable' })
+    }
     if (product.sellerId === buyerId) throw new BadRequestException({ code: 'OWN_PRODUCT', message: 'You cannot enquire on your own listing' })
 
     const existing = await this.prisma.productEnquiry.findUnique({ where: { productId_buyerId: { productId: id, buyerId } }, select: { status: true } })

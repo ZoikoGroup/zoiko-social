@@ -81,7 +81,9 @@ export class StripeService {
     successUrl: string
     cancelUrl: string
     customerEmail?: string
+    keepServices?: string[]
   }): Promise<Stripe.Checkout.Session> {
+    const keepServicesStr = params.keepServices && params.keepServices.length > 0 ? JSON.stringify(params.keepServices) : undefined
     return this.require().checkout.sessions.create({
       mode: 'subscription',
       ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
@@ -101,7 +103,16 @@ export class StripeService {
       client_reference_id: params.userId,
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
-      metadata: { entitlement: params.planId },
+      subscription_data: {
+        metadata: {
+          entitlement: params.planId,
+          ...(keepServicesStr ? { keepServices: keepServicesStr } : {}),
+        },
+      },
+      metadata: {
+        entitlement: params.planId,
+        ...(keepServicesStr ? { keepServices: keepServicesStr } : {}),
+      },
     })
   }
 
@@ -138,6 +149,36 @@ export class StripeService {
       return await this.require().subscriptions.update(subscriptionId, params);
     } catch (err) {
       this.logger.warn(`Failed to update subscription ${subscriptionId} in Stripe: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async retrieveCharge(chargeId: string): Promise<Stripe.Charge | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().charges.retrieve(chargeId);
+    } catch (err) {
+      this.logger.warn(`Failed to retrieve charge ${chargeId} from Stripe: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().paymentIntents.retrieve(paymentIntentId);
+    } catch (err) {
+      this.logger.warn(`Failed to retrieve payment intent ${paymentIntentId} from Stripe: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  async retrieveInvoice(invoiceId: string): Promise<Stripe.Invoice | null> {
+    if (!this.client) return null;
+    try {
+      return await this.require().invoices.retrieve(invoiceId);
+    } catch (err) {
+      this.logger.warn(`Failed to retrieve invoice ${invoiceId} from Stripe: ${(err as Error).message}`);
       return null;
     }
   }

@@ -1,6 +1,5 @@
-'use client'
-
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { mutate, request } from '@/lib/api'
@@ -23,6 +22,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
+import { DowngradeServiceModal, type DowngradeTargetPlan } from '@/components/commercial/DowngradeServiceModal'
 
 interface UserSubscription {
   id: string
@@ -33,6 +33,8 @@ interface UserSubscription {
   createdAt: string
   updatedAt: string
 }
+
+const emptySubscribe = () => () => {}
 
 export function BillingSettings() {
   const router = useRouter()
@@ -52,11 +54,34 @@ export function BillingSettings() {
     features: string[]
     popular: boolean
   } | null>(null)
+  const [downgradeTargetPlan, setDowngradeTargetPlan] = useState<DowngradeTargetPlan | null>(null)
   const [cancelingAutopay, setCancelingAutopay] = useState(false)
   const [resumingAutopay, setResumingAutopay] = useState(false)
   const [showCancelAutopayModal, setShowCancelAutopayModal] = useState(false)
   const [autopayFeedback, setAutopayFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [openingPortal, setOpeningPortal] = useState(false)
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
+
+  // Lock body scroll and listen for Escape key when modals are open
+  useEffect(() => {
+    if (showCancelAutopayModal || upgradeTargetPlan || downgradeTargetPlan) {
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setShowCancelAutopayModal(false)
+          setUpgradeTargetPlan(null)
+          setDowngradeTargetPlan(null)
+        }
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return () => {
+        document.body.style.overflow = prevOverflow
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    }
+    return undefined
+  }, [showCancelAutopayModal, upgradeTargetPlan, downgradeTargetPlan])
 
   const [canceledNotice] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -111,7 +136,7 @@ export function BillingSettings() {
     }
   }, [])
 
-  const handleStripeCheckout = async (plan: string) => {
+  const handleStripeCheckout = async (plan: string, keepServices?: string[]) => {
     if (!isVerified) {
       alert('You must complete identity verification before purchasing a commercial plan.')
       router.push('/verify')
@@ -126,6 +151,7 @@ export function BillingSettings() {
         body: JSON.stringify({
           planId: plan,
           origin,
+          keepServices,
         }),
       })
       window.location.assign(url)
@@ -228,6 +254,7 @@ export function BillingSettings() {
   // Find the single currently active subscription (or in grace period past_due)
   const activeSubscription = subscriptions.find((s) => s.status === 'active' || s.status === 'trialing' || s.status === 'past_due')
   const isPastDue = activeSubscription?.status === 'past_due'
+  const isDisputed = subscriptions.some((s) => s.status === 'paused')
   const activePlanId = activeSubscription
     ? activeSubscription.entitlement === 'seller_professional'
       ? 'starter'
@@ -296,6 +323,15 @@ export function BillingSettings() {
 
   const currentActivePlan = plans.find((p) => p.id === activePlanId) || null
 
+  const PLAN_SERVICE_LIMITS: Record<string, number> = {
+    starter: 1,
+    seller_professional: 1,
+    professional: 2,
+    breeder_professional: 2,
+    premium: 4,
+    care_professional: 4,
+  }
+
   const handlePlanClick = (plan: typeof plans[0]) => {
     if (!isVerified) {
       alert('You must complete identity verification before subscribing to any plan.')
@@ -307,6 +343,21 @@ export function BillingSettings() {
       if (plan.id === activePlanId) {
         return // Already on this plan
       }
+
+      const targetLimit = PLAN_SERVICE_LIMITS[plan.id] || 1
+      const currentLimit = PLAN_SERVICE_LIMITS[activePlanId] || 1
+
+      // If downgrading and user currently holds more active services than target plan allows:
+      if (targetLimit < currentLimit && activeServices.length > targetLimit) {
+        setDowngradeTargetPlan({
+          id: plan.id,
+          name: plan.name,
+          price: plan.price,
+          maxServicesAllowed: targetLimit,
+        })
+        return
+      }
+
       // Forceful upgrade / shift: prompt user with confirmation
       setUpgradeTargetPlan(plan)
       return
@@ -360,13 +411,59 @@ export function BillingSettings() {
         </div>
       )}
 
+      {/* Services Exceeding Plan Allowance Warning Banner (e.g. after external downgrade) */}
+      {activeServices.length > maxServicesAllowed && (
+        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-on-surface text-sm">
+                Your new plan includes {maxServicesAllowed} service{maxServicesAllowed > 1 ? 's' : ''}. Please select which service you wish to keep active.
+              </h4>
+              <p className="text-xs text-outline mt-0.5 leading-relaxed">
+                You have {activeServices.length} active services, but your current plan only permits {maxServicesAllowed}. Choose which {maxServicesAllowed === 1 ? 'service' : `${maxServicesAllowed} services`} should remain active.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm"
+          >
+            Select Active Service
+          </button>
+        </div>
+      )}
+
+      {/* Disputed / Suspended Subscription Alert Banner */}
+      {isDisputed && (
+        <div className="p-5 rounded-2xl bg-red-500/10 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-on-surface text-sm">
+                Commercial Subscription Suspended: Payment Disputed
+              </h4>
+              <p className="text-xs text-outline mt-0.5 leading-relaxed">
+                Your commercial subscription and shop listings have been suspended due to an open bank chargeback dispute. Public sales and business features are paused until the dispute is resolved.
+              </p>
+            </div>
+          </div>
+          <a
+            href="mailto:support@zoikosocial.com"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold whitespace-nowrap self-start sm:self-center transition-colors shadow-sm"
+          >
+            Contact Support
+          </a>
+        </div>
+      )}
+
       {/* 7-Day Grace Period & Payment Failed Alert Banner */}
       {isPastDue && (
         <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-sm animate-in fade-in">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-bold text-on-surface text-sm">Payment Pending — 7-Day Grace Period Active</h4>
+              <h4 className="font-bold text-on-surface text-sm">Monthly payment failed. You have 7 days to update your card before services are paused.</h4>
               <p className="text-xs text-outline mt-0.5 leading-relaxed">
                 Your latest recurring plan payment was unsuccessful. Your commercial services, listings, and verification remain <strong>100% active during your 7-day grace period</strong> while Stripe retries charging your card. Please update your payment method now to ensure uninterrupted service.
               </p>
@@ -772,33 +869,39 @@ export function BillingSettings() {
       </div>
 
       {/* Forceful Upgrade Confirmation Modal */}
-      {upgradeTargetPlan && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-surface-container-high border border-outline-variant/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
+      {mounted && typeof document !== 'undefined' && upgradeTargetPlan && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 overflow-y-auto"
+          onClick={() => setUpgradeTargetPlan(null)}
+        >
+          <div
+            className="bg-surface-container-high dark:bg-zinc-900 border border-outline-variant/30 dark:border-white/10 rounded-2xl sm:rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 relative animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setUpgradeTargetPlan(null)}
-              className="absolute top-4 right-4 text-outline hover:text-on-surface p-1 rounded-lg transition-colors"
+              className="absolute top-4 right-4 text-outline hover:text-on-surface dark:hover:text-white p-1.5 rounded-xl hover:bg-surface-container dark:hover:bg-zinc-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/25 text-amber-500 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-on-surface">Switch to {upgradeTargetPlan.name} Plan?</h3>
-                <p className="text-xs text-outline">Plan change & upgrade confirmation</p>
+                <h3 className="font-bold text-base sm:text-lg text-on-surface">Switch to {upgradeTargetPlan.name} Plan?</h3>
+                <p className="text-xs text-outline dark:text-zinc-400">Plan change & upgrade confirmation</p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/20 space-y-2.5 text-xs text-on-surface">
-              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20">
-                <span className="text-outline">Current Plan:</span>
+            <div className="p-4 rounded-2xl bg-surface-container/70 dark:bg-zinc-800/60 border border-outline-variant/20 dark:border-white/5 space-y-2.5 text-xs text-on-surface">
+              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20 dark:border-zinc-700/50">
+                <span className="text-outline dark:text-zinc-400">Current Plan:</span>
                 <span className="font-semibold">{currentActivePlan?.name || 'Active Plan'}</span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20">
-                <span className="text-outline">New Plan:</span>
+              <div className="flex justify-between items-center pb-2 border-b border-outline-variant/20 dark:border-zinc-700/50">
+                <span className="text-outline dark:text-zinc-400">New Plan:</span>
                 <span className="font-bold text-primary">{upgradeTargetPlan.name} ({upgradeTargetPlan.price}/mo)</span>
               </div>
 
@@ -807,7 +910,7 @@ export function BillingSettings() {
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   Upgrade Terms:
                 </p>
-                <ul className="list-disc pl-4 space-y-1 text-outline">
+                <ul className="list-disc pl-4 space-y-1 text-outline dark:text-zinc-400">
                   <li>Your old plan will be <strong>cancelled immediately</strong> and replaced by the new plan.</li>
                   <li><strong>No refund</strong> will be issued for the remaining time of your current plan.</li>
                   <li>Your business services and listings will continue seamlessly under the new plan limits.</li>
@@ -815,11 +918,11 @@ export function BillingSettings() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setUpgradeTargetPlan(null)}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 dark:border-zinc-700 text-on-surface font-semibold text-xs hover:bg-surface-container dark:hover:bg-zinc-800 transition-colors"
               >
                 Keep Current Plan
               </button>
@@ -831,7 +934,7 @@ export function BillingSettings() {
                   setUpgradeTargetPlan(null)
                   handleStripeCheckout(planId)
                 }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-on-primary font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 active:scale-[0.99] text-on-primary font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
               >
                 {subscribingPlan === upgradeTargetPlan.id ? (
                   <>
@@ -847,36 +950,43 @@ export function BillingSettings() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Cancel Autopay Confirmation Modal */}
-      {showCancelAutopayModal && activeSubscription && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-surface-container-high border border-outline-variant/30 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
+      {mounted && typeof document !== 'undefined' && showCancelAutopayModal && activeSubscription && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200 overflow-y-auto"
+          onClick={() => setShowCancelAutopayModal(false)}
+        >
+          <div
+            className="bg-surface-container-high dark:bg-zinc-900 border border-outline-variant/30 dark:border-white/10 rounded-2xl sm:rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 relative animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setShowCancelAutopayModal(false)}
-              className="absolute top-4 right-4 text-outline hover:text-on-surface p-1 rounded-lg transition-colors"
+              className="absolute top-4 right-4 text-outline hover:text-on-surface dark:hover:text-white p-1.5 rounded-xl hover:bg-surface-container dark:hover:bg-zinc-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-500/25 text-amber-500 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-base text-on-surface">Turn Off Auto-Renewal?</h3>
-                <p className="text-xs text-outline">Cancel next month&apos;s automatic recurring payment</p>
+                <h3 className="font-bold text-base sm:text-lg text-on-surface">Turn Off Auto-Renewal?</h3>
+                <p className="text-xs text-outline dark:text-zinc-400">Cancel next month&apos;s automatic recurring payment</p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-surface-container border border-outline-variant/20 space-y-3 text-xs text-on-surface">
+            <div className="p-4 rounded-2xl bg-surface-container/70 dark:bg-zinc-800/60 border border-outline-variant/20 dark:border-white/5 space-y-3.5 text-xs text-on-surface">
               <div className="flex items-start gap-2.5">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-on-surface font-semibold">You Keep Your Plan & Benefits:</strong>
-                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                  <strong className="text-on-surface font-semibold text-xs">You Keep Your Plan & Benefits:</strong>
+                  <p className="text-outline dark:text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
                     Because you have already paid for the current month, your <strong>{activeTier.toUpperCase()}</strong> plan, verified badge, and all business tools stay 100% active until <strong>{formatDate(activeSubscription.currentPeriodEnd)}</strong>.
                   </p>
                 </div>
@@ -885,8 +995,8 @@ export function BillingSettings() {
               <div className="flex items-start gap-2.5">
                 <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-on-surface font-semibold">No Future Charges:</strong>
-                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                  <strong className="text-on-surface font-semibold text-xs">No Future Charges:</strong>
+                  <p className="text-outline dark:text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
                     When your 30-day period completes on <strong>{formatDate(activeSubscription.currentPeriodEnd)}</strong>, Stripe will NOT charge your card again and the plan simply expires.
                   </p>
                 </div>
@@ -895,19 +1005,19 @@ export function BillingSettings() {
               <div className="flex items-start gap-2.5">
                 <RotateCcw className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-on-surface font-semibold">You Can Resume Anytime:</strong>
-                  <p className="text-outline text-[11px] mt-0.5 leading-relaxed">
+                  <strong className="text-on-surface font-semibold text-xs">You Can Resume Anytime:</strong>
+                  <p className="text-outline dark:text-zinc-400 text-[11px] mt-0.5 leading-relaxed">
                     If you change your mind before {formatDate(activeSubscription.currentPeriodEnd)}, you can resume auto-renewal with a single click.
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex items-center gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setShowCancelAutopayModal(false)}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 text-on-surface font-semibold text-xs hover:bg-surface-container transition-colors"
+                className="flex-1 py-2.5 px-4 rounded-xl border border-outline-variant/40 dark:border-zinc-700 text-on-surface font-semibold text-xs hover:bg-surface-container dark:hover:bg-zinc-800 transition-colors"
               >
                 Keep Auto-Renewal ON
               </button>
@@ -915,7 +1025,7 @@ export function BillingSettings() {
                 type="button"
                 disabled={cancelingAutopay}
                 onClick={handleCancelAutopay}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors disabled:opacity-60"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-60"
               >
                 {cancelingAutopay ? (
                   <>
@@ -928,7 +1038,8 @@ export function BillingSettings() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Service Selection / Allocation Modal */}
@@ -940,6 +1051,22 @@ export function BillingSettings() {
         initialSelectedServices={activeServices}
         onSuccess={(updated) => {
           setActiveServices(updated)
+        }}
+      />
+
+      {/* Downgrade Service Selection Modal */}
+      <DowngradeServiceModal
+        key={downgradeTargetPlan?.id || 'none'}
+        isOpen={Boolean(downgradeTargetPlan)}
+        onClose={() => setDowngradeTargetPlan(null)}
+        targetPlan={downgradeTargetPlan}
+        currentActiveServices={activeServices}
+        loading={subscribingPlan === downgradeTargetPlan?.id}
+        onConfirm={async (selected) => {
+          const target = downgradeTargetPlan
+          if (!target) return
+          setDowngradeTargetPlan(null)
+          await handleStripeCheckout(target.id, selected)
         }}
       />
     </div>

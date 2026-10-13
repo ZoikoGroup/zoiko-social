@@ -120,7 +120,7 @@ describe('PaymentConfirmationEmailService', () => {
       expect(result).toBe(true)
       expect(emailProvider.send).toHaveBeenCalledTimes(1)
       expect(sentMessages[0].to).toBe('member@zoiko.com')
-      expect(sentMessages[0].subject).toContain('Payment Failed')
+      expect(sentMessages[0].subject).toContain('Payment Unsuccessful')
       expect(sentMessages[0].html).toContain('Payment Unsuccessful')
       expect(sentMessages[0].html).toContain('Card was declined by the bank')
     })

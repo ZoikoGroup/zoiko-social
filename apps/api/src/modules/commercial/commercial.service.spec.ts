@@ -9,15 +9,20 @@ describe('CommercialService Limits', () => {
 
   beforeEach(() => {
     prisma = {
-      subscription: { findFirst: jest.fn() },
-      product: { count: jest.fn() },
-      breedingProfile: { count: jest.fn() },
+      subscription: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+      product: { count: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 2 }), findMany: jest.fn().mockResolvedValue([]) },
+      breedingProfile: { count: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       petCareService: { count: jest.fn() },
       providerTeamMember: { count: jest.fn() },
       adoptionPost: { count: jest.fn() },
       event: { count: jest.fn() },
+      profile: { findUnique: jest.fn() },
     };
     service = new CommercialService(prisma);
+  });
+
+  afterEach(() => {
+    service.onModuleDestroy();
   });
 
   describe('checkSellerLimit', () => {
@@ -36,6 +41,25 @@ describe('CommercialService Limits', () => {
       prisma.subscription.findFirst.mockResolvedValue({ id: 'sub-1' });
       prisma.product.count.mockResolvedValue(SERVICE_LIMITS.seller.activeProducts - 1);
       await expect(service.checkSellerLimit('user-1')).resolves.toBeUndefined();
+    });
+
+    it('passes if past_due subscription is within 7-day grace period', async () => {
+      prisma.subscription.findFirst.mockResolvedValue({
+        id: 'sub-1',
+        status: 'past_due',
+        updatedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      });
+      prisma.product.count.mockResolvedValue(0);
+      await expect(service.checkSellerLimit('user-1')).resolves.toBeUndefined();
+    });
+
+    it('throws if past_due subscription exceeds 7-day grace period', async () => {
+      prisma.subscription.findFirst.mockResolvedValue({
+        id: 'sub-1',
+        status: 'past_due',
+        updatedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      });
+      await expect(service.checkSellerLimit('user-1')).rejects.toThrow(/grace period has expired/);
     });
   });
 
@@ -112,6 +136,52 @@ describe('CommercialService Limits', () => {
     it('passes if under limit', async () => {
       prisma.event.count.mockResolvedValue(0);
       await expect(service.checkEventsLimit('user-1')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('pauseUserListings and restoreUserListings', () => {
+    it('pauses active products and breeding profiles when plan cancels/expires', async () => {
+      const res = await service.pauseUserListings('user-1');
+      expect(res.productsPaused).toBe(2);
+      expect(res.profilesPaused).toBe(1);
+      expect(prisma.product.updateMany).toHaveBeenCalledWith({
+        where: { sellerId: 'user-1', status: 'active', isDeleted: false },
+        data: { status: 'inactive', hiddenAt: expect.any(Date) },
+      });
+      expect(prisma.breedingProfile.updateMany).toHaveBeenCalledWith({
+        where: { ownerId: 'user-1', availableNow: true, isDeleted: false },
+        data: { status: 'paused', availableNow: false },
+      });
+    });
+
+    it('restores paused products and breeding profiles when plan renews', async () => {
+      const res = await service.restoreUserListings('user-1');
+      expect(res.productsRestored).toBe(2);
+      expect(res.profilesRestored).toBe(1);
+      expect(prisma.product.updateMany).toHaveBeenCalledWith({
+        where: { sellerId: 'user-1', status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
+        data: { status: 'active', hiddenAt: null },
+      });
+      expect(prisma.breedingProfile.updateMany).toHaveBeenCalledWith({
+        where: { ownerId: 'user-1', status: 'paused', isDeleted: false },
+        data: { status: 'available', availableNow: true },
+      });
+    });
+  });
+
+  describe('reconcileExpiredSubscriptions', () => {
+    it('finds expired past_due and non-renewing subscriptions and pauses orphan seller listings', async () => {
+      prisma.subscription.findMany
+        .mockResolvedValueOnce([{ id: 'sub-past-due', userId: 'user-1' }]) // expired past_due
+        .mockResolvedValueOnce([{ id: 'sub-non-renew', userId: 'user-2' }]); // expired non-renewing
+      prisma.product.findMany.mockResolvedValueOnce([{ sellerId: 'user-3' }]); // orphan seller with active products
+      prisma.profile.findUnique.mockResolvedValueOnce({ role: 'user' });
+      prisma.subscription.findFirst.mockResolvedValueOnce(null); // user-3 has no active plan
+
+      const res = await service.reconcileExpiredSubscriptions();
+      expect(res.expiredSubscriptions).toBe(2);
+      expect(res.listingsPaused).toBe(6); // 2 each from user-1, user-2, user-3
+      expect(prisma.subscription.update).toHaveBeenCalledTimes(2);
     });
   });
 });

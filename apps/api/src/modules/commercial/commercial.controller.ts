@@ -27,6 +27,9 @@ export class CommercialController {
   async getSubscriptions(@CurrentUser() user: AuthenticatedUser) {
     try {
       this.logger.log(`Fetching subscriptions for userId: ${user.id}`);
+      await this.commercial.reconcileExpiredSubscriptions().catch((e) => {
+        this.logger.warn(`Reconcile expired subs failed: ${(e as Error).message}`);
+      });
       let subscriptions = await this.prisma.subscription.findMany({
         where: {
           userId: user.id,
@@ -211,7 +214,7 @@ export class CommercialController {
   @UseGuards(JwtAuthGuard)
   async subscribe(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { planId: string; origin?: string },
+    @Body() body: { planId: string; origin?: string; keepServices?: string[]; selectedServices?: string[] },
     @Req() req: FastifyRequest,
   ) {
     // Gating check: User MUST be identity verified to purchase commercial plans
@@ -239,6 +242,14 @@ export class CommercialController {
     const plan = COMMERCIAL_PLANS[body.planId as keyof typeof COMMERCIAL_PLANS];
     if (!plan) {
       throw new BadRequestException('Invalid plan ID.');
+    }
+
+    // Validate keepServices if provided for downgrade / service allocation
+    const chosenServices = (body.keepServices || body.selectedServices || []).filter((s) =>
+      ['seller', 'breeder', 'care', 'vet'].includes(s),
+    );
+    if (chosenServices.length > plan.maxServicesAllowed) {
+      throw new BadRequestException(`Selected services exceed the allowance for ${plan.name} (${plan.maxServicesAllowed}).`);
     }
 
     // Single Active Plan Check: User cannot purchase the exact same plan they already hold actively
@@ -281,9 +292,10 @@ export class CommercialController {
     if (!this.stripe.enabled) {
       const isDev = process.env.NODE_ENV !== 'production';
       if (isDev) {
+        const keepQuery = chosenServices.length > 0 ? `&keepServices=${encodeURIComponent(JSON.stringify(chosenServices))}` : '';
         this.logger.warn(`Stripe not configured — using dev fallback mock checkout session for user ${user.id} and plan ${body.planId}`);
         return {
-          url: `${appUrl}/subscribed-successfully?plan=${body.planId}&session_id=mock_dev_session_${Date.now()}`,
+          url: `${appUrl}/subscribed-successfully?plan=${body.planId}&session_id=mock_dev_session_${Date.now()}${keepQuery}`,
         };
       }
       throw new BadRequestException('Stripe is not configured on this environment.');
@@ -298,6 +310,7 @@ export class CommercialController {
       successUrl: `${appUrl}/subscribed-successfully?plan=${body.planId}&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${appUrl}/settings?section=billing&canceled=true`,
       customerEmail: user.email,
+      keepServices: chosenServices.length > 0 ? chosenServices : undefined,
     });
 
     return { url: session.url };
@@ -307,12 +320,13 @@ export class CommercialController {
   @UseGuards(JwtAuthGuard)
   async confirmSession(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: { sessionId?: string; planId?: string },
+    @Body() body: { sessionId?: string; planId?: string; keepServices?: string[] },
   ) {
     let entitlement: string | undefined;
     let stripeSubscriptionId: string | undefined;
     let paymentStatus: 'success' | 'pending' | 'failed' = 'success';
     let customerEmailFromStripe: string | undefined;
+    let keepServices: string[] | undefined = body.keepServices;
 
     const isMockSession = body.sessionId?.startsWith('mock_');
 
@@ -346,6 +360,14 @@ export class CommercialController {
         }
 
         entitlement = session.metadata?.entitlement || body.planId;
+        if (session.metadata?.keepServices) {
+          try {
+            const parsed = JSON.parse(session.metadata.keepServices);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              keepServices = parsed;
+            }
+          } catch {}
+        }
         if (session.subscription) {
           stripeSubscriptionId =
             typeof session.subscription === 'string'
@@ -384,7 +406,7 @@ export class CommercialController {
       const otherActiveSubs = await this.prisma.subscription.findMany({
         where: {
           userId: user.id,
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
           entitlement: { not: subEntitlement },
         },
       });
@@ -394,7 +416,7 @@ export class CommercialController {
         await this.prisma.subscription.updateMany({
           where: {
             userId: user.id,
-            status: { in: ['active', 'trialing'] },
+            status: { in: ['active', 'trialing', 'past_due'] },
             entitlement: { not: subEntitlement },
           },
           data: {
@@ -420,7 +442,7 @@ export class CommercialController {
         where: {
           userId: user.id,
           entitlement: subEntitlement,
-          status: { in: ['active', 'trialing'] },
+          status: { in: ['active', 'trialing', 'past_due'] },
         },
       });
 
@@ -435,17 +457,21 @@ export class CommercialController {
             currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           },
         });
-      } else if (stripeSubscriptionId && existing.stripeId !== stripeSubscriptionId) {
+      } else {
         createdSub = await this.prisma.subscription.update({
           where: { id: existing.id },
           data: {
-            stripeId: stripeSubscriptionId,
+            stripeId: stripeSubscriptionId || existing.stripeId,
             status: 'active',
+            cancelAtPeriodEnd: false,
             currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             updatedAt: new Date(),
           },
         });
       }
+
+      // Automatically unpause/restore seller's product listings upon plan renewal
+      await this.commercial.restoreUserListings(user.id);
 
       // Automatically sync professional profile and verified status
       try {
@@ -474,11 +500,23 @@ export class CommercialController {
           where: { userId: user.id },
         });
 
+        const maxAllowed = COMMERCIAL_PLANS[entitlement as keyof typeof COMMERCIAL_PLANS]?.maxServicesAllowed || 1;
         const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
         const initialServices = [defaultService];
 
+        let finalServices = initialServices;
+        if (keepServices && keepServices.length > 0) {
+          finalServices = keepServices.slice(0, maxAllowed);
+        } else if (existingProf?.serviceAreas && existingProf.serviceAreas.length > 0) {
+          finalServices = existingProf.serviceAreas.length > maxAllowed
+            ? existingProf.serviceAreas.slice(0, maxAllowed)
+            : existingProf.serviceAreas;
+        }
+
+        const previousServices = existingProf?.serviceAreas || [];
+        const droppedServices = previousServices.filter((s: string) => !finalServices.includes(s));
+
         if (existingProf) {
-          const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
           await this.prisma.professionalProfile.update({
             where: { userId: user.id },
             data: {
@@ -486,7 +524,7 @@ export class CommercialController {
               category,
               isVerified: true,
               verifiedAt: existingProf.verifiedAt || new Date(),
-              serviceAreas: currentServices,
+              serviceAreas: finalServices,
             },
           });
         } else {
@@ -496,9 +534,25 @@ export class CommercialController {
               category,
               isVerified: true,
               verifiedAt: new Date(),
-              serviceAreas: initialServices,
+              serviceAreas: finalServices,
             },
           });
+        }
+
+        // Deactivate active products/breeding profiles for dropped services
+        if (droppedServices.length > 0) {
+          if (droppedServices.includes('seller')) {
+            await this.prisma.product.updateMany({
+              where: { sellerId: user.id, status: 'active', isDeleted: false },
+              data: { status: 'inactive', hiddenAt: new Date() },
+            });
+          }
+          if (droppedServices.includes('breeder')) {
+            await this.prisma.breedingProfile.updateMany({
+              where: { ownerId: user.id, availableNow: true, isDeleted: false },
+              data: { status: 'paused', availableNow: false },
+            });
+          }
         }
 
         await this.prisma.professionalSetting.upsert({
@@ -572,6 +626,17 @@ export class CommercialController {
       });
     }
 
+    // Filter past_due subscriptions to respect 7-day grace period
+    const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
+    subscriptions = subscriptions.filter((sub) => {
+      if (sub.status === 'active' || sub.status === 'trialing') return true;
+      if (sub.status === 'past_due') {
+        const elapsed = Date.now() - (sub.updatedAt ? new Date(sub.updatedAt).getTime() : Date.now());
+        return elapsed <= GRACE_PERIOD_MS;
+      }
+      return false;
+    });
+
     // Check highest active tier
     let tier: 'starter' | 'professional' | 'premium' | 'legacy' = 'starter';
     let maxServices = 1;
@@ -634,11 +699,22 @@ export class CommercialController {
       throw new BadRequestException('At least one service must be selected');
     }
 
-    const subscriptions = await this.prisma.subscription.findMany({
+    let subscriptions = await this.prisma.subscription.findMany({
       where: {
         userId: user.id,
         status: { in: ['active', 'trialing', 'past_due'] },
       },
+    });
+
+    // Filter past_due subscriptions to respect 7-day grace period
+    const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
+    subscriptions = subscriptions.filter((sub) => {
+      if (sub.status === 'active' || sub.status === 'trialing') return true;
+      if (sub.status === 'past_due') {
+        const elapsed = Date.now() - (sub.updatedAt ? new Date(sub.updatedAt).getTime() : Date.now());
+        return elapsed <= GRACE_PERIOD_MS;
+      }
+      return false;
     });
 
     if (subscriptions.length === 0 && user.role !== 'admin' && user.role !== 'super_admin') {

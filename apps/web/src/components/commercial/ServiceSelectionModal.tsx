@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ShoppingBag,
   Dna,
@@ -69,6 +70,8 @@ const AVAILABLE_SERVICES: ServiceOption[] = [
   },
 ]
 
+const emptySubscribe = () => () => {}
+
 export function ServiceSelectionModal({
   isOpen,
   onClose,
@@ -77,16 +80,39 @@ export function ServiceSelectionModal({
   maxServicesAllowed,
   initialSelectedServices = [],
 }: ServiceSelectionModalProps) {
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
   const [selected, setSelected] = useState<string[]>(initialSelectedServices)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Lock body scroll and listen for Escape key when open
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose()
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return () => {
+        document.body.style.overflow = prevOverflow
+        window.removeEventListener('keydown', onKeyDown)
+      }
+    }
+    return undefined
+  }, [isOpen, onClose])
 
   // Keep selected services in sync whenever the modal opens or parent passes loaded services
   React.useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
         if (initialSelectedServices && initialSelectedServices.length > 0) {
-          setSelected(initialSelectedServices)
+          // If user currently holds more services than allowed (e.g. following plan downgrade), trim to limit
+          if (initialSelectedServices.length > maxServicesAllowed) {
+            setSelected(initialSelectedServices.slice(0, maxServicesAllowed))
+          } else {
+            setSelected(initialSelectedServices)
+          }
         } else {
           // Fallback default for 1-service plan if none loaded
           setSelected(maxServicesAllowed === 1 ? ['seller'] : [])
@@ -98,7 +124,9 @@ export function ServiceSelectionModal({
     return undefined
   }, [isOpen, initialSelectedServices, maxServicesAllowed])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted || typeof document === 'undefined') return null
+
+  const isOverCapacity = initialSelectedServices.length > maxServicesAllowed
 
   const handleToggle = (serviceId: string) => {
     setError(null)
@@ -146,9 +174,15 @@ export function ServiceSelectionModal({
 
   const isSingleServicePlan = maxServicesAllowed === 1
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-surface dark:bg-zinc-900 rounded-3xl shadow-2xl border border-outline-variant/30 overflow-hidden flex flex-col max-h-[90vh]">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-2xl bg-surface dark:bg-zinc-900 rounded-3xl shadow-2xl border border-outline-variant/30 dark:border-white/10 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-6 pb-4 border-b border-outline-variant/20 flex items-start justify-between bg-surface-container-lowest">
           <div className="flex items-center gap-3">
@@ -175,15 +209,27 @@ export function ServiceSelectionModal({
           </button>
         </div>
 
-        {/* Notice for 1-service plan switching policy */}
-        {isSingleServicePlan && (
+        {/* Notice for plan downgrade service reduction */}
+        {isOverCapacity ? (
+          <div className="px-6 py-3 bg-amber-500/15 border-b border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-200">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+            <div>
+              <p className="font-semibold text-sm text-on-surface">
+                Your new plan includes {maxServicesAllowed} service{maxServicesAllowed > 1 ? 's' : ''}. Please select which service you wish to keep active.
+              </p>
+              <p className="text-[11px] text-outline dark:text-zinc-400 mt-0.5">
+                You currently have {initialSelectedServices.length} active services. Select {maxServicesAllowed === 1 ? '1 service' : `up to ${maxServicesAllowed} services`} to retain. Unselected services will be paused.
+              </p>
+            </div>
+          </div>
+        ) : isSingleServicePlan ? (
           <div className="px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 flex items-center gap-2 text-[12px] text-amber-700 dark:text-amber-300">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>
               Your plan includes <strong>1 active service</strong>. When you switch to a different service, listings from other services are automatically paused to prevent cross-service misuse.
             </span>
           </div>
-        )}
+        ) : null}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
@@ -289,6 +335,7 @@ export function ServiceSelectionModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
