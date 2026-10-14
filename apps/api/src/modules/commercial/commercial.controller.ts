@@ -8,6 +8,7 @@ import { COMMERCIAL_PLANS } from './commercial.constants';
 import type { SubscriptionEntitlement } from '@prisma/client';
 
 import { PaymentConfirmationEmailService } from '../payments/payment-confirmation-email.service';
+import { RateLimit } from '../common/decorators/rate-limit.decorator';
 
 import { CommercialService } from './commercial.service';
 
@@ -27,7 +28,7 @@ export class CommercialController {
   async getSubscriptions(@CurrentUser() user: AuthenticatedUser) {
     try {
       this.logger.log(`Fetching subscriptions for userId: ${user.id}`);
-      await this.commercial.reconcileExpiredSubscriptions().catch((e) => {
+      void this.commercial.reconcileExpiredSubscriptions().catch((e) => {
         this.logger.warn(`Reconcile expired subs failed: ${(e as Error).message}`);
       });
       let subscriptions = await this.prisma.subscription.findMany({
@@ -212,6 +213,7 @@ export class CommercialController {
 
   @Post('subscribe')
   @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, prefix: 'commercial.subscribe' })
   async subscribe(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { planId: string; origin?: string; keepServices?: string[]; selectedServices?: string[] },
@@ -318,17 +320,55 @@ export class CommercialController {
 
   @Post('confirm-session')
   @UseGuards(JwtAuthGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, prefix: 'commercial.confirm-session' })
   async confirmSession(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { sessionId?: string; planId?: string; keepServices?: string[] },
   ) {
+    // Gating check: User MUST be identity verified to confirm commercial plan
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: user.id },
+      select: {
+        identityStatus: true,
+        organizationStatus: true,
+        professionalProfile: { select: { isVerified: true } },
+      },
+    });
+
+    const isVerified =
+      profile?.identityStatus === 'approved' ||
+      profile?.organizationStatus === 'approved' ||
+      profile?.professionalProfile?.isVerified === true;
+
+    if (!isVerified) {
+      throw new ForbiddenException({
+        code: 'VERIFICATION_REQUIRED',
+        message: 'You must complete identity verification before confirming a commercial plan.',
+      });
+    }
+
     let entitlement: string | undefined;
     let stripeSubscriptionId: string | undefined;
     let paymentStatus: 'success' | 'pending' | 'failed' = 'success';
     let customerEmailFromStripe: string | undefined;
     let keepServices: string[] | undefined = body.keepServices;
 
+    const isDev = process.env.NODE_ENV !== 'production';
     const isMockSession = body.sessionId?.startsWith('mock_');
+
+    if (isMockSession && !isDev) {
+      throw new ForbiddenException({
+        code: 'INVALID_PAYMENT_SESSION',
+        message: 'Mock checkout sessions are only permitted in development mode.',
+      });
+    }
+
+    if (!this.stripe.enabled && !isDev) {
+      throw new BadRequestException({
+        code: 'PAYMENT_GATEWAY_NOT_CONFIGURED',
+        message: 'Payment gateway is not currently configured.',
+      });
+    }
 
     if (this.stripe.enabled && !isMockSession) {
       if (!body.sessionId) {
@@ -338,8 +378,8 @@ export class CommercialController {
         const session = await this.stripe.retrieveCheckoutSession(body.sessionId);
         customerEmailFromStripe = session.customer_details?.email || session.customer_email || undefined;
 
-        // Verify session belongs to the current user if client_reference_id is present
-        if (session.client_reference_id && session.client_reference_id !== user.id) {
+        // Verify session strictly belongs to the current user (IDOR prevention)
+        if (!session.client_reference_id || session.client_reference_id !== user.id) {
           throw new ForbiddenException('Checkout session does not belong to the authenticated user');
         }
 
@@ -373,6 +413,16 @@ export class CommercialController {
             typeof session.subscription === 'string'
               ? session.subscription
               : session.subscription.id;
+
+          // Prevent cross-tenant subscription theft
+          if (stripeSubscriptionId) {
+            const claimed = await this.prisma.subscription.findUnique({
+              where: { stripeId: stripeSubscriptionId },
+            });
+            if (claimed && claimed.userId !== user.id) {
+              throw new ForbiddenException('This payment session has already been claimed by another account');
+            }
+          }
         }
       } catch (err) {
         if (err instanceof BadRequestException || err instanceof ForbiddenException) throw err;
@@ -486,14 +536,13 @@ export class CommercialController {
 
         const category = categoryMap[entitlement as string] || 'product_seller';
 
-        // 1. Ensure Profile has identityStatus: approved
-        await this.prisma.profile.update({
-          where: { id: user.id },
-          data: {
-            identityStatus: 'approved',
-            ...(entitlement === 'care_professional' ? { credentialStatus: 'approved' } : {}),
-          },
-        });
+        // 1. If care_professional, ensure credentialStatus is approved
+        if (entitlement === 'care_professional') {
+          await this.prisma.profile.update({
+            where: { id: user.id },
+            data: { credentialStatus: 'approved' },
+          });
+        }
 
         // 2. Upsert ProfessionalProfile
         const existingProf = await this.prisma.professionalProfile.findUnique({
@@ -539,7 +588,7 @@ export class CommercialController {
           });
         }
 
-        // Deactivate active products/breeding profiles for dropped services
+        // Deactivate active products/breeding profiles/providers for dropped services
         if (droppedServices.length > 0) {
           if (droppedServices.includes('seller')) {
             await this.prisma.product.updateMany({
@@ -553,6 +602,28 @@ export class CommercialController {
               data: { status: 'paused', availableNow: false },
             });
           }
+          if (droppedServices.includes('care') || droppedServices.includes('vet')) {
+            const categories = [
+              droppedServices.includes('care') ? 'pet_care' : null,
+              droppedServices.includes('vet') ? 'vet' : null,
+            ].filter(Boolean) as string[];
+            await this.prisma.serviceProvider.updateMany({
+              where: { addedBy: user.id, category: { in: categories }, availableForBooking: true, isDeleted: false },
+              data: { availableForBooking: false, hiddenAt: new Date() },
+            });
+          }
+        }
+
+        // Restore active providers for services included in current plan
+        const activeCategories = [
+          finalServices.includes('care') ? 'pet_care' : null,
+          finalServices.includes('vet') ? 'vet' : null,
+        ].filter(Boolean) as string[];
+        if (activeCategories.length > 0) {
+          await this.prisma.serviceProvider.updateMany({
+            where: { addedBy: user.id, category: { in: activeCategories }, availableForBooking: false, hiddenAt: { not: null }, isDeleted: false },
+            data: { availableForBooking: true, hiddenAt: null },
+          });
         }
 
         await this.prisma.professionalSetting.upsert({
@@ -656,20 +727,65 @@ export class CommercialController {
       maxServices = COMMERCIAL_PLANS.starter.maxServicesAllowed;
     }
 
-    const prof = await this.prisma.professionalProfile.findUnique({
+    let prof = await this.prisma.professionalProfile.findUnique({
       where: { userId: user.id },
       select: { serviceAreas: true, category: true, isVerified: true },
     });
 
-    const activeServices: string[] = (prof?.serviceAreas || []).filter((s) =>
+    if (!prof && subscriptions.length > 0) {
+      const defaultCategory: import('@prisma/client').ProfessionalCategory = 'product_seller';
+      const defaultServices = ['seller'];
+      prof = await this.prisma.professionalProfile.create({
+        data: {
+          userId: user.id,
+          category: defaultCategory,
+          isVerified: true,
+          verifiedAt: new Date(),
+          serviceAreas: defaultServices,
+        },
+        select: { serviceAreas: true, category: true, isVerified: true },
+      }).catch(() => null);
+    }
+
+    const rawActiveServices: string[] = (prof?.serviceAreas || []).filter((s) =>
       ['seller', 'breeder', 'care', 'vet'].includes(s),
     );
 
     // If no services chosen yet but profile has legacy category, infer default
-    if (activeServices.length === 0 && prof?.category) {
-      if (prof.category === 'veterinarian') activeServices.push('vet');
-      else if (prof.category === 'pet_care_service_provider') activeServices.push('care');
-      else activeServices.push('seller');
+    if (rawActiveServices.length === 0 && prof?.category) {
+      if (prof.category === 'veterinarian') rawActiveServices.push('vet');
+      else if (prof.category === 'pet_care_service_provider') rawActiveServices.push('care');
+      else rawActiveServices.push('seller');
+    }
+
+    // STRICT QUOTA ENFORCEMENT ON DOWNGRADE:
+    // If user's active services exceed their current plan's allowance (e.g. following plan degrade to starter):
+    // 1. Truncate active services strictly to maxServices
+    // 2. Identify dropped services
+    // 3. Immediately pause/deactivate listings for dropped services in the database
+    // 4. Update professionalProfile.serviceAreas in the database so unincluded services cannot be used
+    let activeServices = rawActiveServices;
+    if (rawActiveServices.length > maxServices) {
+      activeServices = rawActiveServices.slice(0, maxServices);
+      const droppedServices = rawActiveServices.slice(maxServices);
+
+      await this.prisma.professionalProfile.update({
+        where: { userId: user.id },
+        data: { serviceAreas: activeServices },
+      }).catch((e) => this.logger.warn(`Could not sync serviceAreas quota: ${(e as Error).message}`));
+
+      if (droppedServices.includes('seller')) {
+        await this.prisma.product.updateMany({
+          where: { sellerId: user.id, status: 'active', isDeleted: false },
+          data: { status: 'inactive', hiddenAt: new Date() },
+        });
+      }
+      if (droppedServices.includes('breeder')) {
+        await this.prisma.breedingProfile.updateMany({
+          where: { ownerId: user.id, availableNow: true, isDeleted: false },
+          data: { status: 'paused', availableNow: false },
+        });
+      }
     }
 
     return {
@@ -688,6 +804,28 @@ export class CommercialController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { services: string[] },
   ) {
+    // Gating check: User MUST be identity verified to select or manage active services
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: user.id },
+      select: {
+        identityStatus: true,
+        organizationStatus: true,
+        professionalProfile: { select: { isVerified: true } },
+      },
+    });
+
+    const isVerified =
+      profile?.identityStatus === 'approved' ||
+      profile?.organizationStatus === 'approved' ||
+      profile?.professionalProfile?.isVerified === true;
+
+    if (!isVerified) {
+      throw new ForbiddenException({
+        code: 'VERIFICATION_REQUIRED',
+        message: 'You must complete identity verification before selecting or managing active services.',
+      });
+    }
+
     if (!body.services || !Array.isArray(body.services)) {
       throw new BadRequestException('Services must be an array');
     }
@@ -705,6 +843,16 @@ export class CommercialController {
         status: { in: ['active', 'trialing', 'past_due'] },
       },
     });
+
+    if (subscriptions.length === 0 && this.stripe.enabled) {
+      await this.commercial.syncUserSubscriptionsFromStripe(user.id, user.email);
+      subscriptions = await this.prisma.subscription.findMany({
+        where: {
+          userId: user.id,
+          status: { in: ['active', 'trialing', 'past_due'] },
+        },
+      });
+    }
 
     // Filter past_due subscriptions to respect 7-day grace period
     const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -787,13 +935,25 @@ export class CommercialController {
       }
     }
 
-    await this.prisma.profile.update({
-      where: { id: user.id },
-      data: {
-        identityStatus: 'approved',
-        ...(selected.includes('care') ? { credentialStatus: 'approved' } : {}),
-      },
-    });
+    // Restore active listings for newly activated services
+    if (selected.includes('seller')) {
+      await this.commercial.restoreUserListings(user.id);
+    }
+    if (selected.includes('breeder')) {
+      await this.prisma.breedingProfile.updateMany({
+        where: { ownerId: user.id, isDeleted: false, availableNow: false },
+        data: { availableNow: true },
+      });
+    }
+
+    if (selected.includes('care')) {
+      await this.prisma.profile.update({
+        where: { id: user.id },
+        data: {
+          credentialStatus: 'approved',
+        },
+      });
+    }
 
     return {
       data: {

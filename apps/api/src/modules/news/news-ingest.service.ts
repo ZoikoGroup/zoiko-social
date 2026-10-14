@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { XMLParser } from 'fast-xml-parser'
 import { PrismaService } from '../prisma/prisma.service'
-import { NewsCoverService, MIN_COVER_WIDTH } from './news-cover.service'
+import { NewsCoverService, MIN_COVER_WIDTH, isBlockedHost } from './news-cover.service'
 import { readImageDimensions } from './image-size'
 
 /**
@@ -165,6 +165,13 @@ export class NewsIngestService {
 
   /** True only when the publisher has definitively taken the page down. */
   private async isGone(url: string): Promise<boolean> {
+    try {
+      const { hostname } = new URL(url)
+      if (isBlockedHost(hostname)) return false
+    } catch {
+      return false
+    }
+
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
     try {
@@ -227,9 +234,12 @@ export class NewsIngestService {
   private async fetchFeed(url: string): Promise<string> {
     // Only http(s), and resolved from the stored URL rather than matched by
     // pattern, so a file: or data: URL in the source list cannot read the disk.
-    const { protocol } = new URL(url)
+    const { protocol, hostname } = new URL(url)
     if (protocol !== 'http:' && protocol !== 'https:') {
       throw new Error('Feed URL must be http or https')
+    }
+    if (isBlockedHost(hostname)) {
+      throw new Error(`Refused feed from a blocked host: ${hostname}`)
     }
 
     const controller = new AbortController()
@@ -245,6 +255,11 @@ export class NewsIngestService {
         },
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const finalHost = new URL(res.url).hostname
+      if (isBlockedHost(finalHost)) {
+        throw new Error(`Refused feed after redirect to a blocked host: ${finalHost}`)
+      }
 
       const text = await res.text()
       if (text.length > MAX_FEED_BYTES) throw new Error('Feed too large')
@@ -417,6 +432,9 @@ export class NewsIngestService {
   /** The stored cover's real width, or null if it cannot be read. */
   private async measureCover(url: string): Promise<number | null> {
     try {
+      const { hostname } = new URL(url)
+      if (isBlockedHost(hostname)) return null
+
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 10_000)
       try {

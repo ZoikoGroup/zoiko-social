@@ -46,7 +46,10 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: true }),
+    new FastifyAdapter({
+      logger: true,
+      bodyLimit: 10 * 1024 * 1024,
+    }),
   )
 
   const logger = new Logger('Bootstrap')
@@ -95,13 +98,35 @@ async function bootstrap(): Promise<void> {
   }
 
   // ── CORS ─────────────────────────────────────────────────────────────────
-  // @fastify/cors only allows GET,HEAD,POST by default — PUT/DELETE/PATCH
-  // must be declared explicitly or browser preflights fail.
+  // Support comma-separated origins, wildcard, and cache preflights for 24h
+  // to avoid preflight storms DDoS'ing the API.
+  const allowedOrigins = config.allowedOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+
   app.enableCors({
-    origin: config.allowedOrigin,
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return cb(null, true)
+      }
+      return cb(new Error('Not allowed by CORS'), false)
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-Internal-Secret',
+      'Idempotency-Key',
+      'sentry-trace',
+      'baggage',
+      'Accept',
+      'Range',
+    ],
+    maxAge: 86400,
   })
 
   // ── Global API prefix ────────────────────────────────────────────────────
@@ -119,7 +144,7 @@ async function bootstrap(): Promise<void> {
   fastifyInstance.removeContentTypeParser('application/json')
   fastifyInstance.addContentTypeParser(
     'application/json',
-    { parseAs: 'buffer' },
+    { parseAs: 'buffer', bodyLimit: 10 * 1024 * 1024 },
     (req: unknown, body: Buffer, done: (err: Error | null, result?: unknown) => void) => {
       ;(req as { rawBody?: Buffer }).rawBody = body
       try {

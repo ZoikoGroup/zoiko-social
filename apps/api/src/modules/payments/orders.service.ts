@@ -99,14 +99,20 @@ export class OrdersService {
         },
       })
       
-      // Immediately decrement stock for offline reservation
-      const updatedProduct = await tx.product.update({
-        where: { id: productId },
+      // Immediately decrement stock for reservation with atomic concurrency check
+      const updateResult = await tx.product.updateMany({
+        where: { id: productId, stock: { gte: quantity }, isDeleted: false, status: 'active' },
         data: { stock: { decrement: quantity } },
+      })
+      if (updateResult.count === 0) {
+        throw new BadRequestException({ code: 'INSUFFICIENT_STOCK', message: 'Not enough stock available' })
+      }
+      
+      const updatedProduct = await tx.product.findUnique({
+        where: { id: productId },
         select: { stock: true },
       })
-      
-      if (updatedProduct.stock <= 0) {
+      if (updatedProduct && updatedProduct.stock <= 0) {
         await tx.product.update({ where: { id: productId }, data: { status: 'sold' } })
       }
       return newOrder

@@ -74,81 +74,78 @@ export class SubscriptionGuard implements CanActivate {
 
     const activeEntitlements = subscriptions.map((sub) => sub.entitlement)
 
-    // Check if the user has any of the directly matching required entitlements
-    let hasRequiredSubscription = requiredEntitlements.some(entitlement => activeEntitlements.includes(entitlement))
+    // Map required entitlement to service keyword
+    const entitlementToService: Record<string, string> = {
+      seller_professional: 'seller',
+      breeder_professional: 'breeder',
+      care_professional: 'care',
+    }
 
-    // If not directly matched, check if user has active plan tier (starter, professional, premium)
-    // and whether the required entitlement matches their selected services
-    const planEntitlements: string[] = activeEntitlements
-    if (!hasRequiredSubscription && (planEntitlements.includes('starter') || planEntitlements.includes('professional') || planEntitlements.includes('premium'))) {
-      // Map required entitlement to service keyword
-      const entitlementToService: Record<string, string> = {
-        seller_professional: 'seller',
-        breeder_professional: 'breeder',
-        care_professional: 'care',
-      }
+    // Determine highest active tier and maxServicesAllowed
+    let maxAllowedServices = 0
+    const hasPremium = activeEntitlements.includes('premium' as SubscriptionEntitlement)
+    const hasProfessional = activeEntitlements.includes('professional' as SubscriptionEntitlement)
+    const hasStarter = activeEntitlements.includes('starter' as SubscriptionEntitlement)
 
+    if (hasPremium) {
+      maxAllowedServices = 4
+    } else if (hasProfessional) {
+      maxAllowedServices = 2
+    } else if (hasStarter) {
+      maxAllowedServices = 1
+    } else if (
+      activeEntitlements.includes('care_professional' as SubscriptionEntitlement) ||
+      activeEntitlements.includes('breeder_professional' as SubscriptionEntitlement) ||
+      activeEntitlements.includes('seller_professional' as SubscriptionEntitlement)
+    ) {
+      maxAllowedServices = 1
+    }
+
+    let hasRequiredSubscription = false
+
+    if (maxAllowedServices > 0) {
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId: user.id },
-        select: { serviceAreas: true, category: true }
+        select: { serviceAreas: true, category: true },
       })
 
-      const allocatedServices = prof?.serviceAreas || []
+      // Premium unlocks all commercial services
+      if (hasPremium || maxAllowedServices >= 4) {
+        hasRequiredSubscription = true
+      } else {
+        const rawServices = (prof?.serviceAreas || []).filter((s) =>
+          ['seller', 'breeder', 'care', 'vet'].includes(s),
+        )
 
-      for (const req of requiredEntitlements) {
-        if (req === 'care_professional' && (allocatedServices.includes('care') || allocatedServices.includes('vet'))) {
-          hasRequiredSubscription = true
-          break
+        // Strictly enforce maxAllowedServices quota (e.g. Starter = 1, Professional = 2)
+        let effectiveServices = rawServices.slice(0, maxAllowedServices)
+        if (effectiveServices.length === 0 && prof?.category) {
+          const defaultService =
+            prof.category === 'veterinarian'
+              ? 'vet'
+              : prof.category === 'pet_care_service_provider'
+                ? 'care'
+                : 'seller'
+          effectiveServices = [defaultService]
         }
-        const sKey = entitlementToService[req as string]
-        if (sKey && allocatedServices.includes(sKey)) {
-          hasRequiredSubscription = true
-          break
-        }
-      }
 
-      // If user has subscription but hasn't explicitly selected yet, allow all for premium
-      // or auto-allocate the required service if none are chosen yet
-      if (!hasRequiredSubscription) {
-        if (planEntitlements.includes('premium')) {
-          hasRequiredSubscription = true
-        } else if (allocatedServices.length === 0) {
-          hasRequiredSubscription = true
-          const req = requiredEntitlements[0]
-          const defaultService = req === 'care_professional' ? 'care' : req === 'breeder_professional' ? 'breeder' : 'seller'
-          const defaultCategory = req === 'care_professional' ? 'pet_care_service_provider' : 'product_seller'
-          try {
-            if (prof) {
-              await this.prisma.professionalProfile.update({
-                where: { userId: user.id },
-                data: {
-                  serviceAreas: [defaultService],
-                  category: prof.category || defaultCategory,
-                  deletedAt: null,
-                },
-              })
-            } else {
-              await this.prisma.professionalProfile.create({
-                data: {
-                  userId: user.id,
-                  category: defaultCategory,
-                  serviceAreas: [defaultService],
-                  isVerified: true,
-                  verifiedAt: new Date(),
-                },
-              })
-            }
-          } catch {
-            // Non-blocking catch
+        // Check if required entitlement matches user's active, allowed services
+        for (const req of requiredEntitlements) {
+          // Direct legacy entitlement match (only if holding that specific legacy subscription)
+          if (activeEntitlements.includes(req) && !hasStarter && !hasProfessional) {
+            hasRequiredSubscription = true
+            break
           }
-        } else if (prof?.category) {
-          const cat = prof.category
-          if (requiredEntitlements.includes('seller_professional') && cat === 'product_seller') {
+
+          if (req === 'care_professional' && (effectiveServices.includes('care') || effectiveServices.includes('vet'))) {
             hasRequiredSubscription = true
-          } else if (requiredEntitlements.includes('breeder_professional') && cat === 'product_seller') {
+            break
+          }
+
+          const sKey = entitlementToService[req as string]
+          if (sKey && effectiveServices.includes(sKey)) {
             hasRequiredSubscription = true
-          } else if (requiredEntitlements.includes('care_professional') && (cat === 'pet_care_service_provider' || cat === 'veterinarian')) {
-            hasRequiredSubscription = true
+            break
           }
         }
       }

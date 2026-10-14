@@ -75,11 +75,18 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
 
   async function sendRequest(): Promise<void> {
     if (reqState === 'sending') return
+    if (!user) {
+      router.push(`/login?redirect=/breeding-match/${id}`)
+      return
+    }
     setReqState('sending')
     try {
       const res = await breedingApi.request(id, message.trim() ? { message: message.trim() } : {})
       setReqState('sent'); setMyRequestId(res.id); setRequestOpen(false)
-    } catch { setReqState('idle') }
+    } catch (err) {
+      setReqState('idle')
+      alert(err instanceof Error ? err.message : 'Failed to send match request')
+    }
   }
   async function respond(requestId: string, status: 'accepted' | 'declined'): Promise<void> {
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, status } : r))
@@ -166,7 +173,18 @@ export default function BreedingDetailPage({ params }: { params: Promise<{ id: s
                 ) : reqState === 'sent' ? (
                   <button onClick={() => myRequestId && setChat({ requestId: myRequestId, title: `Chat about ${profile.petName}` })} disabled={!myRequestId} className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 disabled:opacity-60 cursor-pointer"><MessageCircle className="w-4 h-4" />Open chat</button>
                 ) : (
-                  <button onClick={() => setRequestOpen(true)} className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 cursor-pointer"><HeartHandshake className="w-4 h-4" />Request match</button>
+                  <button
+                    onClick={() => {
+                      if (!user) {
+                        router.push(`/login?redirect=/breeding-match/${id}`)
+                        return
+                      }
+                      setRequestOpen(true)
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 cursor-pointer"
+                  >
+                    <HeartHandshake className="w-4 h-4" />Request match
+                  </button>
                 )}
                 {!isOwner && reqState === 'sent' && <p className="flex items-center gap-1 text-[11px] text-emerald-600"><Check className="w-3 h-3" />Request sent — chat privately; details are never auto-shared.</p>}
                 <Link href="/vet-finder" className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-label-sm font-semibold hover:bg-surface-container-high"><Stethoscope className="w-4 h-4" />Book a pre-mating vet check</Link>

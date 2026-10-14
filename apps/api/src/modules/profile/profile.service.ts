@@ -1342,6 +1342,14 @@ export class ProfileService {
       })
     }
 
+    // Storage tenant isolation: a user can only attach document keys within their own user folder
+    if (!documentUrl.startsWith(`${userId}/`) && !documentUrl.includes(`/${userId}/`)) {
+      throw new BadRequestException({
+        code: 'INVALID_STORAGE_KEY',
+        message: 'Document storage key must reside within your own storage directory',
+      })
+    }
+
     const doc = await this.prisma.verificationDocument.create({
       data: { requestId, documentType, documentUrl, fileName, fileSize, mimeType },
     })

@@ -40,9 +40,17 @@ export function BillingSettings() {
   const router = useRouter()
   const { profile } = useAuth()
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([])
-  const [activeServices, setActiveServices] = useState<string[]>([])
-  const [activeTier, setActiveTier] = useState<string>('starter')
-  const [maxServicesAllowed, setMaxServicesAllowed] = useState<number>(1)
+  const [activeServices, setActiveServices] = useState<string[]>(
+    () => profile?.professionalProfile?.serviceAreas || []
+  )
+  const [activeTier, setActiveTier] = useState<string>(() => {
+    const areas = profile?.professionalProfile?.serviceAreas || []
+    return areas.length > 2 ? 'premium' : areas.length > 1 ? 'professional' : 'starter'
+  })
+  const [maxServicesAllowed, setMaxServicesAllowed] = useState<number>(() => {
+    const areas = profile?.professionalProfile?.serviceAreas || []
+    return areas.length > 2 ? 4 : areas.length > 1 ? 2 : 1
+  })
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [subscribingPlan, setSubscribingPlan] = useState<string | null>(null)
@@ -103,7 +111,12 @@ export function BillingSettings() {
       try {
         const [subsRes, servicesRes] = await Promise.allSettled([
           request<UserSubscription[] | { data: UserSubscription[] | { data: UserSubscription[] } }>('/commercial/subscriptions'),
-          request<{ data: { tier: string; maxServicesAllowed: number; activeServices: string[] } }>('/commercial/active-services'),
+          request<{
+            tier?: string
+            maxServicesAllowed?: number
+            activeServices?: string[]
+            data?: { tier?: string; maxServicesAllowed?: number; activeServices?: string[] }
+          }>('/commercial/active-services'),
         ])
 
         if (isMounted) {
@@ -118,10 +131,23 @@ export function BillingSettings() {
             }
           }
 
-          if (servicesRes.status === 'fulfilled' && servicesRes.value?.data) {
-            setActiveServices(servicesRes.value.data.activeServices || [])
-            setActiveTier(servicesRes.value.data.tier || 'starter')
-            setMaxServicesAllowed(servicesRes.value.data.maxServicesAllowed || 1)
+          if (servicesRes.status === 'fulfilled' && servicesRes.value) {
+            const rawVal = servicesRes.value
+            const sData = (rawVal?.data && (rawVal.data.activeServices !== undefined || rawVal.data.tier !== undefined))
+              ? rawVal.data
+              : rawVal
+            if (sData) {
+              const maxAllowed = sData.maxServicesAllowed || 1
+              const rawLoadedServices: string[] = Array.isArray(sData.activeServices) && sData.activeServices.length > 0
+                ? sData.activeServices
+                : (profile?.professionalProfile?.serviceAreas || [])
+              const loadedServices = rawLoadedServices.slice(0, maxAllowed)
+              setActiveServices(loadedServices)
+              if (sData.tier) setActiveTier(sData.tier)
+              if (sData.maxServicesAllowed) setMaxServicesAllowed(sData.maxServicesAllowed)
+            }
+          } else if (profile?.professionalProfile?.serviceAreas && profile.professionalProfile.serviceAreas.length > 0) {
+            setActiveServices(profile.professionalProfile.serviceAreas.slice(0, maxServicesAllowed || 1))
           }
         }
       } catch (err) {
@@ -134,7 +160,7 @@ export function BillingSettings() {
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [profile?.professionalProfile?.serviceAreas, maxServicesAllowed])
 
   const handleStripeCheckout = async (plan: string, keepServices?: string[]) => {
     if (!isVerified) {
@@ -515,151 +541,184 @@ export function BillingSettings() {
         </div>
       )}
 
-      {/* Active Subscription & Autopay Status Card */}
-      {activeSubscription && (
-        <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-600/15 text-emerald-600 dark:text-emerald-400">
-                <CreditCard className="w-4 h-4" />
-              </span>
-              <h4 className="font-bold text-on-surface text-base">
-                Billing & Membership Status
-              </h4>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 capitalize">
-                {activeSubscription.entitlement.replace('_professional', '').replace('_', ' ')} Plan
-              </span>
-              {isPastDue ? (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Payment Pending (Grace Period Active)
-                </span>
-              ) : activeSubscription.cancelAtPeriodEnd ? (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Auto-Renewal OFF
-                </span>
-              ) : (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3" />
-                  Auto-Renewal ON
-                </span>
-              )}
+      {/* Loading Skeletons for Status & Services Cards */}
+      {loading ? (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-5 animate-pulse">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-surface-container-high" />
+                <div className="h-5 w-48 bg-surface-container-high rounded-md" />
+                <div className="h-5 w-24 bg-surface-container-high rounded-full" />
+              </div>
+              <div className="h-3.5 w-72 bg-surface-container-high rounded" />
             </div>
-
-            <div className="text-xs text-outline space-y-1">
-              {isPastDue ? (
-                <p className="text-amber-600 dark:text-amber-400 font-medium">
-                  Your recurring payment failed and is currently in a <strong>7-day grace period</strong>. Smart retries are scheduled. Your business services and listings stay online so your business is not interrupted.
-                </p>
-              ) : activeSubscription.cancelAtPeriodEnd ? (
-                <p className="text-amber-600 dark:text-amber-400 font-medium">
-                  Auto-renewal has been cancelled. Your membership and commercial tools stay <strong>fully active until {formatDate(activeSubscription.currentPeriodEnd)}</strong>. You will not be charged again.
-                </p>
-              ) : (
-                <p>
-                  Your membership automatically renews on <strong className="text-on-surface">{formatDate(activeSubscription.currentPeriodEnd)}</strong>. Next billing cycle amount: {currentActivePlan?.price || '$49.99'}/mo.
-                </p>
-              )}
-            </div>
+            <div className="h-9 w-32 bg-surface-container-high rounded-xl self-start md:self-center" />
           </div>
-
-          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
-            {isPastDue ? (
-              <button
-                type="button"
-                onClick={handleOpenBillingPortal}
-                disabled={openingPortal}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
-              >
-                {openingPortal ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Opening...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-3.5 h-3.5" />
-                    Update Payment Method
-                  </>
-                )}
-              </button>
-            ) : activeSubscription.cancelAtPeriodEnd ? (
-              <button
-                type="button"
-                onClick={handleResumeAutopay}
-                disabled={resumingAutopay}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
-              >
-                {resumingAutopay ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Resuming...
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Resume Auto-Renewal
-                  </>
-                )}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowCancelAutopayModal(true)}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/40 text-xs font-semibold text-on-surface hover:text-amber-600 dark:hover:text-amber-400 transition-colors whitespace-nowrap"
-              >
-                <X className="w-3.5 h-3.5" />
-                Cancel Autopay
-              </button>
-            )}
+          <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-surface-container-high" />
+                <div className="h-5 w-40 bg-surface-container-high rounded-md" />
+                <div className="h-5 w-20 bg-surface-container-high rounded-full" />
+              </div>
+              <div className="h-3.5 w-60 bg-surface-container-high rounded" />
+              <div className="flex gap-2 pt-1">
+                <div className="h-6 w-36 bg-surface-container-high rounded-lg" />
+              </div>
+            </div>
+            <div className="h-9 w-36 bg-surface-container-high rounded-xl self-start sm:self-center" />
           </div>
         </div>
-      )}
-
-      {/* Active Services Allocation Management Card */}
-      {activeSubscription && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container to-surface-container border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary text-white">
-                <Layers className="w-4 h-4" />
-              </span>
-              <h4 className="font-bold text-on-surface text-base">Your Active Services</h4>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 capitalize">
-                {activeTier} Plan
-              </span>
-            </div>
-            <p className="text-xs text-outline">
-              Using <span className="font-semibold text-on-surface">{activeServices.length}</span> of <span className="font-semibold text-on-surface">{maxServicesAllowed}</span> allowed service allocations for this subscription.
-            </p>
-            <div className="flex items-center gap-2 pt-2 flex-wrap">
-              {activeServices.length === 0 ? (
-                <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                  No services activated yet. Click manage to choose your services.
-                </span>
-              ) : (
-                activeServices.map((srv) => (
-                  <span
-                    key={srv}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high border border-outline-variant/30 text-xs font-semibold text-on-surface"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    {serviceNameMap[srv] || srv}
+      ) : (
+        <>
+          {/* Active Subscription & Autopay Status Card */}
+          {activeSubscription && (
+            <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-600/15 text-emerald-600 dark:text-emerald-400">
+                    <CreditCard className="w-4 h-4" />
                   </span>
-                ))
-              )}
-            </div>
-          </div>
+                  <h4 className="font-bold text-on-surface text-base">
+                    Billing & Membership Status
+                  </h4>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 capitalize">
+                    {activeSubscription.entitlement.replace('_professional', '').replace('_', ' ')} Plan
+                  </span>
+                  {isPastDue ? (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Payment Pending (Grace Period Active)
+                    </span>
+                  ) : activeSubscription.cancelAtPeriodEnd ? (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Auto-Renewal OFF
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Auto-Renewal ON
+                    </span>
+                  )}
+                </div>
 
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap self-start sm:self-center"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            Manage Active Services
-          </button>
-        </div>
+                <div className="text-xs text-outline space-y-1">
+                  {isPastDue ? (
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">
+                      Your recurring payment failed and is currently in a <strong>7-day grace period</strong>. Smart retries are scheduled. Your business services and listings stay online so your business is not interrupted.
+                    </p>
+                  ) : activeSubscription.cancelAtPeriodEnd ? (
+                    <p className="text-amber-600 dark:text-amber-400 font-medium">
+                      Auto-renewal has been cancelled. Your membership and commercial tools stay <strong>fully active until {formatDate(activeSubscription.currentPeriodEnd)}</strong>. You will not be charged again.
+                    </p>
+                  ) : (
+                    <p>
+                      Your membership automatically renews on <strong className="text-on-surface">{formatDate(activeSubscription.currentPeriodEnd)}</strong>. Next billing cycle amount: {currentActivePlan?.price || '$49.99'}/mo.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                {isPastDue ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenBillingPortal}
+                    disabled={openingPortal}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
+                  >
+                    {openingPortal ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Opening...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-3.5 h-3.5" />
+                        Update Payment Method
+                      </>
+                    )}
+                  </button>
+                ) : activeSubscription.cancelAtPeriodEnd ? (
+                  <button
+                    type="button"
+                    onClick={handleResumeAutopay}
+                    disabled={resumingAutopay}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap disabled:opacity-60"
+                  >
+                    {resumingAutopay ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Resuming...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Resume Auto-Renewal
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelAutopayModal(true)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-surface-container-high hover:bg-surface-container-highest border border-outline-variant/40 text-xs font-semibold text-on-surface hover:text-amber-600 dark:hover:text-amber-400 transition-colors whitespace-nowrap"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Cancel Autopay
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Active Services Allocation Management Card */}
+          {activeSubscription && (
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-surface-container to-surface-container border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-primary text-white">
+                    <Layers className="w-4 h-4" />
+                  </span>
+                  <h4 className="font-bold text-on-surface text-base">Your Active Services</h4>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 capitalize">
+                    {activeTier} Plan
+                  </span>
+                </div>
+                <p className="text-xs text-outline">
+                  Using <span className="font-semibold text-on-surface">{activeServices.length}</span> of <span className="font-semibold text-on-surface">{maxServicesAllowed}</span> allowed service allocations for this subscription.
+                </p>
+                <div className="flex items-center gap-2 pt-2 flex-wrap">
+                  {activeServices.length === 0 ? (
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                      No services activated yet. Click manage to choose your services.
+                    </span>
+                  ) : (
+                    activeServices.map((srv) => (
+                      <span
+                        key={srv}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-high border border-outline-variant/30 text-xs font-semibold text-on-surface"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        {serviceNameMap[srv] || srv}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold shadow-sm transition-colors whitespace-nowrap self-start sm:self-center"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Manage Active Services
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Plans Grid */}
@@ -687,6 +746,11 @@ export function BillingSettings() {
                     CURRENT ACTIVE PLAN
                   </span>
                   <span className="text-[11px] font-medium opacity-90">Active</span>
+                </div>
+              ) : !isVerified ? (
+                <div className="absolute top-0 right-0 bg-amber-500/20 text-amber-700 dark:text-amber-400 border-b border-l border-amber-500/30 text-[10px] font-bold px-2.5 py-1 rounded-bl-lg flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-500" />
+                  VERIFICATION REQUIRED
                 </div>
               ) : plan.popular ? (
                 <div className="absolute top-0 right-0 bg-primary text-on-primary text-[10px] font-bold px-2 py-1 rounded-bl-lg">
@@ -773,7 +837,9 @@ export function BillingSettings() {
               </div>
 
               <div className="p-4 border-t border-outline-variant/20 bg-surface-container-high/30">
-                {isCurrentActive ? (
+                {loading ? (
+                  <div className="w-full h-10 rounded-lg bg-surface-container-high animate-pulse" />
+                ) : isCurrentActive ? (
                   <div className="space-y-2">
                     {isPastDue ? (
                       <button

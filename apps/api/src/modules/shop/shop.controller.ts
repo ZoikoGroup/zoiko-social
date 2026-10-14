@@ -67,13 +67,15 @@ export class ShopController {
   @Post()
   @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
   @RequireVerified('identity', 'organization')
-  @RequireSubscription('seller_professional', 'starter', 'professional', 'premium')
+  @RequireSubscription('seller_professional')
   async create(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateProductSchema)) body: CreateProductInput) {
     return { data: await this.shop.create(user.id, body) }
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('seller_professional')
   async update(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body(new ZodValidationPipe(UpdateProductSchema)) body: UpdateProductInput) {
     return { data: await this.shop.update(id, user.id, body) }
   }

@@ -8,7 +8,7 @@ import {
   Baby, ArrowUpRight, Calendar,
 } from 'lucide-react'
 import { usePagedList } from '@/hooks/use-cache'
-import { breedingApi, adoptionApi, petsApi, type BreedingProfile, type BreedingFilters, type BreedingAlert, type BreedingLitter, type Pet } from '@/lib/api'
+import { breedingApi, adoptionApi, petsApi, request, type BreedingProfile, type BreedingFilters, type BreedingAlert, type BreedingLitter, type Pet } from '@/lib/api'
 import { BreedingProfileModal } from '@/components/breeding/BreedingProfileModal'
 import { Img } from '@/components/Img'
 import { LocationLink } from '@/components/LocationLink'
@@ -43,12 +43,39 @@ export default function BreedingMatchPage(): React.JSX.Element {
   const [edit, setEdit] = useState<BreedingProfile | null>(null)
   const { profile } = useAuth()
 
-  const handleListPet = () => {
+  const handleListPet = async () => {
     if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
       window.alert('You must be Identity or Organization Verified to list a breeding profile. Please complete verification in your settings.')
       return
     }
-    // Note: Subscription check would also happen here in a full UI flow.
+
+    try {
+      const res = await request<{
+        maxServicesAllowed?: number
+        activeServices?: string[]
+        data?: { maxServicesAllowed?: number; activeServices?: string[] }
+      }>('/commercial/active-services')
+      const sData = res?.data || res
+      const maxAllowed = sData?.maxServicesAllowed || 1
+      const rawActive = Array.isArray(sData?.activeServices) ? sData.activeServices : (profile?.professionalProfile?.serviceAreas || [])
+      const activeServices = rawActive.slice(0, maxAllowed)
+      const hasBreeder = activeServices.includes('breeder')
+      if (!hasBreeder) {
+        if (window.confirm('Your current subscription plan allows ' + maxAllowed + ' active service(s) and Breeder & Stud Service is not active. Would you like to manage your active services in Billing & Plans?')) {
+          router.push('/settings?section=billing')
+        }
+        return
+      }
+    } catch {
+      const areas = (profile?.professionalProfile?.serviceAreas || []).slice(0, 1)
+      if (!areas.includes('breeder')) {
+        if (window.confirm('Breeder & Stud Service is not active on your current plan. Would you like to visit Billing & Plans to activate it?')) {
+          router.push('/settings?section=billing')
+        }
+        return
+      }
+    }
+
     setEdit(null)
     setFormOpen(true)
   }

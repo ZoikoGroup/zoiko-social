@@ -26,17 +26,26 @@ const MODE_ICON: Record<string, typeof Video> = { in_clinic: Building2, home_vis
 export default function VetFinderPage(): React.JSX.Element {
   const { loading: authLoading, isAuthenticated } = useAuth()
   const router = useRouter()
-  const [query, setQuery] = useState('')
-  const [location, setLocation] = useState('')
+  const [query, setQuery] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('q') || ''
+  })
+  const [location, setLocation] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('location') || ''
+  })
   const [emergency, setEmergency] = useState(false)
   const [openNow, setOpenNow] = useState(false)
-  const [specialty, setSpecialty] = useState('')
+  const [specialty, setSpecialty] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return new URLSearchParams(window.location.search).get('specialty') || ''
+  })
   const [near, setNear] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) window.location.replace('/login')
+    if (!authLoading && !isAuthenticated) window.location.replace('/login?redirect=/vet-finder')
   }, [authLoading, isAuthenticated])
 
   const filters = useMemo<ProviderFilters>(() => ({

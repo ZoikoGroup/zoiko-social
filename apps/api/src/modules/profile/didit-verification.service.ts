@@ -156,7 +156,13 @@ export class DiditVerificationService {
    */
   async processVerificationDecision(sessionId: string, currentUserId: string, submittedLegalName?: string) {
     const decision = await this.getSessionDecision(sessionId);
-    const userId = decision.vendor_data || currentUserId;
+    if (decision.vendor_data && decision.vendor_data !== currentUserId) {
+      throw new ForbiddenException({
+        code: 'SESSION_MISMATCH',
+        message: 'This verification session does not belong to the authenticated user.',
+      });
+    }
+    const userId = currentUserId;
 
     if (decision.status !== 'Approved' && decision.status !== 'APPROVED') {
       this.logger.warn(`Didit verification not approved for user ${userId}. Status: ${decision.status}`);

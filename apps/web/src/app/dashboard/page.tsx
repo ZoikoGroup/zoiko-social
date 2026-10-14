@@ -15,6 +15,7 @@ import {
   Plus, Heart, Bookmark, MessageCircle, Package, MailOpen, PawPrint, ChevronRight, Pencil, MapPin,
   Dna, Sparkles, Layers, Sliders, MessageSquare, ExternalLink, Calendar, TrendingUp,
   BarChart2, CheckCircle, RotateCcw, Trash2, Edit3, Loader2, X, AlertTriangle, CreditCard,
+  Lock, Clock, AlertCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ServiceSelectionModal } from '@/components/commercial/ServiceSelectionModal'
@@ -2032,7 +2033,12 @@ export default function DashboardPage(): React.JSX.Element {
       try {
         const [subsRes, servicesRes] = await Promise.allSettled([
           request<UserSub[] | { data: UserSub[] }>('/commercial/subscriptions'),
-          request<{ data: { tier: string; maxServicesAllowed: number; activeServices: string[] } }>('/commercial/active-services'),
+          request<{
+            tier?: string
+            maxServicesAllowed?: number
+            activeServices?: string[]
+            data?: { tier?: string; maxServicesAllowed?: number; activeServices?: string[] }
+          }>('/commercial/active-services'),
         ])
 
         if (isMounted) {
@@ -2041,16 +2047,28 @@ export default function DashboardPage(): React.JSX.Element {
             setActiveSubscriptions(subs)
           }
 
-          if (servicesRes.status === 'fulfilled' && servicesRes.value?.data) {
-            const sData = servicesRes.value.data
-            setUserTier(sData.tier || 'starter')
-            setMaxServicesAllowed(sData.maxServicesAllowed || 1)
-            setAllocatedServices(sData.activeServices || [])
+          if (servicesRes.status === 'fulfilled' && servicesRes.value) {
+            const rawVal = servicesRes.value
+            const sData = (rawVal?.data && (rawVal.data.activeServices !== undefined || rawVal.data.tier !== undefined))
+              ? rawVal.data
+              : rawVal
+            if (sData) {
+              setUserTier(sData.tier || 'starter')
+              setMaxServicesAllowed(sData.maxServicesAllowed || 1)
+              const loadedServices = Array.isArray(sData.activeServices)
+                ? sData.activeServices
+                : []
+              setAllocatedServices(loadedServices)
 
-            // If user has subscription but hasn't configured services yet, automatically open selection wizard once
-            if ((sData.activeServices || []).length === 0 && !hasPromptedSelection) {
-              setIsServiceModalOpen(true)
-              setHasPromptedSelection(true)
+              // If user has subscription and is verified but hasn't configured services yet, automatically open selection wizard once
+              const userIsVerified =
+                profile?.identityStatus === 'approved' ||
+                profile?.organizationStatus === 'approved' ||
+                profile?.professionalProfile?.isVerified === true
+              if (userIsVerified && loadedServices.length === 0 && !hasPromptedSelection) {
+                setIsServiceModalOpen(true)
+                setHasPromptedSelection(true)
+              }
             }
           }
         }
@@ -2065,50 +2083,46 @@ export default function DashboardPage(): React.JSX.Element {
     return () => {
       isMounted = false
     }
-  }, [isAuthenticated, refreshProfile, hasPromptedSelection])
+  }, [
+    isAuthenticated,
+    refreshProfile,
+    hasPromptedSelection,
+    profile?.identityStatus,
+    profile?.organizationStatus,
+    profile?.professionalProfile?.isVerified,
+  ])
 
   // Determine available dashboards for user
+  const role = profile?.professionalProfile?.category ?? null
   const availableDashboards: Array<{ id: string; label: string; Icon: LucideIcon; render: () => React.JSX.Element }> = []
 
+  // Strictly enforce maxServicesAllowed on allocatedServices (e.g. Starter allows 1 service)
+  const effectiveServices = allocatedServices.slice(0, maxServicesAllowed)
+
   // 1. Add services explicitly selected and allocated by the user
-  if (allocatedServices.includes('seller') && !availableDashboards.some((d) => d.id === 'product_seller')) {
+  if (effectiveServices.includes('seller') && !availableDashboards.some((d) => d.id === 'product_seller')) {
     const meta = ROLE_META.product_seller
     if (meta) availableDashboards.push({ id: 'product_seller', ...meta })
   }
-  if (allocatedServices.includes('breeder') && !availableDashboards.some((d) => d.id === 'breeder_professional')) {
+  if (effectiveServices.includes('breeder') && !availableDashboards.some((d) => d.id === 'breeder_professional')) {
     const meta = ROLE_META.breeder_professional
     if (meta) availableDashboards.push({ id: 'breeder_professional', ...meta })
   }
-  if (allocatedServices.includes('vet') && !availableDashboards.some((d) => d.id === 'veterinarian')) {
+  if (effectiveServices.includes('vet') && !availableDashboards.some((d) => d.id === 'veterinarian')) {
     const meta = ROLE_META.veterinarian
     if (meta) availableDashboards.push({ id: 'veterinarian', ...meta })
   }
-  if (allocatedServices.includes('care') && !availableDashboards.some((d) => d.id === 'pet_care_service_provider')) {
+  if (effectiveServices.includes('care') && !availableDashboards.some((d) => d.id === 'pet_care_service_provider')) {
     const meta = ROLE_META.pet_care_service_provider
     if (meta) availableDashboards.push({ id: 'pet_care_service_provider', ...meta })
   }
 
-  // 2. Check commercial subscriptions (fallback & backwards compatibility)
-  activeSubscriptions.forEach((sub) => {
-    if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
-      if (sub.entitlement === 'seller_professional' && !availableDashboards.some((d) => d.id === 'product_seller')) {
-        const meta = ROLE_META.product_seller
-        if (meta) availableDashboards.push({ id: 'product_seller', ...meta })
-      } else if (sub.entitlement === 'breeder_professional' && !availableDashboards.some((d) => d.id === 'breeder_professional')) {
-        const meta = ROLE_META.breeder_professional
-        if (meta) availableDashboards.push({ id: 'breeder_professional', ...meta })
-      } else if (sub.entitlement === 'care_professional' && !availableDashboards.some((d) => d.id === 'pet_care_service_provider')) {
-        const meta = ROLE_META.pet_care_service_provider
-        if (meta) availableDashboards.push({ id: 'pet_care_service_provider', ...meta })
-      }
+  // 2. Fallback ONLY for legacy or non-commercial accounts that have NO active subscription and NO allocated services
+  if (availableDashboards.length === 0 && activeSubscriptions.length === 0) {
+    if (role && ROLE_META[role]) {
+      const meta = ROLE_META[role]
+      if (meta) availableDashboards.push({ id: role, ...meta })
     }
-  })
-
-  // 3. Check verified professional profile role as well
-  const role = profile?.professionalProfile?.category ?? null
-  if (role && ROLE_META[role] && !availableDashboards.some((d) => d.id === role)) {
-    const meta = ROLE_META[role]
-    if (meta) availableDashboards.push({ id: role, ...meta })
   }
 
   // Active dashboard selection
@@ -2119,6 +2133,14 @@ export default function DashboardPage(): React.JSX.Element {
   const activeMeta = currentTab ? availableDashboards.find((d) => d.id === currentTab) : null
   const roleLabel = profLabel(role)
   const verifiedAt = profile?.professionalProfile?.verifiedAt ?? null
+
+  // Verification status check
+  const isVerified =
+    profile?.identityStatus === 'approved' ||
+    profile?.organizationStatus === 'approved' ||
+    profile?.professionalProfile?.isVerified === true
+
+  const identityStatus = profile?.identityStatus ?? null
 
   if (loading || !isAuthenticated || !profile) {
     return (
@@ -2142,7 +2164,7 @@ export default function DashboardPage(): React.JSX.Element {
 
           <div className="lg:col-span-9 space-y-4 pb-20">
             {/* Payment Pending / 7-Day Grace Period Alert Banner */}
-            {activeSubscriptions.some((s) => s.status === 'past_due') && (
+            {isVerified && activeSubscriptions.some((s) => s.status === 'past_due') && (
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm animate-in fade-in">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -2164,17 +2186,50 @@ export default function DashboardPage(): React.JSX.Element {
             )}
 
             {/* Header */}
-            <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl border border-primary/20 p-5">
+            <div className={`rounded-xl border p-5 ${
+              !isVerified
+                ? 'bg-gradient-to-br from-amber-500/10 via-surface-container to-surface-container border-amber-500/25'
+                : 'bg-gradient-to-br from-primary/10 to-secondary/10 border-primary/20'
+            }`}>
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary text-white flex-shrink-0">
-                  {activeMeta ? <activeMeta.Icon className="w-5 h-5" /> : <LayoutDashboard className="w-5 h-5" />}
+                <span className={`flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 ${
+                  !isVerified
+                    ? 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-primary text-white'
+                }`}>
+                  {!isVerified ? (
+                    <Lock className="w-5 h-5 text-amber-500" />
+                  ) : activeMeta ? (
+                    <activeMeta.Icon className="w-5 h-5" />
+                  ) : (
+                    <LayoutDashboard className="w-5 h-5" />
+                  )}
                 </span>
                 <div className="flex-1 min-w-0">
                   <h1 className="font-headline text-headline-md font-bold text-on-surface leading-tight">
-                    {activeMeta?.label || 'Professional Dashboard'}
+                    {!isVerified ? 'Professional Dashboard (Disabled)' : activeMeta?.label || 'Professional Dashboard'}
                   </h1>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    {activeMeta ? (
+                    {!isVerified ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[11px] font-semibold border border-amber-500/30">
+                        {identityStatus === 'pending' || identityStatus === 'under_review' ? (
+                          <>
+                            <Clock className="w-3 h-3 text-amber-500" />
+                            Verification Pending — Dashboard Disabled
+                          </>
+                        ) : identityStatus === 'rejected' ? (
+                          <>
+                            <AlertCircle className="w-3 h-3 text-red-500" />
+                            Verification Rejected — Action Required
+                          </>
+                        ) : (
+                          <>
+                            <Lock className="w-3 h-3 text-amber-500" />
+                            Verification Required — Dashboard Disabled
+                          </>
+                        )}
+                      </span>
+                    ) : activeMeta ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[11px] font-semibold">
                         <BadgeCheck className="w-3 h-3" />
                         {activeMeta.label}
@@ -2185,17 +2240,28 @@ export default function DashboardPage(): React.JSX.Element {
                         {roleLabel}
                       </span>
                     ) : null}
-                    {verifiedAt && <span className="text-[11px] text-outline">Verified {formatDate(verifiedAt, 'monthYear')}</span>}
+                    {isVerified && verifiedAt && <span className="text-[11px] text-outline">Verified {formatDate(verifiedAt, 'monthYear')}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {(activeSubscriptions.length > 0 || allocatedServices.length > 0) && (
+                  {isVerified ? (
+                    (activeSubscriptions.length > 0 || allocatedServices.length > 0) && (
+                      <button
+                        onClick={() => setIsServiceModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold border border-outline-variant/30 transition-colors shadow-sm"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-primary" />
+                        Manage Services
+                      </button>
+                    )
+                  ) : (
                     <button
-                      onClick={() => setIsServiceModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold border border-outline-variant/30 transition-colors shadow-sm"
+                      disabled
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container/60 text-outline text-xs font-semibold border border-outline-variant/20 cursor-not-allowed opacity-60"
+                      title="Identity verification required to manage services"
                     >
-                      <Sliders className="w-3.5 h-3.5 text-primary" />
-                      Manage Services
+                      <Lock className="w-3.5 h-3.5 text-outline" />
+                      Services Locked
                     </button>
                   )}
                   <DocsHelpLink href="/docs/profile-and-pets#professional-verification" />
@@ -2203,7 +2269,7 @@ export default function DashboardPage(): React.JSX.Element {
               </div>
 
               {/* Multi-Dashboard Switcher Tabs */}
-              {availableDashboards.length > 1 && (
+              {isVerified && availableDashboards.length > 1 && (
                 <div className="mt-4 pt-4 border-t border-primary/15 flex items-center justify-between gap-2 overflow-x-auto pb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-outline mr-1 flex items-center gap-1 flex-shrink-0">
@@ -2233,36 +2299,242 @@ export default function DashboardPage(): React.JSX.Element {
               )}
             </div>
 
-            {activeMeta && <AccountAnalyticsSection />}
+            {!isVerified ? (
+              /* Dedicated Disabled Dashboard State when unverified */
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Hero Status Card */}
+                <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-6 md:p-8 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-            {activeMeta ? (
-              activeMeta.render()
-            ) : (
-              <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <ShieldCheck className="w-7 h-7 text-primary" />
+                  <div className="max-w-2xl relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-500/20 mb-4">
+                      <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      {identityStatus === 'pending' || identityStatus === 'under_review'
+                        ? 'Verification In Review'
+                        : identityStatus === 'rejected'
+                          ? 'Verification Needs Attention'
+                          : 'Identity Verification Required'}
+                    </div>
+
+                    <h2 className="text-xl md:text-2xl font-bold text-on-surface mb-2 font-headline">
+                      {identityStatus === 'pending' || identityStatus === 'under_review'
+                        ? 'Your Identity Verification is Currently Under Review'
+                        : identityStatus === 'rejected'
+                          ? 'Identity Verification Could Not Be Approved'
+                          : 'Professional Dashboard is Disabled Until Verification'}
+                    </h2>
+
+                    <p className="text-sm text-outline leading-relaxed mb-6">
+                      {identityStatus === 'pending' || identityStatus === 'under_review'
+                        ? 'Your national identity documentation has been submitted and is currently being processed by our compliance team. Once approved, your complete professional suite, commercial tools, and customer listings will automatically become active.'
+                        : identityStatus === 'rejected'
+                          ? 'Your identity verification was not approved. To protect buyers, clinics, and breeders on ZoikoSocial, access to dashboard tools and plan purchasing is disabled until valid identification is provided.'
+                          : 'To maintain maximum trust and safety across the ZoikoSocial network, all commercial tools, listing management, order enquiries, and plan subscriptions are disabled until your identity is verified.'}
+                    </p>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {identityStatus === 'pending' || identityStatus === 'under_review' ? (
+                        <Link
+                          href="/settings?section=verification"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
+                        >
+                          <Clock className="w-4 h-4" />
+                          Check Verification Status
+                        </Link>
+                      ) : identityStatus === 'rejected' ? (
+                        <Link
+                          href="/verify"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          Re-submit Verification Documents
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/verify"
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold transition-colors shadow-sm"
+                        >
+                          <ShieldCheck className="w-4 h-4" />
+                          Complete Identity Verification Now
+                        </Link>
+                      )}
+
+                      <Link
+                        href="/settings?section=billing"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-semibold border border-outline-variant/30 transition-colors"
+                      >
+                        <CreditCard className="w-4 h-4 text-outline" />
+                        Commercial Plans Info
+                      </Link>
+
+                      <Link
+                        href="/docs/profile-and-pets#professional-verification"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline px-2 py-2"
+                      >
+                        Verification Guidelines
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-label-md font-bold text-on-surface mb-1">Professional Dashboard</h2>
-                <p className="text-label-sm text-outline max-w-sm mx-auto mb-4">
-                  Choose a professional plan or get verified to unlock dedicated management tools, analytics, and business limits.
-                </p>
-                <div className="flex items-center justify-center gap-3">
+
+                {/* Commercial Plans Gating Notice */}
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="text-on-surface">
+                      <strong>Commercial Plan Purchases Blocked:</strong> Subscribing to commercial tiers (Starter, Professional, Premium) is also disabled until verification is approved.
+                    </span>
+                  </div>
                   <Link
                     href="/settings?section=billing"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-semibold shrink-0"
                   >
-                    <Sparkles className="w-4 h-4" />
-                    View Professional Plans
-                  </Link>
-                  <Link
-                    href="/settings"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/40 text-on-surface text-label-sm font-semibold hover:bg-surface-container transition-colors"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    Get Verified
+                    View Billing Settings
+                    <ChevronRight className="w-3 h-3" />
                   </Link>
                 </div>
+
+                {/* Locked Professional Feature Suites Grid */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-on-surface uppercase tracking-wider text-[11px] text-outline">
+                      Features Locked Until Verified
+                    </h3>
+                    <span className="text-[11px] text-outline flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-amber-500" /> 4 Commercial Suites Disabled
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Suite 1: Seller */}
+                    <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 relative overflow-hidden">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 rounded-xl bg-surface-container-high text-outline flex items-center justify-center">
+                            <ShoppingBag className="w-5 h-5" />
+                          </span>
+                          <div>
+                            <h4 className="text-sm font-bold text-on-surface">Pet Products Marketplace</h4>
+                            <p className="text-[11px] text-outline">Shop listings, order inbox & inventory</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          LOCKED
+                        </span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[11px] text-outline">
+                        <span>Includes up to 100 product listings</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">Requires Verified Identity</span>
+                      </div>
+                    </div>
+
+                    {/* Suite 2: Breeder */}
+                    <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 relative overflow-hidden">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 rounded-xl bg-surface-container-high text-outline flex items-center justify-center">
+                            <Dna className="w-5 h-5" />
+                          </span>
+                          <div>
+                            <h4 className="text-sm font-bold text-on-surface">Breeder & Stud Services</h4>
+                            <p className="text-[11px] text-outline">Stud profiles, health tests & litter pipeline</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          LOCKED
+                        </span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[11px] text-outline">
+                        <span>DNA screening & pedigree verification</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">Requires Verified Identity</span>
+                      </div>
+                    </div>
+
+                    {/* Suite 3: Vet */}
+                    <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 relative overflow-hidden">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 rounded-xl bg-surface-container-high text-outline flex items-center justify-center">
+                            <Stethoscope className="w-5 h-5" />
+                          </span>
+                          <div>
+                            <h4 className="text-sm font-bold text-on-surface">Veterinary Clinic & Hospital</h4>
+                            <p className="text-[11px] text-outline">Practice directory, appointments & consults</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          LOCKED
+                        </span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[11px] text-outline">
+                        <span>Clinical license & emergency registration</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">Requires Verified Identity</span>
+                      </div>
+                    </div>
+
+                    {/* Suite 4: Pet Care */}
+                    <div className="p-5 rounded-2xl bg-surface-container border border-outline-variant/30 relative overflow-hidden">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 rounded-xl bg-surface-container-high text-outline flex items-center justify-center">
+                            <HandHeart className="w-5 h-5" />
+                          </span>
+                          <div>
+                            <h4 className="text-sm font-bold text-on-surface">Pet Care & Boarding Provider</h4>
+                            <p className="text-[11px] text-outline">Boarding bookings, sitting & dog walking</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] font-bold border border-amber-500/30 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          LOCKED
+                        </span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-outline-variant/20 flex items-center justify-between text-[11px] text-outline">
+                        <span>Direct booking inbox & verified badge</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">Requires Verified Identity</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
+            ) : (
+              <>
+                {activeMeta && <AccountAnalyticsSection />}
+
+                {activeMeta ? (
+                  activeMeta.render()
+                ) : (
+                  <div className="bg-surface-container-lowest rounded-xl border border-outline-variant/30 p-10 text-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                      <ShieldCheck className="w-7 h-7 text-primary" />
+                    </div>
+                    <h2 className="text-label-md font-bold text-on-surface mb-1">Professional Dashboard</h2>
+                    <p className="text-label-sm text-outline max-w-sm mx-auto mb-4">
+                      Choose a professional plan or get verified to unlock dedicated management tools, analytics, and business limits.
+                    </p>
+                    <div className="flex items-center justify-center gap-3">
+                      <Link
+                        href="/settings?section=billing"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-label-sm font-semibold hover:bg-primary/90 transition-colors"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        View Professional Plans
+                      </Link>
+                      <Link
+                        href="/settings"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-outline-variant/40 text-on-surface text-label-sm font-semibold hover:bg-surface-container transition-colors"
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                        Get Verified
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -2270,29 +2542,31 @@ export default function DashboardPage(): React.JSX.Element {
       <MobileTabs currentPage="home" />
 
       {/* Post-Payment & Active Services Selection Modal */}
-      <ServiceSelectionModal
-        isOpen={isServiceModalOpen}
-        onClose={() => setIsServiceModalOpen(false)}
-        currentTier={userTier}
-        maxServicesAllowed={maxServicesAllowed}
-        initialSelectedServices={allocatedServices}
-        onSuccess={(updatedServices) => {
-          setAllocatedServices(updatedServices)
-          refreshProfile().catch((e) => console.warn('Failed to refresh profile', e))
-          // Automatically focus the first newly selected service tab
-          if (updatedServices.length > 0 && updatedServices[0]) {
-            const roleMap: Record<string, string> = {
-              seller: 'product_seller',
-              breeder: 'breeder_professional',
-              vet: 'veterinarian',
-              care: 'pet_care_service_provider',
+      {isVerified && (
+        <ServiceSelectionModal
+          isOpen={isServiceModalOpen}
+          onClose={() => setIsServiceModalOpen(false)}
+          currentTier={userTier}
+          maxServicesAllowed={maxServicesAllowed}
+          initialSelectedServices={allocatedServices}
+          onSuccess={(updatedServices) => {
+            setAllocatedServices(updatedServices)
+            refreshProfile().catch((e) => console.warn('Failed to refresh profile', e))
+            // Automatically focus the first newly selected service tab
+            if (updatedServices.length > 0 && updatedServices[0]) {
+              const roleMap: Record<string, string> = {
+                seller: 'product_seller',
+                breeder: 'breeder_professional',
+                vet: 'veterinarian',
+                care: 'pet_care_service_provider',
+              }
+              const firstService = updatedServices[0]
+              const targetTab = roleMap[firstService]
+              if (targetTab) setActiveTab(targetTab)
             }
-            const firstService = updatedServices[0]
-            const targetTab = roleMap[firstService]
-            if (targetTab) setActiveTab(targetTab)
-          }
-        }}
-      />
+          }}
+        />
+      )}
     </>
   )
 }

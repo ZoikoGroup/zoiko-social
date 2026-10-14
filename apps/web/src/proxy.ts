@@ -81,9 +81,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   // Internal API protection
   if (pathname.startsWith('/api/internal/')) {
-    const isServerRequest =
-      request.headers.get('x-internal-secret') === process.env.INTERNAL_API_SECRET
-    if (!isServerRequest) {
+    const secret = process.env.INTERNAL_API_SECRET
+    const headerSecret = request.headers.get('x-internal-secret')
+    if (!secret || !headerSecret || headerSecret !== secret) {
       return new NextResponse('Forbidden', { status: 403 })
     }
   }

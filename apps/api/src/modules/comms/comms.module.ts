@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, Logger } from '@nestjs/common'
 import { ConfigModule } from '../config/config.module'
 import { ConfigService } from '../config/config.service'
 import { DatabaseModule } from '../database/database.module'
@@ -29,10 +29,15 @@ import { ProviderWebhookController } from './delivery/provider-webhook.controlle
     ResendEmailProvider,
     {
       provide: EmailProvider,
-      useFactory: (config: ConfigService, resend: ResendEmailProvider, console: ConsoleEmailProvider) =>
-        // Falls back to console unless a real key is present, so a deploy that
-        // forgets the secret logs instead of throwing on a request path.
-        config.emailSendingEnabled ? resend : console,
+      useFactory: (config: ConfigService, resend: ResendEmailProvider, console: ConsoleEmailProvider) => {
+        const logger = new Logger('CommsModule')
+        if (config.emailSendingEnabled) {
+          logger.log(`Email delivery active: Resend (sender: ${config.emailFrom('transactional')})`)
+          return resend
+        }
+        logger.warn('Email delivery inactive: RESEND_API_KEY missing or EMAIL_PROVIDER=console (using Console provider)')
+        return console
+      },
       inject: [ConfigService, ResendEmailProvider, ConsoleEmailProvider],
     },
   ],

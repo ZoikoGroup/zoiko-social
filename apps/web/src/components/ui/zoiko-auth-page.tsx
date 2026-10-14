@@ -304,8 +304,8 @@ export function ZoikoAuthPage({ mode }: ZoikoAuthPageProps) {
     setIsLoading(true)
 
     const params = new URLSearchParams(window.location.search)
-    let nextUrl = params.get('next') || params.get('returnTo') || '/'
-    if (!nextUrl.startsWith('/')) nextUrl = '/'
+    let nextUrl = params.get('next') || params.get('returnTo') || params.get('redirect') || '/'
+    if (!nextUrl.startsWith('/') || nextUrl.startsWith('//')) nextUrl = '/'
 
     if (mode === 'login') {
       const result = await signIn(email, password)

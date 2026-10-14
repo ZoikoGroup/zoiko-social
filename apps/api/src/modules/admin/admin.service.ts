@@ -1,6 +1,8 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Optional } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { AuditLogService } from '../common/audit-log/audit-log.service'
+import { ConfigService } from '../config/config.service'
+import { EmailProvider } from '../comms/delivery/email-provider'
 
 /**
  * Platform administration.
@@ -30,6 +32,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly emailProvider?: EmailProvider,
   ) {}
 
   // ── Overview ───────────────────────────────────────────────────────────────
@@ -177,5 +181,53 @@ export class AdminService {
     })
 
     return updated
+  }
+
+  // ── Communications Diagnostics ─────────────────────────────────────────────
+
+  async commsStatus() {
+    return {
+      emailSendingEnabled: this.config?.emailSendingEnabled ?? false,
+      emailProvider: this.config?.emailProvider ?? 'unknown',
+      resendConfigured: !!this.config?.resendApiKey,
+      fromTransactional: this.config?.emailFrom('transactional') ?? '',
+      fromNotification: this.config?.emailFrom('notification') ?? '',
+      fromMarketing: this.config?.emailFrom('marketing') ?? '',
+      replyTo: this.config?.emailReplyTo ?? '',
+    }
+  }
+
+  async listEmailDeliveries(limit = 25) {
+    return this.prisma.emailDelivery.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 100),
+      select: {
+        id: true,
+        eventName: true,
+        templateId: true,
+        stream: true,
+        state: true,
+        provider: true,
+        providerMessageId: true,
+        subject: true,
+        failureDetail: true,
+        userId: true,
+        createdAt: true,
+      },
+    })
+  }
+
+  async sendTestEmail(to: string) {
+    if (!this.emailProvider) {
+      throw new BadRequestException('Email provider is not available')
+    }
+    const res = await this.emailProvider.send({
+      to,
+      subject: 'Zoiko Social Admin Test Email',
+      html: '<h2>Admin Test Email</h2><p>This email confirms that your Zoiko Social Resend delivery configuration is functioning properly.</p>',
+      text: 'Admin Test Email: Your Zoiko Social Resend delivery configuration is functioning properly.',
+      stream: 'transactional',
+    })
+    return res
   }
 }

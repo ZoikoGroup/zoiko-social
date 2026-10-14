@@ -79,15 +79,34 @@ export class PaymentsController {
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
             
             if (isPaid) {
-              await this.prisma.subscription.create({
-                data: {
-                  userId,
-                  entitlement,
-                  stripeId: subscriptionId,
-                  status: 'active',
-                  currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Approximate 30 days
-                }
-              });
+              if (subscriptionId) {
+                await this.prisma.subscription.upsert({
+                  where: { stripeId: subscriptionId },
+                  create: {
+                    userId,
+                    entitlement,
+                    stripeId: subscriptionId,
+                    status: 'active',
+                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                  },
+                  update: {
+                    userId,
+                    entitlement,
+                    status: 'active',
+                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                  },
+                });
+              } else {
+                await this.prisma.subscription.create({
+                  data: {
+                    userId,
+                    entitlement,
+                    stripeId: null,
+                    status: 'active',
+                    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                  },
+                });
+              }
 
               // Automatically sync professional profile and verified status
               try {
@@ -115,9 +134,31 @@ export class PaymentsController {
 
                 const defaultService = category === 'veterinarian' ? 'vet' : category === 'pet_care_service_provider' ? 'care' : 'seller';
                 const initialServices = [defaultService];
+                const maxAllowed = COMMERCIAL_PLANS[entitlement as keyof typeof COMMERCIAL_PLANS]?.maxServicesAllowed || 1;
+                let finalServices = initialServices;
+                const metaServices = (session.metadata as Record<string, string> | undefined)?.keepServices || (session.metadata as Record<string, string> | undefined)?.selectedServices;
+                if (metaServices) {
+                  try {
+                    const parsed = JSON.parse(metaServices);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                      finalServices = parsed.filter((s: string) => ['seller', 'breeder', 'care', 'vet'].includes(s)).slice(0, maxAllowed);
+                    }
+                  } catch {
+                    if (typeof metaServices === 'string') finalServices = [metaServices];
+                  }
+                } else if (existingProf?.serviceAreas && existingProf.serviceAreas.length > 0) {
+                  const rawValid = existingProf.serviceAreas.filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s));
+                  finalServices = rawValid.slice(0, maxAllowed);
+                }
+
+                if (finalServices.length === 0) {
+                  finalServices = initialServices;
+                }
+
+                const previousServices = existingProf?.serviceAreas || [];
+                const droppedServices = previousServices.filter((s: string) => !finalServices.includes(s));
 
                 if (existingProf) {
-                  const currentServices = existingProf.serviceAreas && existingProf.serviceAreas.length > 0 ? existingProf.serviceAreas : initialServices;
                   await this.prisma.professionalProfile.update({
                     where: { userId },
                     data: {
@@ -125,7 +166,7 @@ export class PaymentsController {
                       category,
                       isVerified: true,
                       verifiedAt: existingProf.verifiedAt || new Date(),
-                      serviceAreas: currentServices,
+                      serviceAreas: finalServices,
                     },
                   });
                 } else {
@@ -135,9 +176,25 @@ export class PaymentsController {
                       category,
                       isVerified: true,
                       verifiedAt: new Date(),
-                      serviceAreas: initialServices,
+                      serviceAreas: finalServices,
                     },
                   });
+                }
+
+                // Deactivate active products/breeding profiles for dropped services
+                if (droppedServices.length > 0) {
+                  if (droppedServices.includes('seller')) {
+                    await this.prisma.product.updateMany({
+                      where: { sellerId: userId, status: 'active', isDeleted: false },
+                      data: { status: 'inactive', hiddenAt: new Date() },
+                    });
+                  }
+                  if (droppedServices.includes('breeder')) {
+                    await this.prisma.breedingProfile.updateMany({
+                      where: { ownerId: userId, availableNow: true, isDeleted: false },
+                      data: { status: 'paused', availableNow: false },
+                    });
+                  }
                 }
 
                 await this.prisma.professionalSetting.upsert({
@@ -487,89 +544,97 @@ export class PaymentsController {
           const rawPeriodEnd = (sub as unknown as Record<string, unknown>).current_period_end
           const periodEndDate = typeof rawPeriodEnd === 'number' && !isNaN(rawPeriodEnd) ? new Date(rawPeriodEnd * 1000) : undefined
 
+          const updatedEntitlement =
+            (sub.metadata?.entitlement as import('@prisma/client').SubscriptionEntitlement) ||
+            dbSub.entitlement
+
           await this.prisma.subscription.update({
             where: { id: dbSub.id },
             data: {
+              entitlement: updatedEntitlement,
               status: newStatus as import('@prisma/client').SubscriptionStatus,
               cancelAtPeriodEnd: Boolean(sub.cancel_at_period_end),
               ...(periodEndDate ? { currentPeriodEnd: periodEndDate } : {}),
             },
           })
 
-          if (newStatus === 'active') {
-            await this.prisma.product.updateMany({
-              where: { sellerId: dbSub.userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
-              data: { status: 'active', hiddenAt: null },
-            })
-            await this.prisma.breedingProfile.updateMany({
-              where: { ownerId: dbSub.userId, status: 'paused', isDeleted: false },
-              data: { status: 'available', availableNow: true },
-            })
-          } else if (newStatus === 'canceled') {
-            await this.prisma.product.updateMany({
-              where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
-              data: { status: 'inactive', hiddenAt: new Date() },
-            })
-            await this.prisma.breedingProfile.updateMany({
-              where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
-              data: { status: 'paused', availableNow: false },
-            })
-          }
-
           // Check if quota reduction or downgrade happened
           const prof = await this.prisma.professionalProfile.findUnique({
             where: { userId: dbSub.userId },
-            select: { serviceAreas: true },
+            select: { serviceAreas: true, category: true },
           })
 
-          const activeServices = prof?.serviceAreas || []
+          const rawActiveServices = (prof?.serviceAreas || []).filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s))
           let allowedCount = 1
-          if (dbSub.entitlement === 'premium' || dbSub.entitlement === 'care_professional') {
+          if (updatedEntitlement === 'premium' || updatedEntitlement === 'care_professional') {
             allowedCount = 4
-          } else if (dbSub.entitlement === 'professional' || dbSub.entitlement === 'breeder_professional') {
+          } else if (updatedEntitlement === 'professional' || updatedEntitlement === 'breeder_professional') {
             allowedCount = 2
           }
 
-          if (activeServices.length > allowedCount) {
-            // User has more active services than allowed under new tier
-            // Respect user-selected keepServices if stored in metadata; otherwise fallback to allowedCount
-            let keepServices: string[] = []
-            const metaServices = (sub.metadata as Record<string, string> | undefined)?.keepServices || (sub.metadata as Record<string, string> | undefined)?.selectedServices
-            if (metaServices) {
-              try {
-                const parsed = JSON.parse(metaServices)
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  keepServices = parsed.filter((s: string) => activeServices.includes(s)).slice(0, allowedCount)
-                }
-              } catch {
-                if (typeof metaServices === 'string' && activeServices.includes(metaServices)) {
-                  keepServices = [metaServices]
-                }
+          let keepServices: string[] = []
+          const metaServices = (sub.metadata as Record<string, string> | undefined)?.keepServices || (sub.metadata as Record<string, string> | undefined)?.selectedServices
+          if (metaServices) {
+            try {
+              const parsed = JSON.parse(metaServices)
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                keepServices = parsed.filter((s: string) => rawActiveServices.includes(s)).slice(0, allowedCount)
+              }
+            } catch {
+              if (typeof metaServices === 'string' && rawActiveServices.includes(metaServices)) {
+                keepServices = [metaServices]
               }
             }
+          }
 
-            if (keepServices.length === 0) {
-              keepServices = activeServices.slice(0, allowedCount)
+          if (keepServices.length === 0) {
+            keepServices = rawActiveServices.slice(0, allowedCount)
+          }
+          if (keepServices.length === 0 && prof?.category) {
+            const defService = prof.category === 'veterinarian' ? 'vet' : prof.category === 'pet_care_service_provider' ? 'care' : 'seller'
+            keepServices = [defService]
+          }
+
+          const droppedServices = rawActiveServices.filter((s) => !keepServices.includes(s))
+
+          await this.prisma.professionalProfile.update({
+            where: { userId: dbSub.userId },
+            data: { serviceAreas: keepServices },
+          })
+
+          if (newStatus === 'active') {
+            // Restore only retained active services
+            if (keepServices.includes('seller')) {
+              await this.prisma.product.updateMany({
+                where: { sellerId: dbSub.userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
+                data: { status: 'active', hiddenAt: null },
+              })
             }
-            const droppedServices = activeServices.filter((s) => !keepServices.includes(s))
+            if (keepServices.includes('breeder')) {
+              await this.prisma.breedingProfile.updateMany({
+                where: { ownerId: dbSub.userId, status: 'paused', isDeleted: false },
+                data: { status: 'available', availableNow: true },
+              })
+            }
+          }
 
-            await this.prisma.professionalProfile.update({
-              where: { userId: dbSub.userId },
-              data: { serviceAreas: keepServices },
-            })
-
-            if (droppedServices.includes('seller')) {
+          // Deactivate dropped services or if subscription canceled
+          if (newStatus === 'canceled' || droppedServices.length > 0) {
+            if (newStatus === 'canceled' || droppedServices.includes('seller')) {
               await this.prisma.product.updateMany({
                 where: { sellerId: dbSub.userId, status: 'active', isDeleted: false },
                 data: { status: 'inactive', hiddenAt: new Date() },
               })
             }
-            if (droppedServices.includes('breeder')) {
+            if (newStatus === 'canceled' || droppedServices.includes('breeder')) {
               await this.prisma.breedingProfile.updateMany({
                 where: { ownerId: dbSub.userId, availableNow: true, isDeleted: false },
                 data: { status: 'paused', availableNow: false },
               })
             }
+          }
+
+          if (droppedServices.length > 0) {
             this.logger.log(`Downgrade services adjusted for user ${dbSub.userId}. Retained: ${keepServices.join(', ')}. Suspended: ${droppedServices.join(', ')}`)
           }
         }

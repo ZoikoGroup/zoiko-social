@@ -70,7 +70,13 @@ export default async function RootLayout({
   const messages = await getMessages()
 
   return (
-    <html lang={locale} translate="no" className={`${inter.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
+    <html
+      lang={locale}
+      translate="no"
+      className={`${inter.variable} ${sourceSerif.variable}`}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <head>
         {/* ── Resource Hints ────────────────────────────────────────────────
          * Preconnect early origins so the browser starts the TLS handshake

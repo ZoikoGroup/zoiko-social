@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common'
 import { z } from 'zod'
 import { AdminService, type Role } from './admin.service'
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe'
@@ -56,5 +56,27 @@ export class AdminController {
     @Body(new ZodValidationPipe(SetRoleSchema)) body: SetRoleInput,
   ) {
     return { data: await this.admin.setRole(user.id, id, body.role as Role) }
+  }
+
+  @Get('comms/status')
+  @Roles('admin', 'super_admin')
+  async commsStatus() {
+    return { data: await this.admin.commsStatus() }
+  }
+
+  @Get('comms/deliveries')
+  @Roles('admin', 'super_admin')
+  async emailDeliveries(@Query('limit') limit?: string) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 25
+    return { data: await this.admin.listEmailDeliveries(parsedLimit) }
+  }
+
+  @Post('comms/test-email')
+  @Roles('admin', 'super_admin')
+  async sendTestEmail(@Body('to') to?: string) {
+    if (!to || !to.includes('@')) {
+      return { ok: false, error: 'A valid email address is required' }
+    }
+    return { data: await this.admin.sendTestEmail(to.trim()) }
   }
 }

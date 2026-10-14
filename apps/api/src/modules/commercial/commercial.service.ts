@@ -92,6 +92,7 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
           await this.prisma.subscription.update({
             where: { id: existing.id },
             data: {
+              entitlement,
               status: targetStatus,
               currentPeriodEnd: periodEnd,
               cancelAtPeriodEnd: Boolean(stripeSub.cancel_at_period_end),
@@ -112,9 +113,14 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
         const prof = await this.prisma.professionalProfile.findUnique({ where: { userId } });
         const defaultService = entitlement === 'care_professional' ? 'care' : entitlement === 'breeder_professional' ? 'breeder' : 'seller';
         const category = entitlement === 'care_professional' ? 'pet_care_service_provider' : 'product_seller';
+        const maxAllowed = entitlement === 'premium' ? 4 : entitlement === 'professional' ? 2 : 1;
 
         if (prof) {
-          const currentServices = prof.serviceAreas && prof.serviceAreas.length > 0 ? prof.serviceAreas : [defaultService];
+          const rawServices = (prof.serviceAreas && prof.serviceAreas.length > 0 ? prof.serviceAreas : [defaultService])
+            .filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s));
+          const currentServices = rawServices.slice(0, maxAllowed);
+          const droppedServices = rawServices.slice(maxAllowed);
+
           await this.prisma.professionalProfile.update({
             where: { userId },
             data: {
@@ -125,6 +131,21 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
               verifiedAt: prof.verifiedAt || new Date(),
             },
           });
+
+          if (droppedServices.length > 0) {
+            if (droppedServices.includes('seller')) {
+              await this.prisma.product.updateMany({
+                where: { sellerId: userId, status: 'active', isDeleted: false },
+                data: { status: 'inactive', hiddenAt: new Date() },
+              });
+            }
+            if (droppedServices.includes('breeder')) {
+              await this.prisma.breedingProfile.updateMany({
+                where: { ownerId: userId, availableNow: true, isDeleted: false },
+                data: { status: 'paused', availableNow: false },
+              });
+            }
+          }
         } else {
           await this.prisma.professionalProfile.create({
             data: {
@@ -153,7 +174,7 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async pauseUserListings(userId: string): Promise<{ productsPaused: number; profilesPaused: number }> {
+  async pauseUserListings(userId: string): Promise<{ productsPaused: number; profilesPaused: number; providersPaused: number }> {
     const products = await this.prisma.product.updateMany({
       where: { sellerId: userId, status: 'active', isDeleted: false },
       data: { status: 'inactive', hiddenAt: new Date() },
@@ -164,13 +185,18 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'paused', availableNow: false },
     });
 
-    if (products.count > 0 || breeding.count > 0) {
-      this.logger.log(`Paused ${products.count} product(s) and ${breeding.count} breeding profile(s) for user ${userId} due to expired/canceled plan.`);
+    const providers = await this.prisma.serviceProvider.updateMany({
+      where: { addedBy: userId, availableForBooking: true, isDeleted: false },
+      data: { availableForBooking: false, hiddenAt: new Date() },
+    });
+
+    if (products.count > 0 || breeding.count > 0 || providers.count > 0) {
+      this.logger.log(`Paused ${products.count} product(s), ${breeding.count} breeding profile(s), and ${providers.count} service provider(s) for user ${userId} due to expired/canceled plan.`);
     }
-    return { productsPaused: products.count, profilesPaused: breeding.count };
+    return { productsPaused: products.count, profilesPaused: breeding.count, providersPaused: providers.count };
   }
 
-  async restoreUserListings(userId: string): Promise<{ productsRestored: number; profilesRestored: number }> {
+  async restoreUserListings(userId: string): Promise<{ productsRestored: number; profilesRestored: number; providersRestored: number }> {
     const products = await this.prisma.product.updateMany({
       where: { sellerId: userId, status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
       data: { status: 'active', hiddenAt: null },
@@ -181,10 +207,15 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
       data: { status: 'available', availableNow: true },
     });
 
-    if (products.count > 0 || breeding.count > 0) {
-      this.logger.log(`Restored ${products.count} product(s) and ${breeding.count} breeding profile(s) for user ${userId} upon active subscription.`);
+    const providers = await this.prisma.serviceProvider.updateMany({
+      where: { addedBy: userId, availableForBooking: false, hiddenAt: { not: null }, isDeleted: false },
+      data: { availableForBooking: true, hiddenAt: null },
+    });
+
+    if (products.count > 0 || breeding.count > 0 || providers.count > 0) {
+      this.logger.log(`Restored ${products.count} product(s), ${breeding.count} breeding profile(s), and ${providers.count} service provider(s) for user ${userId} upon active subscription.`);
     }
-    return { productsRestored: products.count, profilesRestored: breeding.count };
+    return { productsRestored: products.count, profilesRestored: breeding.count, providersRestored: providers.count };
   }
 
   async reconcileExpiredSubscriptions(): Promise<{ expiredSubscriptions: number; listingsPaused: number }> {
@@ -329,30 +360,20 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
 
     // Verify service allocation if tiered subscription (starter / professional)
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const maxAllowed = subscription.entitlement === 'starter' ? 1 : 2;
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
         select: { serviceAreas: true, category: true },
       });
-      const activeServices = prof?.serviceAreas || [];
-      const hasSeller = activeServices.includes('seller') || activeServices.length === 0 || prof?.category === 'product_seller';
-      if (!hasSeller) {
-        throw new ForbiddenException('Your current active service does not include Pet Products Seller. Please activate Seller in your dashboard or upgrade your plan.');
+      const rawServices = (prof?.serviceAreas || []).filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s));
+      let effectiveServices = rawServices.slice(0, maxAllowed);
+      if (effectiveServices.length === 0 && prof?.category) {
+        effectiveServices = [
+          prof.category === 'veterinarian' ? 'vet' : prof.category === 'pet_care_service_provider' ? 'care' : 'seller',
+        ];
       }
-      if (activeServices.length === 0) {
-        await this.prisma.professionalProfile.upsert({
-          where: { userId },
-          create: {
-            userId,
-            category: 'product_seller',
-            serviceAreas: ['seller'],
-            isVerified: true,
-            verifiedAt: new Date(),
-          },
-          update: {
-            serviceAreas: ['seller'],
-            deletedAt: null,
-          },
-        }).catch(() => {});
+      if (!effectiveServices.includes('seller')) {
+        throw new ForbiddenException('Your current plan allows 1 active service and Pet Products Seller is not active. Please select it in Billing Settings or upgrade your plan.');
       }
     }
 
@@ -393,14 +414,20 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
 
     // Verify service allocation if tiered subscription (starter / professional)
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const maxAllowed = subscription.entitlement === 'starter' ? 1 : 2;
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
         select: { serviceAreas: true, category: true },
       });
-      const activeServices = prof?.serviceAreas || [];
-      const hasBreeder = activeServices.includes('breeder') || activeServices.length === 0 || prof?.category === 'product_seller';
-      if (!hasBreeder) {
-        throw new ForbiddenException('Your current active service does not include Breeder & Stud Service. Please activate Breeder in your dashboard or upgrade your plan.');
+      const rawServices = (prof?.serviceAreas || []).filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s));
+      let effectiveServices = rawServices.slice(0, maxAllowed);
+      if (effectiveServices.length === 0 && prof?.category) {
+        effectiveServices = [
+          prof.category === 'veterinarian' ? 'vet' : prof.category === 'pet_care_service_provider' ? 'care' : 'seller',
+        ];
+      }
+      if (!effectiveServices.includes('breeder')) {
+        throw new ForbiddenException('Your current plan allows 1 active service and Breeder & Stud Service is not active. Please select it in Billing Settings or upgrade your plan.');
       }
     }
 
@@ -441,18 +468,20 @@ export class CommercialService implements OnModuleInit, OnModuleDestroy {
 
     // Verify service allocation if tiered subscription (starter / professional)
     if (subscription.entitlement === 'starter' || subscription.entitlement === 'professional') {
+      const maxAllowed = subscription.entitlement === 'starter' ? 1 : 2;
       const prof = await this.prisma.professionalProfile.findUnique({
         where: { userId },
         select: { serviceAreas: true, category: true },
       });
-      const activeServices = prof?.serviceAreas || [];
-      const hasCare =
-        activeServices.includes('care') ||
-        activeServices.includes('vet') ||
-        activeServices.length === 0 ||
-        (prof?.category === 'pet_care_service_provider' || prof?.category === 'veterinarian');
-      if (!hasCare) {
-        throw new ForbiddenException('Your current active service does not include Pet Care or Veterinary Provider. Please activate it in your dashboard or upgrade your plan.');
+      const rawServices = (prof?.serviceAreas || []).filter((s) => ['seller', 'breeder', 'care', 'vet'].includes(s));
+      let effectiveServices = rawServices.slice(0, maxAllowed);
+      if (effectiveServices.length === 0 && prof?.category) {
+        effectiveServices = [
+          prof.category === 'veterinarian' ? 'vet' : prof.category === 'pet_care_service_provider' ? 'care' : 'seller',
+        ];
+      }
+      if (!effectiveServices.includes('care') && !effectiveServices.includes('vet')) {
+        throw new ForbiddenException('Your current plan allows 1 active service and Pet Care or Veterinary Provider is not active. Please select it in Billing Settings or upgrade your plan.');
       }
     }
 

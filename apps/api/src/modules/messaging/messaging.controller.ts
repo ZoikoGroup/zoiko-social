@@ -641,6 +641,7 @@ export class MessagingController {
 
   @Post('upload/presigned')
   @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 30, windowSeconds: 60, prefix: 'upload.presigned' })
   async getPresignedUploadUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: { mimeType: string; fileName?: string; fileSize?: number; durationSeconds?: number },

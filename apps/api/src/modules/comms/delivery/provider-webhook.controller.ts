@@ -71,9 +71,11 @@ export class ProviderWebhookController {
         return { received: true }
       }
     } else {
-      // Loud, because an unverified webhook endpoint accepts forged bounces,
-      // and a forged bounce permanently suppresses a real address.
-      this.logger.warn('RESEND_WEBHOOK_SECRET is not set — webhook signatures are NOT being verified')
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error('RESEND_WEBHOOK_SECRET is not configured in production — refusing unverified webhook payload')
+        return { received: true }
+      }
+      this.logger.warn('RESEND_WEBHOOK_SECRET is not set — webhook signatures are NOT being verified (dev mode only)')
     }
 
     const eventType = body.type

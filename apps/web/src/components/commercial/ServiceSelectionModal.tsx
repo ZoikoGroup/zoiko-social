@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mutate } from '@/lib/api'
+import { useAuth } from '@/hooks/use-auth'
 
 interface ServiceSelectionModalProps {
   isOpen: boolean
@@ -84,6 +85,7 @@ export function ServiceSelectionModal({
   const [selected, setSelected] = useState<string[]>(initialSelectedServices)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { refreshProfile } = useAuth()
 
   // Lock body scroll and listen for Escape key when open
   useEffect(() => {
@@ -159,11 +161,19 @@ export function ServiceSelectionModal({
     try {
       setSaving(true)
       setError(null)
-      const res = await mutate<{ data: { success: boolean; activeServices: string[] } }>('/commercial/select-services', {
+      const res = await mutate<{
+        activeServices?: string[]
+        data?: { activeServices?: string[] }
+      }>('/commercial/select-services', {
         method: 'POST',
         body: JSON.stringify({ services: selected }),
       })
-      onSuccess(res.data?.activeServices || selected)
+      const returnedServices =
+        (Array.isArray(res?.activeServices) ? res.activeServices : null) ||
+        (Array.isArray(res?.data?.activeServices) ? res.data.activeServices : null) ||
+        selected
+      onSuccess(returnedServices)
+      void refreshProfile().catch(() => {})
       onClose()
     } catch (err) {
       setError((err as Error).message || 'Failed to update active services. Please try again.')

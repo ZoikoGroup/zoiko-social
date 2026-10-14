@@ -85,9 +85,11 @@ const BLOCKED_HOST = [
   /^\[?f[cd][0-9a-f]{0,2}:/i,
 ]
 
-function isBlocked(host: string): boolean {
+export function isBlockedHost(host: string): boolean {
   return BLOCKED_HOST.some((re) => re.test(host))
 }
+
+const isBlocked = isBlockedHost
 
 @Injectable()
 export class NewsCoverService {

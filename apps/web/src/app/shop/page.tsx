@@ -10,6 +10,7 @@ import { MyPetsWidget } from '@/components/MyPetsWidget'
 import { QuickLinksWidget } from '@/components/QuickLinksWidget'
 import { MobileTabs } from '@/components/MobileTabs'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ShoppingBag, Search, Heart, Truck, Package, BadgeCheck, Plus, Loader2, X, ImagePlus, ImageOff,
   AlertTriangle, CreditCard,
@@ -63,6 +64,7 @@ function SaveButton({ product }: { product: Product }): React.JSX.Element {
 
 export default function ShopPage(): React.JSX.Element {
   const ts = useTranslations('shop')
+  const router = useRouter()
   const { format } = useCurrency()
   const { isAuthenticated, profile } = useAuth()
   const [category, setCategory] = useState('all')
@@ -88,12 +90,39 @@ export default function ShopPage(): React.JSX.Element {
 
   const showGracePeriodBanner = isAuthenticated && isPastDue
 
-  const handleSell = () => {
+  const handleSell = async () => {
     if (profile?.identityStatus !== 'approved' && profile?.organizationStatus !== 'approved') {
       window.alert('You must be Identity or Organization Verified to sell products in the Marketplace. Please complete verification in your settings.')
       return
     }
-    // Subscription check should also happen here in a full flow.
+
+    try {
+      const res = await request<{
+        maxServicesAllowed?: number
+        activeServices?: string[]
+        data?: { maxServicesAllowed?: number; activeServices?: string[] }
+      }>('/commercial/active-services')
+      const sData = res?.data || res
+      const maxAllowed = sData?.maxServicesAllowed || 1
+      const rawActive = Array.isArray(sData?.activeServices) ? sData.activeServices : (profile?.professionalProfile?.serviceAreas || [])
+      const activeServices = rawActive.slice(0, maxAllowed)
+      const hasSeller = activeServices.includes('seller')
+      if (!hasSeller) {
+        if (window.confirm('Your current subscription plan allows ' + maxAllowed + ' active service(s) and Pet Products Seller is not active. Would you like to manage your active services in Billing & Plans?')) {
+          router.push('/settings?section=billing')
+        }
+        return
+      }
+    } catch {
+      const areas = (profile?.professionalProfile?.serviceAreas || []).slice(0, 1)
+      if (!areas.includes('seller')) {
+        if (window.confirm('Pet Products Seller is not active on your current plan. Would you like to visit Billing & Plans to activate it?')) {
+          router.push('/settings?section=billing')
+        }
+        return
+      }
+    }
+
     setSellOpen(true)
   }
 

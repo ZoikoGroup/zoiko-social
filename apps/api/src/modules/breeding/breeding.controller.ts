@@ -90,19 +90,25 @@ export class BreedingController {
   }
 
   @Post('litters')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('breeder_professional')
   async createLitter(@CurrentUser() user: AuthenticatedUser, @Body(new ZodValidationPipe(CreateLitterSchema)) body: CreateLitterInput) {
     return { data: await this.breeding.createLitter(user.id, body) }
   }
 
   @Patch('litters/:litterId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('breeder_professional')
   async updateLitter(@CurrentUser() user: AuthenticatedUser, @Param('litterId') litterId: string, @Body(new ZodValidationPipe(UpdateLitterSchema)) body: UpdateLitterInput) {
     return { data: await this.breeding.updateLitter(litterId, user.id, body) }
   }
 
   @Post('litters/:litterId/listed')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization')
+  @RequireSubscription('breeder_professional')
   async markListed(@CurrentUser() user: AuthenticatedUser, @Param('litterId') litterId: string) {
     return { data: await this.breeding.markOffspringListed(litterId, user.id) }
   }

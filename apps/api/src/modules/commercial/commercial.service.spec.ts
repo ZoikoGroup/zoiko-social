@@ -12,6 +12,7 @@ describe('CommercialService Limits', () => {
       subscription: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
       product: { count: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 2 }), findMany: jest.fn().mockResolvedValue([]) },
       breedingProfile: { count: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      serviceProvider: { count: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       petCareService: { count: jest.fn() },
       providerTeamMember: { count: jest.fn() },
       adoptionPost: { count: jest.fn() },
@@ -144,6 +145,7 @@ describe('CommercialService Limits', () => {
       const res = await service.pauseUserListings('user-1');
       expect(res.productsPaused).toBe(2);
       expect(res.profilesPaused).toBe(1);
+      expect(res.providersPaused).toBe(1);
       expect(prisma.product.updateMany).toHaveBeenCalledWith({
         where: { sellerId: 'user-1', status: 'active', isDeleted: false },
         data: { status: 'inactive', hiddenAt: expect.any(Date) },
@@ -152,12 +154,17 @@ describe('CommercialService Limits', () => {
         where: { ownerId: 'user-1', availableNow: true, isDeleted: false },
         data: { status: 'paused', availableNow: false },
       });
+      expect(prisma.serviceProvider.updateMany).toHaveBeenCalledWith({
+        where: { addedBy: 'user-1', availableForBooking: true, isDeleted: false },
+        data: { availableForBooking: false, hiddenAt: expect.any(Date) },
+      });
     });
 
     it('restores paused products and breeding profiles when plan renews', async () => {
       const res = await service.restoreUserListings('user-1');
       expect(res.productsRestored).toBe(2);
       expect(res.profilesRestored).toBe(1);
+      expect(res.providersRestored).toBe(1);
       expect(prisma.product.updateMany).toHaveBeenCalledWith({
         where: { sellerId: 'user-1', status: 'inactive', hiddenAt: { not: null }, isDeleted: false },
         data: { status: 'active', hiddenAt: null },
@@ -165,6 +172,10 @@ describe('CommercialService Limits', () => {
       expect(prisma.breedingProfile.updateMany).toHaveBeenCalledWith({
         where: { ownerId: 'user-1', status: 'paused', isDeleted: false },
         data: { status: 'available', availableNow: true },
+      });
+      expect(prisma.serviceProvider.updateMany).toHaveBeenCalledWith({
+        where: { addedBy: 'user-1', availableForBooking: false, hiddenAt: { not: null }, isDeleted: false },
+        data: { availableForBooking: true, hiddenAt: null },
       });
     });
   });

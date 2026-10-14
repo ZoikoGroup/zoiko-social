@@ -105,13 +105,17 @@ export class ProvidersController {
   }
 
   @Post(':id/services')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async createService(@CurrentUser() user: AuthenticatedUser, @Param('id') providerId: string, @Body() body: CreateServiceInput) {
     return { data: await this.providers.createService(user.id, CreateServiceSchema.parse({ ...body, providerId })) }
   }
 
   @Patch(':providerId/services/:serviceId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async updateService(
     @CurrentUser() user: AuthenticatedUser,
     @Param('serviceId') serviceId: string,
@@ -212,7 +216,9 @@ export class ProvidersController {
   }
 
   @Post('availability')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async createAvailability(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateAvailabilityInput) {
     return { data: await this.providers.createAvailability(user.id, CreateAvailabilitySchema.parse(body)) }
   }
@@ -260,7 +266,9 @@ export class ProvidersController {
   }
 
   @Post(':id/team')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, VerifiedGuard, SubscriptionGuard)
+  @RequireVerified('identity', 'organization', 'credential')
+  @RequireSubscription('care_professional')
   async addTeamMember(@CurrentUser() user: AuthenticatedUser, @Param('id') providerId: string, @Body() body: CreateTeamMemberInput) {
     return { data: await this.providers.addTeamMember(user.id, CreateTeamMemberSchema.parse({ ...body, providerId })) }
   }

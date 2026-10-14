@@ -48,7 +48,7 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().optional(),
   GROQ_MODEL: z.string().optional(),
   // Email (ZS-COMMS-EMAIL-001). Sending stays off until a provider key is set.
-  EMAIL_PROVIDER: z.enum(['resend', 'console']).optional(),
+  EMAIL_PROVIDER: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
 
   // Web Push. All three are optional so the API still boots without them —
@@ -232,7 +232,7 @@ export class ConfigService {
 
   // ── Email ─────────────────────────────────────────────────────────────────
 
-  get emailProvider(): 'resend' | 'console' {
+  get emailProvider(): 'resend' | 'console' | string {
     if (this.env.EMAIL_PROVIDER) {
       return this.env.EMAIL_PROVIDER
     }
@@ -283,12 +283,18 @@ export class ConfigService {
       notification: this.env.EMAIL_FROM_NOTIFICATION,
       marketing: this.env.EMAIL_FROM_MARKETING,
     }[stream]
-    return (
+    let sender = (
       perStream ||
       this.env.EMAIL_FROM_TRANSACTIONAL ||
       this.env.EMAIL_FROM ||
       'Zoiko Social <no-reply@mail.zoikosocial.com>'
     )
+    // If the sender points to root zoikosocial.com (unverified in Resend),
+    // automatically rewrite to verified subdomain mail.zoikosocial.com so emails are never rejected
+    if (/@zoikosocial\.com>?$/i.test(sender.trim()) && !/@mail\.zoikosocial\.com>?$/i.test(sender.trim())) {
+      sender = sender.replace(/@zoikosocial\.com/gi, '@mail.zoikosocial.com')
+    }
+    return sender
   }
 
   get emailReplyTo(): string {
