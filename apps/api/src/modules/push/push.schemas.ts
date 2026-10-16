@@ -80,6 +80,30 @@ export type SubscribeInput = z.infer<typeof SubscribeSchema>
 export type UnsubscribeInput = z.infer<typeof UnsubscribeSchema>
 
 /**
+ * An FCM registration token from the Android app. Opaque to us, but FCM tokens
+ * are URL-safe base64 with ':' separators, so anything else is not one — and the
+ * bound keeps the column and every send request a sane size.
+ */
+const fcmToken = z
+  .string()
+  .min(32)
+  .max(4096)
+  .regex(/^[A-Za-z0-9_:\-]+$/, { message: 'Not an FCM registration token' })
+
+export const RegisterDeviceSchema = z.object({
+  token: fcmToken,
+  platform: z.enum(['android']),
+})
+
+/** Looser on purpose, like UnsubscribeSchema: removing a row must always be possible. */
+export const UnregisterDeviceSchema = z.object({
+  token: z.string().min(1).max(4096),
+})
+
+export type RegisterDeviceInput = z.infer<typeof RegisterDeviceSchema>
+export type UnregisterDeviceInput = z.infer<typeof UnregisterDeviceSchema>
+
+/**
  * A single category toggle. The key is checked against the registry in the
  * service rather than enumerated here, so adding a category needs one change
  * rather than two.

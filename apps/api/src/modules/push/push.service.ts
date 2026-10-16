@@ -5,7 +5,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import * as webpush from 'web-push'
 import { ConfigService } from '../config/config.service'
 import { PrismaService } from '../prisma/prisma.service'
-import type { SubscribeInput } from './push.schemas'
+import { FcmClient } from './fcm.client'
+import type { RegisterDeviceInput, SubscribeInput } from './push.schemas'
 
 /**
  * What a browser receives. Kept deliberately small: a push payload has a hard
@@ -58,6 +59,7 @@ export class PushService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly fcm: FcmClient,
   ) {}
 
   onModuleInit(): void {
@@ -144,7 +146,7 @@ export class PushService implements OnModuleInit {
   }
 
   /**
-   * Sends to every browser the member has registered.
+   * Sends to every browser and every Android app install the member has registered.
    *
    * Best effort by design: this is called from the notification write path, and
    * the notification itself is already saved. A push that cannot be delivered
@@ -152,6 +154,109 @@ export class PushService implements OnModuleInit {
    * throws.
    */
   async sendToUser(userId: string, payload: PushPayload): Promise<{ sent: number; pruned: number }> {
+    const [web, devices] = await Promise.all([
+      this.sendToBrowsers(userId, payload),
+      this.sendToDevices(userId, payload),
+    ])
+    return { sent: web.sent + devices.sent, pruned: web.pruned + devices.pruned }
+  }
+
+  /**
+   * Records an installed copy of the Android app (its FCM token) for a member.
+   *
+   * Upserted on the token for the same reasons as a browser subscription: the app
+   * re-registers on every launch, and a different member signing in on the same
+   * phone takes the device over.
+   */
+  async registerDevice(userId: string, input: RegisterDeviceInput): Promise<void> {
+    await this.prisma.pushDevice.upsert({
+      where: { token: input.token },
+      create: { userId, token: input.token, platform: input.platform, lastSeenAt: new Date() },
+      update: { userId, platform: input.platform, lastSeenAt: new Date(), failureCount: 0 },
+    })
+
+    const extra = await this.prisma.pushDevice.findMany({
+      where: { userId },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+      skip: MAX_SUBSCRIPTIONS_PER_USER,
+    })
+    if (extra.length > 0) {
+      await this.prisma.pushDevice.deleteMany({ where: { id: { in: extra.map((d) => d.id) } } })
+    }
+  }
+
+  /**
+   * Forgets a device by its token. Deliberately not scoped to a member: the app
+   * calls this after signing out, when it no longer has a session, and the token
+   * itself is the proof — it is a long random secret only that install knows,
+   * and possessing it allows nothing except turning that one device's push off.
+   */
+  async unregisterDevice(token: string): Promise<void> {
+    await this.prisma.pushDevice.deleteMany({ where: { token } })
+  }
+
+  /** FCM, for the Android app. Same best-effort and pruning rules as browsers. */
+  private async sendToDevices(userId: string, payload: PushPayload): Promise<{ sent: number; pruned: number }> {
+    if (!this.fcm.isConfigured()) return { sent: 0, pruned: 0 }
+
+    const devices = await this.prisma.pushDevice.findMany({
+      where: { userId },
+      select: { id: true, token: true, failureCount: true },
+    })
+    if (devices.length === 0) return { sent: 0, pruned: 0 }
+
+    const isCall = payload.type === 'call_invite'
+    const data: Record<string, string> = { title: payload.title, type: payload.type }
+    if (payload.body) data.body = payload.body
+    if (payload.url) data.url = payload.url
+    if (payload.id) data.id = payload.id
+    if (payload.collapseKey) data.collapseKey = payload.collapseKey
+
+    const results = await Promise.all(
+      devices.map(async (device) => ({
+        device,
+        result: await this.fcm.send({
+          token: device.token,
+          data,
+          collapseKey: payload.collapseKey ?? payload.type,
+          // A ring that arrives a minute late is worse than none.
+          ttlSeconds: isCall ? 60 : 60 * 60 * 24,
+        }),
+      })),
+    )
+
+    const sent = results.filter((r) => r.result === 'sent')
+    const gone = results.filter((r) => r.result === 'gone').map((r) => r.device.id)
+    const failed = results
+      .filter((r) => r.result === 'failed')
+      .map((r) => ({ id: r.device.id, count: r.device.failureCount + 1 }))
+    const toPrune = [...gone, ...failed.filter((f) => f.count >= MAX_CONSECUTIVE_FAILURES).map((f) => f.id)]
+
+    if (toPrune.length > 0) {
+      await this.prisma.pushDevice.deleteMany({ where: { id: { in: toPrune } } })
+    }
+    const stillTrying = failed.filter((f) => f.count < MAX_CONSECUTIVE_FAILURES)
+    if (stillTrying.length > 0) {
+      await Promise.all(
+        stillTrying.map((f) =>
+          this.prisma.pushDevice.update({ where: { id: f.id }, data: { failureCount: f.count } }),
+        ),
+      )
+    }
+    const recovered = sent.filter((r) => r.device.failureCount > 0).map((r) => r.device.id)
+    if (recovered.length > 0) {
+      await this.prisma.pushDevice.updateMany({
+        where: { id: { in: recovered } },
+        data: { failureCount: 0 },
+      })
+    }
+
+    return { sent: sent.length, pruned: toPrune.length }
+  }
+
+  /** Web Push, to every browser the member has subscribed. */
+  private async sendToBrowsers(userId: string, payload: PushPayload): Promise<{ sent: number; pruned: number }> {
     if (!this.configured) return { sent: 0, pruned: 0 }
 
     const subscriptions = await this.prisma.pushSubscription.findMany({

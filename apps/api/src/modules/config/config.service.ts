@@ -57,6 +57,11 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
+  // Native push for the Android app (Firebase Cloud Messaging). The service
+  // account key JSON from Firebase → Project settings → Service accounts, either
+  // as-is or base64-encoded. Optional like the VAPID keys: unset, the app simply
+  // gets no push and nothing else changes.
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
   // §05 requires a distinct sender per reputation stream. Separate variables so
   // a stream can move to its own domain without a code change.
   EMAIL_FROM: z.string().optional(),
@@ -263,6 +268,11 @@ export class ConfigService {
   /** Push is configured only when both halves of the key pair are present. */
   get pushConfigured(): boolean {
     return !!this.env.VAPID_PUBLIC_KEY && !!this.env.VAPID_PRIVATE_KEY
+  }
+
+  /** Raw FCM service-account key (JSON or base64 of it); parsed by FcmClient. */
+  get fcmServiceAccountJson(): string | undefined {
+    return this.env.FCM_SERVICE_ACCOUNT_JSON
   }
 
   /**
