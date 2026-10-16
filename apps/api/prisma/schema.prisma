@@ -414,6 +414,7 @@ model Profile {
   breedingLitters           BreedingLitter[]
   notifications             Notification[]
   pushSubscriptions         PushSubscription[]
+  pushDevices               PushDevice[]
   notificationPreferences   NotificationPreference[]
   userRoles                 UserRoleAssignment[]
   subscriptions             Subscription[]
@@ -1449,6 +1450,36 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+/// An installed copy of the Android app that can receive push for a member.
+///
+/// The app renders the site in a WebView, which has no Push API, so it can never
+/// produce a PushSubscription. It registers a Firebase Cloud Messaging token
+/// instead, and PushService.sendToUser sends to both.
+model PushDevice {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+
+  /// FCM registration token. Unique because the same install re-registering —
+  /// or a different member signing in on the same phone — must update the row
+  /// (and its owner) rather than add one.
+  token String @unique
+
+  /// Only "android" today; checked in the database too.
+  platform String
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime? @map("last_seen_at")
+
+  /// Consecutive send failures that were not outright rejections.
+  failureCount Int @default(0) @map("failure_count")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_devices")
 }
 
 /// A member's per-channel notification preference.

@@ -73,6 +73,7 @@ WebSocket note: the API uses Socket.IO (messaging, presence, call signaling). Th
 | `VAPID_PUBLIC_KEY` | Web Push — sent to browsers so they can subscribe. Public by design. |
 | `VAPID_PRIVATE_KEY` | Web Push — signs the push requests. Never leaves the server. |
 | `VAPID_SUBJECT` | `mailto:` or URL a push service can use to reach the operator. Defaults to `mailto:support@zoikosocial.com`. |
+| `FCM_SERVICE_ACCOUNT_JSON` | Native push for the Android app (Firebase Cloud Messaging). The service-account key JSON from Firebase → Project settings → Service accounts → Generate new private key, as-is or base64-encoded. Secret. Optional: unset, the app gets no push and nothing else changes. |
 
 #### Which Supabase pooler `DATABASE_URL` should use
 
@@ -128,6 +129,15 @@ Both are optional. Without them the API boots normally, `/api/v1/push/public-key
 reports `available: false`, and the web app hides the notification control rather
 than offering a permission prompt that cannot lead anywhere. That is deliberate:
 a deployment with no keys should not look broken.
+
+**Android app (FCM).** The app's WebView has no Push API, so it registers a
+Firebase Cloud Messaging token through `POST /api/v1/push/devices` (stored in
+`push_devices`, migration `087`) and `PushService.sendToUser` sends to it next to
+the browser subscriptions, with the same preference checks and pruning. Set
+`FCM_SERVICE_ACCOUNT_JSON` from the same Firebase project whose
+`google-services.json` is built into the app; the key needs only the *Firebase
+Cloud Messaging API* enabled. Base64 is the easiest way to keep the multi-line key
+intact in an env var: `base64 -w0 service-account.json`.
 
 
 

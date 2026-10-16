@@ -22,6 +22,9 @@ jest.mock('web-push', () => ({
 
 import * as webpush from 'web-push'
 
+/** Web Push behaviour is tested here; FCM devices are covered in push-devices.spec.ts. */
+const NO_FCM = { isConfigured: () => false } as never
+
 const USER = 'user-1'
 const KEY = 'social.reactions'
 
@@ -124,7 +127,7 @@ function buildSender(subs: { id: string; failureCount?: number }[]) {
     vapidPrivateKey: 'priv',
     vapidSubject: 'mailto:support@example.com',
   }
-  const service = new PushService(prisma as never, config as never)
+  const service = new PushService(prisma as never, config as never, NO_FCM)
   service.onModuleInit()
   return { service, prisma }
 }
@@ -144,7 +147,7 @@ describe('PushService.subscribe', () => {
     }
     const service = new PushService(prisma as never, {
       pushConfigured: true, vapidPublicKey: 'pub', vapidPrivateKey: 'priv', vapidSubject: 'mailto:a@b.c',
-    } as never)
+    } as never, NO_FCM)
     service.onModuleInit()
     return { service, prisma }
   }
@@ -245,7 +248,7 @@ describe('SubscribeSchema endpoint validation', () => {
 describe('PushService.unsubscribe', () => {
   it('is scoped to the caller, so an endpoint cannot be guessed away', async () => {
     const prisma = { pushSubscription: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) } }
-    const service = new PushService(prisma as never, { pushConfigured: false } as never)
+    const service = new PushService(prisma as never, { pushConfigured: false } as never, NO_FCM)
     await service.unsubscribe(USER, 'https://push.example/abc')
     expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({
       where: { userId: USER, endpoint: 'https://push.example/abc' },
@@ -310,7 +313,7 @@ describe('PushService.sendToUser', () => {
 
   it('does nothing without VAPID keys, rather than throwing', async () => {
     const prisma = { pushSubscription: { findMany: jest.fn() } }
-    const service = new PushService(prisma as never, { pushConfigured: false } as never)
+    const service = new PushService(prisma as never, { pushConfigured: false } as never, NO_FCM)
     service.onModuleInit()
     await expect(service.sendToUser(USER, payload)).resolves.toEqual({ sent: 0, pruned: 0 })
     expect(prisma.pushSubscription.findMany).not.toHaveBeenCalled()
