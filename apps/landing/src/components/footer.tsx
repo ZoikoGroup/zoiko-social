@@ -28,6 +28,7 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
       { label: "About Zoiko Social", href: ABOUT },
       { label: "Careers", href: "/company-careers" },
       { label: "Press & Media", href: "/company-press-media" },
+      { label: "Blog", href: "/blog" },
       { label: "Partnerships", href: "/company-partnerships" },
       { label: "Brand Assets", href: "/company-brand-assets" },
     ],
