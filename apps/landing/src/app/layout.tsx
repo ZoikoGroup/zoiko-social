@@ -34,6 +34,10 @@ export const metadata: Metadata = {
   title: "ZoikoSocial — Animal Welfare Network",
   description:
     "Share moments, build communities, follow verified animal welfare news, and coordinate care safely, globally, and profanity-free.",
+  // Renders <meta name="google-site-verification" content="..." /> in <head>.
+  verification: {
+    google: "LNTxbhgzkQr_07_CjYCAG8aqgAnNBcvhFBdiQpEH36o",
+  },
 };
 
 export default function RootLayout({
