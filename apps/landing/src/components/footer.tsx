@@ -97,10 +97,10 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
 
 const socialLinks: { label: string; icon: string; href: string }[] = [
   { label: "Facebook", icon: `${ASSET}facebook.svg`, href: "https://www.facebook.com/zoikosocial/" },
-  { label: "Instagram", icon: `${ASSET}instagram.svg`, href: "https://www.instagram.com/zoikosocial/" },
+  { label: "Instagram", icon: `${ASSET}instagram.svg`, href: "https://www.instagram.com/zoiko_social/" },
   { label: "Pinterest", icon: `${ASSET}pinterest.svg`, href: "https://www.pinterest.co.uk/zoikosocial/" },
   { label: "X", icon: `${ASSET}x.svg`, href: "https://twitter.com/Zoikosocial" },
-  { label: "Threads", icon: `${ASSET}threads.svg`, href: "https://www.threads.net/@zoikosocial" },
+  { label: "Threads", icon: `${ASSET}threads.svg`, href: "https://www.threads.com/@zoiko_social" },
   { label: "YouTube", icon: `${ASSET}youtube.svg`, href: "https://www.youtube.com/@zoikosocial" },
 ];
 
