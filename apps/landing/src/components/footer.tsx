@@ -96,10 +96,12 @@ const footerSections: { title: string; links: FooterLink[] }[] = [
 ];
 
 const socialLinks: { label: string; icon: string; href: string }[] = [
-  { label: "X", icon: `${ASSET}x.svg`, href: PLACEHOLDER },
-  { label: "Facebook", icon: `${ASSET}facebook.svg`, href: PLACEHOLDER },
-  { label: "Instagram", icon: `${ASSET}instagram.svg`, href: PLACEHOLDER },
-  { label: "LinkedIn", icon: `${ASSET}linkedin.svg`, href: PLACEHOLDER },
+  { label: "Facebook", icon: `${ASSET}facebook.svg`, href: "https://www.facebook.com/zoikosocial/" },
+  { label: "Instagram", icon: `${ASSET}instagram.svg`, href: "https://www.instagram.com/zoikosocial/" },
+  { label: "Pinterest", icon: `${ASSET}pinterest.svg`, href: "https://www.pinterest.co.uk/zoikosocial/" },
+  { label: "X", icon: `${ASSET}x.svg`, href: "https://twitter.com/Zoikosocial" },
+  { label: "Threads", icon: `${ASSET}threads.svg`, href: "https://www.threads.net/@zoikosocial" },
+  { label: "YouTube", icon: `${ASSET}youtube.svg`, href: "https://www.youtube.com/@zoikosocial" },
 ];
 
 const OFFICES = [
@@ -183,6 +185,8 @@ export default function Footer() {
                   <Link
                     key={label}
                     href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     aria-label={label}
                     className="flex size-11 items-center justify-center rounded-3xl bg-white/5 transition-colors hover:bg-white/10"
                   >
