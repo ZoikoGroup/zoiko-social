@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import HeroSection from "./components/HeroSection";
 import WhyWorkHereSection from "./components/WhyWorkHereSection";
 import TeamsSection from "./components/TeamsSection";
@@ -13,12 +12,6 @@ import FaqSection from "./components/FaqSection";
 import CTABannerSection from "./components/CTABannerSection";
 import { C } from "./components/theme";
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-jakarta",
-});
-
 export const metadata: Metadata = {
   title: "Careers at Zoiko Social | Build Technology for Animal Communities",
   description:
@@ -28,7 +21,7 @@ export const metadata: Metadata = {
 export default function CompanyCareersPage() {
   return (
     <div
-      className={`${jakarta.className} min-h-screen selection:bg-[#066879]/20`}
+      className={`font-jakarta min-h-screen selection:bg-[#066879]/20`}
       style={{ background: C.white, color: C.nevada }}
     >
       {/* Section 1: Hero */}

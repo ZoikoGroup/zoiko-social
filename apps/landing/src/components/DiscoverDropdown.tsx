@@ -2,13 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Sora } from "next/font/google";
 import { appUrl } from "@/lib/app-links";
-
-/* The design sets the two headings in Sora, which the site does not otherwise
-   load. Declaring it here rather than in the root layout keeps the extra font
-   scoped to this menu — nothing else on the site pays for it. */
-const sora = Sora({ subsets: ["latin"], weight: ["700"], display: "swap" });
 
 /* Exported design assets, served straight from /public. `unoptimized` because
    Next's image optimizer refuses SVG unless `dangerouslyAllowSVG` is set. */
@@ -133,7 +127,7 @@ export default function DiscoverDropdown() {
         </div>
         <div className="flex flex-col gap-0.5">
           <div
-            className={`${sora.className} text-base font-bold text-gray-900`}
+            className={`font-sora text-base font-bold text-gray-900`}
           >
             Discover
           </div>
@@ -171,7 +165,7 @@ export default function DiscoverDropdown() {
               Discover Highlight
             </div>
             <p
-              className={`${sora.className} mt-2.5 text-base font-bold leading-5 text-gray-900`}
+              className={`font-sora mt-2.5 text-base font-bold leading-5 text-gray-900`}
             >
               Find your corner of the animal world.
             </p>

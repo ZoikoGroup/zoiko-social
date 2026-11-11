@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/footer";
 import BlackFridayBar from "@/components/BlackFridayBar";
 import BlackFridayPopup from "@/components/BlackFridayPopup";
-import { Montserrat, Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { Montserrat, Inter, Plus_Jakarta_Sans, Sora } from "next/font/google";
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -19,6 +19,20 @@ const inter = Inter({
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-plus-jakarta-sans",
+  display: "swap",
+});
+
+/*
+  Every Google font is loaded here, once, and used through Tailwind's
+  font-jakarta / font-sora / font-inter / font-montserrat classes. Calling
+  next/font/google inside individual pages or components broke the production
+  build (Turbopack: "next/font/google queries have exactly one entry"), so
+  don't add per-file font loaders — add the font here instead.
+*/
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["700"],
+  variable: "--font-sora",
   display: "swap",
 });
 
@@ -49,7 +63,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${montserrat.variable} ${inter.variable} ${plusJakartaSans.variable} font-sans`}>
+      <body className={`${montserrat.variable} ${inter.variable} ${plusJakartaSans.variable} ${sora.variable} font-sans`}>
         <BlackFridayBar />
         <Header />
         <main className="min-h-screen">

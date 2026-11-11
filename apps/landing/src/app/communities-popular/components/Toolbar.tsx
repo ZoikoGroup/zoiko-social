@@ -1,12 +1,9 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
 
 // Optimize font loading in Next.js
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
-
 export default function Toolbar() {
   return (
     <div
-      className={`w-full max-w-[1232px] py-4 flex justify-between items-center border-b border-cyan-200 ${plusJakartaSans.className}`}
+      className={`w-full max-w-[1232px] py-4 flex justify-between items-center border-b border-cyan-200 font-jakarta`}
     >
       {/* Left Side: Search and Filters */}
       <div className="flex items-center gap-3 flex-1">

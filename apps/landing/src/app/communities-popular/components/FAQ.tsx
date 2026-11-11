@@ -1,8 +1,5 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
 
 // Optimize font loading in Next.js
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
-
 export default function FAQ() {
   const faqs = [
     {
@@ -49,7 +46,7 @@ export default function FAQ() {
 
   return (
     <section
-      className={`w-full max-w-[1232px] pt-4 pb-14 flex flex-col justify-start items-start gap-2.5 ${plusJakartaSans.className}`}
+      className={`w-full max-w-[1232px] pt-4 pb-14 flex flex-col justify-start items-start gap-2.5 font-jakarta`}
     >
       {/* Header */}
       <div className="w-full pb-2.5 flex flex-col justify-start items-start">

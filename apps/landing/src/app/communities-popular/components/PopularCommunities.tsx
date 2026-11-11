@@ -1,13 +1,10 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
 
 // Optimize font loading in Next.js
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
-
 export default function PopularCommunities() {
   return (
     <div
-      className={`w-full max-w-[1232px] pt-7 pb-10 flex flex-col justify-start items-start gap-1.5 ${plusJakartaSans.className}`}
+      className={`w-full max-w-[1232px] pt-7 pb-10 flex flex-col justify-start items-start gap-1.5 font-jakarta`}
     >
       {/* Header */}
       <div className="self-stretch pt-2 flex flex-col justify-start items-start">

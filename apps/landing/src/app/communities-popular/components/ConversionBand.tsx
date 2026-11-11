@@ -1,14 +1,11 @@
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
 import { APP_LINKS } from "@/lib/app-links";
 
 // Optimize font loading in Next.js
-const plusJakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"] });
-
 export default function ConversionBand() {
   return (
     <section
-      className={`w-full max-w-[1232px] py-16 px-6 bg-gradient-to-br from-cyan-950 to-cyan-800 rounded-[32px] flex flex-col justify-center items-center text-center gap-5 ${plusJakartaSans.className}`}
+      className={`w-full max-w-[1232px] py-16 px-6 bg-gradient-to-br from-cyan-950 to-cyan-800 rounded-[32px] flex flex-col justify-center items-center text-center gap-5 font-jakarta`}
     >
       {/* Heading */}
       <h2 className="w-full max-w-[520px] text-white text-2xl md:text-3xl font-extrabold leading-[40px]">
