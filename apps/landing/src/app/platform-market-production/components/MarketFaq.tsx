@@ -1,13 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Plus_Jakarta_Sans } from "next/font/google";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  display: "swap",
-});
 
 const faqs = [
   {
@@ -48,7 +41,7 @@ export default function MarketFaq() {
   return (
     <section
       className={`
-        ${plusJakartaSans.className}
+        font-jakarta
         w-full
         bg-[#F5F7F8]
         px-5

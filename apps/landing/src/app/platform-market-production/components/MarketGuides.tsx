@@ -1,13 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Plus_Jakarta_Sans } from "next/font/google";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  display: "swap",
-});
 
 const guides = [
   {
@@ -34,7 +27,7 @@ export default function MarketGuides() {
   return (
     <section
       className={`
-        ${plusJakartaSans.className}
+        font-jakarta
         w-full
         bg-[#F5F7F8]
         px-5

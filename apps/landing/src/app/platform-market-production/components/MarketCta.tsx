@@ -1,18 +1,11 @@
 "use client";
 
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  display: "swap",
-});
 
 export default function MarketCta() {
   return (
     <section
-      className={`${plusJakartaSans.className} w-full bg-white px-5 py-12 sm:px-8 sm:py-16 lg:px-20 lg:py-20`}
+      className={`font-jakarta w-full bg-white px-5 py-12 sm:px-8 sm:py-16 lg:px-20 lg:py-20`}
     >
       <div
         className="

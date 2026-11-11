@@ -1,17 +1,10 @@
 "use client";
 
-import { Plus_Jakarta_Sans } from "next/font/google";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  display: "swap",
-});
 
 export default function MarketHero() {
   return (
     <section
-      className={`${plusJakartaSans.className} relative w-full overflow-hidden`}
+      className={`font-jakarta relative w-full overflow-hidden`}
     >
       {/* Background Image */}
       <div

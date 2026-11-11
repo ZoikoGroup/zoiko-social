@@ -1,13 +1,6 @@
 "use client";
 
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400"],
-  display: "swap",
-});
 
 const categories = [
   {
@@ -39,7 +32,7 @@ export default function CategoryNav() {
   return (
     <section id="market-categories"
       className={`
-        ${plusJakartaSans.className}
+        font-jakarta
         w-full
         bg-white
         px-5
