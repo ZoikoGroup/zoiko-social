@@ -2,12 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Sora } from "next/font/google";
-
-/* The design sets the two headings in Sora, which the site does not otherwise
-   load. Declaring it here rather than in the root layout keeps the extra font
-   scoped to this menu. */
-const sora = Sora({ subsets: ["latin"], weight: ["700"], display: "swap" });
 
 /* Exported design assets, served straight from /public. `unoptimized` because
    Next's image optimizer refuses SVG unless `dangerouslyAllowSVG` is set. */
@@ -130,7 +124,7 @@ export default function EventsDropdown() {
         </div>
         <div className="flex flex-col gap-0.5">
           <div
-            className={`${sora.className} text-base font-bold text-gray-900`}
+            className={`font-sora text-base font-bold text-gray-900`}
           >
             Events
           </div>
@@ -168,7 +162,7 @@ export default function EventsDropdown() {
               Events Highlight
             </div>
             <p
-              className={`${sora.className} mt-2.5 text-base font-bold leading-5 text-gray-900`}
+              className={`font-sora mt-2.5 text-base font-bold leading-5 text-gray-900`}
             >
               Turn up for the cause in person.
             </p>
