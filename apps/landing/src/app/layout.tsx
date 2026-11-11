@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/footer";
+import BlackFridayBar from "@/components/BlackFridayBar";
+import BlackFridayPopup from "@/components/BlackFridayPopup";
 import { Montserrat, Inter, Plus_Jakarta_Sans } from "next/font/google";
 
 const montserrat = Montserrat({
@@ -48,11 +50,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${montserrat.variable} ${inter.variable} ${plusJakartaSans.variable} font-sans`}>
+        <BlackFridayBar />
         <Header />
         <main className="min-h-screen">
           {children}
         </main>
         <Footer />
+        <BlackFridayPopup />
       </body>
     </html>
   );
