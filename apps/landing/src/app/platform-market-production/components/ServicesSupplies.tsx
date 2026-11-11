@@ -1,15 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import Link from "next/link";
 import { appUrl } from "@/lib/app-links";
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "700", "800"],
-  display: "swap",
-});
 
 const serviceCategories = [
   {
@@ -80,7 +73,7 @@ export default function ServicesSupplies() {
   return (
     <section id="services-supplies"
       className={`
-        ${plusJakartaSans.className}
+        font-jakarta
         w-full
         bg-white
         px-5
