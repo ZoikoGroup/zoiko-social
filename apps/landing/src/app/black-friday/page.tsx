@@ -13,9 +13,9 @@ import CtaSection from "./components/CtaSection";
 import FaqSection from "./components/FaqSection";
 
 export const metadata: Metadata = {
-  title: "Black Friday 2026 — ZoikoSocial",
+  title: "Black Friday Deals 2026 – Save 30% | Zoiko Social",
   description:
-    "Join the animal-loving community on Zoiko Social for free — and get 30% off the first year of paid Creator & Business tools this Black Friday.",
+    "Celebrate Black Friday with Zoiko Social! Save 30% on eligible Creator and Business tools for the first year and connect with a community built for animal lovers.",
 };
 
 export default function BlackFridayPage() {
