@@ -121,7 +121,7 @@ export default function HeroSection() {
               <br />
               <span className="text-3xl">SALE</span>
             </p>
-            <p className="mt-1 text-xs font-medium text-white">NOV 27</p>
+            <p className="mt-1 text-xs font-medium text-white">NOV 30</p>
           </div>
         </div>
       </div>

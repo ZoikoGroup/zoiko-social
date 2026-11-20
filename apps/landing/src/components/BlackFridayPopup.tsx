@@ -100,7 +100,7 @@ export default function BlackFridayPopup() {
               <br />
               <span className="text-2xl">SALE</span>
             </p>
-            <p className="mt-1 text-[11px] font-semibold text-white">NOV 27</p>
+            <p className="mt-1 text-[11px] font-semibold text-white">NOV 30</p>
           </div>
 
           <p className="absolute bottom-4 left-5 flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur md:bottom-6 md:left-6">
