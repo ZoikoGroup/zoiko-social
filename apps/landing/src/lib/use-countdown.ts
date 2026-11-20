@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 /** Black Friday 2026 — every Black Friday countdown on the site runs to this moment. */
-export const BLACK_FRIDAY_AT = "2026-11-27T00:00:00";
+export const BLACK_FRIDAY_AT = "2026-11-30T00:00:00";
 
 function subscribe(onTick: () => void) {
   const id = setInterval(onTick, 1000);
